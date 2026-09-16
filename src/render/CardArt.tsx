@@ -2,15 +2,15 @@ import { memo, useEffect, useId, useState } from 'react';
 import { motion } from 'framer-motion';
 import { rankLabel, type Card } from '../../shared/cards';
 import type { BackPattern, CardBackStyle, CardFaceStyle, Emblem, FontKey } from '../../shared/styles';
-import { CROWN_PATH, Flower, MOON_PATH, SuitGlyph, starPath } from './suits';
+import { CROWN_PATH, Damask, FLEUR_PATH, Flower, MOON_PATH, SuitGlyph, starPath } from './suits';
 import { cleanId, shade } from '../util/color';
 import { useEquipped } from '../store/profile';
 
 export const FONT_FAMILY: Record<FontKey, string> = {
-  serif: 'Georgia, "Times New Roman", serif',
+  serif: '"Playfair Display", Georgia, "Times New Roman", serif',
   sans: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',
   rounded: '"M PLUS Rounded 1c", "Segoe UI", sans-serif',
-  fancy: 'Cinzel, Georgia, serif',
+  fancy: '"Cinzel Decorative", Cinzel, Georgia, serif',
   mono: 'Consolas, "Courier New", monospace',
 };
 
@@ -265,6 +265,11 @@ function PatternDef({ id, st }: { id: string; st: CardBackStyle }) {
         <circle cx={s} cy={0} r={s / 2} fill="none" stroke={c} strokeWidth={s * 0.07} />
       </pattern>
     ),
+    damask: (
+      <pattern {...common} width={s * 1.6} height={s * 2.2}>
+        <Damask w={s * 1.6} h={s * 2.2} color={c} stroke={s * 0.05} />
+      </pattern>
+    ),
   };
   return <>{kinds[st.pattern]}</>;
 }
@@ -285,6 +290,8 @@ function EmblemArt({ emblem, st }: { emblem: Emblem; st: CardBackStyle }) {
       return <path d={CROWN_PATH} transform="scale(0.95)" fill={c} />;
     case 'flower':
       return <Flower r={30} color={c} center={st.emblemBg} />;
+    case 'fleur':
+      return <path d={FLEUR_PATH} transform="translate(0 -2) scale(0.66)" fill={c} />;
     case 'text':
       return (
         <text y={14} textAnchor="middle" fontFamily={FONT_FAMILY.fancy} fontWeight={900} fontSize={st.emblemText.length > 2 ? 28 : 38} fill={c}>

@@ -135,6 +135,22 @@ junto com o estado resultante, e espaça os eventos no tempo. No cliente, o **di
 cartas saem do dealer e, ao desistir, voam para o descarte, o bordo vira na mesa e o pote voa para o
 vencedor — e só então aplica o estado. Se houver atraso, as animações aceleram sozinhas.
 
+## Tema vitoriano (branch `tema-vitoriano`)
+
+Versão da interface com ar de salão aristocrático do século XIX:
+
+- **Visual**: `src/styles/victorian.css`, carregado depois de `global.css`, troca a paleta (mogno, bordô,
+  verde-garrafa, latão e marfim) e o acabamento de tudo: papel de parede adamascado com lambri de madeira,
+  painéis de couro com cantoneiras de latão, botões como placas gravadas, retratos em moldura dourada,
+  faixa de veludo nos cut-ins e poeira dourada à luz de velas no menu.
+- **Tipografia**: Cormorant Garamond (texto), Cinzel e Cinzel Decorative (títulos) e Playfair Display (números).
+- **Estilos**: presets novos, equipados por padrão (uma migração do perfil os equipa uma vez): cartas
+  *Vitoriana*, versos *Brasão Bordô* e *Salão Esmeralda*, fichas *Marfim e Latão* e mesas *Salão Vitoriano* e
+  *Veludo Bordô*. Há também o padrão **Damasco** (verso e mesa) e o emblema **flor-de-lis**. A mesa ganhou
+  tachas de latão na borda.
+- **Sons**: clique de madeira, sineta de balcão na sua vez, tique-taque de relógio no fim do tempo e arpejo
+  de cravo na vitória.
+
 ## Estúdio de estilos
 
 Em **Estúdio** você cria e edita, com pré-visualização ao vivo:

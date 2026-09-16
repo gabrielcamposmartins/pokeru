@@ -209,8 +209,8 @@ function ModeCard({ title, sub, glyph, cls, onClick, delay }: { title: string; s
 export function MainMenu({ go }: { go: (s: Screen) => void }) {
   const [quick, setQuick] = useState(false);
   const icons: { key: Screen; icon: string; label: string }[] = [
-    { key: 'characters', icon: '✿', label: 'Personagens' },
-    { key: 'studio', icon: '✦', label: 'Estúdio' },
+    { key: 'characters', icon: '♛', label: 'Personagens' },
+    { key: 'studio', icon: '✒', label: 'Estúdio' },
     { key: 'settings', icon: '⚙', label: 'Ajustes' },
   ];
   return (
@@ -224,7 +224,11 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
         <span className="logo-main">
           P<span className="logo-spade">♠</span>ker<span className="logo-soul">Soul</span>
         </span>
-        <span className="logo-sub">ポーカー魂 · Texas Hold’em</span>
+        <span className="logo-flourish" aria-hidden>
+          <i />⚜<i />
+        </span>
+        <span className="logo-sub">Salão Aristocrático · Texas Hold’em</span>
+        <span className="logo-est">Est. MDCCCLXXXVII</span>
       </motion.div>
       <div className="mode-area">
         <div className="mode-cards">

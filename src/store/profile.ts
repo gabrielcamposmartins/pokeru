@@ -85,11 +85,12 @@ const initial = {
   avatar: { color: '#ff6b9a', icon: '♠' },
   character: CHARACTER_PRESETS[0].id,
   custom: { face: [], back: [], chip: [], table: [] },
+  /** Tema vitoriano: marfim, bordô, latão e mogno. */
   equipped: {
-    face: FACE_PRESETS[0].id,
-    back: BACK_PRESETS[1].id,
-    chip: CHIP_PRESETS[0].id,
-    table: TABLE_PRESETS[1].id,
+    face: 'face-victorian',
+    back: 'back-victorian',
+    chip: 'chip-victorian',
+    table: 'table-victorian',
   },
   settings: {
     volume: 0.7,
@@ -135,7 +136,12 @@ export const useProfile = create<ProfileState>()(
     }),
     {
       name: 'pokersoul-profile',
-      version: 1,
+      version: 2,
+      // v2 (tema vitoriano): equipa os estilos novos uma vez; os estilos criados continuam salvos
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Partial<ProfileState>;
+        return (version < 2 ? { ...p, equipped: initial.equipped } : p) as ProfileState;
+      },
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ProfileState>;
         return {

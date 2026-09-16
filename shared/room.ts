@@ -299,7 +299,7 @@ export class Room {
       isBot: true,
       difficulty,
       avatar: { color: pick(AVATAR_COLORS), icon: pick(AVATAR_ICONS) },
-      cosmetics: { back: pick(BACK_PRESETS), character },
+      cosmetics: { back: pick(BACK_PRESETS.filter((b) => b.id.startsWith('back-victorian'))), character },
       seat,
       stack: this.settings.startingStack,
       client: null,

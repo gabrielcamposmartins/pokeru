@@ -13,7 +13,7 @@ function CutIn({ splash }: { splash: Splash }) {
     <motion.div className="cutin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
       <motion.div
         className="cutin-band"
-        style={{ background: `linear-gradient(90deg, ${st.bg2}, ${st.bg} 55%, ${st.bg2})` }}
+        style={{ background: `linear-gradient(90deg, #140706 0%, ${st.bg2}d9 30%, ${st.bg}99 58%, #140706 100%), #2a0c10` }}
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 0.28, ease: 'easeOut' }}

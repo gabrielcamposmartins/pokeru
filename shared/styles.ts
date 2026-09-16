@@ -38,7 +38,8 @@ export type BackPattern =
   | 'lattice'
   | 'stars'
   | 'sakura'
-  | 'scales';
+  | 'scales'
+  | 'damask';
 export const BACK_PATTERNS: BackPattern[] = [
   'solid',
   'stripes',
@@ -50,10 +51,11 @@ export const BACK_PATTERNS: BackPattern[] = [
   'stars',
   'sakura',
   'scales',
+  'damask',
 ];
 
-export type Emblem = 'none' | 'spade' | 'heart' | 'diamond' | 'club' | 'star' | 'moon' | 'crown' | 'flower' | 'text';
-export const EMBLEMS: Emblem[] = ['none', 'spade', 'heart', 'diamond', 'club', 'star', 'moon', 'crown', 'flower', 'text'];
+export type Emblem = 'none' | 'spade' | 'heart' | 'diamond' | 'club' | 'star' | 'moon' | 'crown' | 'flower' | 'fleur' | 'text';
+export const EMBLEMS: Emblem[] = ['none', 'spade', 'heart', 'diamond', 'club', 'star', 'moon', 'crown', 'flower', 'fleur', 'text'];
 
 export interface CardBackStyle {
   id: string;
@@ -96,8 +98,8 @@ export interface ChipStyle {
   shine: boolean;
 }
 
-export type TablePattern = 'none' | 'lines' | 'hex' | 'sakura' | 'suits';
-export const TABLE_PATTERNS: TablePattern[] = ['none', 'lines', 'hex', 'sakura', 'suits'];
+export type TablePattern = 'none' | 'lines' | 'hex' | 'sakura' | 'suits' | 'damask';
+export const TABLE_PATTERNS: TablePattern[] = ['none', 'lines', 'hex', 'sakura', 'suits', 'damask'];
 
 export interface TableStyle {
   id: string;
@@ -132,6 +134,24 @@ export interface PlayerCosmetics {
 // ---------------------------------------------------------------------
 
 export const FACE_PRESETS: CardFaceStyle[] = [
+  {
+    id: 'face-victorian',
+    name: 'Vitoriana',
+    bg: '#fbf5e6',
+    bgGradient: '#eadcbc',
+    border: '#8a6a2e',
+    borderWidth: 4,
+    radius: 12,
+    frame: 'ornate',
+    frameColor: '#b08d4a',
+    suitColors: { s: '#1c1714', h: '#8e1c2b', d: '#8e1c2b', c: '#1c1714' },
+    font: 'serif',
+    indexScale: 1,
+    center: 'pips',
+    court: 'crest',
+    courtColor: '#5a1420',
+    courtAccent: '#b08d4a',
+  },
   {
     id: 'face-classic',
     name: 'Clássico',
@@ -243,6 +263,44 @@ export const FACE_PRESETS: CardFaceStyle[] = [
 ];
 
 export const BACK_PRESETS: CardBackStyle[] = [
+  {
+    id: 'back-victorian',
+    name: 'Brasão Bordô',
+    base: '#5e1420',
+    base2: '#2e0a10',
+    pattern: 'damask',
+    patternColor: '#d9b56a',
+    patternScale: 1,
+    patternOpacity: 0.38,
+    border: '#efe3c6',
+    frame: '#b08d4a',
+    borderWidth: 12,
+    radius: 12,
+    emblem: 'fleur',
+    emblemColor: '#e2c27a',
+    emblemBg: '#3a0c14',
+    emblemText: 'PS',
+    imageOpacity: 1,
+  },
+  {
+    id: 'back-victorian-green',
+    name: 'Salão Esmeralda',
+    base: '#1f4a36',
+    base2: '#0f2a1f',
+    pattern: 'damask',
+    patternColor: '#cdb27a',
+    patternScale: 1,
+    patternOpacity: 0.32,
+    border: '#efe3c6',
+    frame: '#b08d4a',
+    borderWidth: 12,
+    radius: 12,
+    emblem: 'crown',
+    emblemColor: '#e2c27a',
+    emblemBg: '#0f2a1f',
+    emblemText: 'PS',
+    imageOpacity: 1,
+  },
   {
     id: 'back-royal',
     name: 'Real Azul',
@@ -361,6 +419,25 @@ export const BACK_PRESETS: CardBackStyle[] = [
 
 export const CHIP_PRESETS: ChipStyle[] = [
   {
+    id: 'chip-victorian',
+    name: 'Marfim e Latão',
+    tiers: [
+      { base: '#efe6d2', edge: '#8a6a2e', text: '#3a2a14' },
+      { base: '#7a1a26', edge: '#e9dcc0', text: '#f3e9d2' },
+      { base: '#1f4a36', edge: '#e2c27a', text: '#f3e9d2' },
+      { base: '#1c1714', edge: '#c9a25a', text: '#e9d6a6' },
+      { base: '#4a2a4f', edge: '#e2c27a', text: '#f3e9d2' },
+      { base: '#b08d4a', edge: '#3a2a14', text: '#2a1c0c' },
+      { base: '#1d2b4a', edge: '#e9dcc0', text: '#e9dcc0' },
+      { base: '#5e1420', edge: '#e2c27a', text: '#f6e7b8' },
+    ],
+    edgePattern: 'stripes',
+    edgeCount: 8,
+    inlay: 'ring',
+    showValue: true,
+    shine: true,
+  },
+  {
     id: 'chip-casino',
     name: 'Cassino',
     tiers: [
@@ -439,6 +516,34 @@ export const CHIP_PRESETS: ChipStyle[] = [
 ];
 
 export const TABLE_PRESETS: TableStyle[] = [
+  {
+    id: 'table-victorian',
+    name: 'Salão Vitoriano',
+    felt: '#1d4a34',
+    feltLight: '#2c6647',
+    rail: '#3a1a10',
+    railAccent: '#c9a25a',
+    pattern: 'damask',
+    patternColor: '#e2c27a',
+    logoText: 'POKER SOUL',
+    logoColor: '#e2c27a',
+    bgTop: '#3a1418',
+    bgBottom: '#0e0506',
+  },
+  {
+    id: 'table-victorian-wine',
+    name: 'Veludo Bordô',
+    felt: '#5e1420',
+    feltLight: '#7e2330',
+    rail: '#1c0f0a',
+    railAccent: '#c9a25a',
+    pattern: 'damask',
+    patternColor: '#f0cf8a',
+    logoText: 'ROYAL CLUB',
+    logoColor: '#f0cf8a',
+    bgTop: '#1d2a22',
+    bgBottom: '#070b09',
+  },
   {
     id: 'table-green',
     name: 'Feltro Clássico',

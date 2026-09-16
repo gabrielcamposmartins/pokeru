@@ -371,6 +371,7 @@ const EMBLEM_ICON: Record<Emblem, string> = {
   moon: '☾',
   crown: '♛',
   flower: '❀',
+  fleur: '⚜',
   text: 'Aa',
 };
 
@@ -385,6 +386,7 @@ const PATTERN_LABEL: Record<BackPattern, string> = {
   stars: 'Estrelas',
   sakura: 'Sakura',
   scales: 'Escamas',
+  damask: 'Damasco',
 };
 
 function BackEditor({ st, set }: { st: CardBackStyle; set: Setter<CardBackStyle> }) {
@@ -526,7 +528,7 @@ function ChipEditor({ st, set }: { st: ChipStyle; set: Setter<ChipStyle> }) {
   );
 }
 
-const TPATTERN_LABEL: Record<TablePattern, string> = { none: 'Liso', lines: 'Linhas', hex: 'Hexágonos', sakura: 'Sakura', suits: 'Naipes' };
+const TPATTERN_LABEL: Record<TablePattern, string> = { none: 'Liso', lines: 'Linhas', hex: 'Hexágonos', sakura: 'Sakura', suits: 'Naipes', damask: 'Damasco' };
 
 function TableEditor({ st, set }: { st: TableStyle; set: Setter<TableStyle> }) {
   return (

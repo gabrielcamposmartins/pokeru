@@ -61,3 +61,43 @@ export function Flower({ r, color, center }: { r: number; color: string; center?
     </g>
   );
 }
+
+/** Flor-de-lis num quadrado de 100x100 centrado em (0,0). */
+export const FLEUR_PATH =
+  'M0 -48 C14 -30 16 -12 6 6 L-6 6 C-16 -12 -14 -30 0 -48 Z ' +
+  'M8 6 C12 -8 26 -24 40 -18 C52 -12 48 6 34 4 C40 -2 36 -10 29 -7 C21 -3 17 6 15 12 Z ' +
+  'M-8 6 C-12 -8 -26 -24 -40 -18 C-52 -12 -48 6 -34 4 C-40 -2 -36 -10 -29 -7 C-21 -3 -17 6 -15 12 Z ' +
+  'M-20 9 H20 V16 H-20 Z ' +
+  'M-6 16 H6 C7 26 14 33 24 36 C13 40 5 36 0 30 C-5 36 -13 40 -24 36 C-14 33 -7 26 -6 16 Z';
+
+/** Módulo de damasco (flor-de-lis numa treliça ogival) num ladrilho w x h. */
+export function Damask({ w, h, color, stroke }: { w: number; h: number; color: string; stroke: number }) {
+  const k = Math.min(w, h) / 100;
+  const ogee =
+    `M${w / 2} 0 C${w * 0.55} ${h * 0.28} ${w * 0.95} ${h * 0.3} ${w} ${h / 2} ` +
+    `C${w * 0.95} ${h * 0.7} ${w * 0.55} ${h * 0.72} ${w / 2} ${h} ` +
+    `C${w * 0.45} ${h * 0.72} ${w * 0.05} ${h * 0.7} 0 ${h / 2} ` +
+    `C${w * 0.05} ${h * 0.3} ${w * 0.45} ${h * 0.28} ${w / 2} 0 Z`;
+  return (
+    <g fill={color}>
+      <path d={ogee} fill="none" stroke={color} strokeWidth={stroke} />
+      <path d={FLEUR_PATH} transform={`translate(${w / 2} ${h / 2}) scale(${k * 0.5})`} />
+      {[
+        [0, 0],
+        [w, 0],
+        [0, h],
+        [w, h],
+      ].map(([x, y], i) => (
+        <path key={i} d={FLEUR_PATH} transform={`translate(${x} ${y}) scale(${k * 0.26})`} />
+      ))}
+      {[
+        [w / 2, 0],
+        [w, h / 2],
+        [w / 2, h],
+        [0, h / 2],
+      ].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={stroke * 1.8} />
+      ))}
+    </g>
+  );
+}

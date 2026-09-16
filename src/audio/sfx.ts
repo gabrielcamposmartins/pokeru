@@ -95,6 +95,12 @@ function playTone(o: ToneOpts): void {
   osc.stop(t0 + o.dur + 0.02);
 }
 
+/** Nota "pinçada" (cravo): dente-de-serra com ataque instantâneo e decaimento rápido, mais a oitava. */
+function pluck(freq: number, at: number, dur: number, gain = 0.05): void {
+  playTone({ freq, dur, type: 'sawtooth', gain: gain * 0.6, at, attack: 0.002 });
+  playTone({ freq: freq * 2, dur: dur * 0.6, type: 'triangle', gain: gain * 0.5, at, attack: 0.002 });
+}
+
 export const sfx = {
   unlock(): void {
     ac();
@@ -128,36 +134,42 @@ export const sfx = {
   fold(): void {
     playNoise({ dur: 0.2, freq: 1400, freqEnd: 500, q: 0.8, gain: 0.22 });
   },
+  /** Sineta de balcão: parciais inarmônicas com decaimento longo. */
   turn(): void {
-    playTone({ freq: 1318.5, dur: 0.16, type: 'triangle', gain: 0.12 });
-    playTone({ freq: 1975.5, dur: 0.25, type: 'triangle', gain: 0.1, at: 0.11 });
+    playTone({ freq: 1568, dur: 0.9, gain: 0.1 });
+    playTone({ freq: 1568 * 2.76, dur: 0.45, gain: 0.035 });
+    playTone({ freq: 1568 * 5.4, dur: 0.2, gain: 0.015 });
+    playNoise({ dur: 0.02, type: 'highpass', freq: 5000, gain: 0.05 });
   },
   allin(): void {
     playTone({ freq: 90, freqEnd: 45, dur: 0.5, gain: 0.5 });
     playNoise({ dur: 0.35, type: 'lowpass', freq: 700, gain: 0.3 });
     sfx.chips(8);
   },
+  /** Arpejo de cravo (Ré maior) terminando num acorde. */
   win(): void {
-    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) =>
-      playTone({ freq: f, dur: 0.35, type: 'triangle', gain: 0.12, at: i * 0.08 }),
-    );
-    for (let i = 0; i < 6; i++) playTone({ freq: 2500 + Math.random() * 1800, dur: 0.12, gain: 0.03, at: 0.4 + i * 0.05 });
+    [587.33, 739.99, 880, 1174.66, 880, 1174.66].forEach((f, i) => pluck(f, i * 0.075, 0.32));
+    for (const f of [587.33, 739.99, 880, 1174.66]) pluck(f, 0.5, 1.1, 0.03);
+    playTone({ freq: 2349.3, dur: 0.8, gain: 0.03, at: 0.5 });
   },
   lose(): void {
-    playTone({ freq: 392, dur: 0.25, type: 'triangle', gain: 0.1 });
-    playTone({ freq: 311, dur: 0.4, type: 'triangle', gain: 0.1, at: 0.18 });
+    [440, 349.23, 293.66].forEach((f, i) => pluck(f, i * 0.16, 0.5, 0.045));
   },
+  /** Toque seco de madeira. */
   click(): void {
-    playTone({ freq: 880, dur: 0.05, gain: 0.07 });
+    playTone({ freq: 520, freqEnd: 380, dur: 0.06, type: 'triangle', gain: 0.1 });
+    playNoise({ dur: 0.02, type: 'bandpass', freq: 1800, q: 2, gain: 0.08 });
   },
   hover(): void {
-    playTone({ freq: 1400, dur: 0.03, gain: 0.025 });
+    playTone({ freq: 1046.5, dur: 0.04, gain: 0.015 });
   },
+  /** Tique-taque de relógio de pêndulo. */
   tick(): void {
-    playTone({ freq: 1760, dur: 0.06, type: 'square', gain: 0.05 });
-    playNoise({ dur: 0.03, type: 'highpass', freq: 3000, gain: 0.08 });
+    playNoise({ dur: 0.035, type: 'bandpass', freq: 2600, q: 4, gain: 0.22 });
+    playTone({ freq: 1200, dur: 0.04, type: 'triangle', gain: 0.05 });
   },
   pop(): void {
-    playTone({ freq: 600, freqEnd: 1200, dur: 0.09, type: 'sine', gain: 0.1 });
+    pluck(783.99, 0, 0.25, 0.05);
+    pluck(1174.66, 0.06, 0.3, 0.04);
   },
 };
