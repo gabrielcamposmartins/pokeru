@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_失礼いたします。始めましょう。.wav",
+    "tipo": "audio",
+    "texto": "失礼いたします。始めましょう。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_ふむ…少し拝見しますね。.wav",
+    "tipo": "audio",
+    "texto": "ふむ…少し拝見しますね。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_沈黙もまた、語るものです。.wav",
+    "tipo": "audio",
+    "texto": "沈黙もまた、語るものです。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_お付き合いしましょう。.wav",
+    "tipo": "audio",
+    "texto": "お付き合いしましょう。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_雪に一輪の花を。.wav",
+    "tipo": "audio",
+    "texto": "雪に一輪の花を。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_冬はさらに厳しくなります。.wav",
+    "tipo": "audio",
+    "texto": "冬はさらに厳しくなります。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_すべてを凍てつく風に委ねます。.wav",
+    "tipo": "audio",
+    "texto": "すべてを凍てつく風に委ねます。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_今はその時ではありません。退きます。.wav",
+    "tipo": "audio",
+    "texto": "今はその時ではありません。退きます。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_カードに真実を語らせましょう。.wav",
+    "tipo": "audio",
+    "texto": "カードに真実を語らせましょう。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_降る雪のように…避けられぬこと。.wav",
+    "tipo": "audio",
+    "texto": "降る雪のように…避けられぬこと。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_氷の花が…咲きました。.wav",
+    "tipo": "audio",
+    "texto": "氷の花が…咲きました。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_雪解けは必ず訪れるもの。受け入れます。.wav",
+    "tipo": "audio",
+    "texto": "雪解けは必ず訪れるもの。受け入れます。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_雪もいつかは溶けるものね。.wav",
+    "tipo": "audio",
+    "texto": "雪もいつかは溶けるものね。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_新しい冬が始まります。.wav",
+    "tipo": "audio",
+    "texto": "新しい冬が始まります。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_寒さが増してきました。どうか落ち着いて。.wav",
+    "tipo": "audio",
+    "texto": "寒さが増してきました。どうか落ち着いて。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_急ぐのは、冬には似合いませんよ。.wav",
+    "tipo": "audio",
+    "texto": "急ぐのは、冬には似合いませんよ。",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Japanese"
+  }
+]

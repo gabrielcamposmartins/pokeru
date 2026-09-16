@@ -1,0 +1,28 @@
+// Falas comuns a todos os personagens: as chamadas de jogada e os nomes das mãos, como as
+// chamadas do Mahjong Soul (リーチ, ロン, ツモ…). O texto é o mesmo para todos; cada personagem
+// grava/fala com a própria voz.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Todos",
+  "falas": [
+    "チェック。", // check: Mesa.
+    "ベット。", // bet: Aposto.
+    "コール。", // call: Pago.
+    "レイズ！", // raise: Aumento!
+    "リレイズ！", // reraise: Reaumento! (aumentar em cima de um aumento)
+    "オールイン！", // allin: All-in!
+    "フォールド。", // fold: Desisto.
+    "オープン！", // show: Mostro! (abrir as cartas no showdown)
+    "マック。", // muck: Descarto sem mostrar.
+    "ハイカード。", // high_card: Carta alta.
+    "ワンペア！", // pair: Um par!
+    "ツーペア！", // two_pair: Dois pares!
+    "スリーカード！", // trips: Trinca!
+    "ストレート！", // straight: Sequência!
+    "フラッシュ！", // flush: Flush!
+    "フルハウス！", // full_house: Full house!
+    "フォーカード！", // quads: Quadra!
+    "ストレートフラッシュ！", // straight_flush: Straight flush!
+    "ロイヤルストレートフラッシュ！" // royal_flush: Royal flush!
+  ]
+}

@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_よーっす、みんな！盛り上げに来たぜ！.wav",
+    "tipo": "audio",
+    "texto": "よーっす、みんな！盛り上げに来たぜ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_やった、オレの番！どれどれ….wav",
+    "tipo": "audio",
+    "texto": "やった、オレの番！どれどれ…",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック！今は様子見っと、へへ。.wav",
+    "tipo": "audio",
+    "texto": "チェック！今は様子見っと、へへ。",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール！乗りかかった船だ！.wav",
+    "tipo": "audio",
+    "texto": "コール！乗りかかった船だ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_ベット！いくぜいくぜ！.wav",
+    "tipo": "audio",
+    "texto": "ベット！いくぜいくぜ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_レイズ！オレは止められないぜ！.wav",
+    "tipo": "audio",
+    "texto": "レイズ！オレは止められないぜ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_オールイン！ツモ！…あ、ゲーム違った！.wav",
+    "tipo": "audio",
+    "texto": "オールイン！ツモ！…あ、ゲーム違った！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_ははっ、降りる！これはオレの手じゃないや。.wav",
+    "tipo": "audio",
+    "texto": "ははっ、降りる！これはオレの手じゃないや。",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_じゃーん！見て見て！.wav",
+    "tipo": "audio",
+    "texto": "じゃーん！見て見て！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_へへっ、運の女神はオレにゾッコンだな！.wav",
+    "tipo": "audio",
+    "texto": "へへっ、運の女神はオレにゾッコンだな！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_ロン！…じゃなくて、総取りだ！.wav",
+    "tipo": "audio",
+    "texto": "ロン！…じゃなくて、総取りだ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_あ〜、惜しい！次は取るからな！.wav",
+    "tipo": "audio",
+    "texto": "あ〜、惜しい！次は取るからな！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_チップなくなっちゃった…誰か貸してくんない？.wav",
+    "tipo": "audio",
+    "texto": "チップなくなっちゃった…誰か貸してくんない？",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_新品のチップ！もう一回いこうぜ！.wav",
+    "tipo": "audio",
+    "texto": "新品のチップ！もう一回いこうぜ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_上がったの？ならもっと楽しくなるじゃん！.wav",
+    "tipo": "audio",
+    "texto": "上がったの？ならもっと楽しくなるじゃん！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_おーい、まだ？眠くなってきたよ….wav",
+    "tipo": "audio",
+    "texto": "おーい、まだ？眠くなってきたよ…",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Japanese"
+  }
+]

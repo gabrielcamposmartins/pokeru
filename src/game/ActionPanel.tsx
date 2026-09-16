@@ -1,0 +1,170 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { PlayerAction } from '../../shared/engine';
+import { useSession } from '../store/session';
+import { useTable } from '../store/table';
+import { sfx } from '../audio/sfx';
+import { fmt } from '../util/format';
+
+type Pre = 'none' | 'checkfold' | 'check' | 'callany';
+
+export function ActionPanel() {
+  const view = useTable((s) => s.display);
+  const send = useSession((s) => s.send);
+  const [raiseTo, setRaiseTo] = useState(0);
+  const [pre, setPre] = useState<Pre>('none');
+  const [sentKey, setSentKey] = useState('');
+
+  const me = view && view.mySeat !== null ? view.seats[view.mySeat] : null;
+  const legal = view?.legal ?? null;
+  const turnKey = view ? `${view.handNo}:${view.street}:${view.currentBet}:${view.toAct}` : '';
+  const myTurn = !!(view && legal && view.toAct === view.mySeat && sentKey !== turnKey);
+  const potTotal = view ? view.pot + view.seats.reduce((s, x) => s + (x?.bet ?? 0), 0) : 0;
+
+  useEffect(() => {
+    if (legal) setRaiseTo(legal.minRaiseTo);
+  }, [legal?.minRaiseTo, turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // pré-ações zeram a cada mão
+  useEffect(() => {
+    setPre('none');
+  }, [view?.handNo]);
+
+  const act = (a: PlayerAction) => {
+    sfx.click();
+    setSentKey(turnKey);
+    setPre('none');
+    send({ type: 'action', action: a });
+  };
+
+  // executa pré-ação quando chegar a vez
+  useEffect(() => {
+    if (!myTurn || !legal || pre === 'none') return;
+    if (pre === 'checkfold') act(legal.canCheck ? { type: 'check' } : { type: 'fold' });
+    else if (pre === 'check' && legal.canCheck) act({ type: 'check' });
+    else if (pre === 'callany') act(legal.canCheck ? { type: 'check' } : { type: 'call' });
+    else setPre('none');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTurn]);
+
+  // atalhos de teclado
+  useEffect(() => {
+    if (!myTurn || !legal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      const k = e.key.toLowerCase();
+      if (k === 'f' && legal.canFold) act({ type: 'fold' });
+      else if (k === 'c') act(legal.canCheck ? { type: 'check' } : { type: 'call' });
+      else if (k === 'r' && legal.canRaise) act(raiseTo >= legal.maxRaiseTo ? { type: 'allin' } : { type: 'raise', amount: raiseTo });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTurn, legal, raiseTo]);
+
+  const presets = useMemo(() => {
+    if (!legal || !me || !view) return [];
+    const toCall = legal.callAmount;
+    const base = me.bet + toCall;
+    const potAfter = potTotal + toCall;
+    const clamp = (v: number) => Math.max(legal.minRaiseTo, Math.min(legal.maxRaiseTo, Math.round(v)));
+    return [
+      { label: 'Mín', v: legal.minRaiseTo },
+      { label: '½ Pote', v: clamp(base + potAfter * 0.5) },
+      { label: '¾ Pote', v: clamp(base + potAfter * 0.75) },
+      { label: 'Pote', v: clamp(base + potAfter) },
+      { label: 'All-in', v: legal.maxRaiseTo },
+    ];
+  }, [legal, me, view, potTotal]);
+
+  if (!view || !me || view.status !== 'playing') return null;
+  const inHand = me.inHand && !me.folded && !me.allIn;
+
+  if (!myTurn) {
+    if (!inHand || !view.street || view.street === 'showdown') return null;
+    const opt = (p: Pre, label: string) => (
+      <button className={`pre-btn ${pre === p ? 'on' : ''}`} onClick={() => setPre(pre === p ? 'none' : p)}>
+        <span className="box" />
+        {label}
+      </button>
+    );
+    return (
+      <div className="pre-actions">
+        {opt('checkfold', 'Passar/Desistir')}
+        {opt('check', 'Passar')}
+        {opt('callany', 'Pagar qualquer')}
+      </div>
+    );
+  }
+
+  const l = legal!;
+  const callIsAllin = l.callAmount >= me.stack;
+  const raiseIsAllin = raiseTo >= l.maxRaiseTo;
+  const step = Math.max(1, view.smallBlind);
+  return (
+    <div className="action-panel">
+      {l.canRaise && (
+        <div className="raise-box">
+          <div className="raise-presets">
+            {presets.map((p) => (
+              <button key={p.label} className={`chip-btn ${raiseTo === p.v ? 'on' : ''}`} onClick={() => setRaiseTo(p.v)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="raise-row">
+            <button className="round-btn" onClick={() => setRaiseTo((v) => Math.max(l.minRaiseTo, v - step * 2))}>
+              −
+            </button>
+            <input
+              className="raise-slider"
+              type="range"
+              min={l.minRaiseTo}
+              max={l.maxRaiseTo}
+              step={step}
+              value={raiseTo}
+              onChange={(e) => setRaiseTo(Number(e.target.value))}
+            />
+            <button className="round-btn" onClick={() => setRaiseTo((v) => Math.min(l.maxRaiseTo, v + step * 2))}>
+              +
+            </button>
+            <input
+              className="raise-input"
+              type="number"
+              value={raiseTo}
+              min={l.minRaiseTo}
+              max={l.maxRaiseTo}
+              onChange={(e) => setRaiseTo(Math.max(0, Number(e.target.value) || 0))}
+              onBlur={() => setRaiseTo((v) => Math.max(l.minRaiseTo, Math.min(l.maxRaiseTo, v)))}
+            />
+          </div>
+        </div>
+      )}
+      <div className="act-row">
+        {l.canFold && (
+          <button className="act-btn fold" onClick={() => act({ type: 'fold' })}>
+            Desistir<small>F</small>
+          </button>
+        )}
+        {l.canCheck ? (
+          <button className="act-btn check" onClick={() => act({ type: 'check' })}>
+            Passar<small>C</small>
+          </button>
+        ) : (
+          <button className="act-btn call" onClick={() => act({ type: 'call' })}>
+            {callIsAllin ? 'All-in' : 'Pagar'} {fmt(l.callAmount)}
+            <small>C</small>
+          </button>
+        )}
+        {l.canRaise && (
+          <button
+            className={`act-btn raise ${raiseIsAllin ? 'allin' : ''}`}
+            onClick={() => act(raiseIsAllin ? { type: 'allin' } : { type: 'raise', amount: Math.max(l.minRaiseTo, Math.min(l.maxRaiseTo, raiseTo)) })}
+          >
+            {raiseIsAllin ? 'All-in' : l.isBet ? 'Apostar' : 'Aumentar'} {fmt(Math.min(raiseTo, l.maxRaiseTo))}
+            <small>R</small>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

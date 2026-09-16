@@ -1,0 +1,23 @@
+// Falas de Marina por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Marina",
+  "falas": [
+    "来たよ！さっさとチップ用意しときな！", // join: Cheguei! Podem ir separando as fichas.
+    "あたしの番？ここから熱くなるよ！", // turn: Minha vez? Agora o jogo esquenta!
+    "チェック…今のところはね。", // check: Passo... por enquanto.
+    "コール！見せてもらおうじゃん！", // call: Pago pra ver!
+    "負けるもんか！", // bet: Não vou perder!
+    "火力アップ！", // raise: Aumenta o fogo!
+    "一か八か！フェニックスは退かないよ！", // allin: Tudo ou nada! A fênix não recua!
+    "ははっ、降りるよ…今回はね。", // fold: Haha, desisto... dessa vez.
+    "さあ、手札見せな！", // showdown: Mostra aí o que você tem!
+    "言ったでしょ、このテーブルはあたしのだって！", // win: Falei que a mesa era minha!
+    "これがスタイルってもんよ！", // big_win: Isso sim é jogar com estilo!
+    "ちっ…ビギナーズラックね。", // lose: Tsc... sorte de principiante.
+    "灰の中から蘇ってやる、覚えときな！", // bust: Eu volto das cinzas, pode apostar!
+    "リロード！次のラウンドはあたしのだ！", // rebuy: Recarregando! A segunda rodada é minha.
+    "ブラインドが上がる？上等じゃん！", // blinds_up: Blinds subindo? Melhor ainda!
+    "いつまで突っ立ってんの？さっさとやろうよ！" // idle: Vai ficar parado aí? Bora jogar!
+  ]
+}

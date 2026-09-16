@@ -1,0 +1,23 @@
+// Falas de Ren por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Ren",
+  "falas": [
+    "こんばんは。公正な勝負を。", // join: Boa noite. Que o jogo seja justo.
+    "少し考えさせてください…三手先まで。", // turn: Deixe-me pensar... três jogadas à frente.
+    "待つこともまた一手です。", // check: Paciência também é uma jogada.
+    "受けましょう。今のところは。", // call: Aceito. Por ora.
+    "ささやかな投資です。", // bet: Um pequeno investimento.
+    "話を一段上げましょうか。", // raise: Vamos elevar o nível da conversa.
+    "計算通り。すべてを賭けます。", // allin: Calculado. Tudo na mesa.
+    "退くのもまた戦略です。", // fold: Recuar também é estratégia.
+    "真実を明かしましょう。", // showdown: Revelemos a verdade.
+    "予想通りです。", // win: Como previsto.
+    "翡翠に相応しい一手でした。", // big_win: Uma jogada digna de jade.
+    "興味深い。覚えておきましょう。", // lose: Interessante. Anotado.
+    "失ったもの以上に、学びがありました。", // bust: Aprendi mais do que perdi.
+    "駒を並べ直すとしましょう。", // rebuy: Reorganizando as peças.
+    "重圧こそが打ち手の本性を暴く。", // blinds_up: A pressão revela o jogador.
+    "時間もまた、一枚のチップですよ。" // idle: O tempo também é uma ficha.
+  ]
+}

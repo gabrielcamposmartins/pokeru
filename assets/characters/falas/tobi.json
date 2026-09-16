@@ -1,0 +1,23 @@
+// Falas de Tobi por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Tobi",
+  "falas": [
+    "よーっす、みんな！盛り上げに来たぜ！", // join: Eeei, galera! Cheguei pra animar!
+    "やった、オレの番！どれどれ…", // turn: Oba, minha vez! Deixa eu ver...
+    "チェック！今は様子見っと、へへ。", // check: Passo! Tô só observando, hehe.
+    "コール！乗りかかった船だ！", // call: Pago! Quem tá na chuva é pra se molhar!
+    "ベット！いくぜいくぜ！", // bet: Aposta na mesa! Bora, bora!
+    "レイズ！オレは止められないぜ！", // raise: Aumentei! Ninguém segura o Tobi!
+    "オールイン！ツモ！…あ、ゲーム違った！", // allin: ALL-IN! Tsumo! ...ops, jogo errado!
+    "ははっ、降りる！これはオレの手じゃないや。", // fold: Haha, desisto! Essa não era a minha.
+    "じゃーん！見て見て！", // showdown: Tcharaaam! Olha só isso!
+    "へへっ、運の女神はオレにゾッコンだな！", // win: Hehe, a sorte me ama!
+    "ロン！…じゃなくて、総取りだ！", // big_win: Ron! Quer dizer... ganhei geral!
+    "あ〜、惜しい！次は取るからな！", // lose: Aaah, quase! Na próxima eu pego!
+    "チップなくなっちゃった…誰か貸してくんない？", // bust: Fiquei sem fichas... alguém me empresta?
+    "新品のチップ！もう一回いこうぜ！", // rebuy: Fichas novinhas! Vamos de novo!
+    "上がったの？ならもっと楽しくなるじゃん！", // blinds_up: Subiu, é? Então fica mais divertido!
+    "おーい、まだ？眠くなってきたよ…" // idle: Ô, vai demorar? Tô ficando com sono...
+  ]
+}

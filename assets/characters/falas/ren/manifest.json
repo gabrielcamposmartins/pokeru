@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_こんばんは。公正な勝負を。.wav",
+    "tipo": "audio",
+    "texto": "こんばんは。公正な勝負を。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "002_少し考えさせてください…三手先まで。.wav",
+    "tipo": "audio",
+    "texto": "少し考えさせてください…三手先まで。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "003_待つこともまた一手です。.wav",
+    "tipo": "audio",
+    "texto": "待つこともまた一手です。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "004_受けましょう。今のところは。.wav",
+    "tipo": "audio",
+    "texto": "受けましょう。今のところは。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "005_ささやかな投資です。.wav",
+    "tipo": "audio",
+    "texto": "ささやかな投資です。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "006_話を一段上げましょうか。.wav",
+    "tipo": "audio",
+    "texto": "話を一段上げましょうか。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "007_計算通り。すべてを賭けます。.wav",
+    "tipo": "audio",
+    "texto": "計算通り。すべてを賭けます。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "008_退くのもまた戦略です。.wav",
+    "tipo": "audio",
+    "texto": "退くのもまた戦略です。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "009_真実を明かしましょう。.wav",
+    "tipo": "audio",
+    "texto": "真実を明かしましょう。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "010_予想通りです。.wav",
+    "tipo": "audio",
+    "texto": "予想通りです。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "011_翡翠に相応しい一手でした。.wav",
+    "tipo": "audio",
+    "texto": "翡翠に相応しい一手でした。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "012_興味深い。覚えておきましょう。.wav",
+    "tipo": "audio",
+    "texto": "興味深い。覚えておきましょう。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "013_失ったもの以上に、学びがありました。.wav",
+    "tipo": "audio",
+    "texto": "失ったもの以上に、学びがありました。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "014_駒を並べ直すとしましょう。.wav",
+    "tipo": "audio",
+    "texto": "駒を並べ直すとしましょう。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "015_重圧こそが打ち手の本性を暴く。.wav",
+    "tipo": "audio",
+    "texto": "重圧こそが打ち手の本性を暴く。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "016_時間もまた、一枚のチップですよ。.wav",
+    "tipo": "audio",
+    "texto": "時間もまた、一枚のチップですよ。",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  }
+]

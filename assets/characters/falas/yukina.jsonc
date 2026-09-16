@@ -1,0 +1,23 @@
+// Falas de Yukina por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Yukina",
+  "falas": [
+    "失礼いたします。始めましょう。", // join: Com licença. Vamos começar.
+    "ふむ…少し拝見しますね。", // turn: Hmm... deixe-me ver.
+    "沈黙もまた、語るものです。", // check: O silêncio também fala.
+    "お付き合いしましょう。", // call: Acompanho.
+    "雪に一輪の花を。", // bet: Uma flor sobre a neve.
+    "冬はさらに厳しくなります。", // raise: O inverno fica mais rigoroso.
+    "すべてを凍てつく風に委ねます。", // allin: Deixo tudo ao sabor do vento gelado.
+    "今はその時ではありません。退きます。", // fold: Não é o momento. Recolho-me.
+    "カードに真実を語らせましょう。", // showdown: Que as cartas digam a verdade.
+    "降る雪のように…避けられぬこと。", // win: Como a neve que cai: inevitável.
+    "氷の花が…咲きました。", // big_win: A flor de gelo... desabrochou.
+    "雪解けは必ず訪れるもの。受け入れます。", // lose: O degelo sempre chega. Aceito.
+    "雪もいつかは溶けるものね。", // bust: Até a neve derrete um dia.
+    "新しい冬が始まります。", // rebuy: Um novo inverno começa.
+    "寒さが増してきました。どうか落ち着いて。", // blinds_up: O frio aperta. Mantenham a calma.
+    "急ぐのは、冬には似合いませんよ。" // idle: A pressa não combina com o inverno.
+  ]
+}

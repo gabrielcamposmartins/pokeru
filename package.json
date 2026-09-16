@@ -1,0 +1,45 @@
+{
+  "name": "pokersoul",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "server": "tsx --import ./server/jsonc-register.mjs server/index.ts",
+    "server:dev": "tsx watch --import ./server/jsonc-register.mjs server/index.ts",
+    "test": "vitest run",
+    "prepare:characters": "node scripts/prepare-characters.mjs",
+    "build:falas": "node scripts/build-falas.mjs",
+    "audios:faltando": "node scripts/audios-faltando.mjs",
+    "audios:organizar": "node scripts/organizar-audios.mjs",
+    "tauri": "tauri",
+    "app": "tauri dev",
+    "app:build": "tauri build"
+  },
+  "dependencies": {
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/m-plus-rounded-1c": "^5.3.0",
+    "@tauri-apps/api": "^2.11.1",
+    "framer-motion": "^13.2.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "ws": "^8.21.3",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^22.20.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^6.1.1",
+    "pngjs": "^7.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
+  }
+}

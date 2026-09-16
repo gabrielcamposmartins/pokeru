@@ -1,0 +1,162 @@
+[
+  {
+    "arquivo": "001_Marina_フラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "フラッシュ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "002_Ren_フラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "フラッシュ！",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "003_Tobi_フラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "フラッシュ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "004_Yukina_フラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "フラッシュ！",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "005_Marina_フルハウス！.wav",
+    "tipo": "audio",
+    "texto": "フルハウス！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "006_Ren_フルハウス！.wav",
+    "tipo": "audio",
+    "texto": "フルハウス！",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "007_Tobi_フルハウス！.wav",
+    "tipo": "audio",
+    "texto": "フルハウス！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "008_Yukina_フルハウス！.wav",
+    "tipo": "audio",
+    "texto": "フルハウス！",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "009_Marina_フォーカード！.wav",
+    "tipo": "audio",
+    "texto": "フォーカード！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "010_Ren_フォーカード！.wav",
+    "tipo": "audio",
+    "texto": "フォーカード！",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "011_Tobi_フォーカード！.wav",
+    "tipo": "audio",
+    "texto": "フォーカード！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "012_Yukina_フォーカード！.wav",
+    "tipo": "audio",
+    "texto": "フォーカード！",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "013_Marina_ストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ストレートフラッシュ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "014_Ren_ストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ストレートフラッシュ！",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "015_Tobi_ストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ストレートフラッシュ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "016_Yukina_ストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ストレートフラッシュ！",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "017_Marina_ロイヤルストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ロイヤルストレートフラッシュ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "018_Ren_ロイヤルストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ロイヤルストレートフラッシュ！",
+    "seed": 10,
+    "voice": "Ren",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "019_Tobi_ロイヤルストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ロイヤルストレートフラッシュ！",
+    "seed": 42,
+    "voice": "Tobi",
+    "language": "Portuguese"
+  },
+  {
+    "arquivo": "020_Yukina_ロイヤルストレートフラッシュ！.wav",
+    "tipo": "audio",
+    "texto": "ロイヤルストレートフラッシュ！",
+    "seed": 42,
+    "voice": "Yukina",
+    "language": "Portuguese"
+  }
+]

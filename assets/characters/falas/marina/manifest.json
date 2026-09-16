@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_来たよ！さっさとチップ用意しときな！.wav",
+    "tipo": "audio",
+    "texto": "来たよ！さっさとチップ用意しときな！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_あたしの番？ここから熱くなるよ！.wav",
+    "tipo": "audio",
+    "texto": "あたしの番？ここから熱くなるよ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック…今のところはね。.wav",
+    "tipo": "audio",
+    "texto": "チェック…今のところはね。",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール！見せてもらおうじゃん！.wav",
+    "tipo": "audio",
+    "texto": "コール！見せてもらおうじゃん！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_負けるもんか！.wav",
+    "tipo": "audio",
+    "texto": "負けるもんか！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_火力アップ！.wav",
+    "tipo": "audio",
+    "texto": "火力アップ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_一か八か！フェニックスは退かないよ！.wav",
+    "tipo": "audio",
+    "texto": "一か八か！フェニックスは退かないよ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_ははっ、降りるよ…今回はね。.wav",
+    "tipo": "audio",
+    "texto": "ははっ、降りるよ…今回はね。",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_さあ、手札見せな！.wav",
+    "tipo": "audio",
+    "texto": "さあ、手札見せな！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_言ったでしょ、このテーブルはあたしのだって！.wav",
+    "tipo": "audio",
+    "texto": "言ったでしょ、このテーブルはあたしのだって！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_これがスタイルってもんよ！.wav",
+    "tipo": "audio",
+    "texto": "これがスタイルってもんよ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_ちっ…ビギナーズラックね。.wav",
+    "tipo": "audio",
+    "texto": "ちっ…ビギナーズラックね。",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_灰の中から蘇ってやる、覚えときな！.wav",
+    "tipo": "audio",
+    "texto": "灰の中から蘇ってやる、覚えときな！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_リロード！次のラウンドはあたしのだ！.wav",
+    "tipo": "audio",
+    "texto": "リロード！次のラウンドはあたしのだ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_ブラインドが上がる？上等じゃん！.wav",
+    "tipo": "audio",
+    "texto": "ブラインドが上がる？上等じゃん！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_いつまで突っ立ってんの？さっさとやろうよ！.wav",
+    "tipo": "audio",
+    "texto": "いつまで突っ立ってんの？さっさとやろうよ！",
+    "seed": 42,
+    "voice": "Marina",
+    "language": "Japanese"
+  }
+]
