@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Card } from '../../shared/cards';
 import {
@@ -15,16 +15,19 @@ import {
   type TablePattern,
   type TableStyle,
 } from '../../shared/styles';
-import { KIND_LABEL, PRESETS, SANITIZE, allStyles, isPreset, useProfile, type StyleKind, type StyleMap } from '../store/profile';
+import { KIND_LABEL, PRESETS, SANITIZE, allStyles, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
 import { useSession } from '../store/session';
 import { CardBackSvg, CardFaceSvg, CardView, FONT_FAMILY, FONT_LABEL } from '../render/CardArt';
 import { ChipStack, ChipSvg } from '../render/Chip';
+import { CharacterPortrait } from '../render/CharacterArt';
 import { TableFelt } from '../render/TableFelt';
 import { CARD_H, CARD_W, boardSlot, planeStyle, project } from '../game/layout';
 import { ColorField, ScreenHeader, Section, Segmented, Slider, Toggle } from '../ui/controls';
 import { rgbToHex } from '../util/color';
 import { parseJsonc } from '../../shared/jsonc';
 import { sfx } from '../audio/sfx';
+import { fmt } from '../util/format';
+import { UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
 
 // ------------------------------------------------------------------ util
 
@@ -561,13 +564,187 @@ function TableEditor({ st, set }: { st: TableStyle; set: Setter<TableStyle> }) {
   );
 }
 
+// ------------------------------------------------------------------ aparência da interface
+
+/** Miniatura de um tema: fundo, painel e destaque com a fonte do tema. */
+function ThemeThumb({ t }: { t: UiTheme }) {
+  const w = t.swatch;
+  return (
+    <span className="theme-thumb" style={{ background: w.bg, color: w.accent, fontFamily: w.font }}>
+      <span className="theme-thumb-panel" style={{ background: w.panel, borderColor: w.accent, color: w.text }}>
+        Aa
+      </span>
+      <span className="theme-thumb-glyph">{w.glyph}</span>
+    </span>
+  );
+}
+
+/** Amostra de componentes da mesa, desenhada com o tema ativo (o da pré-visualização). */
+function ThemeSample() {
+  const character = useCharacter();
+  const name = useProfile((s) => s.name);
+  return (
+    <div className="theme-sample">
+      <div className="theme-sample-row">
+        <div className="plate seat-card is-me theme-sample-plate">
+          <div className="seat-portrait" style={{ background: `linear-gradient(160deg, ${character.bg}, ${character.bg2})`, width: 76, height: 76 }}>
+            <CharacterPortrait st={character} size={76} />
+            <div className="seat-frame" />
+            <div className="plate-pos pos-D">D</div>
+          </div>
+          <div className="seat-info">
+            <div className="seat-name">{name}</div>
+            <div className="seat-stack">
+              <ChipSvg value={100} size={16} />
+              {fmt(2480)}
+            </div>
+          </div>
+          <div className="plate-action act-raise">Aumentou</div>
+        </div>
+        <div className="callout callout-raise">Aumento!</div>
+      </div>
+      <div className="theme-sample-row">
+        <CardView card={{ r: 14, s: 's' }} width={74} />
+        <CardView card={{ r: 13, s: 'h' }} width={74} />
+        <CardView card={null} faceUp={false} width={74} />
+        <ChipStack amount={1250} size={30} maxCols={3} />
+      </div>
+      <div className="act-row">
+        <button className="act-btn fold" onClick={() => sfx.click()}>
+          Desistir
+        </button>
+        <button className="act-btn call" onClick={() => sfx.click()}>
+          Pagar {fmt(40)}
+        </button>
+        <button className="act-btn raise" onClick={() => sfx.click()}>
+          Aumentar {fmt(120)}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Aba "UI": escolhe a aparência da interface. O tema selecionado já aparece na tela inteira
+ * (pré-visualização); "Usar esta aparência" grava no perfil, e sair sem aplicar volta ao atual.
+ */
+function UiThemeStudio() {
+  const profile = useProfile();
+  const toast = useSession((s) => s.toast);
+  const setPreview = useThemePreview((s) => s.setPreview);
+  const chosen = findTheme(profile.settings.uiTheme);
+  const [sel, setSel] = useState(chosen.id);
+  const theme = findTheme(sel);
+  const inUse = theme.id === chosen.id;
+  const kinds = Object.keys(theme.styles) as StyleKind[];
+  const stylesOn = kinds.every((k) => profile.equipped[k] === theme.styles[k]);
+
+  useEffect(() => setPreview(inUse ? null : theme.id), [inUse, theme.id, setPreview]);
+  useEffect(() => () => setPreview(null), [setPreview]);
+
+  return (
+    <div className="studio-body">
+      <div className="panel style-list">
+        {UI_THEMES.map((t) => (
+          <button
+            key={t.id}
+            className={`style-item ${t.id === theme.id ? 'on' : ''}`}
+            onClick={() => {
+              sfx.click();
+              setSel(t.id);
+            }}
+          >
+            <span className="thumb">
+              <ThemeThumb t={t} />
+            </span>
+            <span className="style-name">
+              {t.name}
+              <span className="badges">{t.id === chosen.id && <span className="badge eq">Em uso</span>}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="panel preview-area">
+        <div className="preview-head">
+          <h2 className="title-deco theme-title">{theme.name}</h2>
+          <div className="row gap">
+            <button
+              className="btn btn-ghost small"
+              disabled={stylesOn}
+              title="Equipa as cartas, fichas e mesa que combinam com este tema"
+              onClick={() => {
+                for (const k of kinds) profile.equip(k, theme.styles[k]);
+                sfx.pop();
+                toast(`Estilos do tema “${theme.name}” equipados!`);
+              }}
+            >
+              {stylesOn ? '✓ Estilos do tema' : 'Equipar estilos do tema'}
+            </button>
+            <button
+              className={`btn ${inUse ? 'btn-ghost' : 'btn-gold'} small`}
+              disabled={inUse}
+              onClick={() => {
+                profile.updateSettings({ uiTheme: theme.id });
+                sfx.pop();
+                toast(`Aparência “${theme.name}” aplicada!`);
+              }}
+            >
+              {inUse ? '✓ Em uso' : 'Usar esta aparência'}
+            </button>
+          </div>
+        </div>
+        <div className="preview-stage">
+          <ThemeSample />
+        </div>
+        <div className="preset-note">
+          {inUse ? 'Esta é a aparência em uso.' : 'Pré-visualização: a tela inteira já mostra este tema. Se sair sem aplicar, volta a aparência atual.'}
+        </div>
+      </div>
+      <div className="panel editor">
+        <Section title="Sobre">
+          <p className="theme-desc">{theme.description}</p>
+        </Section>
+        <Section title="O que muda">
+          <ul className="theme-features">
+            {theme.features.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </Section>
+        <Section title="Estilos que combinam">
+          <div className="theme-styles">
+            {kinds.map((k) => {
+              const st = findStyle(profile, k, theme.styles[k]);
+              return (
+                <div key={k} className="theme-style">
+                  <span className="thumb">
+                    <Thumb kind={k} st={st} />
+                  </span>
+                  <span className="style-name">
+                    {st.name}
+                    <small className="muted">{KIND_LABEL[k]}</small>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="field-hint">A aparência não troca seus estilos; use “Equipar estilos do tema” se quiser o conjunto completo.</p>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ tela
 
-const KINDS: { kind: StyleKind; icon: string }[] = [
-  { kind: 'face', icon: '🂡' },
-  { kind: 'back', icon: '🂠' },
-  { kind: 'chip', icon: '◉' },
-  { kind: 'table', icon: '⬭' },
+type Tab = StyleKind | 'ui';
+
+const TABS: { tab: Tab; icon: string; label: string }[] = [
+  { tab: 'face', icon: '🂡', label: KIND_LABEL.face },
+  { tab: 'back', icon: '🂠', label: KIND_LABEL.back },
+  { tab: 'chip', icon: '◉', label: KIND_LABEL.chip },
+  { tab: 'table', icon: '⬭', label: KIND_LABEL.table },
+  { tab: 'ui', icon: '❖', label: 'UI' },
 ];
 
 function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (text: string) => void }) {
@@ -610,7 +787,9 @@ function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (te
 export function Studio({ onBack }: { onBack: () => void }) {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
-  const [kind, setKind] = useState<StyleKind>('face');
+  const [tab, setTab] = useState<Tab>('face');
+  /** Estilo das abas de estilos (a aba UI não edita estilos). */
+  const kind: StyleKind = tab === 'ui' ? 'face' : tab;
   const [selected, setSelected] = useState<Record<StyleKind, string>>(() => ({ ...profile.equipped }));
   const [importing, setImporting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -663,7 +842,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
       const st = SANITIZE[k](obj?.style ?? obj);
       const saved = { ...st, id: newId(), name: st.name || 'Importado' } as StyleMap[StyleKind];
       profile.saveStyle(k, saved);
-      setKind(k);
+      setTab(k);
       select(k, saved.id);
       setImporting(false);
       toast('Estilo importado!');
@@ -697,97 +876,103 @@ export function Studio({ onBack }: { onBack: () => void }) {
     <div className="screen studio">
       <div className="menu-bg" />
       <ScreenHeader title="Estúdio de Estilos" onBack={onBack}>
-        <button className="btn btn-ghost small" onClick={() => setImporting(true)}>
-          ⤓ Importar
-        </button>
+        {tab !== 'ui' && (
+          <button className="btn btn-ghost small" onClick={() => setImporting(true)}>
+            ⤓ Importar
+          </button>
+        )}
       </ScreenHeader>
       <div className="studio-tabs">
-        {KINDS.map((k) => (
+        {TABS.map((t) => (
           <button
-            key={k.kind}
-            className={kind === k.kind ? 'on' : ''}
+            key={t.tab}
+            className={tab === t.tab ? 'on' : ''}
             onClick={() => {
               sfx.click();
-              setKind(k.kind);
+              setTab(t.tab);
               setConfirmDel(false);
             }}
           >
-            <span className="tab-ico">{k.icon}</span>
-            {KIND_LABEL[k.kind]}
+            <span className="tab-ico">{t.icon}</span>
+            {t.label}
           </button>
         ))}
       </div>
-      <div className="studio-body">
-        <div className="panel style-list">
-          <button className="btn btn-pink wide" onClick={createNew}>
-            + Novo estilo
-          </button>
-          {list.map((s) => (
-            <button key={s.id} className={`style-item ${s.id === current.id ? 'on' : ''}`} onClick={() => select(kind, s.id)}>
-              <span className="thumb">
-                <Thumb kind={kind} st={s} />
-              </span>
-              <span className="style-name">
-                {s.name}
-                <span className="badges">
-                  {profile.equipped[kind] === s.id && <span className="badge eq">Equipado</span>}
-                  {isPreset(kind, s.id) ? <span className="badge">Padrão</span> : <span className="badge mine">Meu</span>}
-                </span>
-              </span>
+      {tab === 'ui' ? (
+        <UiThemeStudio />
+      ) : (
+        <div className="studio-body">
+          <div className="panel style-list">
+            <button className="btn btn-pink wide" onClick={createNew}>
+              + Novo estilo
             </button>
-          ))}
-        </div>
-        <div className="panel preview-area">
-          <div className="preview-head">
-            <input
-              className="input title-input"
-              value={current.name}
-              maxLength={40}
-              onChange={(e) => (preset ? undefined : profile.saveStyle(kind, { ...current, name: e.target.value } as StyleMap[StyleKind]))}
-              readOnly={preset}
-              title={preset ? 'Estilos padrão não podem ser renomeados' : 'Renomear'}
-            />
-            <div className="row gap">
-              <button className="btn btn-ghost small" onClick={() => set(randomize(kind, current))} title="Gera uma variação aleatória">
-                🎲 Aleatório
+            {list.map((s) => (
+              <button key={s.id} className={`style-item ${s.id === current.id ? 'on' : ''}`} onClick={() => select(kind, s.id)}>
+                <span className="thumb">
+                  <Thumb kind={kind} st={s} />
+                </span>
+                <span className="style-name">
+                  {s.name}
+                  <span className="badges">
+                    {profile.equipped[kind] === s.id && <span className="badge eq">Equipado</span>}
+                    {isPreset(kind, s.id) ? <span className="badge">Padrão</span> : <span className="badge mine">Meu</span>}
+                  </span>
+                </span>
               </button>
-              <button className="btn btn-ghost small" onClick={exportStyle}>
-                ⤒ Exportar
-              </button>
-              {!preset &&
-                (confirmDel ? (
-                  <button
-                    className="btn btn-danger small"
-                    onClick={() => {
-                      profile.deleteStyle(kind, current.id);
-                      select(kind, PRESETS[kind][0].id);
-                    }}
-                  >
-                    Confirmar exclusão
-                  </button>
-                ) : (
-                  <button className="btn btn-ghost small" onClick={() => setConfirmDel(true)}>
-                    🗑 Excluir
-                  </button>
-                ))}
-              <button
-                className={`btn ${equipped ? 'btn-ghost' : 'btn-gold'} small`}
-                disabled={equipped}
-                onClick={() => {
-                  profile.equip(kind, current.id);
-                  sfx.pop();
-                  toast(`${KIND_LABEL[kind]}: “${current.name}” equipado!`);
-                }}
-              >
-                {equipped ? '✓ Equipado' : 'Equipar'}
-              </button>
-            </div>
+            ))}
           </div>
-          <div className="preview-stage">{previewNode}</div>
-          {preset && <div className="preset-note">Este é um estilo padrão. Qualquer ajuste cria automaticamente uma cópia sua.</div>}
+          <div className="panel preview-area">
+            <div className="preview-head">
+              <input
+                className="input title-input"
+                value={current.name}
+                maxLength={40}
+                onChange={(e) => (preset ? undefined : profile.saveStyle(kind, { ...current, name: e.target.value } as StyleMap[StyleKind]))}
+                readOnly={preset}
+                title={preset ? 'Estilos padrão não podem ser renomeados' : 'Renomear'}
+              />
+              <div className="row gap">
+                <button className="btn btn-ghost small" onClick={() => set(randomize(kind, current))} title="Gera uma variação aleatória">
+                  🎲 Aleatório
+                </button>
+                <button className="btn btn-ghost small" onClick={exportStyle}>
+                  ⤒ Exportar
+                </button>
+                {!preset &&
+                  (confirmDel ? (
+                    <button
+                      className="btn btn-danger small"
+                      onClick={() => {
+                        profile.deleteStyle(kind, current.id);
+                        select(kind, PRESETS[kind][0].id);
+                      }}
+                    >
+                      Confirmar exclusão
+                    </button>
+                  ) : (
+                    <button className="btn btn-ghost small" onClick={() => setConfirmDel(true)}>
+                      🗑 Excluir
+                    </button>
+                  ))}
+                <button
+                  className={`btn ${equipped ? 'btn-ghost' : 'btn-gold'} small`}
+                  disabled={equipped}
+                  onClick={() => {
+                    profile.equip(kind, current.id);
+                    sfx.pop();
+                    toast(`${KIND_LABEL[kind]}: “${current.name}” equipado!`);
+                  }}
+                >
+                  {equipped ? '✓ Equipado' : 'Equipar'}
+                </button>
+              </div>
+            </div>
+            <div className="preview-stage">{previewNode}</div>
+            {preset && <div className="preset-note">Este é um estilo padrão. Qualquer ajuste cria automaticamente uma cópia sua.</div>}
+          </div>
+          <div className="panel editor">{editor}</div>
         </div>
-        <div className="panel editor">{editor}</div>
-      </div>
+      )}
       {importing && <ImportModal onClose={() => setImporting(false)} onImport={doImport} />}
     </div>
   );

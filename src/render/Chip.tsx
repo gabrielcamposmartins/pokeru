@@ -45,9 +45,10 @@ export const ChipFace = memo(function ChipFace({ ti, st }: { ti: number; st: Chi
       {st.showValue && (
         <text
           y={value >= 1000 ? 9 : 10}
+          className="chip-value"
           textAnchor="middle"
-          fontFamily='"Playfair Display", Georgia, serif'
-          fontWeight={900}
+          fontFamily='"M PLUS Rounded 1c", sans-serif'
+          fontWeight={800}
           fontSize={value >= 10000 ? 22 : value >= 100 ? 26 : 30}
           fill={tier.text}
         >

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSession } from './store/session';
 import { useProfile } from './store/profile';
-import { setVolume, sfx } from './audio/sfx';
+import { setSoundSet, setVolume, sfx } from './audio/sfx';
 import { setVoiceVolume } from './audio/voice';
 import { MainMenu } from './screens/MainMenu';
 import { OnlineLobby } from './screens/OnlineLobby';
@@ -12,6 +12,7 @@ import { SettingsScreen } from './screens/Settings';
 import { CharactersScreen } from './screens/Characters';
 import { Toasts } from './game/Overlays';
 import { ErrorBoundary } from './ui/ErrorBoundary';
+import { useUiTheme } from './ui/themes';
 
 export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters';
 
@@ -23,6 +24,13 @@ export function App() {
   const muted = useProfile((s) => s.settings.muted);
   const voices = useProfile((s) => s.settings.voices);
   const voiceVolume = useProfile((s) => s.settings.voiceVolume);
+  const theme = useUiTheme();
+
+  // tema da interface: o CSS de cada tema vale sob <html data-ui="…">
+  useEffect(() => {
+    document.documentElement.dataset.ui = theme.id;
+    setSoundSet(theme.sounds);
+  }, [theme]);
 
   useEffect(() => {
     setVolume(volume, muted);

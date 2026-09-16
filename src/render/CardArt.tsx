@@ -7,11 +7,12 @@ import { cleanId, shade } from '../util/color';
 import { useEquipped } from '../store/profile';
 
 export const FONT_FAMILY: Record<FontKey, string> = {
-  serif: '"Playfair Display", Georgia, "Times New Roman", serif',
+  serif: 'Georgia, "Times New Roman", serif',
   sans: '"Segoe UI", "Helvetica Neue", Arial, sans-serif',
   rounded: '"M PLUS Rounded 1c", "Segoe UI", sans-serif',
-  fancy: '"Cinzel Decorative", Cinzel, Georgia, serif',
+  fancy: 'Cinzel, Georgia, serif',
   mono: 'Consolas, "Courier New", monospace',
+  classic: '"Playfair Display", Georgia, serif',
 };
 
 export const FONT_LABEL: Record<FontKey, string> = {
@@ -20,6 +21,7 @@ export const FONT_LABEL: Record<FontKey, string> = {
   rounded: 'Arredondada',
   fancy: 'Real',
   mono: 'Digital',
+  classic: 'Clássica',
 };
 
 type Pip = [number, number, boolean?];

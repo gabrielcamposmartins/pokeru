@@ -2968,3 +2968,84 @@ button.avatar {
   background-image: linear-gradient(180deg, #fff, #ffd0e0 35%, #ff6b9a 60%, #a3204f);
   filter: drop-shadow(0 3px 0 #3a0018) drop-shadow(0 0 16px rgba(255, 107, 154, 0.9));
 }
+
+/* estúdio: aba UI (aparência da interface) */
+.theme-thumb {
+  position: relative;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+}
+.theme-thumb-panel {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 7px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.theme-thumb-glyph {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1;
+}
+.theme-title {
+  flex: 1;
+  margin: 0;
+  font-size: 26px;
+}
+.theme-sample {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+.theme-sample-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.plate.theme-sample-plate {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
+}
+.theme-desc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.theme-features {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+.theme-styles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.theme-style {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-style small {
+  font-size: 12px;
+}

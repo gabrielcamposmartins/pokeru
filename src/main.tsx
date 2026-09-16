@@ -23,6 +23,11 @@ import '@fontsource/playfair-display/900-italic.css';
 import './styles/global.css';
 import './styles/victorian.css';
 import { App } from './App';
+import { useProfile } from './store/profile';
+import { findTheme } from './ui/themes';
+
+// aplica o tema salvo antes do primeiro desenho (o perfil é lido do localStorage na hora)
+document.documentElement.dataset.ui = findTheme(useProfile.getState().settings.uiTheme).id;
 
 // respeita "reduzir movimento" do sistema; ?nomotion força (útil para capturas/testes)
 const reducedMotion = new URLSearchParams(location.search).has('nomotion') ? 'always' : 'user';

@@ -7,6 +7,7 @@ import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { Segmented } from '../ui/controls';
 import { sfx } from '../audio/sfx';
+import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
 
 const DEFAULT_LINES = ['Vamos jogar?', 'Boa sorte na mesa!', 'Hoje é dia de all-in!'];
@@ -208,10 +209,11 @@ function ModeCard({ title, sub, glyph, cls, onClick, delay }: { title: string; s
 
 export function MainMenu({ go }: { go: (s: Screen) => void }) {
   const [quick, setQuick] = useState(false);
+  const { menu } = useUiTheme();
   const icons: { key: Screen; icon: string; label: string }[] = [
-    { key: 'characters', icon: '♛', label: 'Personagens' },
-    { key: 'studio', icon: '✒', label: 'Estúdio' },
-    { key: 'settings', icon: '⚙', label: 'Ajustes' },
+    { key: 'characters', icon: menu.icons.characters, label: 'Personagens' },
+    { key: 'studio', icon: menu.icons.studio, label: 'Estúdio' },
+    { key: 'settings', icon: menu.icons.settings, label: 'Ajustes' },
   ];
   return (
     <div className="menu-screen mj-menu">
@@ -224,11 +226,15 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
         <span className="logo-main">
           P<span className="logo-spade">♠</span>ker<span className="logo-soul">Soul</span>
         </span>
-        <span className="logo-flourish" aria-hidden>
-          <i />⚜<i />
-        </span>
-        <span className="logo-sub">Salão Aristocrático · Texas Hold’em</span>
-        <span className="logo-est">Est. MDCCCLXXXVII</span>
+        {menu.flourish && (
+          <span className="logo-flourish" aria-hidden>
+            <i />
+            {menu.flourish}
+            <i />
+          </span>
+        )}
+        <span className="logo-sub">{menu.subtitle}</span>
+        {menu.motto && <span className="logo-est">{menu.motto}</span>}
       </motion.div>
       <div className="mode-area">
         <div className="mode-cards">

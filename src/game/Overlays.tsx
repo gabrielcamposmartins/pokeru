@@ -5,15 +5,17 @@ import { useSession } from '../store/session';
 import { useTable, type Splash } from '../store/table';
 import { CharacterFull } from '../render/CharacterArt';
 import { sfx } from '../audio/sfx';
+import { useUiTheme } from '../ui/themes';
 
 /** Cut-in estilo Mahjong Soul: faixa diagonal com o personagem e o texto da jogada. */
 function CutIn({ splash }: { splash: Splash }) {
   const st = splash.character!;
+  const theme = useUiTheme();
   return (
     <motion.div className="cutin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.25 } }}>
       <motion.div
         className="cutin-band"
-        style={{ background: `linear-gradient(90deg, #140706 0%, ${st.bg2}d9 30%, ${st.bg}99 58%, #140706 100%), #2a0c10` }}
+        style={{ background: theme.cutinBand(st) }}
         initial={{ scaleX: 0 }}
         animate={{ scaleX: 1 }}
         transition={{ duration: 0.28, ease: 'easeOut' }}

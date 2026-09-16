@@ -135,21 +135,30 @@ junto com o estado resultante, e espaça os eventos no tempo. No cliente, o **di
 cartas saem do dealer e, ao desistir, voam para o descarte, o bordo vira na mesa e o pote voa para o
 vencedor — e só então aplica o estado. Se houver atraso, as animações aceleram sozinhas.
 
-## Tema vitoriano (branch `tema-vitoriano`)
+## Aparência da interface (temas de UI)
 
-Versão da interface com ar de salão aristocrático do século XIX:
+No **Estúdio → UI** você escolhe a aparência da interface. Ao clicar num tema, a tela inteira já mostra a
+pré-visualização; **Usar esta aparência** grava a escolha no perfil (sair sem aplicar volta à atual).
+**Equipar estilos do tema** equipa as cartas, fichas e mesa que combinam com ele — a aparência sozinha não
+troca seus estilos.
 
-- **Visual**: `src/styles/victorian.css`, carregado depois de `global.css`, troca a paleta (mogno, bordô,
-  verde-garrafa, latão e marfim) e o acabamento de tudo: papel de parede adamascado com lambri de madeira,
-  painéis de couro com cantoneiras de latão, botões como placas gravadas, retratos em moldura dourada,
-  faixa de veludo nos cut-ins e poeira dourada à luz de velas no menu.
-- **Tipografia**: Cormorant Garamond (texto), Cinzel e Cinzel Decorative (títulos) e Playfair Display (números).
-- **Estilos**: presets novos, equipados por padrão (uma migração do perfil os equipa uma vez): cartas
-  *Vitoriana*, versos *Brasão Bordô* e *Salão Esmeralda*, fichas *Marfim e Latão* e mesas *Salão Vitoriano* e
-  *Veludo Bordô*. Há também o padrão **Damasco** (verso e mesa) e o emblema **flor-de-lis**. A mesa ganhou
-  tachas de latão na borda.
-- **Sons**: clique de madeira, sineta de balcão na sua vez, tique-taque de relógio no fim do tempo e arpejo
-  de cravo na vitória.
+| Tema | Visual |
+|---|---|
+| Soul (padrão) | o original: noite roxa, dourado e rosa, pétalas de sakura, fonte arredondada |
+| Vitoriano | salão aristocrático: mogno, bordô, verde-garrafa, latão e marfim; papel de parede adamascado, painéis de couro com cantoneiras, retratos em moldura dourada, tachas na mesa, cut-in em faixa de veludo; sineta, relógio de pêndulo e cravo |
+
+Como funciona (`src/ui/themes.ts`):
+
+- O App põe o id do tema em `<html data-ui="…">`. O tema padrão é o `global.css`; cada outro tema tem um CSS
+  próprio com as regras dentro de `:root[data-ui='<id>'] { … }` (ex.: `src/styles/victorian.css`).
+- O que não dá para fazer só com CSS fica no registro `UI_THEMES`: textos e ícones do menu, cores desenhadas
+  em SVG (console do pote, borda da mesa), fundo do cut-in, conjunto de sons e os estilos que combinam.
+- **Para adicionar um tema**: crie o CSS com o escopo `:root[data-ui='<id>']`, importe-o em `src/main.tsx` e
+  acrescente uma entrada em `UI_THEMES`. Ele aparece sozinho no Estúdio.
+
+Estilos criados para o tema vitoriano (disponíveis com qualquer aparência): cartas *Vitoriana* (fonte
+*Clássica*), versos *Brasão Bordô* e *Salão Esmeralda*, fichas *Marfim e Latão*, mesas *Salão Vitoriano* e
+*Veludo Bordô*, o padrão **Damasco** (verso e mesa) e o emblema **flor-de-lis**.
 
 ## Estúdio de estilos
 

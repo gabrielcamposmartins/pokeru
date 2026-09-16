@@ -3,6 +3,7 @@ import type { TablePattern, TableStyle } from '../../shared/styles';
 import { cleanId, shade } from '../util/color';
 import { Damask, Flower, SuitGlyph } from './suits';
 import { CARD_H, CARD_W, CENTER, FELT, PLANE_H, PLANE_W, RAIL, boardSlot } from '../game/layout';
+import { useUiTheme } from '../ui/themes';
 
 function FeltPattern({ id, pattern, color }: { id: string; pattern: TablePattern; color: string }) {
   const common = { id, patternUnits: 'userSpaceOnUse' as const };
@@ -50,7 +51,7 @@ function FeltPattern({ id, pattern, color }: { id: string; pattern: TablePattern
   }
 }
 
-/** Tachas de latão ao longo da borda de couro. */
+/** Tachas de latão ao longo da borda de couro (temas com mesa ornamentada). */
 const STUDS = Array.from({ length: 72 }, (_, i) => {
   const a = (i / 72) * Math.PI * 2;
   return { x: CENTER.x + Math.cos(a) * (RAIL.rx - 11), y: CENTER.y + Math.sin(a) * (RAIL.ry - 11) };
@@ -63,6 +64,7 @@ const STUDS = Array.from({ length: 72 }, (_, i) => {
 export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st: TableStyle; showSlots?: boolean }) {
   const uid = cleanId(useId());
   const { x: cx, y: cy } = CENTER;
+  const ornate = useUiTheme().table.ornate;
   return (
     <svg className="table-svg" viewBox={`0 0 ${PLANE_W} ${PLANE_H}`} width={PLANE_W} height={PLANE_H}>
       <defs>
@@ -92,16 +94,22 @@ export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st:
       {/* borda acolchoada */}
       <ellipse cx={cx} cy={cy} rx={RAIL.rx} ry={RAIL.ry} fill={`url(#rail${uid})`} stroke={shade(st.rail, -0.6)} strokeWidth={4} />
       <ellipse cx={cx} cy={cy - 6} rx={RAIL.rx - 14} ry={RAIL.ry - 14} fill="none" stroke="#fff" strokeOpacity={0.1} strokeWidth={10} />
-      {STUDS.map((p, i) => (
-        <g key={i}>
-          <circle cx={p.x} cy={p.y + 1.5} r={4.6} fill="#000" opacity={0.45} />
-          <circle cx={p.x} cy={p.y} r={4.2} fill={st.railAccent} />
-          <circle cx={p.x - 1.3} cy={p.y - 1.3} r={1.6} fill="#fff" opacity={0.55} />
-        </g>
-      ))}
-      <ellipse cx={cx} cy={cy} rx={FELT.rx + 16} ry={FELT.ry + 16} fill="none" stroke={st.railAccent} strokeOpacity={0.55} strokeWidth={1.5} />
+      {ornate && (
+        <>
+          {STUDS.map((p, i) => (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y + 1.5} r={4.6} fill="#000" opacity={0.45} />
+              <circle cx={p.x} cy={p.y} r={4.2} fill={st.railAccent} />
+              <circle cx={p.x - 1.3} cy={p.y - 1.3} r={1.6} fill="#fff" opacity={0.55} />
+            </g>
+          ))}
+          <ellipse cx={cx} cy={cy} rx={FELT.rx + 16} ry={FELT.ry + 16} fill="none" stroke={st.railAccent} strokeOpacity={0.55} strokeWidth={1.5} />
+        </>
+      )}
       <ellipse cx={cx} cy={cy} rx={FELT.rx + 10} ry={FELT.ry + 10} fill="none" stroke={st.railAccent} strokeWidth={7} />
-      <ellipse cx={cx} cy={cy} rx={FELT.rx + 10} ry={FELT.ry + 10} fill="none" stroke="#fff" strokeOpacity={0.25} strokeWidth={1.2} strokeDasharray="1 7" />
+      {ornate && (
+        <ellipse cx={cx} cy={cy} rx={FELT.rx + 10} ry={FELT.ry + 10} fill="none" stroke="#fff" strokeOpacity={0.25} strokeWidth={1.2} strokeDasharray="1 7" />
+      )}
       <ellipse cx={cx} cy={cy} rx={FELT.rx + 10} ry={FELT.ry + 10} fill="none" stroke="#000" strokeOpacity={0.3} strokeWidth={1.5} />
       {/* feltro */}
       <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#felt${uid})`} />
@@ -114,11 +122,12 @@ export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st:
         ry={FELT.ry - 120}
         fill="none"
         stroke={st.patternColor}
-        strokeOpacity={0.2}
-        strokeWidth={2}
+        strokeOpacity={0.16}
+        strokeWidth={3}
+        strokeDasharray="2 12"
+        strokeLinecap="round"
       />
-      <ellipse cx={cx} cy={cy} rx={FELT.rx - 160} ry={FELT.ry - 130} fill="none" stroke={st.patternColor} strokeOpacity={0.12} strokeWidth={1} />
-      <text x={cx} y={cy + 205} textAnchor="middle" fontFamily="'Cinzel Decorative', Cinzel, serif" fontWeight={700} fontSize={40} letterSpacing={12} fill={st.logoColor} opacity={0.22}>
+      <text className="felt-logo" x={cx} y={cy + 205} textAnchor="middle" fontFamily="Cinzel, serif" fontWeight={700} fontSize={40} letterSpacing={12} fill={st.logoColor} opacity={0.22}>
         {st.logoText}
       </text>
       {showSlots &&
@@ -131,12 +140,12 @@ export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st:
               y={p.y - CARD_H / 2}
               width={CARD_W}
               height={CARD_H}
-              rx={6}
+              rx={9}
               fill="#000"
-              fillOpacity={0.14}
-              stroke={st.railAccent}
-              strokeOpacity={0.3}
-              strokeWidth={1.5}
+              fillOpacity={0.12}
+              stroke="#fff"
+              strokeOpacity={0.13}
+              strokeWidth={2}
             />
           );
         })}
