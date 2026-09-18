@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { migrateStorageKey } from '../util/storage';
 import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
@@ -99,11 +100,11 @@ interface ProfileState {
 
 /**
  * Endereço padrão do servidor, na ordem: o `config.js` que o servidor web do cliente escreve
- * (POKERSOUL_SERVER_URL no Docker), a variável de build `VITE_SERVER_URL` (usada ao gerar o
+ * (POKERU_SERVER_URL no Docker), a variável de build `VITE_SERVER_URL` (usada ao gerar o
  * instalador) e, por fim, o servidor local.
  */
 function defaultServerUrl(): string {
-  const cfg = (globalThis as { PokerSoulConfig?: { serverUrl?: string } }).PokerSoulConfig?.serverUrl;
+  const cfg = (globalThis as { PokeruConfig?: { serverUrl?: string } }).PokeruConfig?.serverUrl;
   return cfg || import.meta.env?.VITE_SERVER_URL || 'ws://localhost:3001';
 }
 
@@ -139,6 +140,9 @@ function known<T extends object>(base: T, saved: unknown): T {
   return { ...base, ...Object.fromEntries(entries) } as T;
 }
 
+// o nome mudou (PokerSoul → Pokeru): traz o que já estava salvo
+migrateStorageKey('pokersoul-profile', 'pokeru-profile');
+
 export const useProfile = create<ProfileState>()(
   persist(
     (set) => ({
@@ -166,7 +170,7 @@ export const useProfile = create<ProfileState>()(
       resetAll: () => set({ ...initial }),
     }),
     {
-      name: 'pokersoul-profile',
+      name: 'pokeru-profile',
       version: 2,
       // v2 só acrescentou settings.uiTheme, que o merge preenche com o padrão
       migrate: (persisted) => persisted as ProfileState,

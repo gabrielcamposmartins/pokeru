@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PokerSoul",
+  "productName": "Pokeru",
   "version": "0.1.0",
-  "identifier": "com.pokersoul.app",
+  "identifier": "com.pokeru.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "PokerSoul",
+        "title": "Pokeru",
         "width": 1440,
         "height": 860,
         "minWidth": 1024,
@@ -37,11 +37,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "PokerSoul",
-    "copyright": "© PokerSoul",
+    "publisher": "Pokeru",
+    "copyright": "© Pokeru",
     "category": "Game",
     "shortDescription": "Poker 2D multiplayer (Texas Hold'em e poker de 5 cartas)",
-    "longDescription": "PokerSoul: poker 2D multiplayer no estilo Mahjong Soul, com personagens, vinculo, temas de interface e partidas contra bots ou online num servidor proprio.",
+    "longDescription": "Pokeru: poker 2D multiplayer no estilo Mahjong Soul, com personagens, vinculo, temas de interface e partidas contra bots ou online num servidor proprio.",
     "windows": {
       "nsis": {
         "installMode": "currentUser"

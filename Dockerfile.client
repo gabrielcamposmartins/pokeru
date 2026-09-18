@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------
-# Servidor web do cliente PokerSoul (a interface, servida por nginx)
+# Servidor web do cliente Pokeru (a interface, servida por nginx)
 #
-#   docker build -f Dockerfile.client -t pokersoul-client .
-#   docker run -p 8080:80 -e POKERSOUL_SERVER_URL=ws://meu-host:3001 pokersoul-client
+#   docker build -f Dockerfile.client -t pokeru-client .
+#   docker run -p 8080:80 -e POKERU_SERVER_URL=ws://meu-host:3001 pokeru-client
 #
 # O endereço do servidor de jogo é definido na hora de subir (não no build):
 # o entrypoint escreve /config.js e o cliente usa como padrão.
@@ -22,9 +22,9 @@ FROM nginx:alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 # o nginx roda os scripts de /docker-entrypoint.d antes de subir
-COPY docker/client-entrypoint.sh /docker-entrypoint.d/40-pokersoul-config.sh
+COPY docker/client-entrypoint.sh /docker-entrypoint.d/40-pokeru-config.sh
 # tira o retorno de carro: o build pode vir de um checkout com quebras de linha do Windows,
 # e aí o shell do contêiner não roda o script ("bad interpreter")
-RUN sed -i 's/\r$//' /docker-entrypoint.d/40-pokersoul-config.sh && chmod +x /docker-entrypoint.d/40-pokersoul-config.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.d/40-pokeru-config.sh && chmod +x /docker-entrypoint.d/40-pokeru-config.sh
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1

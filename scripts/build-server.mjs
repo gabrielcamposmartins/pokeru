@@ -20,7 +20,7 @@ execFileSync(process.execPath, [join(root, 'node_modules', 'typescript', 'bin', 
 
 const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const pkg = {
-  name: 'pokersoul-server',
+  name: 'pokeru-server',
   version: rootPkg.version,
   private: true,
   type: 'commonjs',

@@ -2277,7 +2277,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pokersoul"
+name = "pokeru"
 version = "0.1.0"
 dependencies = [
  "serde",

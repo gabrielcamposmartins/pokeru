@@ -1,12 +1,12 @@
 [package]
-name = "pokersoul"
+name = "pokeru"
 version = "0.1.0"
-description = "PokerSoul — poker 2D multiplayer"
-authors = ["PokerSoul"]
+description = "Pokeru — poker 2D multiplayer"
+authors = ["Pokeru"]
 edition = "2021"
 
 [lib]
-name = "pokersoul_lib"
+name = "pokeru_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

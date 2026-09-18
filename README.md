@@ -1,4 +1,4 @@
-# ♠ PokerSoul
+# ♠ Pokeru
 
 Poker 2D multiplayer inspirado na apresentação de **Mahjong Soul**: na mesa aparecem apenas
 **cartas e fichas**, animadas em 2D (SVG). Dois jogos — **Texas Hold'em No-Limit** e
@@ -37,6 +37,20 @@ npm run app:build
 
 A **Partida Rápida** roda tudo offline, no próprio app, contra bots (fácil / normal / difícil).
 
+### O nome mudou
+
+O jogo se chamava **PokerSoul** e agora é **Pokeru**. O que já estava salvo continua valendo: na
+primeira vez que a versão nova abre, o perfil, os estilos e o vínculo são copiados das chaves
+antigas (`pokersoul-profile`, `pokersoul-bond`) para as novas (`pokeru-*`) — as antigas ficam onde
+estão, então voltar para uma versão anterior também funciona (`src/util/storage.ts`).
+
+Dois detalhes que **não** migram sozinhos: o app desktop tem um identificador novo
+(`com.pokeru.app`), então o instalador do Pokeru instala **ao lado** do PokerSoul e não enxerga os
+dados dele (o navegador, sim); e os ids internos de estilos e temas (`table-soul`, `back-sakura`,
+`default`…) ficaram como estavam de propósito, para os perfis salvos continuarem apontando para as
+mesmas peças. Só os **nomes visíveis** mudaram: o tema padrão virou *Sakura*, e os estilos *Roxo
+Soul* e *Pastel Soul* viraram *Roxo Sakura* e *Pastel Sakura*.
+
 ## Hospedar o servidor
 
 O servidor guarda as **contas dos jogadores** — saldo, vínculo com os personagens e números — e
@@ -50,9 +64,9 @@ DATA_DIR=./data npm run server:start
 | Variável | Padrão | O que faz |
 |---|---|---|
 | `PORT` | `3001` | porta HTTP/WebSocket |
-| `SERVER_NAME` | `PokerSoul Server` | nome que aparece no cliente |
+| `SERVER_NAME` | `Pokeru Server` | nome que aparece no cliente |
 | `DATA_DIR` | `./data` | pasta dos dados (`accounts.json`) |
-| `POKERSOUL_ACCOUNTS` | `1` | `0` desliga as contas: mesas livres, nada salvo |
+| `POKERU_ACCOUNTS` | `1` | `0` desliga as contas: mesas livres, nada salvo |
 | `STARTING_MONEY` | `10000` | saldo de uma conta nova |
 | `FAUCET` | `2000` | recarga de cortesia de quem zera (`0` desliga) |
 | `MAX_ACCOUNTS` | `1000` | teto de contas guardadas; passando dele, quem chega joga só em mesas livres |
@@ -97,11 +111,11 @@ docker compose up -d --build
 ```
 
 - O endereço do servidor de jogo é escolhido **na hora de subir** o cliente, não no build:
-  `POKERSOUL_SERVER_URL=ws://192.168.0.10:3001`. O entrypoint escreve `/config.js` e o app usa
+  `POKERU_SERVER_URL=ws://192.168.0.10:3001`. O entrypoint escreve `/config.js` e o app usa
   como padrão (o jogador ainda pode digitar outro). Use o endereço que o **navegador** dos
   jogadores alcança — `localhost` só serve para quem abre no próprio host.
-- Os dados do servidor ficam no volume `pokersoul-data` (montado em `/data`).
-- Atrás de um proxy com TLS, use `wss://…` no `POKERSOUL_SERVER_URL` e encaminhe o WebSocket
+- Os dados do servidor ficam no volume `pokeru-data` (montado em `/data`).
+- Atrás de um proxy com TLS, use `wss://…` no `POKERU_SERVER_URL` e encaminhe o WebSocket
   (`Upgrade`/`Connection`) para a porta 3001.
 - As duas imagens rodam sem privilégios e trazem `HEALTHCHECK`.
 
@@ -112,8 +126,8 @@ docker compose up -d --build
 
 | Sistema | Saída |
 |---|---|
-| Windows | `nsis/PokerSoul_<versão>_x64-setup.exe` (instala para o usuário, sem pedir administrador) e `msi/PokerSoul_<versão>_x64_en-US.msi` |
-| macOS | `dmg/PokerSoul_<versão>_x64.dmg` e `macos/PokerSoul.app` |
+| Windows | `nsis/Pokeru_<versão>_x64-setup.exe` (instala para o usuário, sem pedir administrador) e `msi/Pokeru_<versão>_x64_en-US.msi` |
+| macOS | `dmg/Pokeru_<versão>_x64.dmg` e `macos/Pokeru.app` |
 | Linux | `deb/`, `rpm/` e `appimage/` |
 
 Para distribuir um instalador **já apontando** para o seu servidor, defina o endereço no build:
@@ -398,7 +412,7 @@ Ganhar rende mais, mas **perder também conta**: quem senta e joga junto acumula
 `60 · 140 · 260 · 440 · 700` pontos (`HEART_COST`), o que dá cerca de uma dúzia de partidas para o
 vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela.
 
-Quem guarda o progresso depende de onde se joga: **offline** fica na máquina (`pokersoul-bond`,
+Quem guarda o progresso depende de onde se joga: **offline** fica na máquina (`pokeru-bond`,
 como o perfil); num **servidor com contas** quem pontua e guarda é o servidor, com as mesmas regras
 (`shared/bond.ts`), e o cliente mostra o que vier de lá. As regras ficam em `shared/` justamente
 para os dois lados contarem igual; o catálogo de recompensas é do cliente (`src/game/bond.ts`).
@@ -502,7 +516,7 @@ troca seus estilos.
 
 | Tema | Visual |
 |---|---|
-| Soul (padrão) | o original: noite roxa, dourado e rosa, pétalas de sakura, fonte arredondada |
+| Sakura (padrão) | o original: noite roxa, dourado e rosa, pétalas de sakura, fonte arredondada |
 | Vitoriano | salão aristocrático: mogno, bordô, verde-garrafa, latão e marfim; papel de parede adamascado, painéis de couro com cantoneiras, retratos em moldura dourada, tachas na mesa, cut-in em faixa de veludo; sineta, relógio de pêndulo e cravo |
 
 Como funciona (`src/ui/themes.ts`):
@@ -531,6 +545,6 @@ Em **Estúdio** você cria e edita, com pré-visualização ao vivo:
 
 - Presets não são alterados: editar um preset cria automaticamente uma cópia sua.
 - **🎲 Aleatório** gera variações harmônicas.
-- **Exportar/Importar** usa JSON (`{"pokersoul":1,"kind":"back","style":{…}}`), para trocar estilos com amigos.
+- **Exportar/Importar** usa JSON (`{"pokeru":1,"kind":"back","style":{…}}`), para trocar estilos com amigos.
 - O **verso das cartas** é enviado aos outros jogadores (sem imagens personalizadas);
   frente das cartas, fichas e mesa são preferências visuais só suas.

@@ -95,7 +95,7 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
             <Toggle label="Mostrar dica da minha mão" value={s.handHint} onChange={(v) => p.updateSettings({ handHint: v })} />
           </Section>
           <Section title="Rede">
-            <Field label="Servidor padrão" hint="Endereço WebSocket do servidor PokerSoul (npm run server).">
+            <Field label="Servidor padrão" hint="Endereço WebSocket do servidor Pokeru (npm run server).">
               <input className="input" value={s.serverUrl} onChange={(e) => p.updateSettings({ serverUrl: e.target.value })} />
             </Field>
           </Section>

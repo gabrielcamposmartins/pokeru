@@ -13,7 +13,7 @@ function looksLikeJson(code: string): boolean {
 /** Comentários (// e /* *\/) em arquivos .jsonc e .json são ignorados. */
 function jsonc(): Plugin {
   return {
-    name: 'pokersoul-jsonc',
+    name: 'pokeru-jsonc',
     enforce: 'pre',
     transform(code, id) {
       const [file, query] = id.split('?');

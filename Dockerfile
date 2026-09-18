@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------
-# Servidor PokerSoul (mesas + contas dos jogadores)
+# Servidor Pokeru (mesas + contas dos jogadores)
 #
-#   docker build -t pokersoul-server .
-#   docker run -p 3001:3001 -v pokersoul-data:/data pokersoul-server
+#   docker build -t pokeru-server .
+#   docker run -p 3001:3001 -v pokeru-data:/data pokeru-server
 #
 # Os dados ficam em /data (monte um volume!). Configuração por variáveis de
 # ambiente — veja server/index.ts ou a seção "Hospedar" do README.

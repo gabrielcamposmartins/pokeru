@@ -26,7 +26,7 @@ export class Lobby {
   private listTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
-    readonly serverName = 'PokerSoul',
+    readonly serverName = 'Pokeru',
     readonly accounts: AccountService | null = null,
   ) {
     if (accounts) accounts.onChange = (id) => this.accountChanged(id);

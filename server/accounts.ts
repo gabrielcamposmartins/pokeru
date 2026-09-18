@@ -30,7 +30,7 @@ export interface AccountsOptions {
   /**
    * Recarga de cortesia: quando a conta chega a zero (sem fichas em mesa), o saldo volta para
    * este valor na próxima cobrança. 0 desliga — aí quem perde tudo precisa de um presente do
-   * administrador (`POKERSOUL_GIFT`, veja o README).
+   * administrador (`POKERU_GIFT`, veja o README).
    */
   faucet?: number;
   /** Teto de contas guardadas: passando disso, o servidor não cria mais (só mesas livres). */

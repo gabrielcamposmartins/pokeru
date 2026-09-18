@@ -50,12 +50,12 @@ export interface UiTheme {
 export const UI_THEMES: UiTheme[] = [
   {
     id: 'default',
-    name: 'Soul (padrão)',
+    name: 'Sakura (padrão)',
     description: 'O visual original: noite roxa, dourado e rosa, com pétalas de sakura e faixas de anime.',
     features: ['Fonte arredondada', 'Painéis roxos com dourado', 'Pétalas de sakura no menu', 'Sons eletrônicos suaves'],
     swatch: { bg: '#1a1236', panel: '#302460', accent: '#f2c14e', text: '#f4efff', font: "'M PLUS Rounded 1c', sans-serif", glyph: '✿' },
     menu: {
-      subtitle: 'ポーカー魂 · Texas Hold’em',
+      subtitle: 'ポケル · Texas Hold’em',
       icons: { characters: '✿', studio: '✦', settings: '⚙' },
     },
     table: { ornate: false, consoleBg: ['#2a1f4d', '#0c0819'], consoleRadius: 34, turnLight: '#6bf2c1' },

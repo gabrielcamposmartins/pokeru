@@ -872,7 +872,7 @@ function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (te
       <div className="modal panel" onClick={(e) => e.stopPropagation()} style={{ width: 520 }}>
         <h3>Importar estilo</h3>
         <p className="muted small">Cole o JSON exportado por outro jogador ou escolha um arquivo .json.</p>
-        <textarea className="input" rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"pokersoul":1,"kind":"back","style":{…}}' />
+        <textarea className="input" rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder='{"pokeru":1,"kind":"back","style":{…}}' />
         <input
           ref={fileRef}
           type="file"
@@ -941,12 +941,12 @@ export function Studio({ onBack }: { onBack: () => void }) {
   };
 
   const exportStyle = () => {
-    const data = JSON.stringify({ pokersoul: 1, kind, style: current }, null, 2);
+    const data = JSON.stringify({ pokeru: 1, kind, style: current }, null, 2);
     navigator.clipboard?.writeText(data).catch(() => {});
     const blob = new Blob([data], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `pokersoul-${kind}-${current.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`;
+    a.download = `pokeru-${kind}-${current.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     toast('Estilo exportado e copiado para a área de transferência!');

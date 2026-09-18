@@ -12,7 +12,7 @@ export interface TransportHandlers {
   onClose?(reason: string): void;
 }
 
-/** Conexão com um servidor PokerSoul via WebSocket. */
+/** Conexão com um servidor Pokeru via WebSocket. */
 export function connectWs(url: string, h: TransportHandlers): Transport {
   let closed = false;
   let ws: WebSocket;

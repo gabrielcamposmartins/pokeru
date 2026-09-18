@@ -5,7 +5,7 @@ import { Accounts } from './accounts';
 import { dataFile } from './store';
 
 /**
- * Servidor PokerSoul: hospeda as mesas e guarda as contas dos jogadores (saldo, vínculo e
+ * Servidor Pokeru: hospeda as mesas e guarda as contas dos jogadores (saldo, vínculo e
  * números) num arquivo JSON. Roda sozinho, só com Node e o pacote `ws`.
  *
  * Configuração por variáveis de ambiente:
@@ -13,7 +13,7 @@ import { dataFile } from './store';
  *   PORT=3001                porta HTTP/WebSocket
  *   SERVER_NAME=…            nome que aparece no cliente
  *   DATA_DIR=./data          onde ficam os dados (monte um volume aqui no Docker)
- *   POKERSOUL_ACCOUNTS=1     0 desliga as contas: mesas livres, sem saldo nem vínculo salvo
+ *   POKERU_ACCOUNTS=1     0 desliga as contas: mesas livres, sem saldo nem vínculo salvo
  *   STARTING_MONEY=10000     saldo de uma conta nova
  *   FAUCET=2000              recarga de cortesia de quem zera (0 desliga)
  *   MAX_ACCOUNTS=1000        teto de contas guardadas (passando disso, só mesas livres)
@@ -21,8 +21,8 @@ import { dataFile } from './store';
  */
 
 const PORT = Number(process.env.PORT) || 3001;
-const NAME = process.env.SERVER_NAME || 'PokerSoul Server';
-const WITH_ACCOUNTS = process.env.POKERSOUL_ACCOUNTS !== '0';
+const NAME = process.env.SERVER_NAME || 'Pokeru Server';
+const WITH_ACCOUNTS = process.env.POKERU_ACCOUNTS !== '0';
 const ADMIN = process.env.ADMIN_TOKEN || '';
 const num = (v: string | undefined, d: number) => (v !== undefined && Number.isFinite(Number(v)) ? Number(v) : d);
 
@@ -70,7 +70,7 @@ const http = createServer(async (req, res) => {
   if (url.pathname.startsWith('/admin')) {
     const token = req.headers['x-admin-token'] ?? url.searchParams.get('token') ?? '';
     if (!ADMIN || token !== ADMIN) return json(res, 403, { error: 'ADMIN_TOKEN inválido ou não configurado' });
-    if (!accounts) return json(res, 400, { error: 'servidor sem contas (POKERSOUL_ACCOUNTS=0)' });
+    if (!accounts) return json(res, 400, { error: 'servidor sem contas (POKERU_ACCOUNTS=0)' });
     if (url.pathname === '/admin/accounts') return json(res, 200, { accounts: accounts.list() });
     if (url.pathname === '/admin/gift') {
       const id = url.searchParams.get('id') ?? '';

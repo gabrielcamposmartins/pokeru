@@ -43,7 +43,7 @@ export interface RoomSettings {
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
-  name: 'Mesa PokerSoul',
+  name: 'Mesa Pokeru',
   maxPlayers: 6,
   startingStack: 2000,
   smallBlind: 10,

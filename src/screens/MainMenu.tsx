@@ -179,7 +179,7 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
         </button>
         <div className="player-meta">
           <input className="player-name" value={name} maxLength={16} onChange={(e) => setName(e.target.value)} aria-label="Seu nome" />
-          <span className="player-sub">♠ PokerSoul · clique no personagem para conversar</span>
+          <span className="player-sub">♠ Pokeru · clique no personagem para conversar</span>
         </div>
       </div>
       <div className="top-actions">
@@ -242,7 +242,7 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
       <TopBar go={go} />
       <motion.div className="menu-logo" initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
         <span className="logo-main">
-          P<span className="logo-spade">♠</span>ker<span className="logo-soul">Soul</span>
+          P<span className="logo-spade">♠</span>ke<span className="logo-accent">ru</span>
         </span>
         {menu.flourish && (
           <span className="logo-flourish" aria-hidden>

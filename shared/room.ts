@@ -70,7 +70,7 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
   const smallBlind = n(o.smallBlind, 1, 100_000, 10);
   const bigBlind = Math.max(smallBlind, n(o.bigBlind, 2, 200_000, smallBlind * 2));
   return {
-    name: (typeof o.name === 'string' && o.name.trim().slice(0, 32)) || 'Mesa PokerSoul',
+    name: (typeof o.name === 'string' && o.name.trim().slice(0, 32)) || 'Mesa Pokeru',
     maxPlayers: n(o.maxPlayers, 2, 6, 6),
     startingStack: Math.max(bigBlind * 10, n(o.startingStack, 100, 10_000_000, 2000)),
     smallBlind,

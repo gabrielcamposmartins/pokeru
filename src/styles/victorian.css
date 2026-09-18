@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PokerSoul — tema vitoriano / aristocrata
+   Pokeru — tema vitoriano / aristocrata
    Vale só com <html data-ui="victorian"> (escolhido no Estúdio → UI; veja src/ui/themes.ts).
    Carregado depois de global.css: troca a paleta (mogno, bordô, verde-garrafa,
    latão e marfim), a tipografia (serifas) e o acabamento de cada componente.
@@ -407,7 +407,7 @@
     -webkit-background-clip: text;
     background-clip: text;
   }
-  .logo-soul {
+  .logo-accent {
     margin-left: 10px;
     font-style: normal;
     background: linear-gradient(180deg, #fff8e2 0%, #f0d596 34%, #b08d4a 52%, #7a5a26 60%, #d9b56a 82%, #f6e2a8 100%);

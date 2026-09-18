@@ -11,7 +11,7 @@ struct AppInfo {
 #[tauri::command]
 fn app_info() -> AppInfo {
     AppInfo {
-        name: "PokerSoul",
+        name: "Pokeru",
         version: env!("CARGO_PKG_VERSION"),
         platform: std::env::consts::OS,
     }
@@ -22,5 +22,5 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![app_info])
         .run(tauri::generate_context!())
-        .expect("erro ao iniciar o PokerSoul");
+        .expect("erro ao iniciar o Pokeru");
 }

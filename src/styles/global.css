@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PokerSoul — tema visual inspirado em jogos de mesa anime (estilo "Soul")
+   Pokeru — tema visual inspirado em jogos de mesa anime (à la Mahjong Soul)
    ========================================================================== */
 
 :root {
@@ -635,7 +635,7 @@ button.avatar {
   -webkit-background-clip: text;
   background-clip: text;
 }
-.logo-soul {
+.logo-accent {
   margin-left: 12px;
   background: linear-gradient(180deg, #ffe3ef, #ff8fb1 55%, #d93f72);
   -webkit-background-clip: text;

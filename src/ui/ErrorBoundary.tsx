@@ -18,7 +18,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
-    console.error('[PokerSoul] erro de interface', error, info.componentStack);
+    console.error('[Pokeru] erro de interface', error, info.componentStack);
   }
 
   render() {

@@ -10,7 +10,7 @@ import { Accounts } from './accounts';
 
 const dirs: string[] = [];
 function newFile(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'pokersoul-'));
+  const dir = mkdtempSync(join(tmpdir(), 'pokeru-'));
   dirs.push(dir);
   return join(dir, 'accounts.json');
 }

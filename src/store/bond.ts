@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { migrateStorageKey } from '../util/storage';
 import { findCharacter } from '../../shared/styles';
 import type { FalaSlot } from '../audio/voice';
 import {
@@ -46,6 +47,9 @@ interface BondState {
 const MAX_PENDING = 5;
 
 let unlockId = 1;
+
+// o nome mudou (PokerSoul → Pokeru): traz o vínculo que já estava salvo
+migrateStorageKey('pokersoul-bond', 'pokeru-bond');
 
 export const useBond = create<BondState>()(
   persist(
@@ -96,7 +100,7 @@ export const useBond = create<BondState>()(
       reset: () => set({ chars: {}, pending: [], gain: {} }),
     }),
     {
-      name: 'pokersoul-bond',
+      name: 'pokeru-bond',
       version: 1,
       // a fila de avisos e o ganho da partida são do momento: não voltam ao abrir o jogo
       partialize: (s) => ({ chars: s.chars }),
