@@ -22,6 +22,8 @@ const result: RoundResult = {
   hole,
   board,
   best: [...hole, ...board],
+  // full house: as cinco cartas fazem o jogo
+  core: [...hole, ...board],
   handName: 'Full House, Áses com Noves',
   pots: [
     { label: 'Pote principal', amount: 1240 },
@@ -68,8 +70,16 @@ describe('tela de fim de round', () => {
   });
 
   it('cartas do jogador fora da mão feita saem apagadas e sem efeito', () => {
-    const html = renderToStaticMarkup(<RoundResultPanel r={{ ...result, best: board, board }} />);
+    const html = renderToStaticMarkup(<RoundResultPanel r={{ ...result, best: board, core: board, board }} />);
     expect(html.match(/card-dim/g)).toHaveLength(2);
     expect(html.match(/card-fx fx-fire/g)).toHaveLength(3);
+  });
+
+  it('o efeito fica só nas cartas que fazem o jogo (o acompanhante aparece apagado)', () => {
+    // dois pares: as quatro do jogo têm efeito; a quinta carta entra apagada
+    const core = [hole[0], hole[1], board[1], board[2]];
+    const html = renderToStaticMarkup(<RoundResultPanel r={{ ...result, core }} />);
+    expect(html.match(/card-fx fx-fire/g)).toHaveLength(4);
+    expect(html.match(/card-dim/g)).toHaveLength(1);
   });
 });

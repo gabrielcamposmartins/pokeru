@@ -4260,3 +4260,7 @@ button.avatar {
   background: rgba(10, 6, 24, 0.85);
   border: 1px solid var(--line);
 }
+/* mão de cinco cartas: o contador desvia para a esquerda, entre a placa e as cartas */
+.my-countdown.wide {
+  left: 440px;
+}

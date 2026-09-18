@@ -19,6 +19,33 @@ describe('avaliador', () => {
     expect(evaluateHand(cs('Qs Jh 8d 7c 2d 3c 4h')).category).toBe(HandCategory.HighCard);
   });
 
+  it('aponta só as cartas que fazem o jogo', () => {
+    const core = (s: string) => evaluateHand(cs(s)).core.map((c) => `${c.r}${c.s}`).sort();
+    // par de setes: só os dois setes
+    expect(core('7s 7h Kd 9c 2d')).toEqual(['7h', '7s']);
+    // dois pares: as quatro, sem o acompanhante
+    expect(core('Ks Kh 7d 7c 2d')).toEqual(['13h', '13s', '7c', '7d'].sort());
+    // trinca: as três
+    expect(core('9s 9h 9d Kc 2d')).toEqual(['9d', '9h', '9s']);
+    // quadra: as quatro, sem o kicker
+    expect(core('9s 9h 9d 9c Kd')).toEqual(['9c', '9d', '9h', '9s']);
+    // carta alta: só a mais alta
+    expect(core('As Kd 8c 5h 3d')).toEqual(['14s']);
+    // mãos de cinco cartas: todas contam
+    for (const hand of ['5h 6h 7h 8h 9h', '2s 7s 9s Js Ks', 'As 2d 3c 4h 5s', 'Ks Kh Kd 7c 7d']) {
+      expect(evaluateHand(cs(hand)).core).toHaveLength(5);
+    }
+  });
+
+  it('as cartas do jogo saem de dentro da mão feita, com sete cartas na mesa', () => {
+    // par de ases na mão + cartas altas no bordo: o efeito é só nos dois ases
+    const v = evaluateHand(cs('As Ah Kd Qc 7d 3s 2h'));
+    expect(v.core.map((c) => `${c.r}${c.s}`).sort()).toEqual(['14h', '14s']);
+    expect(v.best).toHaveLength(5);
+    // e toda carta do jogo está entre as cinco melhores
+    for (const c of v.core) expect(v.best.some((b) => sameCard(b, c))).toBe(true);
+  });
+
   it('compara kickers e rodas', () => {
     const wheel = evaluateHand(cs('As 2d 3c 4h 5s'));
     const six = evaluateHand(cs('6s 2d 3c 4h 5s'));
@@ -280,6 +307,9 @@ describe('poker de 5 cartas (draw)', () => {
     expect(win.winners[0].seat).toBe(1);
     expect(win.winners[0].hand).toContain('Quadra');
     expect(win.winners[0].best).toHaveLength(5);
+    // o destaque vai só nas quatro do jogo (o quinto é acompanhante)
+    expect(win.winners[0].core).toHaveLength(4);
+    expect(win.winners[0].core!.every((c) => c.r === 14)).toBe(true);
   });
 
   it('conserva fichas com trocas e all-ins', () => {

@@ -195,6 +195,20 @@ export function holeCardPos(g: SeatGeo, i: number, n = 2): { p: Pt; rot: number 
   return { p: add(g.cards, g.t, k * step), rot: g.cardsRot + k * (n > 2 ? 5 : 7) };
 }
 
+/**
+ * Geometria da minha mão no palco (as cartas grandes embaixo), pelo número de cartas.
+ *
+ * Com cinco cartas o leque fica mais estreito e com as cartas montadas uma na outra: as pontas
+ * precisam caber entre a minha placa (à esquerda) e o painel de ações (à direita), senão a
+ * interface cobre as cartas. A ponta de cada carta que fica por baixo é a direita, então o
+ * canto com o valor continua visível.
+ */
+export function myHandLayout(n: number): { width: number; step: number; tilt: number; hint: Pt } {
+  if (n <= 2) return { width: 136, step: 160, tilt: 6, hint: { x: 560, y: 836 } };
+  // embaixo não sobra espaço entre a placa e o painel: a dica vai para cima das cartas
+  return { width: 120, step: 96, tilt: 4, hint: { x: 560, y: 570 } };
+}
+
 export function lerp(a: Pt, b: Pt, t: number): Pt {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }

@@ -780,7 +780,8 @@ export class Room {
     const turnLive = !!h && !h.finished && h.toActSeat !== null && this.turnKey === this.currentTurnKey();
     const toAct = turnLive ? h!.toActSeat : null;
     let highlight: TableView['highlight'] = [];
-    if (h?.finished && h.results[0]) highlight = h.results[0].winners.flatMap((w) => w.best ?? []);
+    // destaque (moldura + efeito): só as cartas que fazem o jogo do vencedor
+    if (h?.finished && h.results[0]) highlight = h.results[0].winners.flatMap((w) => w.core ?? w.best ?? []);
 
     const seats = this.seats.map((m): SeatView | null => {
       if (!m) return null;

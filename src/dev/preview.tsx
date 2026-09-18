@@ -44,7 +44,7 @@ import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
 import { CHARACTER_PRESETS, TABLE_PRESETS } from '../../shared/styles';
-import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, planeStyle, project, seatLayout } from '../game/layout';
+import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
 import { TableFelt } from '../render/TableFelt';
@@ -86,6 +86,8 @@ const base: RoundResult = {
   hole,
   board,
   best: [...hole, ...board],
+  // full house: as cinco cartas fazem o jogo
+  core: [...hole, ...board],
   handName: 'Full House, Áses com Noves',
   pots: [{ label: 'Pote principal', amount: 1240 }],
   payers: [
@@ -112,10 +114,14 @@ const SCENES: Record<string, RoundResult> = {
     won: 2100,
     stack: 5100,
   },
-  'result-board': { ...base, hole, board: fullBoard, best: fullBoard, handName: 'Royal Straight Flush', winFx: 'holy', character: CHARACTER_PRESETS[3] },
+  'result-board': { ...base, hole, board: fullBoard, best: fullBoard, core: fullBoard, handName: 'Royal Straight Flush', winFx: 'holy', character: CHARACTER_PRESETS[3] },
   'result-long': {
     ...base,
-    handName: 'Dois Pares, Reis e Noves',
+    handName: 'Dois Pares, Áses e Noves',
+    // dois pares: o quinto (o rei) aparece apagado, sem efeito
+    board: [{ r: 13, s: 'd' as const }, board[1], board[2]],
+    best: [hole[0], hole[1], { r: 13, s: 'd' as const }, board[1], board[2]],
+    core: [hole[0], hole[1], board[1], board[2]],
     pots: [
       { label: 'Pote principal', amount: 1240 },
       { label: 'Pote 2', amount: 320 },
@@ -213,11 +219,15 @@ function Mesa() {
         );
       })}
       <div className="my-hand">
-        {hole.map((c, i) => (
-          <div key={i} className="my-card" style={{ left: (i === 0 ? -1 : 1) * 80 - 68, transform: `rotate(${i === 0 ? -6 : 6}deg)` }}>
-            <CardView card={c} width={136} />
-          </div>
-        ))}
+        {hole.map((c, i) => {
+          const two = myHandLayout(2);
+          const k = i - 0.5;
+          return (
+            <div key={i} className="my-card" style={{ left: k * two.step - two.width / 2, transform: `rotate(${k * two.tilt * 2}deg)` }}>
+              <CardView card={c} width={two.width} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -238,6 +248,7 @@ function Draw5() {
     { r: 2, s: 'd' as const },
   ];
   const marked = [2, 4];
+  const five = myHandLayout(5);
   return (
     <div className="table-stage">
       <div className="floor-plane" style={planeStyle(3200, 2200, 1600, 1100)} />
@@ -255,7 +266,7 @@ function Draw5() {
           });
         })}
       </div>
-      <div className="my-hand picking">
+      <div className="my-hand five picking">
         {hand.map((c, i) => {
           const k = i - 2;
           const on = marked.includes(i);
@@ -263,21 +274,50 @@ function Draw5() {
             <div
               key={i}
               className={`my-card clickable ${on ? 'marked' : ''}`}
-              style={{ left: k * 152 - 68, transform: `translateY(${on ? -40 : 0}px) rotate(${k * 4}deg)` }}
+              style={{ left: k * five.step - five.width / 2, zIndex: i, transform: `translateY(${on ? -40 : 0}px) rotate(${k * five.tilt}deg)` }}
             >
-              <CardView card={c} width={136} />
+              <CardView card={c} width={five.width} />
               {on && <span className="my-card-mark">✕ trocar</span>}
             </div>
           );
         })}
       </div>
-      <div className="action-panel draw-panel">
-        <div className="draw-hint">Trocar 2 cartas — clique nas cartas para escolher</div>
+      <div className="hand-hint" style={{ left: five.hint.x, top: five.hint.y }}>
+        Dois Pares, Áses e Noves
+      </div>
+      {/* o painel de apostas é o mais largo: é com ele que as cartas não podem se encavalar */}
+      <div className="action-panel">
+        <div className="raise-box">
+          <div className="raise-presets">
+            {['Mín', '½ Pote', '¾ Pote', 'Pote', 'All-in'].map((l) => (
+              <button key={l} className="chip-btn">
+                {l}
+              </button>
+            ))}
+          </div>
+          <div className="raise-row">
+            <button className="round-btn">−</button>
+            <input className="raise-slider" type="range" min={0} max={10} defaultValue={5} readOnly />
+            <button className="round-btn">+</button>
+            <input className="raise-input" type="number" defaultValue={240} readOnly />
+          </div>
+        </div>
         <div className="act-row">
-          <button className="act-btn fold">Limpar</button>
-          <button className="act-btn raise">
-            Trocar 2<small>↵</small>
-          </button>
+          <button className="act-btn fold">Desistir</button>
+          <button className="act-btn call">Pagar 120</button>
+          <button className="act-btn raise">Aumentar 240</button>
+        </div>
+      </div>
+      <div className="my-countdown wide">
+        <span className="my-countdown-label">TEMPO</span>
+        <span className="countdown countdown-big">
+          <span className="countdown-num">12</span>
+        </span>
+      </div>
+      <div className="plate seat-card is-me" style={{ left: geo[0].plate.x, top: geo[0].plate.y }}>
+        <div className="seat-info">
+          <div className="seat-name">Jogador</div>
+          <div className="seat-stack">3.240</div>
         </div>
       </div>
     </div>

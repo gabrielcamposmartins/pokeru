@@ -310,6 +310,8 @@ class Director {
     const s = view.seats[seat]!;
     const mine = (p: PotResult) => p.winners.filter((w) => w.seat === seat);
     const best = pots.flatMap((p) => mine(p).map((w) => w.best ?? [])).find((b) => b.length) ?? view.highlight;
+    // o destaque é só nas cartas que fazem o jogo (o resto da mão aparece, mas apagado)
+    const core = pots.flatMap((p) => mine(p).map((w) => w.core ?? [])).find((b) => b.length) ?? best;
     const hole = s.cards.filter(Boolean) as Card[];
     const board = best.filter((c) => !hole.some((h) => sameCard(h, c)));
     const potLines = pots.flatMap((p, i) => mine(p).map((w) => ({ label: i === 0 ? 'Pote principal' : `Pote ${i + 1}`, amount: w.amount })));
@@ -326,6 +328,7 @@ class Director {
       hole,
       board,
       best,
+      core,
       handName: pots.flatMap((p) => mine(p).map((w) => w.hand)).find(Boolean) ?? s.handName ?? '',
       pots: potLines,
       payers,

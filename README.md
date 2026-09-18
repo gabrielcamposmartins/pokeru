@@ -215,7 +215,13 @@ No motor (`shared/engine.ts`), `variant` escolhe o jogo, `phase` diz se a vez é
 trocar (`act` e `draw` são os dois caminhos) e `Hand.draw(seat, indices)` faz a troca. Na rede a vez
 de trocar chega como o evento `drawTurn` e o pedido do jogador como `{ type: 'draw', discards }`.
 
-Para conferir sem jogar: `/preview.html?cena=draw5` (mesa de cinco cartas na hora da troca).
+A mão de cinco cartas é um leque mais junto e mais estreito que o de duas (`myHandLayout` em
+`src/game/layout.ts`): as pontas têm de caber entre a sua placa e o painel de ações, senão a interface
+cobre as cartas. Cada carta fica por cima da anterior, então o canto com o valor continua visível; a
+dica da mão vai para cima das cartas e o contador da sua vez desvia para a esquerda.
+
+Para conferir sem jogar: `/preview.html?cena=draw5` (mesa de cinco cartas na hora da troca, com o
+painel de apostas — o mais largo — para medir os espaços; `&rects=<seletores>` imprime as caixas).
 
 ## Fim do round (showdown)
 
@@ -356,8 +362,13 @@ o aviso do coração em `src/game/BondBar.tsx`; a página em `src/game/BondPage.
 
 ## Efeitos das cartas vencedoras
 
-No showdown, as cartas que formam a mão vencedora ganham uma **moldura animada** e um efeito por cima —
-na mesa e nas cartas do vencedor. Cada jogador escolhe o seu em **Estúdio → Efeitos**, e o efeito viaja
+No showdown, as cartas que **fazem o jogo** do vencedor ganham uma **moldura animada** e um efeito por
+cima — na mesa e nas cartas do vencedor. Só elas: num par de setes, os dois setes; em dois pares, as
+quatro; na trinca, as três; na quadra, as quatro (o acompanhante fica de fora). Sequência, flush,
+full house e straight flush usam as cinco. O resto da mão aparece apagado, sem efeito.
+
+Quem decide é o avaliador: `evaluateHand` devolve `best` (as cinco melhores) e `core` (só as que
+fazem o jogo, em `coreCards`); o `core` viaja no resultado do pote e vira o `highlight` da mesa. Cada jogador escolhe o seu em **Estúdio → Efeitos**, e o efeito viaja
 pela rede: você vê o efeito de quem ganhou (as cartas da mesa usam o seu, se você ganhou).
 
 | Efeito | O que faz |

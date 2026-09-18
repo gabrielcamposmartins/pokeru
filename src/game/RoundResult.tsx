@@ -16,14 +16,14 @@ const HOLD = 5;
 const BAND_TILT = -6;
 const CARD_W = 132;
 
-function Cards({ label, cards, best, fx }: { label: string; cards: Card[]; best: Card[]; fx: Result['winFx'] }) {
+function Cards({ label, cards, core, fx }: { label: string; cards: Card[]; core: Card[]; fx: Result['winFx'] }) {
   const effect = findWinFx(fx);
   return (
     <div className="rr-group">
       <span className="rr-label">{label}</span>
       <div className="rr-row">
         {cards.map((c, i) => {
-          const used = best.some((b) => sameCard(b, c));
+          const used = core.some((b) => sameCard(b, c));
           return (
             <motion.div
               key={`${c.r}${c.s}`}
@@ -82,8 +82,8 @@ export function RoundResultPanel({ r }: { r: Result }) {
 
       <div className="rr-info">
         <div className="rr-cards">
-          <Cards label="Mão" cards={r.hole} best={r.best} fx={r.winFx} />
-          {r.board.length > 0 && <Cards label="Mesa" cards={r.board} best={r.best} fx={r.winFx} />}
+          <Cards label="Mão" cards={r.hole} core={r.core} fx={r.winFx} />
+          {r.board.length > 0 && <Cards label="Mesa" cards={r.board} core={r.core} fx={r.winFx} />}
         </div>
 
         <motion.div className="rr-hand" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}>

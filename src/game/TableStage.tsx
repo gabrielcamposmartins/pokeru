@@ -15,11 +15,10 @@ import { Nameplate } from './Nameplate';
 import { CenterConsole } from './CenterConsole';
 import { MyCountdown } from './Countdown';
 import { director } from './director';
-import { CARD_H, CARD_W, betSpot, boardSlot, holeCardPos, planeStyle, project, seatLayout, type SeatGeo } from './layout';
+import { CARD_H, CARD_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout, type SeatGeo } from './layout';
 
 const PLANE = planeStyle();
 const FLOOR = planeStyle(3200, 2200, 1600, 1100);
-const MY_CARD_W = 136;
 
 function isHl(hl: Card[], c: Card | null): boolean {
   return !!c && hl.some((h) => sameCard(h, c));
@@ -140,10 +139,9 @@ function MyHand({ view, fx }: { view: TableView; fx: WinFx | null }) {
   const toggleDiscard = useTable((s) => s.toggleDiscard);
   const picking = view.street === 'draw' && view.toAct === view.mySeat;
   const n = cards.length;
-  const step = n <= 2 ? 160 : 152;
-  const tilt = n <= 2 ? 6 : 4;
+  const { width, step, tilt } = myHandLayout(n);
   return (
-    <div className={`my-hand ${picking ? 'picking' : ''}`}>
+    <div className={`my-hand ${n > 2 ? 'five' : ''} ${picking ? 'picking' : ''}`}>
       <AnimatePresence>
         {me &&
           cards.map((c, i) => {
@@ -155,7 +153,7 @@ function MyHand({ view, fx }: { view: TableView; fx: WinFx | null }) {
               <motion.div
                 key={i}
                 className={`my-card ${picking ? 'clickable' : ''} ${marked ? 'marked' : ''}`}
-                style={{ left: k * step - MY_CARD_W / 2 }}
+                style={{ left: k * step - width / 2, zIndex: i }}
                 initial={{ y: -70, scale: 0.55, opacity: 0, rotate: 0 }}
                 animate={{ y: marked ? -40 : 0, scale: marked ? 1.04 : 1, opacity: 1, rotate: k * tilt }}
                 exit={{ y: 230, opacity: 0, rotate: k * tilt * 4, transition: { duration: 0.35 } }}
@@ -164,12 +162,12 @@ function MyHand({ view, fx }: { view: TableView; fx: WinFx | null }) {
                 onClick={picking ? () => { sfx.click(); toggleDiscard(i); } : undefined}
               >
                 {gap ? (
-                  <span className="my-card-gap" style={{ width: MY_CARD_W, height: MY_CARD_W * 1.4 }} />
+                  <span className="my-card-gap" style={{ width, height: width * 1.4 }} />
                 ) : (
                   <CardView
                     card={c}
                     faceUp={!!c}
-                    width={MY_CARD_W}
+                    width={width}
                     back={me.cosmetics.back}
                     highlight={hl.length > 0 && isHl(hl, c)}
                     dim={hl.length > 0 && !isHl(hl, c)}
@@ -193,8 +191,9 @@ function HandHint({ view }: { view: TableView }) {
   if (!me || !cards || cards.length < 2 || me.folded) return null;
   // no poker de 5 cartas a mão já são as cinco cartas; no Hold'em entra o bordo
   if (view.variant === 'draw5' && cards.length < 5) return null;
+  const { hint } = myHandLayout(cards.length);
   return (
-    <div className="hand-hint" style={{ left: 560, top: 836 }}>
+    <div className="hand-hint" style={{ left: hint.x, top: hint.y }}>
       {evaluateHand([...cards, ...view.board]).name}
     </div>
   );

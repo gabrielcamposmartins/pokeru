@@ -64,7 +64,10 @@ export interface PotWinner {
   seat: number;
   amount: number;
   hand?: string;
+  /** As cinco cartas da mão feita. */
   best?: Card[];
+  /** Só as cartas que fazem o jogo (o par, a trinca…) — é o que ganha destaque e efeito. */
+  core?: Card[];
 }
 
 export interface PotResult {
@@ -564,7 +567,7 @@ export class Hand {
         if (rem > 0) rem--;
         w.stack += amt;
         const v = values.get(w.seat)!;
-        return { seat: w.seat, amount: amt, hand: v.name, best: v.best };
+        return { seat: w.seat, amount: amt, hand: v.name, best: v.best, core: v.core };
       });
       results.push({ amount: pot.amount, winners: pw, paid: pot.contributions });
     }

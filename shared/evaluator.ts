@@ -32,6 +32,12 @@ export interface HandValue {
   name: string;
   /** As 5 cartas que formam a mão (apenas quando há >= 5 cartas). */
   best: Card[];
+  /**
+   * Só as cartas que *fazem* o jogo, sem os acompanhantes: num par, as duas do par; em dois
+   * pares, as quatro; na trinca, as três; na quadra, as quatro. Sequência, flush e full house
+   * usam as cinco. É o que ganha destaque e efeito na mesa.
+   */
+  core: Card[];
 }
 
 const BASE = 16;
@@ -119,6 +125,30 @@ function describe(category: HandCategory, ranks: Rank[]): string {
   }
 }
 
+/**
+ * As cartas que fazem o jogo, dentro das cinco melhores. `ranks` vem de `evaluate5`, com os
+ * valores na ordem em que contam (o primeiro é o do jogo: o par, a trinca, a quadra…).
+ */
+export function coreCards(best: Card[], category: HandCategory, ranks: Rank[]): Card[] {
+  const of = (...rs: Rank[]) => best.filter((c) => rs.includes(c.r));
+  switch (category) {
+    case HandCategory.StraightFlush:
+    case HandCategory.Straight:
+    case HandCategory.Flush:
+    case HandCategory.FullHouse:
+      return [...best];
+    case HandCategory.Quads:
+    case HandCategory.Trips:
+    case HandCategory.Pair:
+      return of(ranks[0]);
+    case HandCategory.TwoPair:
+      return of(ranks[0], ranks[1]);
+    default:
+      // carta alta: só ela
+      return of(ranks[0]);
+  }
+}
+
 /** Melhor mão de 5 a partir de 5–7 cartas. Com menos de 5, faz uma avaliação parcial (para dicas). */
 export function evaluateHand(cards: Card[]): HandValue {
   if (cards.length < 5) return evaluatePartial(cards);
@@ -144,12 +174,18 @@ export function evaluateHand(cards: Card[]): HandValue {
             }
           }
   const ev = best!;
-  return { score: ev.score, category: ev.category, name: describe(ev.category, ev.ranks), best: bestCards };
+  return {
+    score: ev.score,
+    category: ev.category,
+    name: describe(ev.category, ev.ranks),
+    best: bestCards,
+    core: coreCards(bestCards, ev.category, ev.ranks),
+  };
 }
 
 /** Avaliação com 1–4 cartas (apenas pares/trincas/quadras), usada para dicas de UI. */
 export function evaluatePartial(cards: Card[]): HandValue {
-  if (cards.length === 0) return { score: 0, category: HandCategory.HighCard, name: '', best: [] };
+  if (cards.length === 0) return { score: 0, category: HandCategory.HighCard, name: '', best: [], core: [] };
   const counts = new Map<Rank, number>();
   for (const c of cards) counts.set(c.r, (counts.get(c.r) ?? 0) + 1);
   const groups = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0]);
@@ -159,7 +195,7 @@ export function evaluatePartial(cards: Card[]): HandValue {
   else if (groups[0][1] === 2 && groups[1]?.[1] === 2) category = HandCategory.TwoPair;
   else if (groups[0][1] === 2) category = HandCategory.Pair;
   const ranks = groups.map((g) => g[0]);
-  return { score: pack(category, ranks), category, name: describe(category, ranks), best: [] };
+  return { score: pack(category, ranks), category, name: describe(category, ranks), best: [], core: [] };
 }
 
 export function compareHands(a: HandValue, b: HandValue): number {

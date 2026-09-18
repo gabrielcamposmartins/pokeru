@@ -48,7 +48,10 @@ export interface RoundResult {
   /** As cartas do jogador e as da mesa que entraram na mão feita (`best`). */
   hole: Card[];
   board: Card[];
+  /** As cinco cartas da mão feita. */
   best: Card[];
+  /** Só as cartas que fazem o jogo: são as que ganham moldura e efeito. */
+  core: Card[];
   handName: string;
   /** Um item por pote ganho (pote principal, secundários…). */
   pots: { label: string; amount: number }[];

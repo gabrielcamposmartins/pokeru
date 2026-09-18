@@ -53,8 +53,10 @@ export function MyCountdown() {
     last.current = secs;
   }, [secs]);
   if (!myTurn || secs === null) return null;
+  // com cinco cartas a mão ocupa o lugar do contador: ele vai mais para a esquerda
+  const wide = (view.mySeat !== null ? view.seats[view.mySeat]?.cards.length ?? 0 : 0) > 2;
   return (
-    <div className="my-countdown">
+    <div className={`my-countdown ${wide ? 'wide' : ''}`}>
       <span className="my-countdown-label">TEMPO</span>
       <CountdownDigits seconds={secs} variant="big" />
     </div>
