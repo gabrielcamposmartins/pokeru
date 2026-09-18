@@ -13,7 +13,7 @@ import {
   type TableEvent,
   type TableView,
 } from './protocol';
-import { AVATAR_ICONS, BACK_PRESETS, CHARACTER_PRESETS, type AvatarInfo, type PlayerCosmetics } from './styles';
+import { AVATAR_ICONS, BACK_PRESETS, CHARACTER_PRESETS, WIN_FX_IDS, type AvatarInfo, type PlayerCosmetics } from './styles';
 
 export interface ClientHandle {
   id: string;
@@ -282,7 +282,7 @@ export class Room {
     const seat = this.seats.findIndex((s) => s === null);
     if (seat < 0) return 'Mesa cheia';
     const used = new Set(this.members().map((m) => m.name));
-    const pick = <T>(arr: T[]) => arr[randomInt(arr.length)];
+    const pick = <T>(arr: readonly T[]) => arr[randomInt(arr.length)];
     // bots levam o nome do personagem:
     // escolhe entre os menos usados na mesa, evitando o personagem dos humanos
     const usage = new Map<string, number>();
@@ -299,7 +299,7 @@ export class Room {
       isBot: true,
       difficulty,
       avatar: { color: pick(AVATAR_COLORS), icon: pick(AVATAR_ICONS) },
-      cosmetics: { back: pick(BACK_PRESETS), character },
+      cosmetics: { back: pick(BACK_PRESETS), character, winFx: pick(WIN_FX_IDS) },
       seat,
       stack: this.settings.startingStack,
       client: null,

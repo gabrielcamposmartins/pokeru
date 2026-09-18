@@ -4,6 +4,7 @@ import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
   CHIP_PRESETS,
+  DEFAULT_WIN_FX,
   FACE_PRESETS,
   TABLE_PRESETS,
   findCharacter,
@@ -11,6 +12,7 @@ import {
   sanitizeChip,
   sanitizeFace,
   sanitizeTable,
+  sanitizeWinFx,
   type AvatarInfo,
   type CardBackStyle,
   type CardFaceStyle,
@@ -18,6 +20,7 @@ import {
   type ChipStyle,
   type PlayerCosmetics,
   type TableStyle,
+  type WinFxId,
 } from '../../shared/styles';
 
 export type StyleKind = 'face' | 'back' | 'chip' | 'table';
@@ -69,12 +72,15 @@ interface ProfileState {
   avatar: AvatarInfo;
   /** Id do personagem escolhido. */
   character: string;
+  /** Id do efeito das cartas quando você ganha (catálogo em src/render/cardfx.tsx). */
+  winFx: WinFxId;
   custom: { [K in StyleKind]: StyleMap[K][] };
   equipped: Record<StyleKind, string>;
   settings: Settings;
   setName(name: string): void;
   setAvatar(a: AvatarInfo): void;
   setCharacter(id: string): void;
+  setWinFx(id: WinFxId): void;
   equip(kind: StyleKind, id: string): void;
   saveStyle<K extends StyleKind>(kind: K, style: StyleMap[K]): void;
   deleteStyle(kind: StyleKind, id: string): void;
@@ -86,6 +92,7 @@ const initial = {
   name: 'Jogador',
   avatar: { color: '#ff6b9a', icon: '♠' },
   character: CHARACTER_PRESETS[0].id,
+  winFx: DEFAULT_WIN_FX,
   custom: { face: [], back: [], chip: [], table: [] },
   equipped: {
     face: FACE_PRESETS[0].id,
@@ -119,6 +126,7 @@ export const useProfile = create<ProfileState>()(
       setName: (name) => set({ name: name.slice(0, 16) }),
       setAvatar: (avatar) => set({ avatar }),
       setCharacter: (character) => set({ character }),
+      setWinFx: (winFx) => set({ winFx }),
       equip: (kind, id) => set((s) => ({ equipped: { ...s.equipped, [kind]: id } })),
       saveStyle: (kind, style) =>
         set((s) => {
@@ -188,5 +196,6 @@ export function myCosmetics(): PlayerCosmetics {
   return {
     back: sanitizeBack(findStyle(s, 'back', s.equipped.back), false),
     character: findCharacter(s.character),
+    winFx: sanitizeWinFx(s.winFx),
   };
 }

@@ -3,6 +3,7 @@ import type { BotDifficulty, ClientMsg, RoomSummary, ServerMsg } from './protoco
 import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
+  DEFAULT_WIN_FX,
   sanitizeAvatar,
   sanitizeCosmetics,
   sanitizeName,
@@ -70,7 +71,7 @@ export class Connection implements ClientHandle {
   readonly id = 'p-' + makeId(10);
   name = 'Jogador';
   avatar: AvatarInfo = { color: '#7c5cff', icon: '♠' };
-  cosmetics: PlayerCosmetics = { back: BACK_PRESETS[0], character: CHARACTER_PRESETS[0] };
+  cosmetics: PlayerCosmetics = { back: BACK_PRESETS[0], character: CHARACTER_PRESETS[0], winFx: DEFAULT_WIN_FX };
   room: Room | null = null;
   greeted = false;
   private lastChat = 0;

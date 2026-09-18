@@ -1,0 +1,224 @@
+/* ==========================================================================
+   Efeitos das cartas vencedoras (src/render/cardfx.tsx).
+   Vale em qualquer tema de interface. Cada camada nova de efeito escreve
+   suas animações aqui; a moldura reaproveita fx-frame-<tipo>.
+   ========================================================================== */
+
+.card-fx {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* ------------------------------------------------------------------ moldura */
+
+.fx-frame {
+  stroke: var(--fx-1);
+  stroke-width: 2.6;
+  filter: drop-shadow(0 0 2px var(--fx-1)) drop-shadow(0 0 8px var(--fx-2));
+}
+.fx-frame-pulse {
+  animation: fx-pulse 1.1s ease-in-out infinite;
+}
+@keyframes fx-pulse {
+  0%,
+  100% {
+    stroke-width: 2.2;
+    opacity: 0.85;
+  }
+  50% {
+    stroke-width: 4.2;
+    opacity: 1;
+  }
+}
+.fx-frame-march {
+  stroke-dasharray: 11 7;
+  animation: fx-march 1.1s linear infinite;
+}
+@keyframes fx-march {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+.fx-frame-flicker {
+  animation: fx-flicker 0.42s steps(2, end) infinite;
+}
+@keyframes fx-flicker {
+  0%,
+  100% {
+    stroke-width: 3.4;
+    opacity: 1;
+  }
+  50% {
+    stroke-width: 1.6;
+    opacity: 0.4;
+  }
+}
+
+/* ------------------------------------------------------------------ camadas */
+
+/* luz (fogo, raio, luz sagrada): soma com o que está embaixo */
+.fx-hot,
+.fx-cold {
+  mix-blend-mode: screen;
+}
+
+/* faíscas */
+.fx-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-spark 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 2px var(--fx-2));
+}
+@keyframes fx-spark {
+  0%,
+  70%,
+  100% {
+    transform: scale(0.1) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(1) rotate(45deg);
+    opacity: 1;
+  }
+  45% {
+    transform: scale(0.5) rotate(70deg);
+    opacity: 0.5;
+  }
+}
+
+/* fogo */
+.fx-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: fx-flame 0.7s ease-in-out infinite alternate;
+  filter: blur(1.6px);
+  opacity: 0.85;
+}
+@keyframes fx-flame {
+  from {
+    transform: scale(0.82, 0.68) translateX(-1px);
+  }
+  to {
+    transform: scale(1.05, 1.12) translateX(1px);
+  }
+}
+.fx-ember {
+  animation: fx-ember 1.9s ease-out infinite;
+}
+@keyframes fx-ember {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(-58px) translateX(6px);
+    opacity: 0;
+  }
+}
+
+/* raio */
+.fx-bolt {
+  animation: fx-bolt 0.38s steps(2, end) infinite;
+  filter: drop-shadow(0 0 3px var(--fx-1)) drop-shadow(0 0 7px var(--fx-1));
+}
+@keyframes fx-bolt {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  40%,
+  90% {
+    opacity: 0.3;
+  }
+}
+.fx-flash {
+  animation: fx-flash 0.42s steps(2, end) infinite;
+  opacity: 0.12;
+}
+@keyframes fx-flash {
+  0%,
+  100% {
+    opacity: 0.16;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* gelo */
+.fx-shard {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: fx-shard 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px var(--fx-1));
+}
+@keyframes fx-shard {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+/* luz sagrada */
+.fx-rays {
+  transform-origin: 50px 70px;
+  animation: fx-spin 14s linear infinite;
+  opacity: 0.4;
+  filter: blur(1px);
+}
+@keyframes fx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* sombra */
+/* fumaça escura: escurece o que está embaixo, em vez de clarear */
+.fx-smoke-group {
+  mix-blend-mode: multiply;
+  filter: blur(4px);
+}
+.fx-smoke {
+  animation: fx-smoke 2.6s ease-out infinite;
+}
+@keyframes fx-smoke {
+  0% {
+    transform: translateY(10px) scale(0.6);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateY(-70px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* prisma: a cor do efeito inteiro gira */
+.fx-prism {
+  animation: fx-hue 3.6s linear infinite;
+}
+@keyframes fx-hue {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-fx *,
+  .card-fx {
+    animation-duration: 3s !important;
+    animation-iteration-count: 1 !important;
+  }
+}

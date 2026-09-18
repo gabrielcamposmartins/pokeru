@@ -123,10 +123,20 @@ export interface AvatarInfo {
 
 export const AVATAR_ICONS = ['♠', '♥', '♦', '♣', '★', '☾', '❀', '♛', '⚡', '☯', '♞', '✿'];
 
+/**
+ * Efeito das cartas vencedoras. Aqui ficam só os ids (é o que viaja na rede);
+ * o visual de cada um está no catálogo em src/render/cardfx.tsx.
+ */
+export const WIN_FX_IDS = ['gold', 'azure', 'rose', 'emerald', 'violet', 'prism', 'lightning', 'fire', 'ice', 'holy', 'void'] as const;
+export type WinFxId = (typeof WIN_FX_IDS)[number];
+export const DEFAULT_WIN_FX: WinFxId = 'gold';
+
 /** Cosméticos que os outros jogadores veem (enviados pela rede). */
 export interface PlayerCosmetics {
   back: CardBackStyle;
   character: CharacterStyle;
+  /** Id do efeito das cartas quando o jogador ganha (veja WIN_FX_IDS). */
+  winFx: WinFxId;
 }
 
 // ---------------------------------------------------------------------
@@ -743,9 +753,13 @@ export function sanitizeAvatar(v: unknown): AvatarInfo {
 }
 
 /** Cosméticos para envio pela rede: sem imagens. */
+export function sanitizeWinFx(v: unknown): WinFxId {
+  return oneOf(v, WIN_FX_IDS, DEFAULT_WIN_FX);
+}
+
 export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
   const o = obj(v);
-  return { back: sanitizeBack(o.back, false), character: sanitizeCharacter(o.character) };
+  return { back: sanitizeBack(o.back, false), character: sanitizeCharacter(o.character), winFx: sanitizeWinFx(o.winFx) };
 }
 
 // ---------------------------------------------------------------------

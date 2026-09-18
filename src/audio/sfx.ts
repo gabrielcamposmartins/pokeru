@@ -108,9 +108,44 @@ function pluck(freq: number, at: number, dur: number, gain = 0.05): void {
   playTone({ freq: freq * 2, dur: dur * 0.6, type: 'triangle', gain: gain * 0.5, at, attack: 0.002 });
 }
 
+/** Sons dos efeitos das cartas vencedoras (src/render/cardfx.tsx). */
+export type FxSound = 'chime' | 'zap' | 'flame' | 'freeze' | 'choir' | 'whoosh';
+
+/** Cada som é uma função; acrescentar um efeito com som novo é acrescentar uma entrada aqui. */
+const FX_SOUNDS: Record<FxSound, () => void> = {
+  chime: () => {
+    [1318.5, 1760, 2637].forEach((f, i) => playTone({ freq: f, dur: 0.7 - i * 0.15, type: 'triangle', gain: 0.07, at: i * 0.07 }));
+  },
+  zap: () => {
+    playNoise({ dur: 0.18, type: 'highpass', freq: 5200, freqEnd: 1800, gain: 0.3 });
+    playTone({ freq: 1900, freqEnd: 180, dur: 0.22, type: 'square', gain: 0.07 });
+    playNoise({ dur: 0.12, type: 'bandpass', freq: 2600, q: 3, gain: 0.18, at: 0.16 });
+  },
+  flame: () => {
+    playNoise({ dur: 0.8, type: 'lowpass', freq: 500, freqEnd: 1600, q: 0.7, gain: 0.22 });
+    playNoise({ dur: 0.5, type: 'bandpass', freq: 900, q: 1.2, gain: 0.12, at: 0.1 });
+  },
+  freeze: () => {
+    playNoise({ dur: 0.35, type: 'highpass', freq: 6000, gain: 0.16 });
+    playTone({ freq: 2800, freqEnd: 1400, dur: 0.6, type: 'sine', gain: 0.06 });
+    playTone({ freq: 3700, dur: 0.45, type: 'sine', gain: 0.035, at: 0.12 });
+  },
+  choir: () => {
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone({ freq: f, dur: 1.3, type: 'sine', gain: 0.05, at: i * 0.05, attack: 0.25 }));
+  },
+  whoosh: () => {
+    playNoise({ dur: 0.7, type: 'lowpass', freq: 2200, freqEnd: 260, q: 0.8, gain: 0.26 });
+    playTone({ freq: 220, freqEnd: 70, dur: 0.6, type: 'triangle', gain: 0.08 });
+  },
+};
+
 export const sfx = {
   unlock(): void {
     ac();
+  },
+  /** Som do efeito das cartas vencedoras. */
+  fx(kind: FxSound | undefined): void {
+    if (kind) FX_SOUNDS[kind]?.();
   },
   deal(): void {
     playNoise({ dur: 0.09, freq: 3200, freqEnd: 1400, q: 1.1, gain: 0.3 });

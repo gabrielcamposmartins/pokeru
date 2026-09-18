@@ -6,6 +6,7 @@ import { setTimeScale, wait } from '../anim/tween';
 import { sfx } from '../audio/sfx';
 import { handSlot, resetVoices, sayAction, sayCommon, sayWith, voiceUrl, type ComumSlot } from '../audio/voice';
 import { findStyle, useProfile } from '../store/profile';
+import { findWinFx } from '../render/cardfx';
 import { nextId, useTable, type CalloutKind, type Flyer, type Splash } from '../store/table';
 import { ACTION_LABEL, fmt } from '../util/format';
 import { MUCK_POS, POT_POS, boardSlot, holeCardPos, project, seatLayout, type Pt, type SeatGeo } from './layout';
@@ -342,6 +343,11 @@ class Director {
           const iLost = !iWon && me !== null && !!next.seats[me]?.inHand && !ev.uncontested;
           if (iWon) sfx.win();
           else if (iLost) sfx.lose();
+          // som do efeito das cartas vencedoras (só quando há cartas marcadas)
+          if (next.highlight.length) {
+            const fxSeat = winnerSeats.includes(me ?? -1) ? me! : main.seat;
+            sfx.fx(findWinFx(fxSeat === me ? useProfile.getState().winFx : next.seats[fxSeat]?.cosmetics.winFx).sound);
+          }
           // vozes: o vencedor anuncia a mão (no showdown, fala comum) e comemora com a fala própria
           const winner = this.charId(next, main.seat);
           sayWith(

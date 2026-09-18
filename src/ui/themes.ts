@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { CharacterStyle } from '../../shared/styles';
+import type { CharacterStyle, WinFxId } from '../../shared/styles';
 import { useProfile, type StyleKind } from '../store/profile';
 import type { SoundSet } from '../audio/sfx';
 
@@ -43,6 +43,8 @@ export interface UiTheme {
   sounds: SoundSet;
   /** Estilos que combinam com o tema (botão "Equipar estilos do tema"). */
   styles: Record<StyleKind, string>;
+  /** Efeito das cartas vencedoras que combina com o tema. */
+  winFx: WinFxId;
 }
 
 export const UI_THEMES: UiTheme[] = [
@@ -60,6 +62,7 @@ export const UI_THEMES: UiTheme[] = [
     cutinBand: (st) => `linear-gradient(90deg, ${st.bg2}, ${st.bg} 55%, ${st.bg2})`,
     sounds: 'default',
     styles: { face: 'face-classic', back: 'back-sakura', chip: 'chip-casino', table: 'table-soul' },
+    winFx: 'prism',
   },
   {
     id: 'victorian',
@@ -71,6 +74,7 @@ export const UI_THEMES: UiTheme[] = [
       'Painéis de couro com cantoneiras de latão',
       'Retratos em moldura dourada e tachas na mesa',
       'Cut-in em faixa de veludo',
+      'Efeito de vitória Luz Sagrada',
       'Sineta, relógio de pêndulo e cravo',
     ],
     swatch: { bg: '#4a1119', panel: '#401f15', accent: '#c9a25a', text: '#f3e9d2', font: "'Cinzel', serif", glyph: '⚜' },
@@ -84,6 +88,7 @@ export const UI_THEMES: UiTheme[] = [
     cutinBand: (st) => `linear-gradient(90deg, #140706 0%, ${st.bg2}d9 30%, ${st.bg}99 58%, #140706 100%), #2a0c10`,
     sounds: 'victorian',
     styles: { face: 'face-victorian', back: 'back-victorian', chip: 'chip-victorian', table: 'table-victorian' },
+    winFx: 'holy',
   },
 ];
 

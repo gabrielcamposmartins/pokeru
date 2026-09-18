@@ -21,6 +21,7 @@ import '@fontsource/playfair-display/800.css';
 import '@fontsource/playfair-display/900.css';
 import '@fontsource/playfair-display/900-italic.css';
 import './styles/global.css';
+import './styles/cardfx.css';
 import './styles/victorian.css';
 import { App } from './App';
 import { useProfile } from './store/profile';

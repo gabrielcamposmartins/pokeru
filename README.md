@@ -135,11 +135,40 @@ junto com o estado resultante, e espaça os eventos no tempo. No cliente, o **di
 cartas saem do dealer e, ao desistir, voam para o descarte, o bordo vira na mesa e o pote voa para o
 vencedor — e só então aplica o estado. Se houver atraso, as animações aceleram sozinhas.
 
+## Efeitos das cartas vencedoras
+
+No showdown, as cartas que formam a mão vencedora ganham uma **moldura animada** e um efeito por cima —
+na mesa e nas cartas do vencedor. Cada jogador escolhe o seu em **Estúdio → Efeitos**, e o efeito viaja
+pela rede: você vê o efeito de quem ganhou (as cartas da mesa usam o seu, se você ganhou).
+
+| Efeito | O que faz |
+|---|---|
+| Brilho Dourado / Azul / Rosé / Esmeralda / Violeta | moldura pulsando com faíscas, em cores diferentes |
+| Prisma | moldura tracejada correndo, trocando de cor |
+| Relâmpago | descargas saltam pelas bordas e a carta pisca |
+| Fogo | chamas lambem a carta e brasas sobem |
+| Gelo | geada nas bordas e cristais nos cantos |
+| Luz Sagrada | feixes de luz giram atrás da carta |
+| Sombra | fumaça arroxeada engole a carta |
+
+Cada efeito também tem um som (sino, descarga, labareda, congelamento, coral, sopro), tocado na vitória.
+
+**Para criar um efeito novo** (catálogo em `src/render/cardfx.tsx`):
+
+1. acrescente o id em `WIN_FX_IDS` (`shared/styles.ts`) — é o que viaja na rede e é sanitizado;
+2. acrescente a entrada em `WIN_FX` com nome, descrição, as duas cores, o tipo de moldura
+   (`pulse`, `march`, `flicker`), o som e, se quiser, uma função `layers` que desenha as camadas
+   (SVG onde a carta ocupa 0..100 x 0..140, podendo transbordar);
+3. se a camada for nova, escreva as animações dela em `src/styles/cardfx.css`.
+
+O efeito aparece sozinho no Estúdio; o teste `src/render/cardfx.test.ts` cobra que todo id tenha entrada.
+Efeitos "só de cor" saem de uma linha: a função `glow(id, nome, descrição, cores)`.
+
 ## Aparência da interface (temas de UI)
 
 No **Estúdio → UI** você escolhe a aparência da interface. Ao clicar num tema, a tela inteira já mostra a
 pré-visualização; **Usar esta aparência** grava a escolha no perfil (sair sem aplicar volta à atual).
-**Equipar estilos do tema** equipa as cartas, fichas e mesa que combinam com ele — a aparência sozinha não
+**Equipar estilos do tema** equipa as cartas, fichas, mesa e efeito de vitória que combinam com ele — a aparência sozinha não
 troca seus estilos.
 
 | Tema | Visual |

@@ -5,6 +5,7 @@ import type { BackPattern, CardBackStyle, CardFaceStyle, Emblem, FontKey } from 
 import { CROWN_PATH, Damask, FLEUR_PATH, Flower, MOON_PATH, SuitGlyph, starPath } from './suits';
 import { cleanId, shade } from '../util/color';
 import { useEquipped } from '../store/profile';
+import { CardWinFx, type WinFx } from './cardfx';
 
 export const FONT_FAMILY: Record<FontKey, string> = {
   serif: 'Georgia, "Times New Roman", serif',
@@ -396,6 +397,8 @@ export interface CardViewProps {
   flipDelay?: number;
   highlight?: boolean;
   dim?: boolean;
+  /** Efeito de vitória desenhado sobre a carta (src/render/cardfx.tsx). */
+  winFx?: WinFx | null;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -404,7 +407,7 @@ export interface CardViewProps {
  * Carta com frente e verso. A virada "achata" a carta no eixo X e troca a face no meio,
  * o que funciona inclusive dentro do plano 3D da mesa (sem depender de preserve-3d).
  */
-export function CardView({ card, faceUp = true, width, face, back, flipIn, flipDelay = 0, highlight, dim, className, style }: CardViewProps) {
+export function CardView({ card, faceUp = true, width, face, back, flipIn, flipDelay = 0, highlight, dim, winFx, className, style }: CardViewProps) {
   const eqFace = useEquipped('face');
   const eqBack = useEquipped('back');
   const f = face ?? eqFace;
@@ -430,6 +433,7 @@ export function CardView({ card, faceUp = true, width, face, back, flipIn, flipD
       }}
     >
       {shown && card ? <CardFaceSvg card={card} style={f} width={width} /> : <CardBackSvg style={b} width={width} />}
+      {winFx && <CardWinFx fx={winFx} width={width} radius={((shown && card ? f.radius : b.radius) * width) / 250} seed={card ? card.r * 4 + 'shdc'.indexOf(card.s) : 7} />}
     </motion.div>
   );
 }

@@ -14,6 +14,7 @@ import {
   type Emblem,
   type TablePattern,
   type TableStyle,
+  type WinFxId,
 } from '../../shared/styles';
 import { KIND_LABEL, PRESETS, SANITIZE, allStyles, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
 import { useSession } from '../store/session';
@@ -25,7 +26,8 @@ import { CARD_H, CARD_W, boardSlot, planeStyle, project } from '../game/layout';
 import { ColorField, ScreenHeader, Section, Segmented, Slider, Toggle } from '../ui/controls';
 import { rgbToHex } from '../util/color';
 import { parseJsonc } from '../../shared/jsonc';
-import { sfx } from '../audio/sfx';
+import { sfx, type FxSound } from '../audio/sfx';
+import { CardWinFx, WIN_FX, findWinFx, type FxFrame } from '../render/cardfx';
 import { fmt } from '../util/format';
 import { UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
 
@@ -637,7 +639,7 @@ function UiThemeStudio() {
   const theme = findTheme(sel);
   const inUse = theme.id === chosen.id;
   const kinds = Object.keys(theme.styles) as StyleKind[];
-  const stylesOn = kinds.every((k) => profile.equipped[k] === theme.styles[k]);
+  const stylesOn = kinds.every((k) => profile.equipped[k] === theme.styles[k]) && profile.winFx === theme.winFx;
 
   useEffect(() => setPreview(inUse ? null : theme.id), [inUse, theme.id, setPreview]);
   useEffect(() => () => setPreview(null), [setPreview]);
@@ -671,9 +673,10 @@ function UiThemeStudio() {
             <button
               className="btn btn-ghost small"
               disabled={stylesOn}
-              title="Equipa as cartas, fichas e mesa que combinam com este tema"
+              title="Equipa as cartas, fichas, mesa e efeito de vitória que combinam com este tema"
               onClick={() => {
                 for (const k of kinds) profile.equip(k, theme.styles[k]);
+                profile.setWinFx(theme.winFx);
                 sfx.pop();
                 toast(`Estilos do tema “${theme.name}” equipados!`);
               }}
@@ -728,7 +731,120 @@ function UiThemeStudio() {
               );
             })}
           </div>
+          <div className="theme-style">
+            <span className="thumb">
+              <span className="fx-chip">
+                <span className="fx-chip-card" />
+                <CardWinFx fx={findWinFx(theme.winFx)} width={34} radius={3} seed={9} />
+              </span>
+            </span>
+            <span className="style-name">
+              {findWinFx(theme.winFx).name}
+              <small className="muted">Efeito de vitória</small>
+            </span>
+          </div>
           <p className="field-hint">A aparência não troca seus estilos; use “Equipar estilos do tema” se quiser o conjunto completo.</p>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ efeitos das cartas vencedoras
+
+const FRAME_LABEL: Record<FxFrame, string> = { pulse: 'Moldura pulsante', march: 'Moldura tracejada correndo', flicker: 'Moldura piscando' };
+const FX_SOUND_LABEL: Record<FxSound, string> = {
+  chime: 'Sino',
+  zap: 'Descarga',
+  flame: 'Labareda',
+  freeze: 'Congelamento',
+  choir: 'Coral',
+  whoosh: 'Sopro',
+};
+
+/**
+ * Aba "Efeitos": escolhe o efeito das suas cartas quando você ganha. O catálogo está em
+ * src/render/cardfx.tsx — acrescentar um efeito lá já faz ele aparecer aqui.
+ */
+function WinFxStudio() {
+  const chosen = useProfile((s) => s.winFx);
+  const setWinFx = useProfile((s) => s.setWinFx);
+  const toast = useSession((s) => s.toast);
+  const [sel, setSel] = useState<WinFxId>(chosen);
+  const fx = findWinFx(sel);
+  const equipped = fx.id === chosen;
+  return (
+    <div className="studio-body">
+      <div className="panel style-list">
+        {WIN_FX.map((f) => (
+          <button
+            key={f.id}
+            className={`style-item ${f.id === fx.id ? 'on' : ''}`}
+            onClick={() => {
+              setSel(f.id);
+              sfx.fx(f.sound);
+            }}
+          >
+            <span className="thumb">
+              <span className="fx-chip">
+                <span className="fx-chip-card" />
+                <CardWinFx fx={f} width={34} radius={3} seed={9} />
+              </span>
+            </span>
+            <span className="style-name">
+              {f.name}
+              <span className="badges">{f.id === chosen && <span className="badge eq">Equipado</span>}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="panel preview-area">
+        <div className="preview-head">
+          <h2 className="title-deco theme-title">{fx.name}</h2>
+          <div className="row gap">
+            <button className="btn btn-ghost small" onClick={() => sfx.fx(fx.sound)} disabled={!fx.sound}>
+              ♪ Ouvir
+            </button>
+            <button
+              className={`btn ${equipped ? 'btn-ghost' : 'btn-gold'} small`}
+              disabled={equipped}
+              onClick={() => {
+                setWinFx(fx.id);
+                sfx.pop();
+                toast(`Efeito de vitória: “${fx.name}” equipado!`);
+              }}
+            >
+              {equipped ? '✓ Equipado' : 'Equipar'}
+            </button>
+          </div>
+        </div>
+        <div className="preview-stage">
+          <div className="fx-preview">
+            <CardView card={{ r: 14, s: 's' }} width={140} winFx={fx} />
+            <CardView card={{ r: 13, s: 'h' }} width={140} winFx={fx} />
+            <CardView card={null} faceUp={false} width={140} winFx={fx} />
+          </div>
+        </div>
+        <div className="preset-note">As cartas vencedoras (as suas e as da mesa) ficam assim quando você ganha no showdown.</div>
+      </div>
+      <div className="panel editor">
+        <Section title="Sobre">
+          <p className="theme-desc">{fx.description}</p>
+        </Section>
+        <Section title="Detalhes">
+          <ul className="theme-features">
+            <li>{FRAME_LABEL[fx.frame]}</li>
+            {fx.sound && <li>Som: {FX_SOUND_LABEL[fx.sound]}</li>}
+            <li>
+              Cores:
+              <span className="fx-colors">
+                {fx.colors.map((c) => (
+                  <i key={c} style={{ background: c }} title={c} />
+                ))}
+              </span>
+            </li>
+          </ul>
+          <p className="field-hint">O efeito é seu: os outros jogadores veem o seu efeito quando você ganha, e você vê o deles.</p>
         </Section>
       </div>
     </div>
@@ -737,13 +853,14 @@ function UiThemeStudio() {
 
 // ------------------------------------------------------------------ tela
 
-type Tab = StyleKind | 'ui';
+type Tab = StyleKind | 'ui' | 'fx';
 
 const TABS: { tab: Tab; icon: string; label: string }[] = [
   { tab: 'face', icon: '🂡', label: KIND_LABEL.face },
   { tab: 'back', icon: '🂠', label: KIND_LABEL.back },
   { tab: 'chip', icon: '◉', label: KIND_LABEL.chip },
   { tab: 'table', icon: '⬭', label: KIND_LABEL.table },
+  { tab: 'fx', icon: '✦', label: 'Efeitos' },
   { tab: 'ui', icon: '❖', label: 'UI' },
 ];
 
@@ -788,8 +905,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
   const [tab, setTab] = useState<Tab>('face');
-  /** Estilo das abas de estilos (a aba UI não edita estilos). */
-  const kind: StyleKind = tab === 'ui' ? 'face' : tab;
+  /** Estilo das abas de estilos (as abas Efeitos e UI não editam estilos). */
+  const kind: StyleKind = tab === 'ui' || tab === 'fx' ? 'face' : tab;
   const [selected, setSelected] = useState<Record<StyleKind, string>>(() => ({ ...profile.equipped }));
   const [importing, setImporting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -876,7 +993,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
     <div className="screen studio">
       <div className="menu-bg" />
       <ScreenHeader title="Estúdio de Estilos" onBack={onBack}>
-        {tab !== 'ui' && (
+        {tab !== 'ui' && tab !== 'fx' && (
           <button className="btn btn-ghost small" onClick={() => setImporting(true)}>
             ⤓ Importar
           </button>
@@ -900,6 +1017,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
       </div>
       {tab === 'ui' ? (
         <UiThemeStudio />
+      ) : tab === 'fx' ? (
+        <WinFxStudio />
       ) : (
         <div className="studio-body">
           <div className="panel style-list">
