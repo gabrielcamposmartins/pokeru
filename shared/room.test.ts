@@ -143,6 +143,47 @@ describe('sala', () => {
     expect(all.every((b) => b.name.startsWith(b.character.name))).toBe(true);
   });
 
+  it('pular a mao: corre o resto contra os bots e cai na mao seguinte', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    // humano que sempre desiste
+    const p = autoPlayer(lobby, 'Tester', () => ({ type: 'fold' }));
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'cash', maxPlayers: 3, startingStack: 1000, smallBlind: 25, bigBlind: 50 },
+    });
+    p.conn.handle({ type: 'addBot', difficulty: 'normal' });
+    p.conn.handle({ type: 'addBot', difficulty: 'normal' });
+    p.conn.handle({ type: 'startGame' });
+    // estando na mao, o pedido e recusado
+    await runUntil(() => p.views.length > 0);
+    p.conn.handle({ type: 'skipHand' });
+    expect(p.errors.some((e) => e.includes('ainda está na mão'))).toBe(true);
+
+    await runUntil(() => p.views.some((v) => v.mySeat !== null && v.seats[v.mySeat]?.folded === true));
+    const before = p.views[p.views.length - 1].handNo;
+    const winsBefore = p.events.filter((e) => e === 'win').length;
+    p.conn.handle({ type: 'skipHand' });
+    await vi.advanceTimersByTimeAsync(1500);
+    // a mao terminou (com vencedor anunciado) e a proxima ja comecou
+    expect(p.events.filter((e) => e === 'win').length).toBeGreaterThan(winsBefore);
+    expect(p.views[p.views.length - 1].handNo).toBeGreaterThan(before);
+  });
+
+  it('com outro humano na mesa, nao da para pular', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    const a = autoPlayer(lobby, 'A');
+    const b = autoPlayer(lobby, 'B');
+    a.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, ...fast, maxPlayers: 3 } });
+    const roomId = [...lobby.rooms.keys()][0];
+    b.conn.handle({ type: 'joinRoom', roomId });
+    a.conn.handle({ type: 'startGame' });
+    await runUntil(() => a.views.length > 0);
+    a.conn.handle({ type: 'skipHand' });
+    expect(a.errors.some((e) => e.includes('contra bots'))).toBe(true);
+  });
+
   it('rejeita ação fora da vez', () => {
     const lobby = new Lobby('teste');
     const a = autoPlayer(lobby, 'Ana');

@@ -69,6 +69,10 @@ class Director {
   private street = 'preflop';
   private raises = 0;
   private lastBet = 0;
+  /** Correndo a mão atual (o jogador pediu para pular): sem falas e com as animações rápidas. */
+  private skipping = false;
+  /** A mesa acabou para este jogador (ele saiu): ignora o que ainda chegar. */
+  private frozen = false;
 
   reset(): void {
     this.epoch++;
@@ -77,11 +81,31 @@ class Director {
     this.street = 'preflop';
     this.raises = 0;
     this.lastBet = 0;
+    this.skipping = false;
+    this.frozen = false;
     resetVoices();
     useTable.getState().reset();
   }
 
+  /** O jogador pediu para pular a mão: corre o resto sem falas e com as animações aceleradas. */
+  skip(): void {
+    this.skipping = true;
+  }
+
+  /**
+   * Congela a mesa: a partida acabou para quem está saindo, então o que ainda chegar é ignorado
+   * (sem animações, sons ou mudanças no placar já mostrado).
+   */
+  freeze(): void {
+    this.frozen = true;
+    this.epoch++;
+    this.queue = [];
+    this.running = false;
+    resetVoices();
+  }
+
   sync(view: TableView): void {
+    if (this.frozen) return;
     this.epoch++;
     this.queue = [];
     this.running = false;
@@ -95,6 +119,7 @@ class Director {
   }
 
   enqueue(ev: TableEvent, view: TableView): void {
+    if (this.frozen) return;
     this.queue.push({ ev, view, at: Date.now(), raise: this.tally(ev, view) });
     if (!this.running) void this.run();
   }
@@ -146,7 +171,7 @@ class Director {
     const base = useProfile.getState().settings.animSpeed;
     const backlog = this.queue.length;
     const boost = backlog > 2 ? Math.min(4, 1 + (backlog - 2) * 0.5) : 1;
-    setTimeScale(base * boost);
+    setTimeScale(base * boost * (this.skipping ? 5 : 1));
   }
 
   private geo(view: TableView): SeatGeo[] {
@@ -244,6 +269,7 @@ class Director {
       t.setMatch({ id: nextId(), kind: 'over' });
     }
     if (ev.t === 'handStart') {
+      this.skipping = false;
       t.setWinners([]);
       t.setResult(null);
       t.addLog(`Mão #${ev.handNo}`, 'hand');
@@ -268,6 +294,7 @@ class Director {
 
     switch (ev.t) {
       case 'handStart': {
+        this.skipping = false;
         store.setWinners([]);
         store.setSplash(null);
         store.setResult(null);
@@ -311,7 +338,7 @@ class Director {
         // voz: a chamada comum (チェック, ベット, コール, レイズ/リレイズ, フォールド); no all-in, a fala própria
         const slot: ComumSlot = ev.action === 'raise' ? (item.raise ?? 'raise') : ev.action;
         const who = this.charId(next, ev.seat);
-        sayAction(`${ev.seat}:${who}`, who, slot);
+        if (!this.skipping) sayAction(`${ev.seat}:${who}`, who, slot);
         if (ev.action === 'fold') await this.foldMotion(cur, next, geo, ev.seat);
         else if (ev.action === 'check') this.knockMotion(next, ev.seat);
         else if (ev.action === 'allin') await this.allinMotion(next, geo, ev.seat, ev.amount, alive);
@@ -352,7 +379,7 @@ class Director {
 
       case 'showdown': {
         // quem abre as cartas primeiro diz a chamada comum (オープン！)
-        if (ev.reveals[0]) sayCommon(this.charId(next, ev.reveals[0].seat), 'show', { important: true });
+        if (ev.reveals[0] && !this.skipping) sayCommon(this.charId(next, ev.reveals[0].seat), 'show', { important: true });
         for (const r of ev.reveals) {
           if (!alive()) return;
           store.addLog(`${this.seatName(next, r.seat)} mostra ${r.cards.map(cardText).join(' ')} — ${r.hand}`);
@@ -406,11 +433,12 @@ class Director {
           }
           // vozes: o vencedor anuncia a mão (no showdown, fala comum) e comemora com a fala própria
           const winner = this.charId(next, main.seat);
-          sayWith(
-            { important: true },
-            winner && cat !== null ? voiceUrl(winner, 'comum', handSlot(cat, !!main.hand?.startsWith('Royal'))) : undefined,
-            winner ? voiceUrl(winner, 'fala', kind === 'big' ? 'big_win' : 'win') : undefined,
-          );
+          if (!this.skipping)
+            sayWith(
+              { important: true },
+              winner && cat !== null ? voiceUrl(winner, 'comum', handSlot(cat, !!main.hand?.startsWith('Royal'))) : undefined,
+              winner ? voiceUrl(winner, 'fala', kind === 'big' ? 'big_win' : 'win') : undefined,
+            );
         }
         // as fichas do pote voam para cada vencedor
         store.patchDisplay({ pot: 0, seats: cur.seats.map((s) => (s ? { ...s, bet: 0 } : s)) });
@@ -425,7 +453,8 @@ class Director {
         sfx.chips(8);
         this.clearFlyers(await Promise.all(flights));
         // showdown: tela de resultado do round (personagem, mão feita e fichas ganhas)
-        if (!ev.uncontested && main && alive()) {
+        // ao pular a mão fica só o anúncio de quem ganhou, sem a tela de resultado
+        if (!ev.uncontested && main && alive() && !this.skipping) {
           store.setSplash(null);
           store.setResult(this.roundResult(next, ev.pots, main.seat));
         }

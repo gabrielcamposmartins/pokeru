@@ -103,6 +103,8 @@ export class Room {
   private turnDeadline = 0;
   private nextHandScheduled = false;
   private destroyed = false;
+  /** Correndo a mão atual até o fim (pedido de "pular" numa partida contra bots). */
+  private rushing = false;
   private eliminated: { name: string; seat: number; place: number }[] = [];
 
   constructor(id: string, settings: RoomSettings, host: ClientHandle) {
@@ -369,6 +371,7 @@ export class Room {
 
   private startHand(): void {
     if (this.status !== 'playing') return;
+    this.rushing = false;
     // limpa quem saiu
     for (const m of this.members()) {
       if (m.leaving) {
@@ -516,7 +519,7 @@ export class Room {
   private emit(ev: TableEvent | HandEvent): void {
     const views = new Map<string, TableView>();
     for (const m of this.humans()) views.set(m.id, this.buildView(m.id));
-    this.queue.push({ ev, views, delay: this.delayFor(ev) * this.settings.pace });
+    this.queue.push({ ev, views, delay: this.rushing ? 12 : this.delayFor(ev) * this.settings.pace });
     this.pump();
   }
 
@@ -555,10 +558,13 @@ export class Room {
     }
     if (this.status === 'playing' && !this.nextHandScheduled) {
       this.nextHandScheduled = true;
-      this.later(() => {
-        this.nextHandScheduled = false;
-        this.startHand();
-      }, 900 * this.settings.pace);
+      this.later(
+        () => {
+          this.nextHandScheduled = false;
+          this.startHand();
+        },
+        this.rushing ? 80 : 900 * this.settings.pace,
+      );
     }
   }
 
@@ -578,7 +584,7 @@ export class Room {
     if (!m || m.leaving || (!m.isBot && !m.connected)) {
       this.turnTimer = this.later(guard(() => this.autoAct(seat)), 400);
     } else if (m.isBot) {
-      this.turnTimer = this.later(guard(() => this.botAct(m)), botThinkTimeMs() * Math.min(1, this.settings.pace));
+      this.turnTimer = this.later(guard(() => this.botAct(m)), this.rushing ? 10 : botThinkTimeMs() * Math.min(1, this.settings.pace));
     } else {
       this.turnTimer = this.later(guard(() => this.autoAct(seat)), timeMs + 300);
     }
@@ -624,6 +630,30 @@ export class Room {
     }
     const r = this.hand.act(seat, action);
     return r.ok;
+  }
+
+  /**
+   * Corre a mão atual até o fim, sem as pausas das animações. Serve para o jogador que já
+   * desistiu não ter de esperar os bots — por isso só vale numa mesa com um humano só.
+   */
+  skipHand(clientId: string): string | null {
+    const m = this.memberById(clientId);
+    if (!m || m.isBot) return 'Você não está na mesa';
+    if (this.humanCount > 1) return 'Só dá para pular jogando contra bots';
+    if (this.status !== 'playing' || !this.hand || this.hand.finished) return null;
+    const p = this.hand.players.find((x) => x.id === clientId);
+    if (p && !p.folded) return 'Você ainda está na mão';
+    if (this.rushing) return null;
+    this.rushing = true;
+    // refaz a vez atual para o bot decidir na hora, sem o tempo de "pensar"
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.timers.delete(this.turnTimer);
+      this.turnTimer = null;
+    }
+    this.turnKey = '';
+    this.pump();
+    return null;
   }
 
   handleAction(clientId: string, action: PlayerAction): string | null {

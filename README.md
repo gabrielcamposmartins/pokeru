@@ -185,6 +185,19 @@ fora dos quatro primeiros, a primeira página mostra 1º, 2º, 3º e **a sua lin
 sua posição real** — assim não é preciso paginar para se achar; as páginas seguintes continuam a
 partir do 3º.
 
+## Partida contra bots: pular a mao e sair
+
+- **Pular a mao**: numa mesa com um humano so (Partida Rapida, ou sala online com bots), depois de
+  desistir aparece **Pular mao** no canto. O cliente pede `skipHand` e a sala corre o resto da mao sem
+  as pausas das animacoes (`Room.skipHand` liga o modo `rushing`: eventos quase sem espera e bots
+  decidindo na hora). A mao **e jogada de verdade** e quem ganhou continua sendo anunciado (o aviso de
+  vitoria e a linha no historico); so a tela de resultado do round e o audio das falas ficam de fora.
+  O pedido e recusado se voce ainda esta na mao ou se ha outro humano na mesa.
+- **Sair**: ao confirmar a saida, a partida **acaba ali**. O cliente congela a mesa
+  (`director.freeze()`: o que ainda chegar e ignorado) e, no modo offline, a sala local e fechada na
+  hora — bots e temporizadores param. O placar aparece sobre a mesa parada e a saida em si acontece no
+  **Confirmar**.
+
 ## Efeitos das cartas vencedoras
 
 No showdown, as cartas que formam a mão vencedora ganham uma **moldura animada** e um efeito por cima —

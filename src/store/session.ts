@@ -52,6 +52,8 @@ interface SessionState {
   startLocal(o: LocalOptions): void;
   send(msg: ClientMsg): void;
   leaveRoom(): void;
+  /** Para de encenar a mesa; numa partida offline, encerra a sala na hora. */
+  stopPlaying(): void;
   disconnect(): void;
   toast(text: string, kind?: Toast['kind']): void;
   dismissToast(id: number): void;
@@ -157,6 +159,12 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   send(msg) {
     transport?.send(msg);
+  },
+
+  stopPlaying() {
+    director.freeze();
+    // offline: fecha a sala local, então bots e temporizadores param de rodar
+    if (get().mode === 'local') transport?.close();
   },
 
   leaveRoom() {

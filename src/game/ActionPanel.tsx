@@ -3,6 +3,7 @@ import type { PlayerAction } from '../../shared/engine';
 import { useSession } from '../store/session';
 import { useTable } from '../store/table';
 import { sfx } from '../audio/sfx';
+import { director } from './director';
 import { fmt } from '../util/format';
 
 type Pre = 'none' | 'checkfold' | 'check' | 'callany';
@@ -13,6 +14,10 @@ export function ActionPanel() {
   const [raiseTo, setRaiseTo] = useState(0);
   const [pre, setPre] = useState<Pre>('none');
   const [sentKey, setSentKey] = useState('');
+  /** Mão em que já pedi para pular (o botão sai até a próxima). */
+  const [skipped, setSkipped] = useState(-1);
+  // só numa partida contra bots (um humano na mesa) dá para pular a mão
+  const solo = useSession((s) => !s.room || s.room.members.filter((m) => !m.isBot).length <= 1);
 
   const me = view && view.mySeat !== null ? view.seats[view.mySeat] : null;
   const legal = view?.legal ?? null;
@@ -78,8 +83,29 @@ export function ActionPanel() {
 
   if (!view || !me || view.status !== 'playing') return null;
   const inHand = me.inHand && !me.folded && !me.allIn;
+  const running = !!view.street && view.street !== 'showdown';
+  // desistiu (ou está de fora) numa mesa de bots: pode correr a mão até o fim
+  const canSkip = solo && running && (me.folded || !me.inHand) && skipped !== view.handNo;
 
   if (!myTurn) {
+    if (canSkip) {
+      return (
+        <div className="pre-actions">
+          <button
+            className="pre-btn skip-btn"
+            title="Corre o resto da mão e vai para a próxima (o vencedor é anunciado)"
+            onClick={() => {
+              sfx.click();
+              setSkipped(view.handNo);
+              director.skip();
+              send({ type: 'skipHand' });
+            }}
+          >
+            ⏭ Pular mão
+          </button>
+        </div>
+      );
+    }
     if (!inHand || !view.street || view.street === 'showdown') return null;
     const opt = (p: Pre, label: string) => (
       <button className={`pre-btn ${pre === p ? 'on' : ''}`} onClick={() => setPre(pre === p ? 'none' : p)}>

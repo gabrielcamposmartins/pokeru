@@ -15,6 +15,7 @@ export function GameScreen() {
   const view = useTable((s) => s.display);
   const room = useSession((s) => s.room);
   const leaveRoom = useSession((s) => s.leaveRoom);
+  const stopPlaying = useSession((s) => s.stopPlaying);
   const table = useEquipped('table');
   const muted = useProfile((s) => s.settings.muted);
   const updateSettings = useProfile((s) => s.updateSettings);
@@ -87,9 +88,10 @@ export function GameScreen() {
                 className="btn btn-danger"
                 onClick={() => {
                   setConfirmLeave(false);
-                  // mostra o placar antes de sair (a saída acontece no Confirmar)
-                  if (view) useTable.getState().setMatch({ id: nextId(), kind: 'leave' });
-                  else leaveRoom();
+                  if (!view) return leaveRoom();
+                  // a partida acaba aqui: mostra o placar e só sai de fato no Confirmar
+                  stopPlaying();
+                  useTable.getState().setMatch({ id: nextId(), kind: 'leave' });
                 }}
               >
                 Sair

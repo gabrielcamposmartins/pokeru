@@ -131,6 +131,7 @@ export type ClientMsg =
   | { type: 'removeBot'; seat: number }
   | { type: 'startGame' }
   | { type: 'action'; action: PlayerAction }
+  | { type: 'skipHand' }
   | { type: 'chat'; text: string }
   | { type: 'emote'; emote: string }
   | { type: 'ping' };

@@ -3566,3 +3566,14 @@ button.avatar {
   color: var(--muted);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }
+
+/* pular a mão (partida contra bots) */
+.skip-btn {
+  gap: 10px;
+  font-size: 16px;
+  color: var(--gold-2);
+  border-color: rgba(242, 193, 78, 0.5);
+}
+.skip-btn:hover {
+  background: rgba(242, 193, 78, 0.18);
+}
