@@ -414,6 +414,14 @@ export function CardView({ card, faceUp = true, width, face, back, flipIn, flipD
   const b = back ?? eqBack;
   const up = faceUp && !!card;
   const [shown, setShown] = useState(flipIn ? false : up);
+  // espessura e brilho da carta (o resto está em .cardv, em global.css).
+  // a lateral é o papel visto de lado: a cor do miolo (frente) ou da margem (verso).
+  const paper = shown && card ? f : b;
+  const solid: React.CSSProperties = {
+    ['--cr' as string]: `${(paper.radius * width) / 250}px`,
+    ['--ct' as string]: `${Math.max(2, width * 0.03)}px`,
+    ['--ce' as string]: shade(shown && card ? f.bg : b.border, -0.14),
+  };
   const [phase, setPhase] = useState<'idle' | 'out' | 'in'>('idle');
   useEffect(() => {
     if (shown !== up && phase === 'idle') setPhase('out');
@@ -421,7 +429,7 @@ export function CardView({ card, faceUp = true, width, face, back, flipIn, flipD
   return (
     <motion.div
       className={`cardv ${highlight ? 'card-hl' : ''} ${dim ? 'card-dim' : ''} ${className ?? ''}`}
-      style={{ width, height: width * 1.4, ...style }}
+      style={{ width, height: width * 1.4, ...solid, ...style }}
       initial={false}
       animate={phase === 'out' ? { scaleX: 0, y: -width * 0.1 } : { scaleX: 1, y: 0 }}
       transition={phase === 'out' ? { duration: 0.15, delay: flipDelay, ease: 'easeIn' } : { duration: 0.2, ease: 'easeOut' }}
@@ -433,7 +441,7 @@ export function CardView({ card, faceUp = true, width, face, back, flipIn, flipD
       }}
     >
       {shown && card ? <CardFaceSvg card={card} style={f} width={width} /> : <CardBackSvg style={b} width={width} />}
-      {winFx && <CardWinFx fx={winFx} width={width} radius={((shown && card ? f.radius : b.radius) * width) / 250} seed={card ? card.r * 4 + 'shdc'.indexOf(card.s) : 7} />}
+      {winFx && <CardWinFx fx={winFx} width={width} radius={(paper.radius * width) / 250} seed={card ? card.r * 4 + 'shdc'.indexOf(card.s) : 7} />}
     </motion.div>
   );
 }

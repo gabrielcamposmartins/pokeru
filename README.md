@@ -127,6 +127,22 @@ na parte de baixo da tela** — é posicionado no palco pela função `project()
 matemática do CSS. No centro há um **console** com o pote, a rua e luzes nas bordas apontando para
 quem está na vez.
 
+### Volume das cartas e das fichas
+
+Nada de 3D de verdade: o volume e desenhado.
+
+- **Cartas** (`.cardv`, em `global.css`): atras da carta fica uma copia dela deslocada para baixo, na cor
+  do papel visto de lado (o miolo na frente, a margem no verso), com um fio escuro na quina — e isso da a
+  espessura. Por cima, um verniz: luz numa quina e sombra na oposta. A cor, o raio dos cantos e a
+  espessura saem do proprio estilo da carta, em variaveis CSS (`--ce`, `--cr`, `--ct`), entao qualquer
+  estilo criado no Estudio ganha o volume junto. No plano inclinado da mesa, o deslocamento aparece
+  virado para a camera, como uma carta deitada.
+- **Fichas** (`ChipColumnSvg`): cada ficha e um cilindro — a lateral usa um degrade que escurece nas
+  quinas e clareia no meio, as listras da borda ficam mais apagadas nas beiradas, ha um friso de luz na
+  quina de cima de cada ficha e uma sombra de contato embaixo da pilha, para assentar no feltro.
+
+Para conferir sem jogar: `/preview.html?cena=solids` (de perto) e `/preview.html?cena=mesa` (na mesa).
+
 ### Como as animações funcionam
 
 O servidor emite cada evento da mão (`blinds`, `deal`, `action`, `collect`, `street`, `showdown`, `win`…)
@@ -155,7 +171,7 @@ referência) e o conteúdo se distribui assim:
   seguinte começa.
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
-`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, e
+`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, e
 `&ui=victorian`, `&rects=1` para medir as caixas). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em

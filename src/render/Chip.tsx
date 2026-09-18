@@ -1,6 +1,6 @@
-import { memo } from 'react';
+import { memo, useId } from 'react';
 import { CHIP_VALUES, type ChipStyle } from '../../shared/styles';
-import { shade } from '../util/color';
+import { cleanId, shade } from '../util/color';
 import { fmt } from '../util/format';
 import { useEquipped } from '../store/profile';
 
@@ -94,40 +94,71 @@ export function breakdown(amount: number, maxCols = 4, maxH = 9): ChipColumn[] {
 
 const STRIPES = [0.12, 0.36, 0.64, 0.88];
 
-/** Uma coluna de fichas empilhadas, vista em 3/4 (topo elíptico + laterais listradas). */
+/**
+ * Uma coluna de fichas empilhadas, vista em 3/4: topo elíptico e a lateral como um cilindro —
+ * degradê que escurece nas quinas, listras mais apagadas nas beiradas, friso de luz no topo
+ * de cada ficha e uma sombra de contato embaixo, para a pilha assentar na mesa.
+ */
 export const ChipColumnSvg = memo(function ChipColumnSvg({ ti, count, size, st }: { ti: number; count: number; size: number; st: ChipStyle }) {
+  const uid = cleanId(useId());
   const r = size / 2;
   const ry = r * 0.58;
   const th = size * 0.13;
   const h = ry * 2 + count * th;
   const k = size / 100;
   const tier = st.tiers[ti];
-  const sideC = shade(tier.base, -0.3);
-  const lineC = shade(tier.base, -0.55);
+  const lineC = shade(tier.base, -0.6);
   /** Borda inferior da elipse do topo em x (onde começa a lateral). */
   const yb = (x: number, cy: number) => cy + ry * Math.sqrt(Math.max(0, 1 - ((x - r) / r) ** 2));
   return (
     <svg width={size} height={h} viewBox={`0 0 ${size} ${h}`} style={{ overflow: 'visible' }}>
+      <defs>
+        {/* lateral do cilindro: escura nas quinas, clara no meio */}
+        <linearGradient id={`wall${uid}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={shade(tier.base, -0.62)} />
+          <stop offset="0.16" stopColor={shade(tier.base, -0.36)} />
+          <stop offset="0.42" stopColor={shade(tier.base, -0.04)} />
+          <stop offset="0.66" stopColor={shade(tier.base, -0.24)} />
+          <stop offset="1" stopColor={shade(tier.base, -0.66)} />
+        </linearGradient>
+        <radialGradient id={`drop${uid}`}>
+          <stop offset="0.4" stopColor="#000" stopOpacity={0.45} />
+          <stop offset="1" stopColor="#000" stopOpacity={0} />
+        </radialGradient>
+      </defs>
+      <ellipse cx={r} cy={h - th * 0.15} rx={r * 1.2} ry={ry * 0.75} fill={`url(#drop${uid})`} />
       {Array.from({ length: count }, (_, i) => {
         const cy = h - th - ry - i * th;
         return (
           <g key={i}>
             <path
               d={`M0 ${cy} A${r} ${ry} 0 0 0 ${size} ${cy} L${size} ${cy + th} A${r} ${ry} 0 0 1 0 ${cy + th} Z`}
-              fill={sideC}
+              fill={`url(#wall${uid})`}
               stroke={lineC}
-              strokeWidth={0.8}
+              strokeWidth={0.7}
             />
             {STRIPES.map((f) => {
               const x = size * f;
-              return <rect key={f} x={x - size * 0.035} y={yb(x, cy)} width={size * 0.07} height={th * 0.92} fill={tier.edge} opacity={0.9} />;
+              return (
+                <rect
+                  key={f}
+                  x={x - size * 0.035}
+                  y={yb(x, cy)}
+                  width={size * 0.07}
+                  height={th * 0.92}
+                  fill={tier.edge}
+                  opacity={0.95 - 1.1 * Math.abs(f - 0.5)}
+                />
+              );
             })}
+            {/* friso de luz na quina de cima da ficha */}
+            <path d={`M0 ${cy} A${r} ${ry} 0 0 0 ${size} ${cy}`} fill="none" stroke="#fff" strokeOpacity={0.16} strokeWidth={size * 0.022} />
             {i === count - 1 ? (
               <g transform={`translate(${r} ${cy}) scale(${k} ${k * 0.58})`}>
                 <ChipFace ti={ti} st={st} />
               </g>
             ) : (
-              <ellipse cx={r} cy={cy} rx={r} ry={ry} fill={tier.base} />
+              <ellipse cx={r} cy={cy} rx={r} ry={ry} fill={shade(tier.base, -0.12)} />
             )}
           </g>
         );

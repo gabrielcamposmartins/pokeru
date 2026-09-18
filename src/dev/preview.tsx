@@ -9,6 +9,8 @@
  *   /preview.html?cena=result-board    mão feita só com o bordo (5 cartas na mesa)
  *   /preview.html?cena=result-long     nome de mão comprido e pote dividido
  *   /preview.html?cena=result-pays     mesa cheia: cinco jogadores pagaram o vencedor
+ *   /preview.html?cena=solids          cartas e fichas de perto (volume)
+ *   /preview.html?cena=mesa            a mesa parada (cartas deitadas no plano e fichas em pe)
  *   &ui=victorian                      com o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -36,8 +38,11 @@ import '@fontsource/playfair-display/900-italic.css';
 import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
-import { CHARACTER_PRESETS } from '../../shared/styles';
-import { STAGE_H, STAGE_W } from '../game/layout';
+import { CHARACTER_PRESETS, TABLE_PRESETS } from '../../shared/styles';
+import { CARD_W, STAGE_H, STAGE_W, boardSlot, holeCardPos, planeStyle, project, seatLayout } from '../game/layout';
+import { CardView } from '../render/CardArt';
+import { ChipStack } from '../render/Chip';
+import { TableFelt } from '../render/TableFelt';
 import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
 import { RoundResultPanel } from '../game/RoundResult';
 import type { RoundResult } from '../store/table';
@@ -143,6 +148,77 @@ const MATCHES: Record<string, MatchRow[]> = {
   'match-me6': rows(6, 6),
 };
 
+/** A mesa parada: cartas deitadas no plano inclinado, fichas em pé e a minha mão. */
+function Mesa() {
+  const table = TABLE_PRESETS[0];
+  const geo = seatLayout(6, 0, true);
+  const bets = [1, 2, 4].map((seat) => ({ seat, amount: 120 * seat }));
+  return (
+    <div className="table-stage">
+      <div className="floor-plane" style={planeStyle(3200, 2200, 1600, 1100)} />
+      <div className="table-plane" style={planeStyle()}>
+        <TableFelt st={table} showSlots={false} />
+        {fullBoard.map((c, i) => {
+          const p = boardSlot(i);
+          return (
+            <div key={i} className="board-card" style={{ left: p.x - CARD_W / 2, top: p.y - (CARD_W * 1.4) / 2 }}>
+              <CardView card={c} width={CARD_W} />
+            </div>
+          );
+        })}
+        {[1, 4].map((seat) => {
+          const g = geo[seat];
+          const hp = holeCardPos(g, 0);
+          return (
+            <div key={seat} className="hole-card" style={{ left: hp.p.x - g.cardW / 2, top: hp.p.y - (g.cardW * 1.4) / 2, transform: `rotate(${hp.rot}deg)` }}>
+              <CardView card={null} faceUp={false} width={g.cardW} />
+            </div>
+          );
+        })}
+      </div>
+      {bets.map(({ seat, amount }) => {
+        const p = project(geo[seat].bet);
+        return (
+          <div key={seat} className="seat-bet" style={{ left: p.x, top: p.y, transform: `scale(${p.s})` }}>
+            <div className="seat-bet-inner">
+              <ChipStack amount={amount} size={32} maxCols={3} />
+            </div>
+          </div>
+        );
+      })}
+      <div className="my-hand">
+        {hole.map((c, i) => (
+          <div key={i} className="my-card" style={{ left: (i === 0 ? -1 : 1) * 80 - 68, transform: `rotate(${i === 0 ? -6 : 6}deg)` }}>
+            <CardView card={c} width={136} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Cartas e fichas de perto, para conferir o volume. */
+function Solids() {
+  return (
+    <div className="preview-solids">
+      <div className="row gap" style={{ gap: 34, alignItems: 'flex-end' }}>
+        <CardView card={{ r: 14, s: 's' }} width={230} />
+        <CardView card={{ r: 12, s: 'h' }} width={230} />
+        <CardView card={null} faceUp={false} width={230} />
+        <CardView card={{ r: 7, s: 'd' }} width={140} />
+        <CardView card={{ r: 3, s: 'c' }} width={88} />
+      </div>
+      <div className="row gap" style={{ alignItems: 'flex-end', gap: 56 }}>
+        <ChipStack amount={25} size={110} />
+        <ChipStack amount={180} size={110} />
+        <ChipStack amount={1250} size={78} />
+        <ChipStack amount={26_600} size={48} />
+        <ChipStack amount={640} size={32} />
+      </div>
+    </div>
+  );
+}
+
 const cena = q.get('cena') ?? 'result';
 const matchRows = MATCHES[cena];
 const scene = SCENES[cena] ?? base;
@@ -153,7 +229,15 @@ createRoot(document.getElementById('root')!).render(
       <div className="game-screen">
         <div className="stage-wrap">
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, background: 'radial-gradient(ellipse at 50% 40%, #3a1418 0%, #0e0506 75%)' }}>
-            {matchRows ? <MatchEndPanel m={{ id: 1, kind: 'over' }} rows={matchRows} info="Treino Offline · Sit & Go · 18 mãos" /> : <RoundResultPanel r={scene} />}
+            {cena === 'mesa' ? (
+              <Mesa />
+            ) : cena === 'solids' ? (
+              <Solids />
+            ) : matchRows ? (
+              <MatchEndPanel m={{ id: 1, kind: 'over' }} rows={matchRows} info="Treino Offline · Sit & Go · 18 mãos" />
+            ) : (
+              <RoundResultPanel r={scene} />
+            )}
           </div>
         </div>
       </div>

@@ -3577,3 +3577,50 @@ button.avatar {
 .skip-btn:hover {
   background: rgba(242, 193, 78, 0.18);
 }
+
+/* ------------------------------------------------------------------ volume das cartas */
+
+/* espessura: o papel visto de lado, uma cópia da carta deslocada para baixo, atrás dela */
+.cardv::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--cr, 8px);
+  background: var(--ce, #ddd);
+  transform: translate(1.5px, var(--ct, 3px));
+  box-shadow:
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.3),
+    inset -1.5px 0 0 rgba(0, 0, 0, 0.2),
+    0 2px 5px rgba(0, 0, 0, 0.45);
+}
+.cardv.card-dim::before {
+  filter: brightness(0.5) saturate(0.6);
+}
+/* verniz do papel: luz numa quina, sombra na oposta */
+.cardv::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--cr, 8px);
+  background: linear-gradient(148deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.06) 24%, rgba(255, 255, 255, 0) 44%, rgba(0, 0, 0, 0.14) 100%);
+}
+.cardv.card-dim::after {
+  opacity: 0.35;
+}
+/* a minha mão fica maior e mais perto: espessura mais visível */
+.my-card .cardv {
+  --ct: 5px;
+}
+
+/* pré-visualização de cartas e fichas (página de apoio) */
+.preview-solids {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 70px;
+}
