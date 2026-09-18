@@ -22,7 +22,7 @@
  * e as skins na lista de estilos — todos só perguntam se a recompensa está liberada.
  */
 import type { CharacterStyle } from '../../shared/styles';
-import type { FalaSlot } from '../audio/voice';
+import type { ComumSlot, FalaSlot } from '../audio/voice';
 import type { StyleKind } from '../store/profile';
 
 /** Corações da barra de vínculo. */
@@ -47,14 +47,50 @@ export const BOND_POINTS: Record<BondEvent, number> = {
   matchWin: 40,
 };
 
-export const BOND_EVENT_LABEL: Record<BondEvent, string> = {
-  win: 'Mão ganha',
-  bigWin: 'Mão grande',
-  loss: 'Mão disputada',
-  fold: 'Mão desistida',
-  match: 'Partida completa',
-  matchWin: 'Partida vencida',
-};
+/** O que você acumulou jogando com um personagem. */
+export interface BondStats {
+  points: number;
+  /** Mãos ganhas. */
+  wins: number;
+  /** Mãos disputadas e perdidas (chegou ao fim e não levou o pote). */
+  losses: number;
+  /** Mãos em que você desistiu. */
+  folds: number;
+  hands: number;
+  matches: number;
+}
+
+export const EMPTY_BOND: BondStats = { points: 0, wins: 0, losses: 0, folds: 0, hands: 0, matches: 0 };
+
+/** Contadores mostrados na página de vínculo. */
+export const BOND_COUNTERS: { key: keyof BondStats; label: string }[] = [
+  { key: 'wins', label: 'vitórias' },
+  { key: 'losses', label: 'derrotas' },
+  { key: 'folds', label: 'desistências' },
+  { key: 'hands', label: 'mãos' },
+  { key: 'matches', label: 'partidas' },
+];
+
+/**
+ * As missões do vínculo: o que rende pontos, com o contador que cada uma alimenta.
+ * São a lista mostrada na página de vínculo, na ordem em que aparecem lá.
+ */
+export interface BondMission {
+  ev: BondEvent;
+  label: string;
+  hint: string;
+  /** Contador da ficha do personagem que essa missão faz subir. */
+  counter: keyof BondStats;
+}
+
+export const BOND_MISSIONS: BondMission[] = [
+  { ev: 'win', label: 'Leve o pote', hint: 'Qualquer mão que você ganhar, no showdown ou porque todos desistiram.', counter: 'wins' },
+  { ev: 'bigWin', label: 'Ganhe com uma mão grande', hint: 'Sequência, flush, full house, quadra ou straight flush — no lugar dos 10 pontos da mão ganha.', counter: 'wins' },
+  { ev: 'loss', label: 'Vá até o fim e perca', hint: 'Chegar ao showdown e não levar o pote também aproxima.', counter: 'losses' },
+  { ev: 'fold', label: 'Desista de uma mão', hint: 'Fazer companhia conta pouco, mas conta.', counter: 'folds' },
+  { ev: 'match', label: 'Termine a partida', hint: 'Vale ao acabar o jogo ou ao sair da mesa depois de jogar.', counter: 'matches' },
+  { ev: 'matchWin', label: 'Termine a partida em 1º', hint: 'No lugar dos 20 pontos da partida completa.', counter: 'matches' },
+];
 
 /** Onde o vínculo está: corações completos e o quanto falta para o próximo. */
 export interface BondLevel {
@@ -116,6 +152,8 @@ export interface BondReward {
   icon: string;
   /** Fala própria do personagem liberada. */
   voice?: FalaSlot;
+  /** Chamada comum que a fala própria substitui (a página mostra as duas). */
+  replaces?: ComumSlot;
   /** Emotes liberados. */
   emotes?: string[];
   /** Estilo liberado. */
@@ -144,6 +182,7 @@ const DEFAULT_LADDER: RewardSpec[] = [
     kind: 'voice',
     icon: '♪',
     voice: 'showdown',
+    replaces: 'show',
     name: 'Voz de mão completa',
     description: (c) => `No showdown, ${c.name} abre as cartas com a fala dela em vez da chamada comum.`,
   },

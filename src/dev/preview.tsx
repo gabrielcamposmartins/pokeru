@@ -12,7 +12,8 @@
  *   /preview.html?cena=solids          cartas e fichas de perto (volume)
  *   /preview.html?cena=mesa            a mesa parada (cartas deitadas no plano e fichas em pe)
  *   /preview.html?cena=voo&motion=1    voo das fichas (arco, giro e quicada)
- *   /preview.html?cena=bond            vínculo: barra de corações, recompensas e o anúncio
+ *   /preview.html?cena=bond            a página de vínculo (missões e recompensas com as falas)
+ *   /preview.html?cena=bond-aviso      o cartão do coração completo e a barra curta
  *   /preview.html?cena=personagens     a tela de personagens inteira (ocupa a janela, sem palco)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
@@ -47,10 +48,10 @@ import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
 import { TableFelt } from '../render/TableFelt';
 import { FlyersLayer } from '../game/Flyers';
-import { BondBarView, BondPanelView, BondUnlockCard } from '../game/BondBar';
+import { BondBarView, BondUnlockCard } from '../game/BondBar';
+import { BondPageView } from '../game/BondPage';
 import { HEART_COST, bondLevel } from '../game/bond';
 import { EMPTY_BOND, useBond } from '../store/bond';
-import { Section } from '../ui/controls';
 import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
 import { CharactersScreen } from '../screens/Characters';
 import { RoundResultPanel } from '../game/RoundResult';
@@ -221,25 +222,24 @@ function Mesa() {
   );
 }
 
-/** Vínculo com o personagem: a barra em dois tamanhos, a escada de recompensas e o anúncio. */
+const bondStats = { ...EMPTY_BOND, points: HEART_COST[0] + HEART_COST[1] * 0.45, wins: 23, losses: 31, folds: 62, hands: 116, matches: 7 };
+
+/** A página de vínculo, com as missões e as recompensas abertas. */
 function Vinculo() {
+  return <BondPageView char={CHARACTER_PRESETS[0]} st={bondStats} onClose={() => {}} />;
+}
+
+/** O aviso do coração completo e a barra curta da placa do personagem. */
+function VinculoAviso() {
   const char = CHARACTER_PRESETS[0];
-  const st = { ...EMPTY_BOND, points: HEART_COST[0] + HEART_COST[1] * 0.45, wins: 23, losses: 31, folds: 62, hands: 116, matches: 7 };
   return (
     <div className="preview-bond">
-      <div className="panel pad" style={{ width: 560 }}>
-        <Section title="Vínculo">
-          <BondPanelView char={char} st={st} />
-        </Section>
+      <div className="char-nameplate" style={{ position: 'relative', left: 0, bottom: 0 }}>
+        <small>{char.title}</small>
+        <b>{char.name}</b>
+        <BondBarView lv={bondLevel(bondStats.points)} size={16} compact />
       </div>
-      <div className="col gap" style={{ gap: 26 }}>
-        <div className="char-nameplate" style={{ position: 'relative', left: 0, bottom: 0 }}>
-          <small>{char.title}</small>
-          <b>{char.name}</b>
-          <BondBarView lv={bondLevel(st.points)} size={16} compact />
-        </div>
-        <BondUnlockCard u={{ id: 1, char: char.id, heart: 2 }} onDone={() => {}} />
-      </div>
+      <BondUnlockCard u={{ id: 1, char: char.id, heart: 2 }} onDone={() => {}} />
     </div>
   );
 }
@@ -291,6 +291,8 @@ createRoot(document.getElementById('root')!).render(
               <Mesa />
             ) : cena === 'bond' ? (
               <Vinculo />
+            ) : cena === 'bond-aviso' ? (
+              <VinculoAviso />
             ) : cena === 'solids' ? (
               <Solids />
             ) : matchRows ? (

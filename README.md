@@ -192,8 +192,8 @@ referência) e o conteúdo se distribui assim:
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
 `/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, `voo`,
-`bond`, `personagens`, e `&ui=victorian`, `&rects=1` para medir as caixas — `&rects=<seletores>` mede
-outras). Ela não entra no build do app.
+`bond`, `bond-aviso`, `personagens`, e `&ui=victorian`, `&rects=1` para medir as caixas —
+`&rects=<seletores>` mede outras). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
 `Director.roundResult`; a faixa diagonal do fundo usa a mesma função `cutinBand` do tema de UI.
@@ -252,13 +252,24 @@ Ganhar rende mais, mas **perder também conta**: quem senta e joga junto acumula
 vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela; o progresso é por personagem e
 fica salvo na máquina (`pokersoul-bond`), como o perfil.
 
-Para conferir sem jogar: `/preview.html?cena=bond` (barra, recompensas e o anúncio) e
-`/preview.html?cena=personagens` (a tela de Personagens inteira).
+**Onde aparece:** em **Personagens**, o botão **♥ Vínculo · N/5** abre a *página de vínculo* do
+personagem (a galeria mostra os corações de cada retrato e a ficha traz a barra curta); o menu principal
+traz a barra curta na placa do personagem; o placar final mostra quanto a partida rendeu; e o coração que
+fecha aparece na hora, num cartão no alto da tela que sai sozinho — sem travar a mesa.
 
-**Onde aparece:** a barra completa, os números da convivência e a escada de recompensas ficam em
-**Personagens** (a galeria mostra os corações de cada retrato); o menu principal traz a barra curta na
-placa do personagem; o placar final mostra quanto a partida rendeu; e o coração que fecha aparece na
-hora, num cartão no alto da tela que sai sozinho — sem travar a mesa.
+### A página de vínculo
+
+Aberta pelo botão, em `src/game/BondPage.tsx`. Traz, lado a lado:
+
+- **Missões** (`BOND_MISSIONS`): o que rende pontos, com o valor de cada uma e o quanto você já fez com
+  aquele personagem (vitórias, derrotas, desistências, partidas), mais o resumo de mãos e partidas.
+- **Recompensas**: as cinco, com o conteúdo à mostra. Nas de voz, o momento em que ela toca, a fala em
+  japonês, a tradução, o nome do arquivo de áudio, a chamada comum que ela substitui e o botão **♪ Ouvir**
+  (desligado enquanto o coração não fecha, quando o áudio não existe ou quando as vozes estão desligadas —
+  o motivo aparece embaixo). As que ainda não existem dizem que chegam numa atualização.
+
+O texto e a tradução das falas saem de `src/audio/falas.ts`, que lê os `.jsonc` **como texto** (`?raw`) —
+a tradução de cada fala vive no comentário da linha.
 
 **As recompensas de cada coração** (escada padrão, igual para todos os personagens):
 
@@ -269,6 +280,9 @@ hora, num cartão no alto da tela que sai sozinho — sem travar a mesa.
 | 3º | **Voz de derrota** |
 | 4º | **Voz na sua vez** |
 | 5º | **Skin alternativa** (em breve) |
+
+Para conferir sem jogar: `/preview.html?cena=bond` (a página), `/preview.html?cena=bond-aviso` (o cartão
+do coração completo) e `/preview.html?cena=personagens` (a tela de Personagens inteira).
 
 ### Acrescentar uma recompensa
 
@@ -282,15 +296,17 @@ função que recebe o personagem) e **o que libera**:
 
 - `voice: 'lose'` — uma fala própria do personagem (momento em `FALA_SLOTS`, `src/audio/voice.ts`). Lembre
   de incluir o momento em `FALAS_USADAS` (e no `PROPRIAS_USADAS` de `scripts/audios-faltando.mjs`) para o
-  áudio dela ser cobrado.
+  áudio dela ser cobrado, e em `FALA_MOMENTO` (`src/audio/falas.ts`) para o rótulo na página.
+- `replaces: 'show'` — a chamada comum que a fala própria substitui, quando for o caso: a página mostra as
+  duas, para ficar claro o que muda.
 - `emotes: ['🔥']` — emotes novos; precisam estar em `EMOTES` (`shared/protocol.ts`), e o menu de emotes
   esconde os emotes de vínculo até o coração fechar.
 - `skin: { kind, id }` — um estilo (preset de `shared/styles.ts`).
 - `soon: true` — recompensa ainda não implementada: fecha o coração, aparece como "em breve" e não libera nada.
 
 Quem consome são o diretor (vozes, via `voiceUnlocked`), o menu de emotes e a lista de estilos — todos só
-perguntam se a recompensa está liberada. O progresso salvo está em `src/store/bond.ts` e a interface em
-`src/game/BondBar.tsx`.
+perguntam se a recompensa está liberada. O progresso salvo está em `src/store/bond.ts`; a barra, o placar e
+o aviso do coração em `src/game/BondBar.tsx`; a página em `src/game/BondPage.tsx`.
 
 ## Efeitos das cartas vencedoras
 

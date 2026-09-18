@@ -3806,17 +3806,7 @@ button.avatar {
   color: #e4dcff;
 }
 
-/* tela de personagens: o vínculo entre a ficha do personagem e a galeria */
-.chars-bond {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.chars-side .char-grid {
-  flex: none;
-  max-height: 168px;
-}
+/* tela de personagens: os corações no retrato da galeria */
 .char-card-bond {
   position: absolute;
   left: 4px;
@@ -3946,4 +3936,269 @@ button.avatar {
   top: 0;
   left: 0;
   transform: none;
+}
+
+/* ------------------------------------------------------------------ página de vínculo */
+
+.bond-page {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.bond-page-back {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 3, 16, 0.72);
+  backdrop-filter: blur(3px);
+}
+.bond-page-in {
+  position: relative;
+  width: min(1120px, 96vw);
+  max-height: 92vh;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.bond-page-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.bond-page-title {
+  flex: 1;
+  min-width: 0;
+}
+.bond-page-title .bond-bar {
+  max-width: 520px;
+}
+.bond-page-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding-right: 34px;
+}
+.bond-page-hearts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bond-page-hearts small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.bond-page-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.bond-page-close:hover {
+  border-color: var(--gold);
+  color: var(--gold-2);
+}
+.bond-page-lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.bond-page-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) 1.15fr;
+  gap: 18px;
+}
+.bond-page-col {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bond-page-col h3 {
+  margin: 4px 0 0;
+}
+
+/* missões */
+.bond-missions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.bond-mission {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--line-soft);
+}
+.bond-mission-pts {
+  flex: none;
+  min-width: 46px;
+  text-align: center;
+  padding: 3px 6px;
+  border-radius: 8px;
+  font-weight: 900;
+  font-size: 13px;
+  color: #2b1030;
+  background: linear-gradient(180deg, var(--gold-2), var(--gold));
+}
+.bond-mission-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.bond-mission-info b {
+  font-size: 13px;
+}
+.bond-mission-info small {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.bond-mission-count {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold-2);
+}
+.bond-mission-count small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* recompensas com o conteúdo à mostra */
+.bond-reward-top {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+}
+/* na página, o conteúdo da recompensa fica ao lado do título */
+.bond-page .bond-reward {
+  align-items: stretch;
+}
+.bond-page .bond-audio,
+.bond-page .bond-soon,
+.bond-page .bond-skin,
+.bond-page .bond-emotes {
+  margin-top: 0;
+  flex: 1.05;
+  min-width: 0;
+}
+.bond-page-sum {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bond-page-sum b {
+  color: var(--gold-2);
+}
+.bond-audio {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line-soft);
+}
+.bond-audio-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bond-audio-moment {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bond-audio-line {
+  font-size: 16px;
+  color: var(--text);
+}
+.bond-audio-pt {
+  font-size: 12px;
+  color: var(--gold-2);
+}
+.bond-audio-file {
+  font-size: 10px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.bond-audio-why {
+  font-size: 11px;
+  color: var(--pink);
+}
+.bond-audio-swap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--line-soft);
+}
+.bond-audio-swap small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.bond-audio-comum {
+  font-size: 13px;
+  color: var(--muted);
+}
+.bond-audio-comum i {
+  font-size: 11px;
+  opacity: 0.85;
+}
+.bond-soon,
+.bond-skin {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed var(--line-soft);
+}
+.bond-emotes {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bond-emote {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 22px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
 }

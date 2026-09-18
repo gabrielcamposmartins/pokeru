@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { CHARACTER_PRESETS } from '../../shared/styles';
+import { HEARTS } from '../game/bond';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
-import { BondBar, BondHearts, BondPanel } from '../game/BondBar';
+import { BondBar, BondHearts } from '../game/BondBar';
+import { BondPage } from '../game/BondPage';
 import { useBondLevel } from '../store/bond';
-import { ScreenHeader, Section } from '../ui/controls';
+import { ScreenHeader } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { Petals } from './MainMenu';
 
@@ -26,10 +28,12 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
   const [sel, setSel] = useState(profile.character);
+  const [bondOpen, setBondOpen] = useState(false);
   const [talk, setTalk] = useState<string | null>(null);
   const hop = useAnimationControls();
   const current = CHARACTER_PRESETS.find((c) => c.id === sel) ?? CHARACTER_PRESETS[0];
   const chosen = profile.character === current.id;
+  const bond = useBondLevel(current.id);
 
   const say = () => {
     setTalk(current.lines[Math.floor(Math.random() * current.lines.length)]);
@@ -92,12 +96,16 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
               >
                 {chosen ? '✓ Em uso' : 'Usar este personagem'}
               </button>
+              <button
+                className="btn btn-pink"
+                onClick={() => {
+                  sfx.click();
+                  setBondOpen(true);
+                }}
+              >
+                ♥ Vínculo · {bond.hearts}/{HEARTS}
+              </button>
             </div>
-          </div>
-          <div className="chars-bond">
-            <Section title="Vínculo">
-              <BondPanel char={current} />
-            </Section>
           </div>
           <div className="char-grid">
             {CHARACTER_PRESETS.map((c) => (
@@ -119,6 +127,7 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       </div>
+      {bondOpen && <BondPage char={current} onClose={() => setBondOpen(false)} />}
     </div>
   );
 }

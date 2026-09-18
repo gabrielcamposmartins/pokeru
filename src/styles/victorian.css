@@ -1699,6 +1699,57 @@
     background: rgba(61, 107, 82, 0.45);
     color: var(--ivory);
   }
+
+  /* página de vínculo */
+  .bond-page-close {
+    border-radius: 2px;
+  }
+  .bond-page-lead,
+  .bond-page-sum {
+    font-size: 15px;
+  }
+  .bond-mission,
+  .bond-audio,
+  .bond-soon,
+  .bond-skin,
+  .bond-emote {
+    border-radius: 3px;
+    background-image: var(--grain);
+    background-blend-mode: overlay;
+  }
+  .bond-mission-pts {
+    border-radius: 2px;
+    background: var(--brass-grad);
+    color: #3a2109;
+    font-family: var(--num);
+    font-variant-numeric: lining-nums;
+  }
+  .bond-mission-info b {
+    font-family: var(--title);
+    font-size: 14px;
+    letter-spacing: 0.6px;
+    font-size-adjust: none;
+  }
+  .bond-mission-info small,
+  .bond-audio-file,
+  .bond-audio-why,
+  .bond-audio-swap small {
+    font-size: 13px;
+  }
+  .bond-mission-count {
+    font-family: var(--num);
+    font-variant-numeric: lining-nums;
+  }
+  .bond-audio-moment {
+    font-family: var(--title);
+    font-size: 12px;
+    letter-spacing: 1px;
+    font-size-adjust: none;
+  }
+  .bond-audio-pt,
+  .bond-audio-comum i {
+    font-style: italic;
+  }
 }
 
 /* animações do tema (@keyframes não podem ficar aninhadas) */

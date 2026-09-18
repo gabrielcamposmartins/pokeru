@@ -1,8 +1,8 @@
 import { useEffect, useId } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { findCharacter, type CharacterStyle } from '../../shared/styles';
-import { useBond, useBondLevel, useBondStats, unlockReward, type BondStats, type BondUnlock } from '../store/bond';
-import { HEARTS, REWARD_KIND_LABEL, bondLevel, rewardsOf, type BondLevel, type BondReward } from './bond';
+import { useBond, useBondLevel, unlockReward, type BondUnlock } from '../store/bond';
+import { HEARTS, type BondLevel } from './bond';
 import { CharacterPortrait } from '../render/CharacterArt';
 import { sfx } from '../audio/sfx';
 
@@ -19,7 +19,7 @@ const HEART_PATH =
  * As classes de estado ficam no espaço "bond-" de propósito: `full`/`empty` soltas
  * bateriam nos utilitários do global.css (`.empty` tem padding).
  */
-function Heart({ fill, size, id }: { fill: number; size: number; id: string }) {
+export function Heart({ fill, size, id }: { fill: number; size: number; id: string }) {
   const p = Math.max(0, Math.min(1, fill));
   return (
     <svg className={`bond-heart ${p >= 1 ? 'bond-full' : p > 0 ? 'bond-part' : 'bond-void'}`} width={size} height={size} viewBox="0 0 24 24" aria-hidden>
@@ -68,85 +68,6 @@ export function BondBarView({ lv, size = 22, compact }: { lv: BondLevel; size?: 
 /** A barra do vínculo com um personagem (lê o progresso salvo). */
 export function BondBar({ char, size, compact }: { char: CharacterStyle; size?: number; compact?: boolean }) {
   return <BondBarView lv={useBondLevel(char.id)} size={size} compact={compact} />;
-}
-
-/** Uma recompensa da escada. */
-export function BondRewardRow({ r, unlocked, next }: { r: BondReward; unlocked: boolean; next?: boolean }) {
-  return (
-    <div className={`bond-reward ${unlocked ? 'on' : ''} ${next ? 'next' : ''} ${r.soon ? 'soon' : ''}`}>
-      <span className="bond-reward-heart">
-        <Heart fill={unlocked ? 1 : 0} size={26} id={`rw-${r.id}`} />
-        <i>{r.heart}</i>
-      </span>
-      <span className="bond-reward-info">
-        <b>
-          <span className="bond-reward-ico">{r.icon}</span>
-          {r.name}
-          <span className="badges">
-            <span className="badge">{REWARD_KIND_LABEL[r.kind]}</span>
-            {r.soon && <span className="badge soon">Em breve</span>}
-            {unlocked && !r.soon && <span className="badge eq">Recebida</span>}
-          </span>
-        </b>
-        <small>{r.description}</small>
-      </span>
-    </div>
-  );
-}
-
-/** A escada das cinco recompensas do personagem. */
-export function BondRewards({ char, hearts }: { char: CharacterStyle; hearts: number }) {
-  return (
-    <div className="bond-rewards">
-      {rewardsOf(char).map((r) => (
-        <BondRewardRow key={r.id} r={r} unlocked={r.heart <= hearts} next={r.heart === hearts + 1} />
-      ))}
-    </div>
-  );
-}
-
-/** Painel completo: corações, números da convivência e as recompensas. */
-export function BondPanelView({ char, st }: { char: CharacterStyle; st: BondStats }) {
-  const lv = bondLevel(st.points);
-  return (
-    <div className="bond-panel">
-      <div className="bond-head">
-        <BondBarView lv={lv} />
-        <span className="bond-total">
-          {st.points} <small>pts</small>
-        </span>
-      </div>
-      <div className="bond-stats">
-        <span>
-          <b>{st.wins}</b>
-          <small>vitórias</small>
-        </span>
-        <span>
-          <b>{st.losses}</b>
-          <small>derrotas</small>
-        </span>
-        <span>
-          <b>{st.hands}</b>
-          <small>mãos</small>
-        </span>
-        <span>
-          <b>{st.matches}</b>
-          <small>partidas</small>
-        </span>
-      </div>
-      <p className="field-hint">
-        {lv.max
-          ? `Vínculo completo com ${char.name}: todas as recompensas recebidas.`
-          : `Ganhar rende mais, mas perder ao lado de ${char.name} também aproxima. Faltam ${lv.toNext} pontos para o ${lv.hearts + 1}º coração.`}
-      </p>
-      <BondRewards char={char} hearts={lv.hearts} />
-    </div>
-  );
-}
-
-/** O painel de vínculo de um personagem (lê o progresso salvo). */
-export function BondPanel({ char }: { char: CharacterStyle }) {
-  return <BondPanelView char={char} st={useBondStats(char.id)} />;
 }
 
 /** Pontos de vínculo ganhos na partida (mostrado no placar final). */

@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { findCharacter } from '../../shared/styles';
-import { BOND_MAX, BOND_POINTS, HEARTS, HEART_COST, bondLevel, rewardAt, rewardsOf } from './bond';
-import { EMPTY_BOND } from '../store/bond';
-import { BondBarView, BondHearts, BondPanelView, BondRewardRow, BondUnlockCard } from './BondBar';
+import { BOND_MAX, BOND_POINTS, HEARTS, HEART_COST, bondLevel, rewardAt } from './bond';
+import { BondBarView, BondHearts, BondUnlockCard } from './BondBar';
 
 const marina = findCharacter('marina');
 
@@ -34,22 +33,6 @@ describe('corações do vínculo', () => {
 
   it('a barra avisa quando o vínculo está completo', () => {
     expect(renderToStaticMarkup(<BondBarView lv={bondLevel(BOND_MAX)} />)).toContain('Vínculo completo');
-  });
-
-  it('o painel mostra os números da convivência e as cinco recompensas', () => {
-    const st = { ...EMPTY_BOND, points: BOND_POINTS.win + BOND_POINTS.loss, wins: 1, losses: 1, hands: 2 };
-    const html = renderToStaticMarkup(<BondPanelView char={marina} st={st} />);
-    expect(html).toContain('vitórias');
-    expect(html).toContain('derrotas');
-    for (const r of rewardsOf(marina)) expect(html).toContain(r.name);
-  });
-
-  it('a recompensa recebida, a que está por vir e a "em breve" se distinguem', () => {
-    const voice = rewardsOf(marina).find((r) => r.voice && !r.soon)!;
-    const soon = rewardsOf(marina).find((r) => r.soon)!;
-    expect(renderToStaticMarkup(<BondRewardRow r={voice} unlocked />)).toContain('Recebida');
-    expect(renderToStaticMarkup(<BondRewardRow r={voice} unlocked={false} next />)).not.toContain('Recebida');
-    expect(renderToStaticMarkup(<BondRewardRow r={soon} unlocked />)).toContain('Em breve');
   });
 
   it('o anúncio diz de quem é o coração e o que ele deu', () => {

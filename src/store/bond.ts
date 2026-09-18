@@ -4,6 +4,7 @@ import { findCharacter } from '../../shared/styles';
 import type { FalaSlot } from '../audio/voice';
 import {
   BOND_POINTS,
+  EMPTY_BOND,
   bondLevel,
   heartsOf,
   rewardAt,
@@ -11,22 +12,10 @@ import {
   type BondEvent,
   type BondLevel,
   type BondReward,
+  type BondStats,
 } from '../game/bond';
 
-/** O que você acumulou jogando com um personagem. */
-export interface BondStats {
-  points: number;
-  /** Mãos ganhas. */
-  wins: number;
-  /** Mãos disputadas e perdidas (chegou ao fim e não levou o pote). */
-  losses: number;
-  /** Mãos em que você desistiu. */
-  folds: number;
-  hands: number;
-  matches: number;
-}
-
-export const EMPTY_BOND: BondStats = { points: 0, wins: 0, losses: 0, folds: 0, hands: 0, matches: 0 };
+export { EMPTY_BOND, type BondStats };
 
 /** Coração completado que ainda não foi anunciado. */
 export interface BondUnlock {

@@ -10,7 +10,9 @@ function jsonc(): Plugin {
     name: 'pokersoul-jsonc',
     enforce: 'pre',
     transform(code, id) {
-      const file = id.split('?')[0];
+      const [file, query] = id.split('?');
+      // ?raw / ?url pedem o arquivo como está (o texto com os comentários): não mexe
+      if (query && /(^|&)(raw|url|inline)(&|=|$)/.test(query)) return null;
       if (file.endsWith('.jsonc')) return { code: `export default ${JSON.stringify(parseJsonc(code, file))};`, map: null };
       // .json com comentários: entrega JSON limpo e deixa o plugin de JSON do Vite seguir normalmente
       if (file.endsWith('.json') && (code.includes('//') || code.includes('/*'))) return { code: JSON.stringify(parseJsonc(code, file)), map: null };
