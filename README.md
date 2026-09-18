@@ -140,13 +140,21 @@ vencedor — e só então aplica o estado. Se houver atraso, as animações acel
 Quando a mão vai a showdown, entra uma tela de resultado no estilo das telas de vitória de Mahjong Soul
 (`src/game/RoundResult.tsx`):
 
-- **à esquerda**, o personagem do vencedor em corpo inteiro, com a placa de nome e o título;
+Uma tarja diagonal na cor do personagem cruza a tela (o fundo escuro sobra nos cantos, como na
+referência) e o conteúdo se distribui assim:
+
+- **à esquerda**, o personagem do vencedor em corpo inteiro, com a placa de nome e o título embaixo;
 - **em cima**, as cartas da mão feita, separadas em **Mão** (as do jogador) e **Mesa**, com o efeito de
   vitória dele nas cartas que entraram na mão (as que sobraram ficam apagadas);
-- **no meio**, o nome da mão e, se o pote foi dividido, com quem;
-- **embaixo à direita**, o que ele ganhou (com a lista de potes, quando há side pots) e as fichas dele
-  depois de receber;
-- **botão Continuar** com contagem: a tela sai sozinha em 5s, no clique, ou quando a mão seguinte começa.
+- **no meio**, o nome da mão em letra grande e, se o pote foi dividido, com quem;
+- **embaixo à direita**, a lista de potes ganhos ao lado do total (`+1.240`) e as fichas dele depois de
+  receber;
+- **botão Continuar** no canto, com contagem: a tela sai sozinha em 5s, no clique, ou quando a mão
+  seguinte começa.
+
+Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
+`/preview.html?cena=result` (também `result-board`, `result-long`, e `&ui=victorian`, `&rects=1` para
+medir as caixas). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
 `Director.roundResult`; a faixa diagonal do fundo usa a mesma função `cutinBand` do tema de UI.

@@ -3096,41 +3096,51 @@ button.avatar {
 .rr-back {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 30% 60%, rgba(30, 16, 60, 0.75), rgba(4, 2, 10, 0.92) 70%);
+  background: radial-gradient(ellipse at 26% 62%, rgba(30, 16, 60, 0.7), rgba(4, 2, 10, 0.94) 70%);
   backdrop-filter: blur(3px);
 }
-/* faixa diagonal atrás de tudo, na cor do personagem */
+/* tarja diagonal na cor do personagem, com o fundo escuro sobrando nos cantos */
 .rr-band {
   position: absolute;
-  left: -8%;
-  right: -8%;
-  top: 5%;
+  left: -6%;
+  right: -6%;
+  top: 8%;
   bottom: 9%;
-  transform: rotate(-5deg);
-  transform-origin: 30% 50%;
-  border-top: 5px solid rgba(255, 190, 110, 0.75);
-  border-bottom: 5px solid rgba(255, 190, 110, 0.75);
-  box-shadow: inset 0 0 140px rgba(0, 0, 0, 0.55);
+  /* a inclinação é aplicada na animação (BAND_TILT em RoundResult.tsx) */
+  transform: rotate(-6deg);
+  transform-origin: 50% 50%;
+  border-top: 5px solid rgba(255, 190, 110, 0.8);
+  border-bottom: 5px solid rgba(255, 190, 110, 0.8);
+  box-shadow:
+    0 0 60px rgba(0, 0, 0, 0.6),
+    inset 0 0 160px rgba(0, 0, 0, 0.45);
+}
+/* escurece a tarja para o texto sobressair */
+.rr-band::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 4, 16, 0.55), rgba(8, 4, 16, 0.35) 45%, rgba(8, 4, 16, 0.6));
 }
 .rr-char {
   position: absolute;
-  left: 10px;
-  bottom: -10px;
-  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.7));
+  left: -10px;
+  bottom: -14px;
+  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.75));
 }
 .rr-char img {
   display: block;
 }
 .rr-plate {
   position: absolute;
-  left: 30px;
-  bottom: 120px;
+  left: 24px;
+  bottom: 96px;
   display: flex;
   flex-direction: column;
-  padding: 8px 34px 10px 20px;
-  background: linear-gradient(90deg, rgba(10, 6, 20, 0.95), rgba(10, 6, 20, 0.7));
+  padding: 8px 36px 10px 20px;
+  background: linear-gradient(90deg, rgba(10, 6, 20, 0.96), rgba(10, 6, 20, 0.72));
   border-left: 5px solid var(--gold);
-  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 20px) 100%, 0 100%);
 }
 .rr-plate small {
   font-size: 13px;
@@ -3145,67 +3155,98 @@ button.avatar {
   color: #fff;
 }
 
-.rr-cards {
+/* coluna da direita: cartas em cima, mão no meio, dinheiro embaixo */
+.rr-info {
   position: absolute;
-  left: 560px;
-  top: 54px;
+  left: 420px;
+  right: 46px;
+  top: 34px;
+  bottom: 186px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.rr-cards {
   display: flex;
   align-items: flex-end;
-  gap: 46px;
+  justify-content: center;
+  gap: 40px;
 }
 .rr-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 7px;
 }
 .rr-label {
   font-family: var(--title);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 3px;
+  letter-spacing: 5px;
   text-transform: uppercase;
   color: var(--gold-2);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }
 .rr-row {
   display: flex;
-  gap: 10px;
+  gap: 12px;
 }
 
 .rr-hand {
-  position: absolute;
-  left: 570px;
-  top: 300px;
-  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  max-width: 100%;
+}
+.rr-kicker {
+  font-family: var(--title);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: var(--gold-2);
+  opacity: 0.85;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }
 .rr-hand-name {
-  font-size: 52px;
-  line-height: 1.1;
+  font-size: 62px;
+  line-height: 1.08;
   white-space: normal;
+  text-wrap: balance;
 }
 .rr-split {
-  margin-top: 6px;
-  font-size: 16px;
+  margin-top: 4px;
+  font-size: 17px;
   font-weight: 700;
-  color: var(--muted);
+  color: #fff;
+  opacity: 0.85;
+}
+
+.rr-bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 56px;
 }
 .rr-pots {
-  position: absolute;
-  left: 574px;
-  top: 420px;
-  width: 400px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 300px;
 }
 .rr-pot-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 5px 14px 6px;
+  gap: 16px;
+  padding: 6px 16px 7px;
   border-radius: 20px;
-  background: linear-gradient(90deg, rgba(10, 6, 20, 0.75), rgba(10, 6, 20, 0.3));
+  background: linear-gradient(90deg, rgba(8, 4, 16, 0.85), rgba(8, 4, 16, 0.35));
+  border: 1px solid rgba(255, 255, 255, 0.12);
   font-size: 16px;
   font-weight: 700;
   color: #fff;
@@ -3215,41 +3256,40 @@ button.avatar {
   align-items: center;
   gap: 6px;
   color: var(--gold-2);
-  font-size: 18px;
+  font-size: 19px;
 }
 
 .rr-total {
-  position: absolute;
-  right: 56px;
-  bottom: 116px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   text-align: right;
 }
 .rr-won {
   font-family: var(--title);
   font-weight: 900;
-  font-size: 96px;
-  line-height: 1;
+  font-size: 104px;
+  line-height: 0.95;
   color: #fff;
   text-shadow:
-    0 4px 0 rgba(0, 0, 0, 0.75),
-    0 0 26px rgba(255, 220, 150, 0.45);
+    0 5px 0 rgba(0, 0, 0, 0.8),
+    0 0 30px rgba(255, 220, 150, 0.5);
 }
 .rr-stack {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
-  margin-top: 4px;
-  font-size: 20px;
+  margin-top: 6px;
+  font-size: 19px;
   font-weight: 800;
   color: var(--gold-2);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }
 .rr-confirm {
   position: absolute;
-  right: 56px;
-  bottom: 44px;
-  padding: 10px 26px;
+  right: 46px;
+  bottom: 34px;
+  padding: 10px 28px;
   border-radius: 10px;
   border: 1.5px solid var(--line);
   background: linear-gradient(180deg, rgba(48, 36, 96, 0.95), rgba(22, 16, 48, 0.95));
