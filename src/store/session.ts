@@ -4,6 +4,7 @@ import {
   type BotDifficulty,
   type ClientMsg,
   type GameMode,
+  type GameVariant,
   type RoomInfo,
   type RoomSummary,
   type ServerMsg,
@@ -35,6 +36,9 @@ export interface LocalOptions {
   smallBlind: number;
   bigBlind: number;
   mode: GameMode;
+  variant: GameVariant;
+  /** Modo normal: quantas rodadas. */
+  rounds: number;
   turnTime: number;
   pace: number;
 }
@@ -149,6 +153,8 @@ export const useSession = create<SessionState>()((set, get) => ({
         smallBlind: o.smallBlind,
         bigBlind: o.bigBlind,
         mode: o.mode,
+        variant: o.variant,
+        rounds: o.rounds,
         turnTime: o.turnTime,
         pace: o.pace,
       },

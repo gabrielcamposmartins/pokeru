@@ -1,8 +1,26 @@
 import { Card, newDeck, shuffle } from './cards';
 import { evaluateHand } from './evaluator';
 
-export type Street = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
+/**
+ * Ruas de uma mão. O Texas Hold'em usa preflop → flop → turn → river; o poker de 5 cartas
+ * (draw) usa predraw → draw (a troca) → postdraw. Nos dois, showdown fecha a mão.
+ */
+export type Street = 'preflop' | 'flop' | 'turn' | 'river' | 'predraw' | 'draw' | 'postdraw' | 'showdown';
 export type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'allin';
+
+/** Qual poker está sendo jogado. */
+export type GameVariant = 'holdem' | 'draw5';
+
+/** Cartas na mão de cada jogador, por variante. */
+export const HOLE_CARDS: Record<GameVariant, number> = { holdem: 2, draw5: 5 };
+
+/** A primeira rodada de apostas (a dos blinds) de cada variante. */
+export const FIRST_STREET: Record<GameVariant, Street> = { holdem: 'preflop', draw5: 'predraw' };
+
+/** É a rodada de apostas dos blinds? (o big blind já é uma aposta, então o 1º aumento é "raise") */
+export function isFirstStreet(street: Street | null): boolean {
+  return street === 'preflop' || street === 'predraw';
+}
 
 export interface PlayerAction {
   type: ActionType;
@@ -26,6 +44,8 @@ export interface HandPlayer {
   actedAt: number;
   lastAction: ActionType | 'sb' | 'bb' | null;
   revealed: boolean;
+  /** Poker de 5 cartas: quantas cartas o jogador trocou (undefined = ainda não trocou). */
+  drew?: number;
 }
 
 export interface LegalActions {
@@ -62,7 +82,9 @@ export type HandEvent =
   | { t: 'collect'; bets: { seat: number; amount: number }[] }
   | { t: 'street'; street: Street; cards: Card[] }
   | { t: 'showdown'; reveals: { seat: number; cards: Card[]; hand: string }[] }
-  | { t: 'win'; pots: PotResult[]; uncontested: boolean };
+  | { t: 'win'; pots: PotResult[]; uncontested: boolean }
+  /** Poker de 5 cartas: o jogador trocou as cartas nas posições `discards` (as novas vão na view). */
+  | { t: 'draw'; seat: number; discards: number[] };
 
 export interface HandConfig {
   players: { seat: number; id: string; stack: number }[];
@@ -70,19 +92,28 @@ export interface HandConfig {
   smallBlind: number;
   bigBlind: number;
   deck?: Card[];
+  /** Padrão: Texas Hold'em. */
+  variant?: GameVariant;
 }
 
 /**
- * Uma mão de Texas Hold'em No-Limit.
- * Cada mutação de estado dispara `onEvent` imediatamente APÓS ser aplicada,
- * permitindo que quem observa tire um "snapshot" coerente a cada passo.
+ * Uma mão de poker No-Limit: Texas Hold'em ou poker de 5 cartas (draw).
+ *
+ * Cada mutação de estado dispara `onEvent` imediatamente APÓS ser aplicada, permitindo que quem
+ * observa tire um "snapshot" coerente a cada passo.
+ *
+ * No poker de 5 cartas a mão tem duas rodadas de apostas com a **troca de cartas** entre elas:
+ * `phase` diz se a vez atual é de aposta ou de troca (aí `act` não vale e `draw` é quem anda).
  */
 export class Hand {
   readonly players: HandPlayer[];
   readonly smallBlind: number;
   readonly bigBlind: number;
+  readonly variant: GameVariant;
   board: Card[] = [];
-  street: Street = 'preflop';
+  street: Street;
+  /** 'bet' = a vez é de apostar; 'draw' = a vez é de trocar cartas (só no poker de 5 cartas). */
+  phase: 'bet' | 'draw' = 'bet';
   /** Fichas já recolhidas ao pote central (não inclui apostas da rodada atual). */
   pot = 0;
   currentBet = 0;
@@ -96,6 +127,9 @@ export class Hand {
   sbIdx = -1;
   bbIdx = -1;
   private deck: Card[];
+  /** Cartas descartadas na troca: voltam ao baralho (embaralhadas) se ele acabar. */
+  private muck: Card[] = [];
+  private drawn = new Set<number>();
 
   constructor(
     cfg: HandConfig,
@@ -118,6 +152,8 @@ export class Hand {
         lastAction: null,
         revealed: false,
       }));
+    this.variant = cfg.variant ?? 'holdem';
+    this.street = FIRST_STREET[this.variant];
     this.smallBlind = cfg.smallBlind;
     this.bigBlind = cfg.bigBlind;
     this.minRaise = cfg.bigBlind;
@@ -155,7 +191,7 @@ export class Hand {
 
   legalActions(seat: number): LegalActions | null {
     const p = this.bySeat(seat);
-    if (!p || p.folded || p.allIn || this.finished) return null;
+    if (!p || p.folded || p.allIn || this.finished || this.phase === 'draw') return null;
     const toCall = Math.max(0, this.currentBet - p.bet);
     const callAmount = Math.min(toCall, p.stack);
     const othersCanAct = this.players.some((o) => o !== p && !o.folded && !o.allIn);
@@ -203,9 +239,9 @@ export class Hand {
     this.minRaise = this.bigBlind;
     this.onEvent({ t: 'blinds', posts });
 
-    // distribuição: duas voltas começando à esquerda do dealer
+    // distribuição: uma volta por carta, começando à esquerda do dealer
     const order: number[] = [];
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < HOLE_CARDS[this.variant]; round++) {
       let i = this.next(this.dealerIdx);
       for (let k = 0; k < n; k++) {
         this.players[i].hole.push(this.deck.pop()!);
@@ -221,11 +257,13 @@ export class Hand {
 
   act(seat: number, action: PlayerAction): { ok: true } | { ok: false; error: string } {
     if (this.finished) return { ok: false, error: 'A mão já terminou' };
+    if (this.phase === 'draw') return { ok: false, error: 'É a hora de trocar cartas' };
     if (this.toAct === null || this.players[this.toAct].seat !== seat)
       return { ok: false, error: 'Não é a sua vez' };
     const idx = this.toAct;
     const p = this.players[idx];
-    const legal = this.legalActions(seat)!;
+    const legal = this.legalActions(seat);
+    if (!legal) return { ok: false, error: 'Ação inválida' };
     let type = action.type;
     let added = 0;
 
@@ -361,23 +399,105 @@ export class Hand {
       return;
     }
 
+    if (this.variant === 'draw5') {
+      this.afterDrawStreet();
+      return;
+    }
+
     // abre a próxima rua; se ninguém mais puder apostar, corre o bordo até o fim
     while (this.street !== 'river') {
       this.dealStreet();
       const canAct = this.activePlayers().filter((p) => !p.allIn);
-      if (canAct.length >= 2) {
-        // primeiro a agir: à esquerda do dealer
-        let i = this.next(this.dealerIdx);
-        for (let k = 0; k < this.players.length; k++) {
-          if (this.needsToAct(this.players[i])) {
-            this.toAct = i;
-            return;
-          }
-          i = this.next(i);
-        }
-      }
+      // primeiro a agir: à esquerda do dealer
+      if (canAct.length >= 2 && this.firstToAct()) return;
     }
     this.finish();
+  }
+
+  /** Primeiro jogador (à esquerda do dealer) que ainda precisa agir na rodada. */
+  private firstToAct(): boolean {
+    let i = this.next(this.dealerIdx);
+    for (let k = 0; k < this.players.length; k++) {
+      if (this.needsToAct(this.players[i])) {
+        this.toAct = i;
+        return true;
+      }
+      i = this.next(i);
+    }
+    return false;
+  }
+
+  /**
+   * Poker de 5 cartas, depois de uma rodada de apostas: da primeira vai para a troca de cartas;
+   * da segunda vai para o showdown.
+   */
+  private afterDrawStreet(): void {
+    if (this.street !== 'predraw') {
+      this.finish();
+      return;
+    }
+    this.street = 'draw';
+    this.phase = 'draw';
+    this.drawn.clear();
+    this.onEvent({ t: 'street', street: 'draw', cards: [] });
+    // quem não desistiu troca as cartas, na ordem, à esquerda do dealer (quem está all-in também)
+    if (!this.nextDrawer()) this.endDrawPhase();
+  }
+
+  /** Passa a vez da troca para o próximo que ainda não trocou; false se todos já trocaram. */
+  private nextDrawer(): boolean {
+    let i = this.next(this.dealerIdx);
+    for (let k = 0; k < this.players.length; k++) {
+      const p = this.players[i];
+      if (!p.folded && !this.drawn.has(p.seat)) {
+        this.toAct = i;
+        return true;
+      }
+      i = this.next(i);
+    }
+    return false;
+  }
+
+  /** Todos trocaram: abre a segunda rodada de apostas (ou vai direto ao showdown). */
+  private endDrawPhase(): void {
+    this.phase = 'bet';
+    this.street = 'postdraw';
+    this.toAct = null;
+    this.onEvent({ t: 'street', street: 'postdraw', cards: [] });
+    const canAct = this.activePlayers().filter((p) => !p.allIn);
+    if (canAct.length >= 2 && this.firstToAct()) return;
+    this.finish();
+  }
+
+  /** Tira uma carta do baralho; se ele acabar, os descartes voltam embaralhados. */
+  private drawCard(): Card {
+    if (!this.deck.length && this.muck.length) {
+      this.deck = shuffle(this.muck);
+      this.muck = [];
+    }
+    return this.deck.pop()!;
+  }
+
+  /**
+   * Troca de cartas (poker de 5 cartas): descarta as cartas nas posições `indices` e pega o mesmo
+   * número de cartas novas, que entram no lugar das velhas. Trocar nada é válido ("manter").
+   */
+  draw(seat: number, indices: number[]): { ok: true } | { ok: false; error: string } {
+    if (this.finished) return { ok: false, error: 'A mão já terminou' };
+    if (this.phase !== 'draw') return { ok: false, error: 'Não é a hora de trocar cartas' };
+    if (this.toAct === null || this.players[this.toAct].seat !== seat) return { ok: false, error: 'Não é a sua vez' };
+    const p = this.players[this.toAct];
+    const idx = [...new Set(indices.filter((i) => Number.isInteger(i) && i >= 0 && i < p.hole.length))].sort((a, b) => a - b);
+    const discarded = idx.map((i) => p.hole[i]);
+    for (const i of idx) p.hole[i] = this.drawCard();
+    this.muck.push(...discarded);
+    this.drawn.add(seat);
+    p.drew = idx.length;
+    this.seq++;
+    this.toAct = null;
+    this.onEvent({ t: 'draw', seat, discards: idx });
+    if (!this.nextDrawer()) this.endDrawPhase();
+    return { ok: true };
   }
 
   private dealStreet(): void {

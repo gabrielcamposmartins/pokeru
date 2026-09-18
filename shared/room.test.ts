@@ -14,8 +14,8 @@ interface Harness {
   errors: string[];
 }
 
-/** Conecta um "humano" automático que responde à própria vez. */
-function autoPlayer(lobby: Lobby, name: string, pick?: (v: TableView) => PlayerAction): Harness {
+/** Conecta um "humano" automático que responde à própria vez (apostas e trocas de carta). */
+function autoPlayer(lobby: Lobby, name: string, pick?: (v: TableView) => PlayerAction, discards: number[] = [0, 1]): Harness {
   const h: Harness = { conn: null as unknown as Connection, views: [], events: [], errors: [] };
   h.conn = lobby.connect((m: ServerMsg) => {
     if (m.type === 'error') h.errors.push(m.message);
@@ -34,12 +34,19 @@ function autoPlayer(lobby: Lobby, name: string, pick?: (v: TableView) => PlayerA
             : { type: 'fold' };
       setTimeout(() => h.conn.handle({ type: 'action', action }), 5);
     }
+    // poker de 5 cartas: a vez de trocar cartas
+    if (m.ev.t === 'drawTurn' && m.view.toAct === m.view.mySeat) {
+      setTimeout(() => h.conn.handle({ type: 'draw', discards }), 5);
+    }
   });
   h.conn.handle({ type: 'hello', name, avatar: {}, cosmetics: {} });
   return h;
 }
 
 const fast: Partial<RoomSettings> = { pace: 0.4, turnTime: 5 };
+
+/** Passa quando pode, paga quando não pode (nunca manda ação ilegal). */
+const passive = (v: TableView): PlayerAction => (v.legal!.canCheck ? { type: 'check' } : { type: 'call' });
 
 function totalChips(v: TableView): number {
   return v.seats.reduce((s, x) => s + (x ? x.stack + x.bet : 0), 0) + v.pot;
@@ -160,7 +167,21 @@ describe('sala', () => {
     p.conn.handle({ type: 'skipHand' });
     expect(p.errors.some((e) => e.includes('ainda está na mão'))).toBe(true);
 
-    await runUntil(() => p.views.some((v) => v.mySeat !== null && v.seats[v.mySeat]?.folded === true));
+    // espera o momento exato em que eu ja desisti e a sala esta parada esperando a vez de um bot:
+    // so nele o pedido de pular tem efeito (com a mao encerrada, a proxima corre no ritmo normal)
+    const waitingBot = () => {
+      const v = p.views[p.views.length - 1];
+      return (
+        p.events[p.events.length - 1] === 'turn' &&
+        !!v &&
+        v.mySeat !== null &&
+        v.seats[v.mySeat]?.folded === true &&
+        v.toAct !== null &&
+        v.toAct !== v.mySeat
+      );
+    };
+    await runUntil(waitingBot);
+    expect(waitingBot()).toBe(true);
     const before = p.views[p.views.length - 1].handNo;
     const winsBefore = p.events.filter((e) => e === 'win').length;
     p.conn.handle({ type: 'skipHand' });
@@ -191,4 +212,105 @@ describe('sala', () => {
     a.conn.handle({ type: 'action', action: { type: 'call' } });
     expect(a.errors.length).toBe(1);
   });
+});
+
+describe('modo normal (rodadas fixas)', () => {
+  it('termina no número de rodadas contratado e mostra o placar', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    const p = autoPlayer(lobby, 'Tester', passive);
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'normal', rounds: 3, maxPlayers: 4, startingStack: 1000, smallBlind: 25, bigBlind: 50 },
+    });
+    for (let i = 0; i < 3; i++) p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    p.conn.handle({ type: 'startGame' });
+
+    await runUntil(() => p.events.includes('gameOver'));
+    expect(p.events.filter((e) => e === 'handStart').length).toBe(3);
+    for (const v of p.views) expect(totalChips(v)).toBe(4000);
+    // a view diz de quantas rodadas é a partida (para o placar da tela)
+    expect(p.views[p.views.length - 1].rounds).toBe(3);
+    expect(p.errors).toEqual([]);
+
+    // nada mais acontece depois do fim
+    const after = p.events.length;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(p.events.length).toBe(after);
+  }, 30_000);
+
+  it('blinds não sobem e quem quebra é eliminado (sem rebuy)', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    // humano all-in sempre: quebra rápido contra os bots
+    const p = autoPlayer(lobby, 'Tester', () => ({ type: 'allin' }));
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'normal', rounds: 20, maxPlayers: 3, startingStack: 300, smallBlind: 25, bigBlind: 50, blindLevelHands: 2 },
+    });
+    for (let i = 0; i < 2; i++) p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    p.conn.handle({ type: 'startGame' });
+
+    await runUntil(() => p.events.includes('gameOver'));
+    expect(p.events).not.toContain('blindsUp');
+    expect(p.events).not.toContain('rebuy');
+    const last = p.views[p.views.length - 1];
+    expect(last.smallBlind).toBe(25);
+    expect(last.bigBlind).toBe(50);
+  }, 30_000);
+});
+
+describe('poker de 5 cartas (draw) na sala', () => {
+  it('cinco cartas, troca no meio e mão terminada', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    const p = autoPlayer(lobby, 'Tester', passive, [0, 2]);
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, variant: 'draw5', mode: 'normal', rounds: 2, maxPlayers: 3, startingStack: 1000, smallBlind: 25, bigBlind: 50 },
+    });
+    for (let i = 0; i < 2; i++) p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    p.conn.handle({ type: 'startGame' });
+
+    await runUntil(() => p.events.includes('gameOver'));
+    expect(p.errors).toEqual([]);
+    // a mesa nunca teve bordo e a mão tem cinco cartas
+    for (const v of p.views) {
+      expect(v.variant).toBe('draw5');
+      expect(v.board).toEqual([]);
+      const me = v.mySeat !== null ? v.seats[v.mySeat] : null;
+      if (me?.inHand && !me.folded && me.cards.length) expect(me.cards).toHaveLength(5);
+    }
+    // houve vez de trocar, troca de fato e a contagem apareceu na view
+    expect(p.events).toContain('drawTurn');
+    expect(p.events).toContain('draw');
+    expect(p.views.some((v) => v.seats.some((x) => typeof x?.drew === 'number'))).toBe(true);
+    // eu troquei duas cartas quando foi a minha vez
+    expect(p.views.some((v) => v.mySeat !== null && v.seats[v.mySeat]?.drew === 2)).toBe(true);
+    expect(p.events).toContain('win');
+    for (const v of p.views) expect(totalChips(v)).toBe(3000);
+  }, 30_000);
+
+  it('apostar na hora da troca (e trocar fora dela) é recusado', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    const p = autoPlayer(lobby, 'Tester', passive);
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, variant: 'draw5', maxPlayers: 3, startingStack: 1000, smallBlind: 25, bigBlind: 50 },
+    });
+    for (let i = 0; i < 2; i++) p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    p.conn.handle({ type: 'startGame' });
+
+    // fora da fase de troca, o pedido é recusado
+    await runUntil(() => p.views.length > 0);
+    p.conn.handle({ type: 'draw', discards: [0] });
+    expect(p.errors.some((e) => e.includes('trocar cartas') || e.includes('sua vez'))).toBe(true);
+
+    // na vez de trocar, apostar é recusado
+    const before = p.errors.length;
+    await runUntil(() => p.views.some((v) => v.street === 'draw' && v.toAct === v.mySeat));
+    p.conn.handle({ type: 'action', action: { type: 'check' } });
+    expect(p.errors.length).toBeGreaterThan(before);
+  }, 30_000);
 });

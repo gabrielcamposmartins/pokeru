@@ -2,6 +2,7 @@ import { sameCard, type Card } from '../../shared/cards';
 import type { TableEvent, TableView } from '../../shared/protocol';
 import { findCharacter, type CardBackStyle } from '../../shared/styles';
 import { evaluateHand, HandCategory } from '../../shared/evaluator';
+import { isFirstStreet, type Street } from '../../shared/engine';
 import type { PotResult } from '../../shared/engine';
 import { setTimeScale, wait } from '../anim/tween';
 import { sfx } from '../audio/sfx';
@@ -146,7 +147,7 @@ class Director {
       this.raises = 0;
     } else if (ev.t === 'action' && (ev.action === 'raise' || (ev.action === 'allin' && ev.betTo > this.lastBet))) {
       // no pré-flop o big blind já é a aposta: o primeiro aumento é raise
-      const level = this.raises + (this.street === 'preflop' ? 1 : 0);
+      const level = this.raises + (isFirstStreet(this.street as Street) ? 1 : 0);
       kind = level === 0 ? 'bet' : level === 1 ? 'raise' : 'reraise';
       this.raises++;
     }
@@ -387,7 +388,7 @@ class Director {
         cur.seats.forEach((s, seat) => {
           if (!s || !s.cards.length || !geo[seat] || seat === next.mySeat) return;
           s.cards.forEach((c, i) => {
-            const hp = holeCardPos(geo[seat], i);
+            const hp = holeCardPos(geo[seat], i, s.cards.length);
             flights.push(
               this.fly({ kind: 'card', from: hp.p, to: target, dur: 420, rotFrom: hp.rot, rotTo: hp.rot + 90, card: c, faceUp: !!c, back: s.cosmetics.back, width: geo[seat].cardW, fade: true }),
             );
@@ -451,13 +452,76 @@ class Director {
       }
 
       case 'street': {
-        const names: Record<string, string> = { flop: 'Flop', turn: 'Turn', river: 'River' };
-        store.addLog(`— ${names[ev.street] ?? ev.street}: ${ev.cards.map(cardText).join(' ')}`, 'street');
+        const names: Record<string, string> = { flop: 'Flop', turn: 'Turn', river: 'River', draw: 'Troca de cartas', postdraw: 'Apostas finais' };
+        const label = names[ev.street] ?? ev.street;
+        // as "ruas" do poker de 5 cartas não põem cartas na mesa
+        if (!ev.cards.length) {
+          store.addLog(`— ${label}`, 'street');
+          if (ev.street === 'draw') sfx.pop();
+          await wait(180);
+          return;
+        }
+        store.addLog(`— ${label}: ${ev.cards.map(cardText).join(' ')}`, 'street');
         sfx.deal();
         store.patchDisplay({ board: next.board });
         setTimeout(() => sfx.flip(), 180);
         if (ev.cards.length > 1) setTimeout(() => sfx.flip(), 420);
         await wait(ev.cards.length > 1 ? 480 : 260);
+        return;
+      }
+
+      case 'drawTurn':
+        if (ev.seat === next.mySeat) {
+          sfx.turn();
+          this.bondVoice(next, ev.seat, 'turn');
+        }
+        return;
+
+      case 'draw': {
+        const g = geo[ev.seat];
+        const count = ev.discards.length;
+        const name = this.seatName(next, ev.seat);
+        store.addLog(count ? `${name} trocou ${count} ${count === 1 ? 'carta' : 'cartas'}` : `${name} ficou com a mão`);
+        store.addCallout(ev.seat, count ? `Troco ${count}` : 'Mantenho', count ? 'raise' : 'check');
+        // voz: descartar usa a chamada comum de descarte; manter a mão, a de passar
+        if (!this.skipping) sayCommon(this.charId(next, ev.seat), count ? 'muck' : 'check', { speaker: `${ev.seat}` });
+        const apply = () => store.patchSeat(ev.seat, { cards: next.seats[ev.seat]?.cards ?? [], drew: count });
+        if (!g || !count) {
+          apply();
+          return;
+        }
+        const cards = cur.seats[ev.seat]?.cards ?? [];
+        const n = cards.length || 5;
+        const isMe = ev.seat === next.mySeat;
+        const back = cur.seats[ev.seat]?.cosmetics.back ?? this.backOf(next, ev.seat);
+        // as trocadas saem para o descarte (as minhas, de cara para cima)
+        sfx.fold();
+        const land = { x: MUCK_POS.x + (Math.random() - 0.5) * 60, y: MUCK_POS.y + (Math.random() - 0.5) * 20 };
+        const outs = ev.discards.map((i, k) => {
+          const hp = holeCardPos(g, i, n);
+          return this.fly({ kind: 'card', from: hp.p, to: { x: land.x + k * 12, y: land.y }, dur: 360, rotFrom: hp.rot, rotTo: hp.rot + 140 + k * 20, card: isMe ? (cards[i] ?? null) : null, faceUp: isMe, back, width: g.cardW, fade: true });
+        });
+        if (isMe) store.patchSeat(ev.seat, { cards: cards.map((c, i) => (ev.discards.includes(i) ? null : c)) });
+        this.clearFlyers(await Promise.all(outs));
+        if (!alive()) {
+          apply();
+          return;
+        }
+        // e as novas chegam do baralho do dealer
+        const origin = next.dealerSeat !== null && geo[next.dealerSeat] ? geo[next.dealerSeat].deck : MUCK_POS;
+        const ins: Promise<number>[] = [];
+        for (const i of ev.discards) {
+          const hp = holeCardPos(g, i, n);
+          sfx.deal();
+          ins.push(this.fly({ kind: 'card', from: origin, to: hp.p, dur: 300, rotFrom: 0, rotTo: hp.rot, card: null, faceUp: false, back, width: g.cardW }));
+          await wait(90);
+        }
+        this.clearFlyers(await Promise.all(ins));
+        apply();
+        if (isMe) {
+          sfx.flip();
+          await wait(160);
+        }
         return;
       }
 
@@ -631,7 +695,7 @@ class Director {
     const back = s?.cosmetics.back ?? this.backOf(next, seat);
     const land = { x: MUCK_POS.x + (Math.random() - 0.5) * 70, y: MUCK_POS.y + (Math.random() - 0.5) * 20 };
     const flights = cards.map((_, i) => {
-      const hp = holeCardPos(g, i);
+      const hp = holeCardPos(g, i, cards.length);
       return this.fly({ kind: 'card', from: hp.p, to: { x: land.x + i * 12, y: land.y }, dur: 400, rotFrom: hp.rot, rotTo: hp.rot + 160 + i * 30, card: null, faceUp: false, back, width: g.cardW, fade: true });
     });
     this.clearFlyers(await Promise.all(flights));
@@ -650,7 +714,7 @@ class Director {
       const sv = next.seats[seat];
       if (!g || !sv) continue;
       const i = (counts[seat] = (counts[seat] ?? -1) + 1);
-      const hp = holeCardPos(g, i);
+      const hp = holeCardPos(g, i, sv.cards.length || 2);
       sfx.deal();
       flights.push(
         this.fly({ kind: 'card', from: origin, to: hp.p, dur: 300, rotFrom: dg?.cardsRot ?? 0, rotTo: hp.rot, card: null, faceUp: false, back: sv.cosmetics.back, width: g.cardW }).then((id) => {

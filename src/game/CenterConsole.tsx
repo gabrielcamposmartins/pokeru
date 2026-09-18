@@ -11,6 +11,10 @@ const STREET: Record<string, string> = {
   flop: 'Flop',
   turn: 'Turn',
   river: 'River',
+  // poker de 5 cartas
+  predraw: 'Apostas',
+  draw: 'Troca',
+  postdraw: 'Apostas finais',
   showdown: 'Showdown',
 };
 
@@ -80,7 +84,7 @@ export function CenterConsole({ view, geo }: { view: TableView; geo: SeatGeo[] }
           {fmt(total)}
         </motion.span>
         <span className="console-sub">
-          {view.street ? STREET[view.street] : 'Aguardando'} · Mão #{view.handNo}
+          {view.street ? STREET[view.street] : 'Aguardando'} · {view.rounds ? `Rodada ${Math.min(view.handNo, view.rounds)}/${view.rounds}` : `Mão #${view.handNo}`}
         </span>
       </div>
     </div>

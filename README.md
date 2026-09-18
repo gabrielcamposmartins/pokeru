@@ -1,8 +1,9 @@
 # ♠ PokerSoul
 
-Poker (Texas Hold'em No-Limit) 2D multiplayer inspirado na apresentação de **Mahjong Soul**:
-na mesa aparecem apenas **cartas e fichas**, animadas em 2D (SVG).
-Aplicação web empacotada como app desktop com **Tauri v2**.
+Poker 2D multiplayer inspirado na apresentação de **Mahjong Soul**: na mesa aparecem apenas
+**cartas e fichas**, animadas em 2D (SVG). Dois jogos — **Texas Hold'em No-Limit** e
+**poker de 5 cartas (draw)** — em três formatos de partida (cash, Sit & Go e normal, com
+rodadas fixas). Aplicação web empacotada como app desktop com **Tauri v2**.
 
 ## Como rodar
 
@@ -29,7 +30,7 @@ npm run app:build
 
 1. Em um computador da rede (ou num servidor), rode `npm run server`.
 2. No app, vá em **Jogar Online**, informe `ws://IP-DO-HOST:3001` e conecte.
-3. Crie uma sala (cash com rebuy ou Sit & Go), adicione bots se quiser e compartilhe o **código** da sala.
+3. Crie uma sala (escolha o **jogo** e o **formato**), adicione bots se quiser e compartilhe o **código** da sala.
 
 A **Partida Rápida** roda tudo offline, no próprio app, contra bots (fácil / normal / difícil).
 
@@ -39,8 +40,8 @@ A **Partida Rápida** roda tudo offline, no próprio app, contra bots (fácil / 
 shared/            Código comum ao servidor e ao cliente
   cards.ts         Baralho, embaralhamento (crypto)
   evaluator.ts     Avaliador de mãos (melhor 5 de 7) com nomes em português
-  engine.ts        Mão de Hold'em: blinds, apostas, min-raise, all-in curto, side pots, showdown
-  bot.ts           IA (equidade Monte Carlo + pot odds + blefe por dificuldade)
+  engine.ts        Mão de poker: Hold'em e 5 cartas (draw), blinds, min-raise, all-in curto, side pots, showdown
+  bot.ts           IA (equidade Monte Carlo + pot odds + blefe por dificuldade; e a troca no draw)
   room.ts          Sala: assentos, fila de eventos com ritmo, timers, bots, rebuy/eliminação
   lobby.ts         Conexões e salas (independe de transporte)
   protocol.ts      Mensagens cliente ⇄ servidor e visões da mesa
@@ -171,6 +172,51 @@ junto com o estado resultante, e espaça os eventos no tempo. No cliente, o **di
 cartas saem do dealer e, ao desistir, voam para o descarte, o bordo vira na mesa e o pote voa para o
 vencedor — e só então aplica o estado. Se houver atraso, as animações aceleram sozinhas.
 
+## Jogos e formatos de partida
+
+Cada mesa combina **um jogo** (as regras da mão) com **um formato** (como a partida começa e acaba).
+As duas escolhas aparecem na **Partida Rápida** (contra bots) e ao **criar uma sala online**.
+
+| Jogo | Como funciona |
+|---|---|
+| **Texas Hold'em** | duas cartas na mão, cinco na mesa; ruas pré-flop, flop, turn e river |
+| **Poker de 5 cartas** | cinco cartas na mão e **nenhuma** na mesa: aposta, **troca de cartas** e aposta final |
+
+| Formato | Como funciona |
+|---|---|
+| **Cash** | sem fim; quem quebra faz **rebuy** automático e qualquer um entra no meio |
+| **Sit & Go** | eliminação, blinds dobrando a cada N mãos, até sobrar um |
+| **Normal** | **número fixo de rodadas** (4, 8, 12 ou 20 — o padrão é 8) e o placar no fim |
+
+No **modo normal** os blinds não sobem, quem quebra é eliminado (sem rebuy) e ninguém entra no meio
+da partida. A mesa mostra **Rodada 3/8** no topo e no console central, o chat avisa a cada rodada
+(e na última), e no fim entra a [tela de placar](#fim-da-partida-placar) com a classificação por
+fichas. Se sobrar só um jogador antes da última rodada, a partida acaba ali. O número de rodadas é
+`rounds` em `RoomSettings` (1 a 100).
+
+### Poker de 5 cartas (draw)
+
+A mão tem duas rodadas de apostas com a **troca** entre elas, e vale pelas cinco cartas do jogador:
+
+1. **Apostas** (`predraw`) — blinds e apostas como no Hold'em (o motor é o mesmo).
+2. **Troca** (`draw`) — na sua vez, **clique nas suas cartas** para marcá-las e confirme em
+   **Trocar N** (ou **Manter as cinco**; `Enter` também confirma). Dá para trocar de nenhuma a
+   cinco cartas; as novas entram no lugar das velhas. Se o baralho acabar, os descartes voltam
+   embaralhados — nunca uma carta que está na mão de alguém.
+3. **Apostas finais** (`postdraw`) e showdown.
+
+Quantas cartas cada um trocou é informação pública: aparece na placa do jogador (*trocou 2*,
+*manteve*) e no histórico. Os bots mantêm mão feita (sequência ou melhor), ficam com trinca, dois
+pares, par e projetos de quatro cartas para flush ou sequência, e no resto seguram as cartas altas
+(`botDraw` em `shared/bot.ts`); a equidade deles vem de `estimateEquity5`, que compara a mão fechada
+com mãos aleatórias de cinco cartas.
+
+No motor (`shared/engine.ts`), `variant` escolhe o jogo, `phase` diz se a vez é de apostar ou de
+trocar (`act` e `draw` são os dois caminhos) e `Hand.draw(seat, indices)` faz a troca. Na rede a vez
+de trocar chega como o evento `drawTurn` e o pedido do jogador como `{ type: 'draw', discards }`.
+
+Para conferir sem jogar: `/preview.html?cena=draw5` (mesa de cinco cartas na hora da troca).
+
 ## Fim do round (showdown)
 
 Quando a mão vai a showdown, entra uma tela de resultado no estilo das telas de vitória de Mahjong Soul
@@ -192,7 +238,7 @@ referência) e o conteúdo se distribui assim:
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
 `/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, `voo`,
-`bond`, `bond-aviso`, `personagens`, e `&ui=victorian`, `&rects=1` para medir as caixas —
+`bond`, `bond-aviso`, `personagens`, `draw5`, e `&ui=victorian`, `&rects=1` para medir as caixas —
 `&rects=<seletores>` mede outras). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
@@ -206,7 +252,7 @@ Os dois estão cobertos por testes (`shared/engine.test.ts` e `src/game/payments
 
 ## Fim da partida (placar)
 
-Quando a partida acaba (Sit & Go) ou quando **você** sai da mesa, entra a tela de placar
+Quando a partida acaba (Sit & Go ou as rodadas do modo normal) ou quando **você** sai da mesa, entra a tela de placar
 (`src/game/MatchEnd.tsx`) — ela é individual: cada jogador vê a sua no próprio cliente.
 
 - **à esquerda**, o personagem de **quem ficou em primeiro**;

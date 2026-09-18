@@ -8,7 +8,7 @@ import { ActionPanel } from '../game/ActionPanel';
 import { ChatPanel, EmoteMenu, WinSplash } from '../game/Overlays';
 import { RoundResultScreen } from '../game/RoundResult';
 import { MatchEndScreen } from '../game/MatchEnd';
-import { fmt } from '../util/format';
+import { VARIANT_SHORT, fmt, matchLabel } from '../util/format';
 import { sfx } from '../audio/sfx';
 
 export function GameScreen() {
@@ -40,8 +40,10 @@ export function GameScreen() {
                 <span>
                   Blinds {fmt(view.smallBlind)}/{fmt(view.bigBlind)}
                 </span>
-                <span>Mão #{view.handNo}</span>
-                <span className="mode">{room?.settings.mode === 'sitgo' ? 'Sit & Go' : 'Cash'}</span>
+                <span>
+                  {view.rounds ? `Rodada ${Math.min(view.handNo, view.rounds)}/${view.rounds}` : `Mão #${view.handNo}`}
+                </span>
+                <span className="mode">{room ? matchLabel(room.settings) : VARIANT_SHORT[view.variant]}</span>
               </>
             )}
           </div>

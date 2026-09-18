@@ -1,7 +1,7 @@
 import { randomInt } from './cards';
 import { Hand, type HandEvent, type PlayerAction } from './engine';
 import { evaluateHand } from './evaluator';
-import { botDecide, botThinkTimeMs } from './bot';
+import { botDecide, botDraw, botThinkTimeMs } from './bot';
 import {
   EMOTES,
   type BotDifficulty,
@@ -66,7 +66,9 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
     startingStack: Math.max(bigBlind * 10, n(o.startingStack, 100, 10_000_000, 2000)),
     smallBlind,
     bigBlind,
-    mode: o.mode === 'sitgo' ? 'sitgo' : 'cash',
+    mode: o.mode === 'sitgo' ? 'sitgo' : o.mode === 'normal' ? 'normal' : 'cash',
+    variant: o.variant === 'draw5' ? 'draw5' : 'holdem',
+    rounds: n(o.rounds, 1, 100, 8),
     turnTime: n(o.turnTime, 5, 120, 20),
     blindLevelHands: n(o.blindLevelHands, 2, 50, 8),
     password: typeof o.password === 'string' && o.password ? o.password.slice(0, 32) : undefined,
@@ -191,6 +193,7 @@ export class Room {
       status: this.status,
       blinds: `${this.smallBlind}/${this.bigBlind}`,
       mode: this.settings.mode,
+      variant: this.settings.variant,
       hasPassword: !!this.settings.password,
     };
   }
@@ -206,7 +209,7 @@ export class Room {
   join(client: ClientHandle, password?: string): string | null {
     if (this.memberById(client.id)) return null;
     if (this.settings.password && this.settings.password !== password) return 'Senha incorreta';
-    if (this.status === 'playing' && this.settings.mode === 'sitgo') return 'Sit & Go em andamento';
+    if (this.status === 'playing' && this.closedGame()) return 'Partida em andamento';
     if (this.status === 'finished') return 'Partida encerrada';
     const seat = this.seats.findIndex((s) => s === null);
     if (seat < 0) return 'Mesa cheia';
@@ -280,7 +283,7 @@ export class Room {
   addBot(byId: string, difficulty: BotDifficulty): string | null {
     if (byId !== this.hostId) return 'Apenas o anfitrião pode adicionar bots';
     if (this.status === 'finished') return 'Partida encerrada';
-    if (this.status === 'playing' && this.settings.mode === 'sitgo') return 'Sit & Go em andamento';
+    if (this.status === 'playing' && this.closedGame()) return 'Partida em andamento';
     const seat = this.seats.findIndex((s) => s === null);
     if (seat < 0) return 'Mesa cheia';
     const used = new Set(this.members().map((m) => m.name));
@@ -351,6 +354,16 @@ export class Room {
     return null;
   }
 
+  /** Partida fechada: quem quebra é eliminado e ninguém entra no meio (Sit & Go e modo normal). */
+  private closedGame(): boolean {
+    return this.settings.mode !== 'cash';
+  }
+
+  /** Modo normal: a partida acaba ao completar as rodadas contratadas. */
+  private roundsOver(): boolean {
+    return this.settings.mode === 'normal' && this.handNo >= this.settings.rounds;
+  }
+
   private prevSeat(seat: number): number {
     return (seat - 1 + this.seats.length) % this.seats.length;
   }
@@ -382,7 +395,7 @@ export class Room {
     const eligible = this.members().filter((m) => !m.leaving && !m.busted && m.stack > 0);
     if (eligible.length < 2) {
       this.hand = null;
-      if (this.settings.mode === 'sitgo') {
+      if (this.closedGame()) {
         this.finishGame();
         return;
       }
@@ -417,9 +430,14 @@ export class Room {
         dealerSeat: d,
         smallBlind: this.smallBlind,
         bigBlind: this.bigBlind,
+        variant: this.settings.variant,
       },
       (ev) => this.emit(ev),
     );
+    if (this.settings.mode === 'normal') {
+      const left = this.settings.rounds - this.handNo;
+      this.system(left === 0 ? 'Última rodada!' : `Rodada ${this.handNo} de ${this.settings.rounds}.`);
+    }
     this.emit({ t: 'handStart', handNo: this.handNo, dealerSeat: d });
     this.hand.start();
     this.onChange();
@@ -439,7 +457,7 @@ export class Room {
       .sort((a, b) => (h.players.find((p) => p.id === b.id)?.total ?? 0) - (h.players.find((p) => p.id === a.id)?.total ?? 0));
     const remaining = alive();
     broke.forEach((m, i) => {
-      if (this.settings.mode === 'cash') {
+      if (!this.closedGame()) {
         m.stack = this.settings.startingStack;
         this.emit({ t: 'rebuy', seat: m.seat, amount: m.stack });
         this.system(`${m.name} fez rebuy de ${m.stack}.`);
@@ -452,7 +470,8 @@ export class Room {
       }
     });
     this.emit({ t: 'handEnd' });
-    if (this.settings.mode === 'sitgo' && alive() <= 1) this.finishGame();
+    if (this.closedGame() && alive() <= 1) this.finishGame();
+    else if (this.roundsOver()) this.finishGame();
   }
 
   private finishGame(): void {
@@ -463,7 +482,7 @@ export class Room {
       ...[...this.eliminated].sort((a, b) => a.place - b.place),
     ];
     this.emit({ t: 'gameOver', ranking });
-    if (ranking[0]) this.system(`${ranking[0].name} venceu o Sit & Go!`);
+    if (ranking[0]) this.system(`${ranking[0].name} venceu ${this.settings.mode === 'normal' ? `as ${this.settings.rounds} rodadas` : 'o Sit & Go'}!`);
     this.broadcastRoom();
   }
 
@@ -499,7 +518,10 @@ export class Room {
       case 'collect':
         return 850;
       case 'street':
-        return ev.street === 'flop' ? 1500 : 1100;
+        // no poker de 5 cartas as "ruas" da troca não põem cartas na mesa: pausa curta
+        return ev.street === 'flop' ? 1500 : ev.street === 'draw' || ev.street === 'postdraw' ? 700 : 1100;
+      case 'draw':
+        return ev.discards.length ? 1100 : 700;
       case 'showdown':
         return 900 + 700 * ev.reveals.length;
       case 'win':
@@ -572,10 +594,11 @@ export class Room {
     const h = this.hand!;
     const seat = h.toActSeat!;
     const m = this.seats[seat];
+    const drawing = h.phase === 'draw';
     this.turnKey = this.currentTurnKey();
     const timeMs = this.settings.turnTime * 1000;
     this.turnDeadline = Date.now() + timeMs;
-    this.emit({ t: 'turn', seat, timeMs });
+    this.emit(drawing ? { t: 'drawTurn', seat, timeMs } : { t: 'turn', seat, timeMs });
     if (this.turnTimer) clearTimeout(this.turnTimer);
     const key = this.turnKey;
     const guard = (fn: () => void) => () => {
@@ -584,16 +607,48 @@ export class Room {
     if (!m || m.leaving || (!m.isBot && !m.connected)) {
       this.turnTimer = this.later(guard(() => this.autoAct(seat)), 400);
     } else if (m.isBot) {
-      this.turnTimer = this.later(guard(() => this.botAct(m)), this.rushing ? 10 : botThinkTimeMs() * Math.min(1, this.settings.pace));
+      const think = this.rushing ? 10 : botThinkTimeMs() * Math.min(1, this.settings.pace);
+      this.turnTimer = this.later(guard(() => (drawing ? this.botDrawAct(m) : this.botAct(m))), think);
     } else {
       this.turnTimer = this.later(guard(() => this.autoAct(seat)), timeMs + 300);
     }
   }
 
+  /** Vez perdida (tempo esgotado, jogador saindo): passa/desiste, ou mantém as cartas na troca. */
   private autoAct(seat: number): void {
-    const l = this.hand?.legalActions(seat);
+    const h = this.hand;
+    if (!h || h.finished) return;
+    if (h.phase === 'draw') {
+      if (h.toActSeat === seat) this.applyDraw(seat, []);
+      return;
+    }
+    const l = h.legalActions(seat);
     if (!l) return;
     this.applyAction(seat, l.canCheck ? { type: 'check' } : { type: 'fold' });
+  }
+
+  /** Troca do bot: mantém o que já vale e pede cartas novas para o resto. */
+  private botDrawAct(m: Member): void {
+    const h = this.hand!;
+    const hp = h.players.find((p) => p.id === m.id);
+    if (!hp || h.toActSeat !== m.seat) return;
+    let discards: number[] = [];
+    try {
+      discards = botDraw(hp.hole, m.difficulty);
+    } catch {
+      discards = [];
+    }
+    this.applyDraw(m.seat, discards);
+  }
+
+  private applyDraw(seat: number, discards: number[]): boolean {
+    if (!this.hand) return false;
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.timers.delete(this.turnTimer);
+      this.turnTimer = null;
+    }
+    return this.hand.draw(seat, discards).ok;
   }
 
   private botAct(m: Member): void {
@@ -612,6 +667,7 @@ export class Room {
         stack: hp.stack,
         opponents: h.players.filter((p) => !p.folded && p !== hp).length,
         street: h.street,
+        variant: h.variant,
         difficulty: m.difficulty,
       });
     } catch {
@@ -679,6 +735,29 @@ export class Room {
     return null;
   }
 
+  /** Troca de cartas pedida por um jogador (poker de 5 cartas). */
+  handleDraw(clientId: string, discards: number[]): string | null {
+    const m = this.memberById(clientId);
+    const h = this.hand;
+    if (!m || !h || h.finished) return 'Nenhuma mão em andamento';
+    if (h.phase !== 'draw') return 'Não é a hora de trocar cartas';
+    if (h.toActSeat !== m.seat || this.turnKey !== this.currentTurnKey()) return 'Não é a sua vez';
+    const list = Array.isArray(discards) ? discards.map(Number).filter((n) => Number.isInteger(n)) : [];
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.timers.delete(this.turnTimer);
+      this.turnTimer = null;
+    }
+    const r = h.draw(m.seat, list);
+    if (!r.ok) {
+      // devolve o timer da vez
+      this.turnKey = '';
+      this.pump();
+      return r.error;
+    }
+    return null;
+  }
+
   chat(clientId: string, text: string): void {
     const m = this.memberById(clientId);
     if (!m) return;
@@ -722,6 +801,7 @@ export class Room {
         allIn: hp?.allIn ?? false,
         cards: showCards ? hp!.hole.map((c) => (m.id === forId || hp!.revealed ? c : null)) : [],
         lastAction: hp?.lastAction ?? null,
+        drew: hp?.drew,
         handName: hp?.revealed && h ? evaluateHand([...hp.hole, ...h.board]).name : undefined,
         connected: m.connected,
         busted: m.busted,
@@ -732,7 +812,9 @@ export class Room {
     return {
       roomId: this.id,
       handNo: this.handNo,
+      rounds: this.settings.mode === 'normal' ? this.settings.rounds : null,
       status: this.status,
+      variant: this.settings.variant,
       maxPlayers: this.settings.maxPlayers,
       seats,
       board: h?.board ?? [],

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sameCard, type Card } from '../../shared/cards';
+import { sfx } from '../audio/sfx';
 import { evaluateHand } from '../../shared/evaluator';
 import type { TableView } from '../../shared/protocol';
 import { useEquipped, useProfile } from '../store/profile';
@@ -71,7 +72,7 @@ function OpponentCards({ view, geo, fxOf }: { view: TableView; geo: SeatGeo[]; f
         if (!s || !g || seat === view.mySeat) return null;
         const fx = fxOf(seat);
         return s.cards.map((c, i) => {
-          const hp = holeCardPos(g, i);
+          const hp = holeCardPos(g, i, s.cards.length);
           const w = g.cardW;
           return (
             <div
@@ -126,37 +127,59 @@ function BetChips({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
   );
 }
 
-/** Suas cartas, grandes e em pé na parte de baixo da tela (como a mão no Mahjong Soul). */
+/**
+ * Suas cartas, grandes e em pé na parte de baixo da tela (como a mão no Mahjong Soul).
+ * No poker de 5 cartas são cinco, e na hora da troca elas ficam clicáveis: as marcadas
+ * sobem com um selo e saem quando a troca é confirmada (no painel de ações).
+ */
 function MyHand({ view, fx }: { view: TableView; fx: WinFx | null }) {
   const me = view.mySeat !== null ? view.seats[view.mySeat] : null;
   const cards = me && !me.folded ? me.cards : [];
   const hl = view.highlight;
+  const discards = useTable((s) => s.discards);
+  const toggleDiscard = useTable((s) => s.toggleDiscard);
+  const picking = view.street === 'draw' && view.toAct === view.mySeat;
+  const n = cards.length;
+  const step = n <= 2 ? 160 : 152;
+  const tilt = n <= 2 ? 6 : 4;
   return (
-    <div className="my-hand">
+    <div className={`my-hand ${picking ? 'picking' : ''}`}>
       <AnimatePresence>
         {me &&
-          cards.map((c, i) => (
-            <motion.div
-              key={i}
-              className="my-card"
-              style={{ left: (i === 0 ? -1 : 1) * 80 - MY_CARD_W / 2 }}
-              initial={{ y: -70, scale: 0.55, opacity: 0, rotate: 0 }}
-              animate={{ y: 0, scale: 1, opacity: 1, rotate: i === 0 ? -6 : 6 }}
-              exit={{ y: 230, opacity: 0, rotate: i === 0 ? -28 : 28, transition: { duration: 0.35 } }}
-              whileHover={{ y: -24 }}
-              transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-            >
-              <CardView
-                card={c}
-                faceUp={!!c}
-                width={MY_CARD_W}
-                back={me.cosmetics.back}
-                highlight={hl.length > 0 && isHl(hl, c)}
-                dim={hl.length > 0 && !isHl(hl, c)}
-                winFx={fx && isHl(hl, c) ? fx : null}
-              />
-            </motion.div>
-          ))}
+          cards.map((c, i) => {
+            const k = i - (n - 1) / 2;
+            const marked = picking && discards.includes(i);
+            // durante a troca, a carta que saiu deixa o lugar vazio até a nova pousar
+            const gap = !c && view.street === 'draw';
+            return (
+              <motion.div
+                key={i}
+                className={`my-card ${picking ? 'clickable' : ''} ${marked ? 'marked' : ''}`}
+                style={{ left: k * step - MY_CARD_W / 2 }}
+                initial={{ y: -70, scale: 0.55, opacity: 0, rotate: 0 }}
+                animate={{ y: marked ? -40 : 0, scale: marked ? 1.04 : 1, opacity: 1, rotate: k * tilt }}
+                exit={{ y: 230, opacity: 0, rotate: k * tilt * 4, transition: { duration: 0.35 } }}
+                whileHover={{ y: marked ? -52 : -24 }}
+                transition={{ type: 'spring', stiffness: 240, damping: 22 }}
+                onClick={picking ? () => { sfx.click(); toggleDiscard(i); } : undefined}
+              >
+                {gap ? (
+                  <span className="my-card-gap" style={{ width: MY_CARD_W, height: MY_CARD_W * 1.4 }} />
+                ) : (
+                  <CardView
+                    card={c}
+                    faceUp={!!c}
+                    width={MY_CARD_W}
+                    back={me.cosmetics.back}
+                    highlight={hl.length > 0 && isHl(hl, c)}
+                    dim={hl.length > 0 && !isHl(hl, c)}
+                    winFx={fx && isHl(hl, c) ? fx : null}
+                  />
+                )}
+                {marked && <span className="my-card-mark">✕ trocar</span>}
+              </motion.div>
+            );
+          })}
       </AnimatePresence>
     </div>
   );
@@ -168,6 +191,8 @@ function HandHint({ view }: { view: TableView }) {
   const me = view.seats[view.mySeat];
   const cards = me?.cards.filter(Boolean) as Card[] | undefined;
   if (!me || !cards || cards.length < 2 || me.folded) return null;
+  // no poker de 5 cartas a mão já são as cinco cartas; no Hold'em entra o bordo
+  if (view.variant === 'draw5' && cards.length < 5) return null;
   return (
     <div className="hand-hint" style={{ left: 560, top: 836 }}>
       {evaluateHand([...cards, ...view.board]).name}

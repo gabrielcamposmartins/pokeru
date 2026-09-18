@@ -177,6 +177,10 @@ export class Connection implements ClientHandle {
         if (!this.room) return;
         this.error(this.room.skipHand(this.id));
         break;
+      case 'draw':
+        if (!this.room) return;
+        this.error(this.room.handleDraw(this.id, msg.discards));
+        break;
       case 'chat': {
         const now = Date.now();
         if (!this.room || now - this.lastChat < 600) return;

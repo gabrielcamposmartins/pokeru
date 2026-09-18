@@ -1700,6 +1700,27 @@
     color: var(--ivory);
   }
 
+  /* poker de 5 cartas */
+  .my-card-mark,
+  .plate-drew {
+    border-radius: 2px;
+    font-family: var(--title);
+    letter-spacing: 0.8px;
+    font-size-adjust: none;
+  }
+  .my-card-mark {
+    background: var(--oxblood);
+    border: 1px solid var(--gold);
+  }
+  .my-card-gap {
+    border-radius: 3px;
+    border-color: rgba(201, 162, 90, 0.4);
+  }
+  .draw-panel .draw-hint {
+    font-size: 16px;
+    font-style: italic;
+  }
+
   /* página de vínculo */
   .bond-page-close {
     border-radius: 2px;

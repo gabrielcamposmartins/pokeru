@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
-import type { BotDifficulty, GameMode } from '../../shared/protocol';
+import type { BotDifficulty, GameMode, GameVariant } from '../../shared/protocol';
 import { useCharacter, useEquipped, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
 import { Segmented } from '../ui/controls';
+import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
 import { sfx } from '../audio/sfx';
 import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
@@ -86,6 +87,8 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
   const [bots, setBots] = useState(5);
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
   const [mode, setMode] = useState<GameMode>('cash');
+  const [variant, setVariant] = useState<GameVariant>('holdem');
+  const [rounds, setRounds] = useState(8);
   const [stack, setStack] = useState(2000);
   const [blinds, setBlinds] = useState(20);
   const [turnTime, setTurnTime] = useState(25);
@@ -108,14 +111,27 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
             ]}
           />
           <Segmented
-            label="Modo"
+            label="Jogo"
+            value={variant}
+            onChange={setVariant}
+            options={[
+              { value: 'holdem', label: VARIANT_LABEL.holdem },
+              { value: 'draw5', label: VARIANT_LABEL.draw5 },
+            ]}
+          />
+          <Segmented
+            label="Formato"
             value={mode}
             onChange={setMode}
             options={[
-              { value: 'cash', label: 'Cash (rebuy)' },
-              { value: 'sitgo', label: 'Sit & Go' },
+              { value: 'cash', label: MODE_LABEL.cash },
+              { value: 'sitgo', label: MODE_LABEL.sitgo },
+              { value: 'normal', label: 'Normal' },
             ]}
           />
+          {mode === 'normal' && (
+            <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
+          )}
           <Segmented label="Fichas iniciais" value={stack} onChange={setStack} options={[1000, 2000, 5000, 10000].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))} />
           <Segmented label="Big blind" value={blinds} onChange={setBlinds} options={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v / 2}/${v}` }))} />
           <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[10, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
@@ -135,7 +151,7 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
             className="btn btn-gold big"
             onClick={() => {
               sfx.click();
-              startLocal({ bots, difficulty, mode, startingStack: stack, smallBlind: blinds / 2, bigBlind: blinds, turnTime, pace });
+              startLocal({ bots, difficulty, mode, variant, rounds, startingStack: stack, smallBlind: blinds / 2, bigBlind: blinds, turnTime, pace });
             }}
           >
             ♠ Sentar à mesa

@@ -61,6 +61,10 @@ export function Nameplate({
       </div>
       {seat.allIn && !seat.folded && <div className="plate-badge allin">ALL-IN</div>}
       {action && !seat.allIn && <div className={`plate-action act-${seat.lastAction}`}>{action}</div>}
+      {/* poker de 5 cartas: quantas cartas o jogador trocou (informação pública) */}
+      {typeof seat.drew === 'number' && !seat.folded && (
+        <div className="plate-drew">{seat.drew === 0 ? 'manteve' : `trocou ${seat.drew}`}</div>
+      )}
       {seat.handName && !seat.folded && <div className="plate-hand">{seat.handName}</div>}
       {emotes.map((e) => (
         <div key={e.id} className="emote-bubble">

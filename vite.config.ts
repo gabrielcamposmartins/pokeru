@@ -4,6 +4,12 @@ import { parseJsonc } from './shared/jsonc.ts';
 
 const host = process.env.TAURI_DEV_HOST;
 
+/** O conteúdo começa com um objeto/array JSON (ignorando comentários e espaços)? */
+function looksLikeJson(code: string): boolean {
+  const start = code.replace(/^(\s|\/\/[^\n]*\n?|\/\*[\s\S]*?\*\/)*/, '');
+  return start.startsWith('{') || start.startsWith('[');
+}
+
 /** Comentários (// e /* *\/) em arquivos .jsonc e .json são ignorados. */
 function jsonc(): Plugin {
   return {
@@ -11,8 +17,10 @@ function jsonc(): Plugin {
     enforce: 'pre',
     transform(code, id) {
       const [file, query] = id.split('?');
-      // ?raw / ?url pedem o arquivo como está (o texto com os comentários): não mexe
+      // ?raw / ?url pedem o arquivo como está (o texto com os comentários): não mexe.
+      // A checagem do conteúdo é a rede de segurança: o que já virou módulo não é JSON.
       if (query && /(^|&)(raw|url|inline)(&|=|$)/.test(query)) return null;
+      if (!looksLikeJson(code)) return null;
       if (file.endsWith('.jsonc')) return { code: `export default ${JSON.stringify(parseJsonc(code, file))};`, map: null };
       // .json com comentários: entrega JSON limpo e deixa o plugin de JSON do Vite seguir normalmente
       if (file.endsWith('.json') && (code.includes('//') || code.includes('/*'))) return { code: JSON.stringify(parseJsonc(code, file)), map: null };

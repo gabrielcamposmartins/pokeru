@@ -53,8 +53,8 @@ export function planeStyle(w = PLANE_W, h = PLANE_H, cx = CENTER.x, cy = CENTER.
   };
 }
 
-/** Ruas, para semear o desvio das fichas apostadas. */
-const STREETS = ['preflop', 'flop', 'turn', 'river', 'showdown'];
+/** Ruas, para semear o desvio das fichas apostadas (as duas variantes). */
+const STREETS = ['preflop', 'flop', 'turn', 'river', 'predraw', 'draw', 'postdraw', 'showdown'];
 
 /**
  * Onde as fichas apostadas de um assento pousam: o ponto da aposta com um desvio pequeno,
@@ -184,11 +184,15 @@ export function seatLayout(maxPlayers: number, anchorSeat: number, hasMe: boolea
   return out;
 }
 
-/** Posição de cada carta (0 ou 1) na frente do jogador, no plano. */
-export function holeCardPos(g: SeatGeo, i: number): { p: Pt; rot: number } {
-  const spread = g.isMe ? 40 : 20;
-  const k = i === 0 ? -1 : 1;
-  return { p: add(g.cards, g.t, k * spread), rot: g.cardsRot + k * 7 };
+/**
+ * Posição de cada carta na frente do jogador, no plano: um leque centrado, com `n` cartas
+ * (2 no Hold'em, 5 no poker de 5 cartas — aí as cartas ficam mais juntas).
+ */
+export function holeCardPos(g: SeatGeo, i: number, n = 2): { p: Pt; rot: number } {
+  // com mais cartas o passo diminui: o leque cresce pouco e não invade a mesa
+  const step = (g.isMe ? 40 : 20) * (n > 2 ? 0.7 : 1);
+  const k = i - (n - 1) / 2;
+  return { p: add(g.cards, g.t, k * step), rot: g.cardsRot + k * (n > 2 ? 5 : 7) };
 }
 
 export function lerp(a: Pt, b: Pt, t: number): Pt {

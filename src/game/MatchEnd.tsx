@@ -9,7 +9,7 @@ import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { BondGain } from './BondBar';
 import { ChipSvg } from '../render/Chip';
 import { useUiTheme } from '../ui/themes';
-import { fmt } from '../util/format';
+import { fmt, matchLabel } from '../util/format';
 import { sfx } from '../audio/sfx';
 
 /** Uma linha do placar. */
@@ -218,6 +218,6 @@ export function MatchEndScreen() {
   const room = useSession((s) => s.room);
   const startingStack = room?.settings.startingStack ?? 0;
   const rows = useMemo(() => (view ? buildMatchRows(view, ranking, startingStack) : []), [view, ranking, startingStack]);
-  const info = [room?.settings.name, room?.settings.mode === 'sitgo' ? 'Sit & Go' : 'Cash', view ? `${view.handNo} mãos` : null].filter(Boolean).join(' · ');
+  const info = [room?.settings.name, room ? matchLabel(room.settings) : null, view ? `${view.handNo} mãos` : null].filter(Boolean).join(' · ');
   return <AnimatePresence>{match && rows.length > 0 && <MatchEndPanel key={match.id} m={match} rows={rows} info={info} />}</AnimatePresence>;
 }

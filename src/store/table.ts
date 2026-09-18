@@ -112,6 +112,8 @@ interface TableState {
   log: LogLine[];
   gameOver: Ranking[] | null;
   winners: number[];
+  /** Poker de 5 cartas: posições da minha mão marcadas para trocar. */
+  discards: number[];
   setDisplay(v: TableView | null, receivedAt?: number): void;
   patchSeat(seat: number, patch: Partial<SeatView>): void;
   patchDisplay(patch: Partial<TableView>): void;
@@ -125,6 +127,8 @@ interface TableState {
   addLog(text: string, kind?: LogLine['kind']): void;
   setGameOver(r: Ranking[] | null): void;
   setWinners(w: number[]): void;
+  toggleDiscard(i: number): void;
+  clearDiscards(): void;
   reset(): void;
 }
 
@@ -143,6 +147,7 @@ export const useTable = create<TableState>()((set, get) => ({
   log: [],
   gameOver: null,
   winners: [],
+  discards: [],
   setDisplay: (v, receivedAt) =>
     set({
       display: v,
@@ -178,6 +183,8 @@ export const useTable = create<TableState>()((set, get) => ({
   addLog: (text, kind) => set((s) => ({ log: [...s.log.slice(-120), { id: nextId(), text, kind }] })),
   setGameOver: (gameOver) => set({ gameOver }),
   setWinners: (winners) => set({ winners }),
+  toggleDiscard: (i) => set((s) => ({ discards: s.discards.includes(i) ? s.discards.filter((x) => x !== i) : [...s.discards, i].sort((a, b) => a - b) })),
+  clearDiscards: () => set({ discards: [] }),
   reset: () =>
     set({
       display: null,
@@ -191,5 +198,6 @@ export const useTable = create<TableState>()((set, get) => ({
       log: [],
       gameOver: null,
       winners: [],
+      discards: [],
     }),
 }));

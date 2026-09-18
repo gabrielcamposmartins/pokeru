@@ -12,6 +12,7 @@
  *   /preview.html?cena=solids          cartas e fichas de perto (volume)
  *   /preview.html?cena=mesa            a mesa parada (cartas deitadas no plano e fichas em pe)
  *   /preview.html?cena=voo&motion=1    voo das fichas (arco, giro e quicada)
+ *   /preview.html?cena=draw5           mesa do poker de 5 cartas na hora da troca (mão marcada)
  *   /preview.html?cena=bond            a página de vínculo (missões e recompensas com as falas)
  *   /preview.html?cena=bond-aviso      o cartão do coração completo e a barra curta
  *   /preview.html?cena=personagens     a tela de personagens inteira (ocupa a janela, sem palco)
@@ -222,6 +223,67 @@ function Mesa() {
   );
 }
 
+/**
+ * Mesa do poker de 5 cartas na hora da troca: cinco cartas na minha mão (duas marcadas),
+ * cinco viradas na frente de cada oponente e nenhuma carta no meio.
+ */
+function Draw5() {
+  const table = TABLE_PRESETS[0];
+  const geo = seatLayout(6, 0, true);
+  const hand = [
+    { r: 14, s: 's' as const },
+    { r: 14, s: 'd' as const },
+    { r: 9, s: 'c' as const },
+    { r: 5, s: 'h' as const },
+    { r: 2, s: 'd' as const },
+  ];
+  const marked = [2, 4];
+  return (
+    <div className="table-stage">
+      <div className="floor-plane" style={planeStyle(3200, 2200, 1600, 1100)} />
+      <div className="table-plane" style={planeStyle()}>
+        <TableFelt st={table} showSlots={false} />
+        {[1, 2, 3, 4, 5].map((seat) => {
+          const g = geo[seat];
+          return Array.from({ length: 5 }, (_, i) => {
+            const hp = holeCardPos(g, i, 5);
+            return (
+              <div key={`${seat}-${i}`} className="hole-card" style={{ left: hp.p.x - g.cardW / 2, top: hp.p.y - (g.cardW * 1.4) / 2, transform: `rotate(${hp.rot}deg)` }}>
+                <CardView card={null} faceUp={false} width={g.cardW} />
+              </div>
+            );
+          });
+        })}
+      </div>
+      <div className="my-hand picking">
+        {hand.map((c, i) => {
+          const k = i - 2;
+          const on = marked.includes(i);
+          return (
+            <div
+              key={i}
+              className={`my-card clickable ${on ? 'marked' : ''}`}
+              style={{ left: k * 152 - 68, transform: `translateY(${on ? -40 : 0}px) rotate(${k * 4}deg)` }}
+            >
+              <CardView card={c} width={136} />
+              {on && <span className="my-card-mark">✕ trocar</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="action-panel draw-panel">
+        <div className="draw-hint">Trocar 2 cartas — clique nas cartas para escolher</div>
+        <div className="act-row">
+          <button className="act-btn fold">Limpar</button>
+          <button className="act-btn raise">
+            Trocar 2<small>↵</small>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const bondStats = { ...EMPTY_BOND, points: HEART_COST[0] + HEART_COST[1] * 0.45, wins: 23, losses: 31, folds: 62, hands: 116, matches: 7 };
 
 /** A página de vínculo, com as missões e as recompensas abertas. */
@@ -289,6 +351,8 @@ createRoot(document.getElementById('root')!).render(
               <Voo />
             ) : cena === 'mesa' ? (
               <Mesa />
+            ) : cena === 'draw5' ? (
+              <Draw5 />
             ) : cena === 'bond' ? (
               <Vinculo />
             ) : cena === 'bond-aviso' ? (

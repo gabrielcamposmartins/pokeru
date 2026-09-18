@@ -1,9 +1,18 @@
 import type { Card } from './cards';
-import type { HandEvent, LegalActions, PlayerAction, Street, ActionType } from './engine';
+import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
 import type { AvatarInfo, CharacterStyle, PlayerCosmetics } from './styles';
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard';
-export type GameMode = 'cash' | 'sitgo';
+
+/**
+ * Formato da partida:
+ *   cash   — sem fim, com rebuy automático de quem quebra
+ *   sitgo  — eliminação e blinds subindo, até sobrar um
+ *   normal — um número fixo de rodadas (mãos) e o placar no fim
+ */
+export type GameMode = 'cash' | 'sitgo' | 'normal';
+
+export type { GameVariant };
 
 export interface RoomSettings {
   name: string;
@@ -12,6 +21,10 @@ export interface RoomSettings {
   smallBlind: number;
   bigBlind: number;
   mode: GameMode;
+  /** Qual poker: Texas Hold'em ou poker de 5 cartas (draw). */
+  variant: GameVariant;
+  /** Modo normal: quantas rodadas (mãos) a partida tem. */
+  rounds: number;
   /** Segundos por decisão. */
   turnTime: number;
   /** Sit & Go: blinds dobram a cada N mãos. */
@@ -28,6 +41,8 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   smallBlind: 10,
   bigBlind: 20,
   mode: 'cash',
+  variant: 'holdem',
+  rounds: 8,
   turnTime: 20,
   blindLevelHands: 8,
   pace: 1,
@@ -60,6 +75,7 @@ export interface RoomSummary {
   status: 'waiting' | 'playing' | 'finished';
   blinds: string;
   mode: GameMode;
+  variant: GameVariant;
   hasPassword: boolean;
 }
 
@@ -81,12 +97,17 @@ export interface SeatView {
   handName?: string;
   connected: boolean;
   busted: boolean;
+  /** Poker de 5 cartas: quantas cartas o jogador trocou nesta mão (undefined = ainda não trocou). */
+  drew?: number;
 }
 
 export interface TableView {
   roomId: string;
   handNo: number;
+  /** Modo normal: total de rodadas da partida (null nos outros modos). */
+  rounds: number | null;
   status: 'waiting' | 'playing' | 'finished';
+  variant: GameVariant;
   maxPlayers: number;
   seats: (SeatView | null)[];
   board: Card[];
@@ -112,6 +133,8 @@ export type TableEvent =
   | HandEvent
   | { t: 'handStart'; handNo: number; dealerSeat: number }
   | { t: 'turn'; seat: number; timeMs: number }
+  /** Poker de 5 cartas: a vez de trocar cartas (não é vez de apostar). */
+  | { t: 'drawTurn'; seat: number; timeMs: number }
   | { t: 'handEnd' }
   | { t: 'seatJoin'; seat: number }
   | { t: 'seatLeave'; seat: number }
@@ -131,6 +154,8 @@ export type ClientMsg =
   | { type: 'removeBot'; seat: number }
   | { type: 'startGame' }
   | { type: 'action'; action: PlayerAction }
+  /** Poker de 5 cartas: troca as cartas nas posições indicadas (vazio = manter todas). */
+  | { type: 'draw'; discards: number[] }
   | { type: 'skipHand' }
   | { type: 'chat'; text: string }
   | { type: 'emote'; emote: string }

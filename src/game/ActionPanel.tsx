@@ -11,6 +11,8 @@ type Pre = 'none' | 'checkfold' | 'check' | 'callany';
 export function ActionPanel() {
   const view = useTable((s) => s.display);
   const send = useSession((s) => s.send);
+  const discards = useTable((s) => s.discards);
+  const clearDiscards = useTable((s) => s.clearDiscards);
   const [raiseTo, setRaiseTo] = useState(0);
   const [pre, setPre] = useState<Pre>('none');
   const [sentKey, setSentKey] = useState('');
@@ -29,10 +31,11 @@ export function ActionPanel() {
     if (legal) setRaiseTo(legal.minRaiseTo);
   }, [legal?.minRaiseTo, turnKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // pré-ações zeram a cada mão
+  // pré-ações e cartas marcadas zeram a cada mão
   useEffect(() => {
     setPre('none');
-  }, [view?.handNo]);
+    clearDiscards();
+  }, [view?.handNo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (a: PlayerAction) => {
     sfx.click();
@@ -50,6 +53,22 @@ export function ActionPanel() {
     else setPre('none');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myTurn]);
+
+  // atalho da troca: Enter confirma
+  useEffect(() => {
+    if (!view || view.street !== 'draw' || view.toAct !== view.mySeat) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      if (e.key !== 'Enter') return;
+      sfx.click();
+      setSentKey(turnKey);
+      send({ type: 'draw', discards });
+      clearDiscards();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.street, view?.toAct, view?.mySeat, turnKey, discards]);
 
   // atalhos de teclado
   useEffect(() => {
@@ -84,6 +103,36 @@ export function ActionPanel() {
   if (!view || !me || view.status !== 'playing') return null;
   const inHand = me.inHand && !me.folded && !me.allIn;
   const running = !!view.street && view.street !== 'showdown';
+
+  // poker de 5 cartas: minha vez de trocar cartas (as marcadas são escolhidas clicando na mão)
+  if (view.street === 'draw' && view.toAct === view.mySeat && sentKey !== turnKey) {
+    const drawNow = () => {
+      sfx.click();
+      setSentKey(turnKey);
+      send({ type: 'draw', discards });
+      clearDiscards();
+    };
+    return (
+      <div className="action-panel draw-panel">
+        <div className="draw-hint">
+          {discards.length
+            ? `Trocar ${discards.length} ${discards.length === 1 ? 'carta' : 'cartas'} — clique nas cartas para escolher`
+            : 'Clique nas suas cartas para trocá-las (ou fique com a mão)'}
+        </div>
+        <div className="act-row">
+          {discards.length > 0 && (
+            <button className="act-btn fold" onClick={() => { sfx.click(); clearDiscards(); }}>
+              Limpar
+            </button>
+          )}
+          <button className={`act-btn ${discards.length ? 'raise' : 'check'}`} onClick={drawNow}>
+            {discards.length ? `Trocar ${discards.length}` : 'Manter as cinco'}
+            <small>↵</small>
+          </button>
+        </div>
+      </div>
+    );
+  }
   // desistiu (ou está de fora) numa mesa de bots: pode correr a mão até o fim
   const canSkip = solo && running && (me.folded || !me.inHand) && skipped !== view.handNo;
 

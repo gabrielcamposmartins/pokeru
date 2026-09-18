@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { DEFAULT_SETTINGS, type GameMode, type RoomSummary } from '../../shared/protocol';
+import { DEFAULT_SETTINGS, type GameMode, type GameVariant, type RoomSummary } from '../../shared/protocol';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { Field, ScreenHeader, Segmented } from '../ui/controls';
+import { MODE_LABEL, MODE_SHORT, VARIANT_LABEL, VARIANT_SHORT } from '../util/format';
 import { Petals } from './MainMenu';
 
 function RoomCard({ r }: { r: RoomSummary }) {
@@ -11,7 +12,7 @@ function RoomCard({ r }: { r: RoomSummary }) {
   const [asking, setAsking] = useState(false);
   const join = () => send({ type: 'joinRoom', roomId: r.id, password: pw || undefined });
   const full = r.players >= r.maxPlayers;
-  const locked = r.status !== 'waiting' && r.mode === 'sitgo';
+  const locked = r.status !== 'waiting' && r.mode !== 'cash';
   return (
     <div className="room-card">
       <div className="room-main">
@@ -20,7 +21,7 @@ function RoomCard({ r }: { r: RoomSummary }) {
           {r.name}
         </b>
         <span className="muted small">
-          #{r.id} · {r.mode === 'sitgo' ? 'Sit & Go' : 'Cash'} · Blinds {r.blinds}
+          #{r.id} · {MODE_SHORT[r.mode] ?? r.mode} · {VARIANT_SHORT[r.variant] ?? r.variant} · Blinds {r.blinds}
         </span>
       </div>
       <div className={`room-status st-${r.status}`}>{r.status === 'waiting' ? 'Aguardando' : r.status === 'playing' ? 'Jogando' : 'Encerrada'}</div>
@@ -56,6 +57,8 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState('Mesa de ' + useProfile.getState().name);
   const [maxPlayers, setMaxPlayers] = useState(6);
   const [mode, setMode] = useState<GameMode>('cash');
+  const [variant, setVariant] = useState<GameVariant>('holdem');
+  const [rounds, setRounds] = useState(8);
   const [stack, setStack] = useState(2000);
   const [bb, setBb] = useState(20);
   const [turnTime, setTurnTime] = useState(25);
@@ -141,14 +144,27 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
             </Field>
             <Segmented label="Jogadores" value={maxPlayers} onChange={setMaxPlayers} options={[2, 3, 4, 5, 6].map((n) => ({ value: n, label: `${n}` }))} />
             <Segmented
-              label="Modo"
+              label="Jogo"
+              value={variant}
+              onChange={setVariant}
+              options={[
+                { value: 'holdem', label: VARIANT_LABEL.holdem },
+                { value: 'draw5', label: VARIANT_LABEL.draw5 },
+              ]}
+            />
+            <Segmented
+              label="Formato"
               value={mode}
               onChange={setMode}
               options={[
-                { value: 'cash', label: 'Cash (rebuy)' },
-                { value: 'sitgo', label: 'Sit & Go' },
+                { value: 'cash', label: MODE_LABEL.cash },
+                { value: 'sitgo', label: MODE_LABEL.sitgo },
+                { value: 'normal', label: 'Normal' },
               ]}
             />
+            {mode === 'normal' && (
+              <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
+            )}
             <Segmented label="Fichas iniciais" value={stack} onChange={setStack} options={[1000, 2000, 5000, 10000].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))} />
             <Segmented label="Blinds" value={bb} onChange={setBb} options={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v / 2}/${v}` }))} />
             <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[15, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
@@ -167,6 +183,8 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                   name,
                   maxPlayers,
                   mode,
+                  variant,
+                  rounds,
                   startingStack: stack,
                   smallBlind: bb / 2,
                   bigBlind: bb,

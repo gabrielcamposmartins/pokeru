@@ -4202,3 +4202,61 @@ button.avatar {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
 }
+
+/* ------------------------------------------------------------------ poker de 5 cartas (troca) */
+
+/* a mão fica clicável na hora da troca */
+.my-hand.picking .my-card {
+  cursor: pointer;
+}
+.my-card.marked .cardv {
+  box-shadow:
+    0 0 0 3px var(--pink),
+    0 14px 30px rgba(0, 0, 0, 0.6);
+  filter: saturate(0.75) brightness(0.85);
+}
+.my-card-mark {
+  position: absolute;
+  left: 50%;
+  top: -22px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #fff;
+  background: var(--pink-2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+/* lugar vazio enquanto a carta nova não pousa */
+.my-card-gap {
+  display: block;
+  border-radius: 10px;
+  border: 2px dashed rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.draw-panel .draw-hint {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold-2);
+  margin-bottom: 8px;
+}
+
+/* quantas cartas o jogador trocou, na placa */
+.plate-drew {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #fff2c9;
+  background: rgba(10, 6, 24, 0.85);
+  border: 1px solid var(--line);
+}

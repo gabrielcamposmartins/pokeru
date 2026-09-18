@@ -3,7 +3,7 @@ import type { BotDifficulty } from '../../shared/protocol';
 import { useSession } from '../store/session';
 import { useCharacter } from '../store/profile';
 import { CharacterPortrait } from '../render/CharacterArt';
-import { fmt } from '../util/format';
+import { MODE_LABEL, VARIANT_LABEL, fmt } from '../util/format';
 import { Segmented } from '../ui/controls';
 import { Petals } from './MainMenu';
 
@@ -44,7 +44,9 @@ export function RoomLobby() {
       <div className="lobby-grid">
         <div className="panel pad">
           <div className="room-rules">
-            <span>{s.mode === 'sitgo' ? 'Sit & Go' : 'Cash (rebuy automático)'}</span>
+            <span>{MODE_LABEL[s.mode] ?? s.mode}</span>
+            <span>{VARIANT_LABEL[s.variant] ?? s.variant}</span>
+            {s.mode === 'normal' && <span>{s.rounds} rodadas</span>}
             <span>
               Blinds {fmt(s.smallBlind)}/{fmt(s.bigBlind)}
             </span>
