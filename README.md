@@ -135,6 +135,22 @@ junto com o estado resultante, e espaça os eventos no tempo. No cliente, o **di
 cartas saem do dealer e, ao desistir, voam para o descarte, o bordo vira na mesa e o pote voa para o
 vencedor — e só então aplica o estado. Se houver atraso, as animações aceleram sozinhas.
 
+## Fim do round (showdown)
+
+Quando a mão vai a showdown, entra uma tela de resultado no estilo das telas de vitória de Mahjong Soul
+(`src/game/RoundResult.tsx`):
+
+- **à esquerda**, o personagem do vencedor em corpo inteiro, com a placa de nome e o título;
+- **em cima**, as cartas da mão feita, separadas em **Mão** (as do jogador) e **Mesa**, com o efeito de
+  vitória dele nas cartas que entraram na mão (as que sobraram ficam apagadas);
+- **no meio**, o nome da mão e, se o pote foi dividido, com quem;
+- **embaixo à direita**, o que ele ganhou (com a lista de potes, quando há side pots) e as fichas dele
+  depois de receber;
+- **botão Continuar** com contagem: a tela sai sozinha em 5s, no clique, ou quando a mão seguinte começa.
+
+Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
+`Director.roundResult`; a faixa diagonal do fundo usa a mesma função `cutinBand` do tema de UI.
+
 ## Efeitos das cartas vencedoras
 
 No showdown, as cartas que formam a mão vencedora ganham uma **moldura animada** e um efeito por cima —

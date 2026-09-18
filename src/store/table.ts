@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Card } from '../../shared/cards';
 import type { SeatView, TableView } from '../../shared/protocol';
-import type { CardBackStyle, CharacterStyle } from '../../shared/styles';
+import type { CardBackStyle, CharacterStyle, WinFxId } from '../../shared/styles';
 import type { Pt } from '../game/layout';
 
 export interface Flyer {
@@ -33,6 +33,28 @@ export interface Splash {
   kind: 'win' | 'lose' | 'info' | 'big';
   /** Com personagem: vira um "cut-in" estilo Mahjong Soul. */
   character?: CharacterStyle;
+}
+
+/** Tela de resultado do round (showdown): quem ganhou, com que mão e quanto. */
+export interface RoundResult {
+  id: number;
+  seat: number;
+  name: string;
+  character: CharacterStyle;
+  /** As cartas do jogador e as da mesa que entraram na mão feita (`best`). */
+  hole: Card[];
+  board: Card[];
+  best: Card[];
+  handName: string;
+  /** Um item por pote ganho (pote principal, secundários…). */
+  pots: { label: string; amount: number }[];
+  won: number;
+  /** Fichas depois de receber. */
+  stack: number;
+  /** Nomes dos outros vencedores, quando o pote é dividido. */
+  split: string[];
+  /** Efeito das cartas do vencedor. */
+  winFx: WinFxId;
 }
 
 export interface EmoteBubble {
@@ -68,6 +90,7 @@ interface TableState {
   deadline: number | null;
   flyers: Flyer[];
   splash: Splash | null;
+  result: RoundResult | null;
   emotes: EmoteBubble[];
   callouts: Callout[];
   log: LogLine[];
@@ -79,6 +102,7 @@ interface TableState {
   addFlyer(f: Flyer): void;
   removeFlyers(ids: number[]): void;
   setSplash(s: Splash | null): void;
+  setResult(r: RoundResult | null): void;
   addEmote(seat: number, emote: string): void;
   addCallout(seat: number, text: string, kind: CalloutKind): void;
   addLog(text: string, kind?: LogLine['kind']): void;
@@ -95,6 +119,7 @@ export const useTable = create<TableState>()((set, get) => ({
   deadline: null,
   flyers: [],
   splash: null,
+  result: null,
   emotes: [],
   callouts: [],
   log: [],
@@ -119,6 +144,7 @@ export const useTable = create<TableState>()((set, get) => ({
   addFlyer: (f) => set((s) => ({ flyers: [...s.flyers, f] })),
   removeFlyers: (ids) => set((s) => ({ flyers: s.flyers.filter((f) => !ids.includes(f.id)) })),
   setSplash: (splash) => set({ splash }),
+  setResult: (result) => set({ result }),
   addEmote: (seat, emote) => {
     const id = nextId();
     set((s) => ({ emotes: [...s.emotes, { id, seat, emote }] }));
@@ -134,5 +160,5 @@ export const useTable = create<TableState>()((set, get) => ({
   setGameOver: (gameOver) => set({ gameOver }),
   setWinners: (winners) => set({ winners }),
   reset: () =>
-    set({ display: null, deadline: null, flyers: [], splash: null, emotes: [], callouts: [], log: [], gameOver: null, winners: [] }),
+    set({ display: null, deadline: null, flyers: [], splash: null, result: null, emotes: [], callouts: [], log: [], gameOver: null, winners: [] }),
 }));

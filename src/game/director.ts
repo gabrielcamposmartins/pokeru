@@ -1,13 +1,14 @@
-import type { Card } from '../../shared/cards';
+import { sameCard, type Card } from '../../shared/cards';
 import type { TableEvent, TableView } from '../../shared/protocol';
 import { findCharacter, type CardBackStyle } from '../../shared/styles';
 import { evaluateHand, HandCategory } from '../../shared/evaluator';
+import type { PotResult } from '../../shared/engine';
 import { setTimeScale, wait } from '../anim/tween';
 import { sfx } from '../audio/sfx';
 import { handSlot, resetVoices, sayAction, sayCommon, sayWith, voiceUrl, type ComumSlot } from '../audio/voice';
 import { findStyle, useProfile } from '../store/profile';
 import { findWinFx } from '../render/cardfx';
-import { nextId, useTable, type CalloutKind, type Flyer, type Splash } from '../store/table';
+import { nextId, useTable, type CalloutKind, type Flyer, type RoundResult, type Splash } from '../store/table';
 import { ACTION_LABEL, fmt } from '../util/format';
 import { MUCK_POS, POT_POS, boardSlot, holeCardPos, project, seatLayout, type Pt, type SeatGeo } from './layout';
 
@@ -177,6 +178,32 @@ class Director {
     return { character: seat === view.mySeat ? findCharacter(useProfile.getState().character) : s.cosmetics.character };
   }
 
+  /** Dados da tela de resultado do round, a partir dos potes do showdown. */
+  private roundResult(view: TableView, pots: PotResult[], seat: number): RoundResult {
+    const s = view.seats[seat]!;
+    const mine = (p: PotResult) => p.winners.filter((w) => w.seat === seat);
+    const best = pots.flatMap((p) => mine(p).map((w) => w.best ?? [])).find((b) => b.length) ?? view.highlight;
+    const hole = s.cards.filter(Boolean) as Card[];
+    const board = best.filter((c) => !hole.some((h) => sameCard(h, c)));
+    const potLines = pots.flatMap((p, i) => mine(p).map((w) => ({ label: i === 0 ? 'Pote principal' : `Pote ${i + 1}`, amount: w.amount })));
+    const others = [...new Set(pots.flatMap((p) => p.winners.map((w) => w.seat)))].filter((x) => x !== seat);
+    return {
+      id: nextId(),
+      seat,
+      name: this.seatName(view, seat),
+      character: this.charOf(view, seat).character ?? findCharacter(''),
+      hole,
+      board,
+      best,
+      handName: pots.flatMap((p) => mine(p).map((w) => w.hand)).find(Boolean) ?? s.handName ?? '',
+      pots: potLines,
+      won: potLines.reduce((t, p) => t + p.amount, 0),
+      stack: s.stack,
+      split: others.map((x) => this.seatName(view, x)),
+      winFx: seat === view.mySeat ? useProfile.getState().winFx : s.cosmetics.winFx,
+    };
+  }
+
   private backOf(view: TableView, seat: number | null): CardBackStyle {
     const s = seat !== null ? view.seats[seat] : null;
     if (s) return s.cosmetics.back;
@@ -191,6 +218,7 @@ class Director {
     if (ev.t === 'gameOver') t.setGameOver(ev.ranking);
     if (ev.t === 'handStart') {
       t.setWinners([]);
+      t.setResult(null);
       t.addLog(`Mão #${ev.handNo}`, 'hand');
     }
     if (ev.t === 'action') t.addLog(this.actionText(view, ev.seat, ev.action, ev.amount, view.seats[ev.seat]?.bet ?? 0));
@@ -215,6 +243,7 @@ class Director {
       case 'handStart': {
         store.setWinners([]);
         store.setSplash(null);
+        store.setResult(null);
         store.addLog(`Mão #${ev.handNo}`, 'hand');
         // recolhe as cartas da mão anterior em direção ao novo dealer
         const target = geo[ev.dealerSeat]?.deck ?? MUCK_POS;
@@ -368,6 +397,11 @@ class Director {
         }
         sfx.chips(8);
         this.clearFlyers(await Promise.all(flights));
+        // showdown: tela de resultado do round (personagem, mão feita e fichas ganhas)
+        if (!ev.uncontested && main && alive()) {
+          store.setSplash(null);
+          store.setResult(this.roundResult(next, ev.pots, main.seat));
+        }
         await wait(500);
         return;
       }

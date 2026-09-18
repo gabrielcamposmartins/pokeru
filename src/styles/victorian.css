@@ -1437,6 +1437,83 @@
     font-family: var(--display);
   }
 
+  /* fim do round */
+  .rr-back {
+    background: radial-gradient(ellipse at 30% 60%, rgba(60, 20, 14, 0.7), rgba(8, 3, 2, 0.94) 70%);
+    backdrop-filter: blur(3px) sepia(0.25);
+  }
+  .rr-band {
+    border-top: 3px double var(--gold);
+    border-bottom: 3px double var(--gold);
+  }
+  .rr-plate {
+    padding: 8px 30px 10px 22px;
+    clip-path: none;
+    background: var(--brass-grad);
+    border: 1px solid #3a2410;
+    border-radius: 2px;
+    box-shadow:
+      0 8px 20px rgba(0, 0, 0, 0.6),
+      inset 0 0 0 3px rgba(255, 240, 200, 0.25),
+      inset 0 0 0 4px rgba(58, 36, 16, 0.5);
+  }
+  .rr-plate small {
+    font-style: italic;
+    font-size: 15px;
+    color: #3a2410;
+  }
+  .rr-plate b {
+    font-family: var(--title);
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: #2a1808;
+    text-shadow: 0 1px 0 rgba(255, 245, 210, 0.6);
+  }
+  .rr-pot-line {
+    border-radius: 2px;
+    border: 1px solid rgba(201, 162, 90, 0.4);
+    background: var(--grain), linear-gradient(90deg, rgba(40, 18, 10, 0.9), rgba(18, 8, 4, 0.5));
+    font-size: 17px;
+    font-style: italic;
+  }
+  .rr-pot-line b {
+    font-family: var(--num);
+    font-style: normal;
+    font-size-adjust: none;
+  }
+  .rr-won {
+    font-family: var(--num);
+    font-size: 92px;
+    color: var(--ivory);
+    font-size-adjust: none;
+    text-shadow:
+      0 4px 0 rgba(0, 0, 0, 0.8),
+      0 0 26px rgba(255, 200, 110, 0.4);
+  }
+  .rr-stack {
+    font-family: var(--num);
+    font-size: 19px;
+    font-size-adjust: none;
+  }
+  .rr-confirm {
+    border-radius: 2px;
+    border: 1px solid #2a1608;
+    background: var(--brass-grad);
+    color: #2a1808;
+    font-size: 15px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-size-adjust: none;
+    box-shadow:
+      0 3px 0 rgba(0, 0, 0, 0.5),
+      0 6px 16px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 240, 200, 0.45);
+  }
+  .rr-label {
+    font-size: 12px;
+    letter-spacing: 4px;
+  }
+
   /* estúdio: aba UI */
   .theme-thumb {
     border-radius: 2px;

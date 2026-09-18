@@ -6,6 +6,7 @@ import { Stage } from '../game/Stage';
 import { TableStage } from '../game/TableStage';
 import { ActionPanel } from '../game/ActionPanel';
 import { ChatPanel, EmoteMenu, GameOverModal, WinSplash } from '../game/Overlays';
+import { RoundResultScreen } from '../game/RoundResult';
 import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
 
@@ -62,6 +63,7 @@ export function GameScreen() {
         </div>
         <ActionPanel />
         <WinSplash />
+        <RoundResultScreen />
         <ChatPanel
           open={chatOpen}
           onClose={() => {
