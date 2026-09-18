@@ -14,7 +14,7 @@ import { Nameplate } from './Nameplate';
 import { CenterConsole } from './CenterConsole';
 import { MyCountdown } from './Countdown';
 import { director } from './director';
-import { CARD_H, CARD_W, boardSlot, holeCardPos, planeStyle, project, seatLayout, type SeatGeo } from './layout';
+import { CARD_H, CARD_W, betSpot, boardSlot, holeCardPos, planeStyle, project, seatLayout, type SeatGeo } from './layout';
 
 const PLANE = planeStyle();
 const FLOOR = planeStyle(3200, 2200, 1600, 1100);
@@ -113,11 +113,11 @@ function BetChips({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
       {view.seats.map((s, seat) => {
         const g = geo[seat];
         if (!s || !g || s.bet <= 0) return null;
-        const p = project(g.bet);
+        const p = project(betSpot(g.bet, seat, view.street));
         return (
           <div key={seat} className="seat-bet" style={{ left: p.x, top: p.y, transform: `scale(${p.s})` }}>
             <div className="seat-bet-inner">
-              <ChipStack amount={s.bet} size={32} maxCols={3} />
+              <ChipStack amount={s.bet} size={32} maxCols={3} seed={seat * 13 + 1} />
             </div>
           </div>
         );

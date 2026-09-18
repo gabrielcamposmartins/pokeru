@@ -127,6 +127,22 @@ na parte de baixo da tela** — é posicionado no palco pela função `project()
 matemática do CSS. No centro há um **console** com o pote, a rua e luzes nas bordas apontando para
 quem está na vez.
 
+### Fichas jogadas na mesa
+
+As fichas apostadas nao sao "postas" no lugar: sao atiradas.
+
+- **Arremesso** (`Director.toss` + `chipFlight` em `Flyers.tsx`): cada aposta sorteia duracao, altura do
+  arco, giro no ar e a quicada ao pousar — a pilha sobe, gira um pouco, bate na mesa e assenta. O all-in
+  usa forca maior (arco mais alto, mais giro e quicada). A recolha para o pote tambem varia.
+- **Onde caem** (`betSpot`, em `layout.ts`): o ponto da aposta ganha um desvio pequeno, estavel por
+  assento e rua (`hash01`/`jitter` em `src/util/rand.ts`). Como o desvio e estavel, a pilha parada fica
+  exatamente onde as fichas cairam — o diretor e a mesa calculam o mesmo ponto.
+- **Pilhas tortas** (`ChipStack`/`ChipColumnSvg`): cada ficha sai um tantinho do prumo e as colunas nao
+  assentam todas na mesma linha, com uma semente (`seed`) — parecem empilhadas a mao, e a mesma pilha
+  desenha sempre igual.
+
+Para ver: `/preview.html?cena=mesa` (pilhas na mesa) e `/preview.html?cena=voo&motion=1` (o voo).
+
 ### Volume das cartas e das fichas
 
 Nada de 3D de verdade: o volume e desenhado.
@@ -171,7 +187,7 @@ referência) e o conteúdo se distribui assim:
   seguinte começa.
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
-`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, e
+`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, `voo`, e
 `&ui=victorian`, `&rects=1` para medir as caixas). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em

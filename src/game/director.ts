@@ -10,7 +10,7 @@ import { findStyle, useProfile } from '../store/profile';
 import { findWinFx } from '../render/cardfx';
 import { nextId, useTable, type CalloutKind, type Flyer, type RoundResult, type Splash } from '../store/table';
 import { ACTION_LABEL, fmt } from '../util/format';
-import { MUCK_POS, POT_POS, boardSlot, holeCardPos, project, seatLayout, type Pt, type SeatGeo } from './layout';
+import { MUCK_POS, POT_POS, betSpot, boardSlot, holeCardPos, project, seatLayout, type Pt, type SeatGeo } from './layout';
 
 /** Um aumento é "bet" (abre a rua), "raise" ou "reraise" (aumento sobre aumento). */
 type RaiseKind = 'bet' | 'raise' | 'reraise';
@@ -192,7 +192,7 @@ class Director {
   }
 
   /** Fichas voando no palco (em pé), entre dois pontos já projetados. */
-  private flyChips(from: StagePt, to: StagePt, amount: number, dur: number, fade = false, arc?: number): Promise<number> {
+  private flyChips(from: StagePt, to: StagePt, amount: number, dur: number, fade = false, arc?: number, toss?: { spin: number; bounce: number }): Promise<number> {
     return this.fly({
       kind: 'chips',
       space: 'screen',
@@ -204,7 +204,20 @@ class Director {
       dur,
       fade,
       arc,
+      spin: toss?.spin,
+      bounce: toss?.bounce,
     });
+  }
+
+  /** Fichas atiradas na mesa: cada arremesso sai um pouco diferente. */
+  private toss(ms: number, force = 1): { dur: number; arc: number; spin: number; bounce: number } {
+    const r = Math.random();
+    return {
+      dur: ms * (0.88 + r * 0.3),
+      arc: (14 + Math.random() * 22) * force,
+      spin: (Math.random() - 0.5) * 18 * force,
+      bounce: (4 + Math.random() * 7) * force,
+    };
   }
 
   private clearFlyers(ids: number[]): void {
@@ -351,13 +364,15 @@ class Director {
         if (!g) return;
         const s = cur.seats[ev.seat];
         store.patchSeat(ev.seat, { bet: Math.max(0, (s?.bet ?? 0) - ev.amount) });
-        this.clearFlyers([await this.flyChips(project(g.bet), g.plate, ev.amount, 420, true)]);
+        this.clearFlyers([await this.flyChips(project(betSpot(g.bet, ev.seat, cur.street)), g.plate, ev.amount, 420, true)]);
         return;
       }
 
       case 'collect': {
         const pot = project(POT_POS);
-        const flights = ev.bets.filter((b) => geo[b.seat]).map((b) => this.flyChips(project(geo[b.seat].bet), pot, b.amount, 480, true));
+        const flights = ev.bets
+          .filter((b) => geo[b.seat])
+          .map((b) => this.flyChips(project(betSpot(geo[b.seat].bet, b.seat, cur.street)), pot, b.amount, 460 + Math.random() * 120, true, 10 + Math.random() * 14));
         store.patchDisplay({ seats: cur.seats.map((s) => (s ? { ...s, bet: 0 } : s)), pot: cur.pot });
         sfx.chips(5);
         const ids = await Promise.all(flights);
@@ -501,18 +516,21 @@ class Director {
       apply();
       return;
     }
-    const id = await this.flyChips(g.plate, project(g.bet), amount, ms);
+    const t = this.toss(ms);
+    const id = await this.flyChips(g.plate, project(betSpot(g.bet, seat, next.street)), amount, t.dur, false, t.arc, t);
     if (!alive()) return;
     apply();
     this.clearFlyers([id]);
-    sfx.chips(3);
+    sfx.chips(2 + Math.floor(Math.random() * 3));
   }
 
   private async allinMotion(next: TableView, geo: SeatGeo[], seat: number, amount: number, alive: () => boolean) {
     const g = geo[seat];
     const s = next.seats[seat];
     const store = useTable.getState();
-    const id = g && amount > 0 ? await this.flyChips(g.plate, project(g.bet), amount, 520) : null;
+    // all-in: o arremesso é mais forte (arco alto, mais giro e quicada)
+    const t = this.toss(520, 1.6);
+    const id = g && amount > 0 ? await this.flyChips(g.plate, project(betSpot(g.bet, seat, next.street)), amount, t.dur, false, t.arc, t) : null;
     if (!alive()) return;
     if (s) store.patchSeat(seat, { bet: s.bet, stack: s.stack, lastAction: s.lastAction, allIn: true });
     if (id !== null) this.clearFlyers([id]);

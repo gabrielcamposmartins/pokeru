@@ -11,7 +11,8 @@
  *   /preview.html?cena=result-pays     mesa cheia: cinco jogadores pagaram o vencedor
  *   /preview.html?cena=solids          cartas e fichas de perto (volume)
  *   /preview.html?cena=mesa            a mesa parada (cartas deitadas no plano e fichas em pe)
- *   &ui=victorian                      com o tema vitoriano
+ *   /preview.html?cena=voo&motion=1    voo das fichas (arco, giro e quicada)
+ *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -39,13 +40,14 @@ import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
 import { CHARACTER_PRESETS, TABLE_PRESETS } from '../../shared/styles';
-import { CARD_W, STAGE_H, STAGE_W, boardSlot, holeCardPos, planeStyle, project, seatLayout } from '../game/layout';
+import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
 import { TableFelt } from '../render/TableFelt';
+import { FlyersLayer } from '../game/Flyers';
 import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
 import { RoundResultPanel } from '../game/RoundResult';
-import type { RoundResult } from '../store/table';
+import { nextId, useTable, type RoundResult } from '../store/table';
 
 const q = new URLSearchParams(location.search);
 document.documentElement.dataset.ui = q.get('ui') ?? 'default';
@@ -148,6 +150,21 @@ const MATCHES: Record<string, MatchRow[]> = {
   'match-me6': rows(6, 6),
 };
 
+/**
+ * Voo das fichas (com ?motion=1): o arremesso de verdade, para conferir que os quadros-chave
+ * do framer rodam. Com &rects=1 a página imprime onde cada pilha parou.
+ */
+function Voo() {
+  const t = useTable.getState();
+  if (t.flyers.length === 0) {
+    t.addFlyer({ id: nextId(), kind: 'chips', space: 'screen', from: { x: 300, y: 700 }, to: { x: 700, y: 420 }, dur: 900, amount: 480, arc: 26, spin: 12, bounce: 8 });
+    t.addFlyer({ id: nextId(), kind: 'chips', space: 'screen', from: { x: 1300, y: 700 }, to: { x: 900, y: 420 }, dur: 900, amount: 120 });
+    // uma carta, para comparar com o voo das cartas (que não tem quicada)
+    t.addFlyer({ id: nextId(), kind: 'card', space: 'screen', from: { x: 800, y: 760 }, to: { x: 800, y: 300 }, dur: 900, width: 80, card: { r: 14, s: 's' }, faceUp: true });
+  }
+  return <FlyersLayer space="screen" />;
+}
+
 /** A mesa parada: cartas deitadas no plano inclinado, fichas em pé e a minha mão. */
 function Mesa() {
   const table = TABLE_PRESETS[0];
@@ -177,11 +194,11 @@ function Mesa() {
         })}
       </div>
       {bets.map(({ seat, amount }) => {
-        const p = project(geo[seat].bet);
+        const p = project(betSpot(geo[seat].bet, seat, 'flop'));
         return (
           <div key={seat} className="seat-bet" style={{ left: p.x, top: p.y, transform: `scale(${p.s})` }}>
             <div className="seat-bet-inner">
-              <ChipStack amount={amount} size={32} maxCols={3} />
+              <ChipStack amount={amount} size={32} maxCols={3} seed={seat * 13 + 1} />
             </div>
           </div>
         );
@@ -225,11 +242,13 @@ const scene = SCENES[cena] ?? base;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MotionConfig reducedMotion="always">
+    <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
       <div className="game-screen">
         <div className="stage-wrap">
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, background: 'radial-gradient(ellipse at 50% 40%, #3a1418 0%, #0e0506 75%)' }}>
-            {cena === 'mesa' ? (
+            {cena === 'voo' ? (
+              <Voo />
+            ) : cena === 'mesa' ? (
               <Mesa />
             ) : cena === 'solids' ? (
               <Solids />
@@ -248,7 +267,7 @@ createRoot(document.getElementById('root')!).render(
 // medição das caixas (para depurar o layout): /preview.html?cena=…&rects=1
 if (q.has('rects')) {
   setTimeout(() => {
-    const pick = ['.stage', '.round-result', '.rr-info', '.rr-cards', '.rr-hand', '.rr-bottom', '.rr-char', '.rr-total'];
+    const pick = ['.stage', '.round-result', '.rr-info', '.rr-cards', '.rr-hand', '.rr-bottom', '.rr-char', '.rr-total', '.flyer', '.flyer + .flyer', '.flyer + .flyer + .flyer'];
     const out = pick.map((sel) => {
       const el = document.querySelector(sel);
       if (!el) return `${sel}: —`;

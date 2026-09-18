@@ -1,6 +1,7 @@
-import { memo, useId } from 'react';
+import { memo, useId, type CSSProperties } from 'react';
 import { CHIP_VALUES, type ChipStyle } from '../../shared/styles';
 import { cleanId, shade } from '../util/color';
+import { jitter } from '../util/rand';
 import { fmt } from '../util/format';
 import { useEquipped } from '../store/profile';
 
@@ -99,7 +100,21 @@ const STRIPES = [0.12, 0.36, 0.64, 0.88];
  * degradê que escurece nas quinas, listras mais apagadas nas beiradas, friso de luz no topo
  * de cada ficha e uma sombra de contato embaixo, para a pilha assentar na mesa.
  */
-export const ChipColumnSvg = memo(function ChipColumnSvg({ ti, count, size, st }: { ti: number; count: number; size: number; st: ChipStyle }) {
+export const ChipColumnSvg = memo(function ChipColumnSvg({
+  ti,
+  count,
+  size,
+  st,
+  seed = 0,
+  style,
+}: {
+  ti: number;
+  count: number;
+  size: number;
+  st: ChipStyle;
+  seed?: number;
+  style?: CSSProperties;
+}) {
   const uid = cleanId(useId());
   const r = size / 2;
   const ry = r * 0.58;
@@ -111,7 +126,7 @@ export const ChipColumnSvg = memo(function ChipColumnSvg({ ti, count, size, st }
   /** Borda inferior da elipse do topo em x (onde começa a lateral). */
   const yb = (x: number, cy: number) => cy + ry * Math.sqrt(Math.max(0, 1 - ((x - r) / r) ** 2));
   return (
-    <svg width={size} height={h} viewBox={`0 0 ${size} ${h}`} style={{ overflow: 'visible' }}>
+    <svg width={size} height={h} viewBox={`0 0 ${size} ${h}`} style={{ overflow: 'visible', ...style }}>
       <defs>
         {/* lateral do cilindro: escura nas quinas, clara no meio */}
         <linearGradient id={`wall${uid}`} x1="0" y1="0" x2="1" y2="0">
@@ -129,8 +144,10 @@ export const ChipColumnSvg = memo(function ChipColumnSvg({ ti, count, size, st }
       <ellipse cx={r} cy={h - th * 0.15} rx={r * 1.2} ry={ry * 0.75} fill={`url(#drop${uid})`} />
       {Array.from({ length: count }, (_, i) => {
         const cy = h - th - ry - i * th;
+        // cada ficha sai um tantinho do prumo: a pilha parece feita à mão
+        const dx = jitter(seed, ti, i) * size * 0.05;
         return (
-          <g key={i}>
+          <g key={i} transform={`translate(${dx.toFixed(2)} 0)`}>
             <path
               d={`M0 ${cy} A${r} ${ry} 0 0 0 ${size} ${cy} L${size} ${cy + th} A${r} ${ry} 0 0 1 0 ${cy + th} Z`}
               fill={`url(#wall${uid})`}
@@ -174,6 +191,7 @@ export function ChipStack({
   style,
   maxCols = 4,
   className,
+  seed = 0,
 }: {
   amount: number;
   size?: number;
@@ -181,6 +199,8 @@ export function ChipStack({
   style?: ChipStyle;
   maxCols?: number;
   className?: string;
+  /** Semente da bagunça (mesma semente ⇒ mesma pilha). */
+  seed?: number;
 }) {
   const eq = useEquipped('chip');
   const st = style ?? eq;
@@ -190,7 +210,16 @@ export function ChipStack({
     <div className={`chip-stack ${className ?? ''}`}>
       <div className="chip-cols" style={{ gap: size * 0.06 }}>
         {cols.map((c, i) => (
-          <ChipColumnSvg key={i} ti={c.ti} count={c.count} size={size} st={st} />
+          <ChipColumnSvg
+            key={i}
+            ti={c.ti}
+            count={c.count}
+            size={size}
+            st={st}
+            seed={seed + i}
+            // as colunas não assentam todas na mesma linha
+            style={{ transform: `translateY(${(jitter(seed, i, 9) * size * 0.05).toFixed(2)}px)` }}
+          />
         ))}
       </div>
       {label && <div className="chip-label">{fmt(amount)}</div>}

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { jitter } from '../util/rand';
 
 /**
  * Geometria da mesa.
@@ -50,6 +51,19 @@ export function planeStyle(w = PLANE_W, h = PLANE_H, cx = CENTER.x, cy = CENTER.
     transformOrigin: `${cx}px ${cy}px`,
     transform: `perspective(${PERSPECTIVE}px) rotateX(${TILT_DEG}deg)`,
   };
+}
+
+/** Ruas, para semear o desvio das fichas apostadas. */
+const STREETS = ['preflop', 'flop', 'turn', 'river', 'showdown'];
+
+/**
+ * Onde as fichas apostadas de um assento pousam: o ponto da aposta com um desvio pequeno,
+ * para parecerem jogadas na mesa e não postas no mesmo lugar toda vez. O desvio é estável
+ * (mesmo assento e rua ⇒ mesmo ponto), então a pilha parada fica onde as fichas caíram.
+ */
+export function betSpot(bet: Pt, seat: number, street: string | null): Pt {
+  const k = STREETS.indexOf(street ?? 'preflop') + 1;
+  return { x: bet.x + jitter(seat, k, 1) * 30, y: bet.y + jitter(seat, k, 2) * 16 };
 }
 
 export const CARD_W = 88;

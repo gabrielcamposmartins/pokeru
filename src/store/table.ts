@@ -23,6 +23,10 @@ export interface Flyer {
   width?: number;
   fade?: boolean;
   arc?: number;
+  /** Giro leve no ar (graus) — fichas jogadas na mesa. */
+  spin?: number;
+  /** Quicada ao pousar (px). */
+  bounce?: number;
   onDone?: () => void;
 }
 
