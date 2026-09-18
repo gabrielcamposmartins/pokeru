@@ -3303,3 +3303,214 @@ button.avatar {
 .rr-confirm:hover {
   filter: brightness(1.2);
 }
+
+/* ------------------------------------------------------------------ fim da partida (placar) */
+
+.match-end {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  overflow: hidden;
+  font-family: var(--font);
+}
+.me-char {
+  left: 6px;
+  bottom: -14px;
+}
+.me-title {
+  position: absolute;
+  left: 420px;
+  right: 46px;
+  top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.me-title-name {
+  font-size: 54px;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+/* placas inclinadas do placar */
+.me-list {
+  position: absolute;
+  right: 54px;
+  top: 146px;
+  width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.me-row {
+  position: relative;
+  height: 108px;
+  padding: 0 30px 0 22px;
+  /* a inclinação é aplicada na animação (ROW_SKEW em MatchEnd.tsx) */
+  transform: skewX(-9deg);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  background: linear-gradient(100deg, rgba(24, 34, 76, 0.96), rgba(16, 22, 52, 0.92));
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+/* o primeiro lugar é destacado e avança para a esquerda */
+.me-row.first {
+  margin-right: 26px;
+  margin-left: -64px;
+  height: 122px;
+  border-color: rgba(255, 220, 150, 0.85);
+  background: linear-gradient(100deg, rgba(150, 26, 44, 0.96), rgba(96, 14, 30, 0.94));
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(255, 150, 90, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.me-row.mine:not(.first) {
+  border-color: rgba(255, 220, 150, 0.7);
+  background: linear-gradient(100deg, rgba(60, 40, 110, 0.96), rgba(32, 20, 64, 0.94));
+}
+.me-row-in {
+  height: 100%;
+  transform: skewX(9deg);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.me-place {
+  flex: none;
+  width: 74px;
+  font-family: var(--title);
+  font-weight: 900;
+  font-size: 46px;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.6),
+    0 0 18px rgba(255, 220, 150, 0.4);
+}
+.me-row.first .me-place {
+  font-size: 56px;
+  color: #ffe9a8;
+}
+.me-portrait {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2.5px solid var(--gold-2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+.me-portrait > * {
+  display: block;
+}
+.me-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.me-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.me-badge {
+  padding: 1px 10px;
+  border-radius: 8px;
+  border: 1.5px solid #fff;
+  background: linear-gradient(180deg, #ff6b6b, #c22b2b);
+  font-family: var(--title);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+}
+.me-stack {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--title);
+  font-weight: 900;
+  font-size: 34px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+}
+.me-delta {
+  flex: none;
+  font-family: var(--title);
+  font-size: 26px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+}
+.me-delta.up {
+  color: var(--mint);
+}
+.me-delta.down {
+  color: #ff8a9a;
+}
+
+.me-foot {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-2);
+  opacity: 0.8;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+.me-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.me-pager-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: rgba(10, 6, 24, 0.8);
+  color: var(--gold-2);
+  font-size: 20px;
+  line-height: 1;
+}
+.me-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.me-dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+}
+.me-dot.on {
+  background: var(--gold);
+  border-color: #fff;
+}
+.me-actions {
+  position: absolute;
+  right: 46px;
+  bottom: 34px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.me-confirm {
+  position: static;
+}

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useSession } from '../store/session';
-import { useTable } from '../store/table';
+import { nextId, useTable } from '../store/table';
 import { useEquipped, useProfile } from '../store/profile';
 import { Stage } from '../game/Stage';
 import { TableStage } from '../game/TableStage';
 import { ActionPanel } from '../game/ActionPanel';
-import { ChatPanel, EmoteMenu, GameOverModal, WinSplash } from '../game/Overlays';
+import { ChatPanel, EmoteMenu, WinSplash } from '../game/Overlays';
 import { RoundResultScreen } from '../game/RoundResult';
+import { MatchEndScreen } from '../game/MatchEnd';
 import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
 
@@ -64,6 +65,7 @@ export function GameScreen() {
         <ActionPanel />
         <WinSplash />
         <RoundResultScreen />
+        <MatchEndScreen />
         <ChatPanel
           open={chatOpen}
           onClose={() => {
@@ -75,14 +77,21 @@ export function GameScreen() {
           <div className="waiting-banner panel">Aguardando jogadores suficientes para continuar…</div>
         )}
       </Stage>
-      <GameOverModal onLeave={leaveRoom} />
       {confirmLeave && (
         <div className="modal-back" onClick={() => setConfirmLeave(false)}>
           <div className="modal panel" onClick={(e) => e.stopPropagation()}>
             <h3>Sair da mesa?</h3>
             <p className="muted">Se estiver numa mão, suas cartas serão descartadas.</p>
             <div className="row gap center">
-              <button className="btn btn-danger" onClick={leaveRoom}>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  setConfirmLeave(false);
+                  // mostra o placar antes de sair (a saída acontece no Confirmar)
+                  if (view) useTable.getState().setMatch({ id: nextId(), kind: 'leave' });
+                  else leaveRoom();
+                }}
+              >
                 Sair
               </button>
               <button className="btn btn-ghost" onClick={() => setConfirmLeave(false)}>

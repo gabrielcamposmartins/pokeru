@@ -215,7 +215,10 @@ class Director {
   private sideEffects(item: Item): void {
     const { ev, view } = item;
     const t = useTable.getState();
-    if (ev.t === 'gameOver') t.setGameOver(ev.ranking);
+    if (ev.t === 'gameOver') {
+      t.setGameOver(ev.ranking);
+      t.setMatch({ id: nextId(), kind: 'over' });
+    }
     if (ev.t === 'handStart') {
       t.setWinners([]);
       t.setResult(null);
@@ -425,6 +428,7 @@ class Director {
 
       case 'gameOver':
         store.setGameOver(ev.ranking);
+        store.setMatch({ id: nextId(), kind: 'over' });
         return;
 
       default:

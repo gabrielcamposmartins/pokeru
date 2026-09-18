@@ -57,6 +57,15 @@ export interface RoundResult {
   winFx: WinFxId;
 }
 
+/**
+ * Tela de fim de partida (placar): mostrada quando o jogo acaba ('over') ou quando você
+ * sai da mesa ('leave'). O placar em si é montado na tela, a partir do estado da mesa.
+ */
+export interface MatchEnd {
+  id: number;
+  kind: 'over' | 'leave';
+}
+
 export interface EmoteBubble {
   id: number;
   seat: number;
@@ -91,6 +100,7 @@ interface TableState {
   flyers: Flyer[];
   splash: Splash | null;
   result: RoundResult | null;
+  match: MatchEnd | null;
   emotes: EmoteBubble[];
   callouts: Callout[];
   log: LogLine[];
@@ -103,6 +113,7 @@ interface TableState {
   removeFlyers(ids: number[]): void;
   setSplash(s: Splash | null): void;
   setResult(r: RoundResult | null): void;
+  setMatch(m: MatchEnd | null): void;
   addEmote(seat: number, emote: string): void;
   addCallout(seat: number, text: string, kind: CalloutKind): void;
   addLog(text: string, kind?: LogLine['kind']): void;
@@ -120,6 +131,7 @@ export const useTable = create<TableState>()((set, get) => ({
   flyers: [],
   splash: null,
   result: null,
+  match: null,
   emotes: [],
   callouts: [],
   log: [],
@@ -145,6 +157,7 @@ export const useTable = create<TableState>()((set, get) => ({
   removeFlyers: (ids) => set((s) => ({ flyers: s.flyers.filter((f) => !ids.includes(f.id)) })),
   setSplash: (splash) => set({ splash }),
   setResult: (result) => set({ result }),
+  setMatch: (match) => set({ match }),
   addEmote: (seat, emote) => {
     const id = nextId();
     set((s) => ({ emotes: [...s.emotes, { id, seat, emote }] }));
@@ -160,5 +173,17 @@ export const useTable = create<TableState>()((set, get) => ({
   setGameOver: (gameOver) => set({ gameOver }),
   setWinners: (winners) => set({ winners }),
   reset: () =>
-    set({ display: null, deadline: null, flyers: [], splash: null, result: null, emotes: [], callouts: [], log: [], gameOver: null, winners: [] }),
+    set({
+      display: null,
+      deadline: null,
+      flyers: [],
+      splash: null,
+      result: null,
+      match: null,
+      emotes: [],
+      callouts: [],
+      log: [],
+      gameOver: null,
+      winners: [],
+    }),
 }));

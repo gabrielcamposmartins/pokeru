@@ -1514,6 +1514,58 @@
     letter-spacing: 4px;
   }
 
+  /* fim da partida: placas de couro e latão */
+  .me-row {
+    border: 1px solid rgba(201, 162, 90, 0.75);
+    border-radius: 2px;
+    background: var(--grain), linear-gradient(100deg, rgba(64, 31, 21, 0.97), rgba(26, 12, 8, 0.95));
+  }
+  .me-row.first {
+    border-color: var(--gold-2);
+    background: var(--grain), linear-gradient(100deg, rgba(122, 26, 38, 0.97), rgba(64, 12, 20, 0.95));
+  }
+  .me-row.mine:not(.first) {
+    border-color: var(--gold-2);
+    background: var(--grain), linear-gradient(100deg, rgba(36, 83, 61, 0.97), rgba(16, 40, 29, 0.95));
+  }
+  .me-place,
+  .me-stack,
+  .me-delta {
+    font-family: var(--num);
+    font-size-adjust: none;
+  }
+  .me-portrait {
+    border-radius: 2px;
+    border: 2px solid var(--gold-2);
+    box-shadow:
+      0 0 0 1px #3a200e,
+      0 4px 10px rgba(0, 0, 0, 0.55);
+  }
+  .me-badge {
+    border-radius: 2px;
+    border: 1px solid #3a2410;
+    background: var(--brass-grad);
+    color: #2a1808;
+    font-size-adjust: none;
+  }
+  .me-delta.up {
+    color: #a8d8a0;
+  }
+  .me-delta.down {
+    color: #e08a8a;
+  }
+  .me-foot {
+    font-style: italic;
+    font-size: 17px;
+  }
+  .me-dot.on {
+    background: var(--gold);
+  }
+  .me-pager-btn {
+    background: radial-gradient(circle at 40% 30%, #5a2c1a, #1e0d07 75%);
+    border-color: var(--gold);
+  }
+
   /* estúdio: aba UI */
   .theme-thumb {
     border-radius: 2px;

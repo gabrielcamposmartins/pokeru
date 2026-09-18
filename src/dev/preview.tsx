@@ -3,6 +3,9 @@
  * e desenha uma cena do palco parada, para conferir o layout sem jogar uma mão.
  *
  *   /preview.html?cena=result          fim de round (showdown)
+ *   /preview.html?cena=match           fim de partida (4 jogadores)
+ *   /preview.html?cena=match-6         fim de partida com 6 (duas páginas)
+ *   /preview.html?cena=match-me6       você em 6º (1º, 2º, 3º e você no 4º lugar da lista)
  *   /preview.html?cena=result-board    mão feita só com o bordo (5 cartas na mesa)
  *   /preview.html?cena=result-long     nome de mão comprido e pote dividido
  *   &ui=victorian                      com o tema vitoriano
@@ -34,6 +37,7 @@ import '../styles/cardfx.css';
 import '../styles/victorian.css';
 import { CHARACTER_PRESETS } from '../../shared/styles';
 import { STAGE_H, STAGE_W } from '../game/layout';
+import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
 import { RoundResultPanel } from '../game/RoundResult';
 import type { RoundResult } from '../store/table';
 
@@ -92,7 +96,34 @@ const SCENES: Record<string, RoundResult> = {
   },
 };
 
-const scene = SCENES[q.get('cena') ?? 'result'] ?? base;
+const NAMES = ['Jogador', 'Ren', 'Yukina', 'Tobi', 'Marina 2', 'Ren 2'];
+
+/** Placar de exemplo: `n` jogadores, você em `mePlace`. */
+function rows(n: number, mePlace: number): MatchRow[] {
+  return Array.from({ length: n }, (_, i) => {
+    const p = i + 1;
+    const stack = 6400 - i * 1100;
+    return {
+      place: p,
+      name: p === mePlace ? 'Jogador' : NAMES[(i + 1) % NAMES.length],
+      character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
+      stack: Math.max(0, stack),
+      delta: Math.max(0, stack) - 2000,
+      isMe: p === mePlace,
+      isBot: p !== mePlace,
+    };
+  });
+}
+
+const MATCHES: Record<string, MatchRow[]> = {
+  match: rows(4, 1),
+  'match-6': rows(6, 2),
+  'match-me6': rows(6, 6),
+};
+
+const cena = q.get('cena') ?? 'result';
+const matchRows = MATCHES[cena];
+const scene = SCENES[cena] ?? base;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -100,7 +131,7 @@ createRoot(document.getElementById('root')!).render(
       <div className="game-screen">
         <div className="stage-wrap">
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, background: 'radial-gradient(ellipse at 50% 40%, #3a1418 0%, #0e0506 75%)' }}>
-            <RoundResultPanel r={scene} />
+            {matchRows ? <MatchEndPanel m={{ id: 1, kind: 'over' }} rows={matchRows} info="Treino Offline · Sit & Go · 18 mãos" /> : <RoundResultPanel r={scene} />}
           </div>
         </div>
       </div>

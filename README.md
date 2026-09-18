@@ -153,11 +153,29 @@ referência) e o conteúdo se distribui assim:
   seguinte começa.
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
-`/preview.html?cena=result` (também `result-board`, `result-long`, e `&ui=victorian`, `&rects=1` para
-medir as caixas). Ela não entra no build do app.
+`/preview.html?cena=result` (também `result-board`, `result-long`, `match`, `match-6`, `match-me6`, e
+`&ui=victorian`, `&rects=1` para medir as caixas). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
 `Director.roundResult`; a faixa diagonal do fundo usa a mesma função `cutinBand` do tema de UI.
+
+## Fim da partida (placar)
+
+Quando a partida acaba (Sit & Go) ou quando **você** sai da mesa, entra a tela de placar
+(`src/game/MatchEnd.tsx`) — ela é individual: cada jogador vê a sua no próprio cliente.
+
+- **à esquerda**, o personagem de **quem ficou em primeiro**;
+- **à direita**, as posições em placas inclinadas: lugar, retrato, nome, fichas e o resultado em
+  relação às fichas iniciais. A do primeiro é destacada e avança para a esquerda; a sua leva o selo
+  **Você**;
+- **embaixo**, mesa, modo e quantas mãos foram jogadas;
+- **botões**: `Confirmar` (sai da tela; se você estava saindo da mesa, é aí que a saída acontece),
+  mais `Jogar de novo` (só para o anfitrião) e `Sair da mesa` no fim da partida.
+
+**Paginação** (`pagesOf`, coberta por testes): são páginas de quatro (1º–4º, 5º–8º…). Se você ficou
+fora dos quatro primeiros, a primeira página mostra 1º, 2º, 3º e **a sua linha no quarto lugar, com a
+sua posição real** — assim não é preciso paginar para se achar; as páginas seguintes continuam a
+partir do 3º.
 
 ## Efeitos das cartas vencedoras
 

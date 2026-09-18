@@ -73,47 +73,6 @@ export function WinSplash() {
   );
 }
 
-export function GameOverModal({ onLeave }: { onLeave: () => void }) {
-  const ranking = useTable((s) => s.gameOver);
-  const room = useSession((s) => s.room);
-  const playerId = useSession((s) => s.playerId);
-  const send = useSession((s) => s.send);
-  if (!ranking) return null;
-  const isHost = room?.hostId === playerId;
-  const medals = ['🥇', '🥈', '🥉'];
-  return (
-    <div className="modal-back">
-      <motion.div className="modal panel" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-        <h2 className="title-deco">Fim do Sit &amp; Go</h2>
-        <ol className="ranking">
-          {ranking.map((r) => (
-            <li key={r.seat + r.name} className={r.place === 1 ? 'first' : ''}>
-              <span className="medal">{medals[r.place - 1] ?? `${r.place}º`}</span>
-              <span>{r.name}</span>
-            </li>
-          ))}
-        </ol>
-        <div className="row gap center">
-          {isHost && (
-            <button
-              className="btn btn-gold"
-              onClick={() => {
-                useTable.getState().setGameOver(null);
-                send({ type: 'startGame' });
-              }}
-            >
-              Jogar de novo
-            </button>
-          )}
-          <button className="btn btn-ghost" onClick={onLeave}>
-            Sair
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const chat = useSession((s) => s.chat);
   const log = useTable((s) => s.log);
