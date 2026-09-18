@@ -1,6 +1,8 @@
 import { randomInt } from './cards';
+import type { TableBank } from './accounts';
+import type { BondEvent } from './bond';
+import { HandCategory, evaluateHand } from './evaluator';
 import { Hand, type HandEvent, type PlayerAction } from './engine';
-import { evaluateHand } from './evaluator';
 import { botDecide, botDraw, botThinkTimeMs } from './bot';
 import {
   EMOTES,
@@ -17,6 +19,8 @@ import { AVATAR_ICONS, BACK_PRESETS, CHARACTER_PRESETS, WIN_FX_IDS, type AvatarI
 
 export interface ClientHandle {
   id: string;
+  /** Conta no servidor hospedado (sem conta, a mesa é livre). */
+  accountId?: string;
   name: string;
   avatar: AvatarInfo;
   cosmetics: PlayerCosmetics;
@@ -25,6 +29,8 @@ export interface ClientHandle {
 
 interface Member {
   id: string;
+  /** Conta do servidor, quando houver (bots e modo offline não têm). */
+  accountId?: string;
   name: string;
   isBot: boolean;
   difficulty: BotDifficulty;
@@ -52,6 +58,9 @@ export function makeId(len = 8): string {
   return s;
 }
 
+/** Mãos que contam como "mão grande" no vínculo (as mesmas do cliente). */
+const BIG_HANDS = new Set([HandCategory.Straight, HandCategory.Flush, HandCategory.FullHouse, HandCategory.Quads, HandCategory.StraightFlush]);
+
 const AVATAR_COLORS = ['#ff6b9a', '#7c5cff', '#35c4ff', '#3ddc97', '#ffb547', '#ff5d5d', '#b07bff', '#4fd1c5'];
 
 export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSettings {
@@ -69,6 +78,7 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
     mode: o.mode === 'sitgo' ? 'sitgo' : o.mode === 'normal' ? 'normal' : 'cash',
     variant: o.variant === 'draw5' ? 'draw5' : 'holdem',
     rounds: n(o.rounds, 1, 100, 8),
+    buyIn: n(o.buyIn, 0, 10_000_000, 0),
     turnTime: n(o.turnTime, 5, 120, 20),
     blindLevelHands: n(o.blindLevelHands, 2, 50, 8),
     password: typeof o.password === 'string' && o.password ? o.password.slice(0, 32) : undefined,
@@ -85,6 +95,11 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
 export class Room {
   readonly id: string;
   settings: RoomSettings;
+  /**
+   * Banca do servidor hospedado: cobra o buy-in ao sentar, devolve as fichas ao sair e pontua o
+   * vínculo das contas. Sem banca (modo offline), a mesa é livre.
+   */
+  bank: TableBank | null = null;
   hostId: string;
   status: 'waiting' | 'playing' | 'finished' = 'waiting';
   readonly seats: (Member | null)[];
@@ -194,6 +209,7 @@ export class Room {
       blinds: `${this.smallBlind}/${this.bigBlind}`,
       mode: this.settings.mode,
       variant: this.settings.variant,
+      buyIn: this.settings.buyIn,
       hasPassword: !!this.settings.password,
     };
   }
@@ -213,15 +229,24 @@ export class Room {
     if (this.status === 'finished') return 'Partida encerrada';
     const seat = this.seats.findIndex((s) => s === null);
     if (seat < 0) return 'Mesa cheia';
+    // mesa a dinheiro: as fichas saem do saldo da conta
+    let stack = this.settings.startingStack;
+    if (this.settings.buyIn > 0) {
+      if (!this.bank || !client.accountId) return 'Esta mesa é a dinheiro: entre com uma conta do servidor';
+      const paid = this.bank.charge(client.accountId, this.settings.buyIn);
+      if (!paid) return 'Saldo insuficiente para o buy-in desta mesa';
+      stack = paid;
+    }
     const m: Member = {
       id: client.id,
+      accountId: client.accountId,
       name: client.name,
       isBot: false,
       difficulty: 'normal',
       avatar: client.avatar,
       cosmetics: client.cosmetics,
       seat,
-      stack: this.settings.startingStack,
+      stack,
       client,
       connected: true,
       leaving: false,
@@ -270,6 +295,7 @@ export class Room {
 
   private removeOrMark(m: Member): void {
     const hp = this.hand && !this.hand.finished ? this.hand.players.find((p) => p.id === m.id) : undefined;
+    if (!hp) this.cashOut(m);
     if (hp && !hp.folded) {
       m.leaving = true;
       // se for a vez dele, desiste imediatamente
@@ -341,7 +367,11 @@ export class Room {
     this.smallBlind = this.settings.smallBlind;
     this.bigBlind = this.settings.bigBlind;
     for (const m of seated) {
-      m.stack = this.settings.startingStack;
+      if (this.paid()) {
+        // todos começam com o buy-in: os bots de graça, os jogadores pagando a diferença
+        if (m.isBot) m.stack = this.settings.buyIn;
+        else if (m.stack < this.settings.buyIn) m.stack += this.charge(m, this.settings.buyIn - m.stack);
+      } else m.stack = this.settings.startingStack;
       m.busted = false;
     }
     this.dealerSeat = seated[randomInt(seated.length)].seat;
@@ -352,6 +382,34 @@ export class Room {
     this.system('A partida começou! Boa sorte.');
     this.later(() => this.startHand(), 1200);
     return null;
+  }
+
+  /** Mesa a dinheiro: custa fichas do saldo para sentar (e a saída devolve o que sobrou). */
+  private paid(): boolean {
+    return this.settings.buyIn > 0 && !!this.bank;
+  }
+
+  /** Cobra fichas do saldo de um membro (devolve quanto saiu; 0 sem conta ou sem saldo). */
+  private charge(m: Member, amount: number): number {
+    if (!this.paid() || !m.accountId || amount <= 0) return 0;
+    return this.bank!.charge(m.accountId, amount);
+  }
+
+  /** Devolve as fichas da mesa ao saldo do jogador e zera a pilha (ele não leva duas vezes). */
+  private cashOut(m: Member): void {
+    if (!this.paid() || !m.accountId || m.stack <= 0) return;
+    this.bank!.credit(m.accountId, m.stack);
+    m.stack = 0;
+  }
+
+  /** Fichas que uma conta tem nesta mesa agora (para o servidor mostrar o "em jogo"). */
+  chipsOf(accountId: string): number {
+    return this.members().reduce((t, m) => t + (m.accountId === accountId ? m.stack : 0), 0);
+  }
+
+  /** Devolve a todos as fichas da mesa (o servidor chama isto ao desligar). */
+  cashOutAll(): void {
+    for (const m of this.members()) this.cashOut(m);
   }
 
   /** Partida fechada: quem quebra é eliminado e ninguém entra no meio (Sit & Go e modo normal). */
@@ -388,10 +446,12 @@ export class Room {
     // limpa quem saiu
     for (const m of this.members()) {
       if (m.leaving) {
+        this.cashOut(m);
         this.seats[m.seat] = null;
         this.emit({ t: 'seatLeave', seat: m.seat });
       }
     }
+    // quem saiu no meio da mão anterior já teve o assento liberado acima: devolve as fichas
     const eligible = this.members().filter((m) => !m.leaving && !m.busted && m.stack > 0);
     if (eligible.length < 2) {
       this.hand = null;
@@ -457,8 +517,10 @@ export class Room {
       .sort((a, b) => (h.players.find((p) => p.id === b.id)?.total ?? 0) - (h.players.find((p) => p.id === a.id)?.total ?? 0));
     const remaining = alive();
     broke.forEach((m, i) => {
-      if (!this.closedGame()) {
-        m.stack = this.settings.startingStack;
+      // cash: recompra. Na mesa a dinheiro custa outro buy-in; sem saldo, o jogador é eliminado
+      const rebuy = !this.closedGame() && (!this.paid() || m.isBot || this.charge(m, this.settings.buyIn) > 0);
+      if (rebuy) {
+        m.stack = this.paid() ? this.settings.buyIn : this.settings.startingStack;
         this.emit({ t: 'rebuy', seat: m.seat, amount: m.stack });
         this.system(`${m.name} fez rebuy de ${m.stack}.`);
       } else {
@@ -469,9 +531,34 @@ export class Room {
         this.system(`${m.name} foi eliminado em ${place}º lugar.`);
       }
     });
+    this.awardBond(h);
     this.emit({ t: 'handEnd' });
     if (this.closedGame() && alive() <= 1) this.finishGame();
     else if (this.roundsOver()) this.finishGame();
+  }
+
+  /**
+   * Vínculo das contas com o personagem que estão usando: as mesmas contas do cliente
+   * (shared/bond.ts), mas pontuadas aqui — num servidor hospedado, o progresso é do servidor.
+   */
+  private awardBond(h: Hand): void {
+    if (!this.bank) return;
+    for (const m of this.members()) {
+      if (m.isBot || !m.accountId) continue;
+      const hp = h.players.find((p) => p.id === m.id);
+      if (!hp) continue;
+      const won = h.results.some((r) => r.winners.some((w) => w.seat === m.seat));
+      let ev: BondEvent;
+      if (won) {
+        const cards = [...hp.hole, ...h.board];
+        const big = h.street === 'showdown' && cards.length >= 5 && BIG_HANDS.has(evaluateHand(cards).category);
+        ev = big ? 'bigWin' : 'win';
+      } else if (hp.folded) ev = 'fold';
+      else ev = 'loss';
+      this.bank.bond(m.accountId, m.cosmetics.character.id, ev);
+      this.bank.note(m.accountId, 'hand');
+      if (won) this.bank.note(m.accountId, 'win');
+    }
   }
 
   private finishGame(): void {
@@ -483,6 +570,16 @@ export class Room {
     ];
     this.emit({ t: 'gameOver', ranking });
     if (ranking[0]) this.system(`${ranking[0].name} venceu ${this.settings.mode === 'normal' ? `as ${this.settings.rounds} rodadas` : 'o Sit & Go'}!`);
+    // as contas levam o vínculo da partida e as fichas que sobraram na mesa
+    if (this.bank) {
+      for (const m of this.members()) {
+        if (m.isBot || !m.accountId) continue;
+        const place = ranking.find((r) => r.seat === m.seat)?.place;
+        this.bank.bond(m.accountId, m.cosmetics.character.id, place === 1 ? 'matchWin' : 'match');
+        this.bank.note(m.accountId, 'match');
+      }
+    }
+    for (const m of this.members()) this.cashOut(m);
     this.broadcastRoom();
   }
 

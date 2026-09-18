@@ -1,0 +1,24 @@
+{
+  // Compila o servidor (server/ + shared/) para JavaScript em dist-server/.
+  // Sai como CommonJS de propósito: os imports do projeto não levam extensão (".js"), o que o
+  // Node só aceita em CJS — assim o servidor roda com `node`, sem tsx nem outras ferramentas.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "dist-server",
+    "rootDir": ".",
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["server", "shared"],
+  "exclude": ["**/*.test.ts", "server/jsonc-register.mjs"]
+}

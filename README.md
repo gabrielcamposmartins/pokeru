@@ -19,10 +19,13 @@ npm run app
 # Servidor multiplayer (WebSocket) — porta 3001 por padrão
 npm run server         # PORT=4000 npm run server para trocar a porta
 
-# Testes do motor e da sala
+# Servidor pronto para hospedar (JavaScript compilado, roda com node puro)
+npm run server:build && npm run server:start
+
+# Testes do motor, da sala e do servidor
 npm test
 
-# Instalador do app desktop
+# Instalador do app desktop (veja "Instalador do cliente")
 npm run app:build
 ```
 
@@ -33,6 +36,95 @@ npm run app:build
 3. Crie uma sala (escolha o **jogo** e o **formato**), adicione bots se quiser e compartilhe o **código** da sala.
 
 A **Partida Rápida** roda tudo offline, no próprio app, contra bots (fácil / normal / difícil).
+
+## Hospedar o servidor
+
+O servidor guarda as **contas dos jogadores** — saldo, vínculo com os personagens e números — e
+hospeda as mesas. Ele é autossuficiente: JavaScript compilado, `node` e o pacote `ws`.
+
+```bash
+npm run server:build          # compila server/ + shared/ para dist-server/
+DATA_DIR=./data npm run server:start
+```
+
+| Variável | Padrão | O que faz |
+|---|---|---|
+| `PORT` | `3001` | porta HTTP/WebSocket |
+| `SERVER_NAME` | `PokerSoul Server` | nome que aparece no cliente |
+| `DATA_DIR` | `./data` | pasta dos dados (`accounts.json`) |
+| `POKERSOUL_ACCOUNTS` | `1` | `0` desliga as contas: mesas livres, nada salvo |
+| `STARTING_MONEY` | `10000` | saldo de uma conta nova |
+| `FAUCET` | `2000` | recarga de cortesia de quem zera (`0` desliga) |
+| `MAX_ACCOUNTS` | `1000` | teto de contas guardadas; passando dele, quem chega joga só em mesas livres |
+| `ADMIN_TOKEN` | — | libera `/admin` (sem ele, as rotas respondem 403) |
+
+Rotas HTTP: `/health` (estado do servidor, bom para monitorar) e, com `ADMIN_TOKEN`,
+`/admin/accounts` (lista) e `/admin/gift?id=a-…&amount=1000` (fichas de presente). Passe o token
+no cabeçalho `X-Admin-Token` ou em `?token=`.
+
+### Contas, saldo e vínculo
+
+- **Identidade sem senha:** na primeira conexão o servidor cria a conta e devolve um **token**
+  aleatório; o cliente guarda o token por endereço de servidor e o manda no `hello` para voltar
+  como ele mesmo. O servidor nunca vê (nem pede) uma senha.
+- **Saldo:** sentar numa mesa com buy-in **desconta** do saldo e as fichas da mesa são esse
+  buy-in; sair (ou o fim da partida) **devolve** o que sobrou. No cash, a recompra custa outro
+  buy-in — sem saldo, o jogador sai da partida. Mesas com buy-in `0` são livres: fichas de
+  brinquedo, ninguém paga nada.
+- **Vínculo:** num servidor com contas, quem pontua é o **servidor** (as mesmas regras de
+  `shared/bond.ts`), e o cliente mostra o que vier de lá — inclusive os corações que fecharam.
+  Offline, o vínculo continua salvo no próprio cliente.
+- **Desligar com cuidado:** no `SIGTERM`/`SIGINT` o servidor devolve as fichas de quem está
+  sentado e grava os dados antes de sair (é o que o Docker manda ao parar o contêiner).
+- Os dados ficam num JSON só (`accounts.json`), gravado de forma atômica e em bloco. Dá para
+  copiar, versionar e ler com os olhos; se o arquivo estiver corrompido, o servidor guarda uma
+  cópia `.broken-…` e sobe vazio em vez de não subir.
+
+**O que este servidor não é:** não há senha, e-mail nem confirmação de identidade — quem tem o
+token é o dono da conta. Isso é de propósito (é um servidor de jogo entre amigos, e as fichas não
+valem dinheiro de verdade), mas quer dizer que qualquer um que alcance a porta cria uma conta e
+recebe o saldo inicial. Para uma mesa fechada, deixe o servidor numa rede privada (ou atrás de um
+proxy com autenticação), use senha nas salas e ajuste `MAX_ACCOUNTS`.
+
+### Docker
+
+Duas imagens: o **servidor de jogo** (`Dockerfile`) e o **servidor web do cliente**
+(`Dockerfile.client`, nginx servindo a interface). O `docker-compose.yml` sobe as duas:
+
+```bash
+docker compose up -d --build
+# cliente: http://localhost:8080 · servidor: ws://localhost:3001
+```
+
+- O endereço do servidor de jogo é escolhido **na hora de subir** o cliente, não no build:
+  `POKERSOUL_SERVER_URL=ws://192.168.0.10:3001`. O entrypoint escreve `/config.js` e o app usa
+  como padrão (o jogador ainda pode digitar outro). Use o endereço que o **navegador** dos
+  jogadores alcança — `localhost` só serve para quem abre no próprio host.
+- Os dados do servidor ficam no volume `pokersoul-data` (montado em `/data`).
+- Atrás de um proxy com TLS, use `wss://…` no `POKERSOUL_SERVER_URL` e encaminhe o WebSocket
+  (`Upgrade`/`Connection`) para a porta 3001.
+- As duas imagens rodam sem privilégios e trazem `HEALTHCHECK`.
+
+### Instalador do cliente
+
+`npm run app:build` (Tauri v2) gera o instalador da plataforma em
+`src-tauri/target/release/bundle/`:
+
+| Sistema | Saída |
+|---|---|
+| Windows | `nsis/PokerSoul_<versão>_x64-setup.exe` (instala para o usuário, sem pedir administrador) e `msi/PokerSoul_<versão>_x64_en-US.msi` |
+| macOS | `dmg/PokerSoul_<versão>_x64.dmg` e `macos/PokerSoul.app` |
+| Linux | `deb/`, `rpm/` e `appimage/` |
+
+Para distribuir um instalador **já apontando** para o seu servidor, defina o endereço no build:
+
+```bash
+VITE_SERVER_URL=wss://poker.seudominio.com npm run app:build
+```
+
+A ordem de escolha do endereço no cliente é: o que o jogador digitou (fica salvo no perfil), o
+`config.js` do servidor web, a variável `VITE_SERVER_URL` do build e, por último,
+`ws://localhost:3001`.
 
 ## Estrutura
 
@@ -46,7 +138,10 @@ shared/            Código comum ao servidor e ao cliente
   lobby.ts         Conexões e salas (independe de transporte)
   protocol.ts      Mensagens cliente ⇄ servidor e visões da mesa
   styles.ts        Tipos, presets e sanitização dos estilos cosméticos
-server/index.ts    Servidor WebSocket (Node) que liga sockets ao Lobby
+server/
+  index.ts         Servidor WebSocket (Node) que liga sockets ao Lobby, /health e /admin
+  accounts.ts      Contas: saldo, vínculo e números, com token de volta
+  store.ts         Arquivo JSON com gravação atômica e em bloco
 src/
   game/            Mesa: layout, diretor de animações, placas, painel de ações
   render/          Arte SVG: cartas (frente/verso), fichas, mesa, personagens
@@ -301,8 +396,12 @@ corações**; a cada coração completo o personagem entrega uma **recompensa** 
 
 Ganhar rende mais, mas **perder também conta**: quem senta e joga junto acumula. Os corações custam
 `60 · 140 · 260 · 440 · 700` pontos (`HEART_COST`), o que dá cerca de uma dúzia de partidas para o
-vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela; o progresso é por personagem e
-fica salvo na máquina (`pokersoul-bond`), como o perfil.
+vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela.
+
+Quem guarda o progresso depende de onde se joga: **offline** fica na máquina (`pokersoul-bond`,
+como o perfil); num **servidor com contas** quem pontua e guarda é o servidor, com as mesmas regras
+(`shared/bond.ts`), e o cliente mostra o que vier de lá. As regras ficam em `shared/` justamente
+para os dois lados contarem igual; o catálogo de recompensas é do cliente (`src/game/bond.ts`).
 
 **Onde aparece:** em **Personagens**, o botão **♥ Vínculo · N/5** abre a *página de vínculo* do
 personagem (a galeria mostra os corações de cada retrato e a ficha traz a barra curta); o menu principal

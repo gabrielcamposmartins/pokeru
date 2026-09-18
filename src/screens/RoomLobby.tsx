@@ -47,6 +47,7 @@ export function RoomLobby() {
             <span>{MODE_LABEL[s.mode] ?? s.mode}</span>
             <span>{VARIANT_LABEL[s.variant] ?? s.variant}</span>
             {s.mode === 'normal' && <span>{s.rounds} rodadas</span>}
+            {s.buyIn > 0 && <span>Buy-in {fmt(s.buyIn)}</span>}
             <span>
               Blinds {fmt(s.smallBlind)}/{fmt(s.bigBlind)}
             </span>

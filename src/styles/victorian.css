@@ -1700,6 +1700,21 @@
     color: var(--ivory);
   }
 
+  /* saldo da conta */
+  .wallet {
+    border-radius: 3px;
+    background-image: var(--grain);
+    background-blend-mode: overlay;
+  }
+  .wallet-money {
+    font-family: var(--num);
+    font-variant-numeric: lining-nums;
+  }
+  .wallet small,
+  .wallet-inplay {
+    font-size: 14px;
+  }
+
   /* poker de 5 cartas */
   .my-card-mark,
   .plate-drew {

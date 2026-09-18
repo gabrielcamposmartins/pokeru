@@ -1,0 +1,42 @@
+# PokerSoul hospedado: o servidor de jogo (mesas + contas) e o servidor web do cliente.
+#
+#   docker compose up -d --build
+#   → cliente em http://localhost:8080 · servidor em ws://localhost:3001
+#
+# Para jogar de outras máquinas, troque POKERSOUL_SERVER_URL pelo endereço que o navegador
+# dos jogadores alcança (ex.: ws://192.168.0.10:3001 ou wss://poker.seudominio.com).
+
+services:
+  server:
+    build: .
+    image: pokersoul-server
+    container_name: pokersoul-server
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: PokerSoul da Casa
+      # saldo de uma conta nova e recarga de cortesia de quem zera (0 desliga)
+      STARTING_MONEY: "10000"
+      FAUCET: "2000"
+      # descomente e troque para liberar /admin/accounts e /admin/gift
+      # ADMIN_TOKEN: troque-este-segredo
+    volumes:
+      - pokersoul-data:/data
+    ports:
+      - "3001:3001"
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    image: pokersoul-client
+    container_name: pokersoul-client
+    restart: unless-stopped
+    environment:
+      POKERSOUL_SERVER_URL: ws://localhost:3001
+    ports:
+      - "8080:80"
+    depends_on:
+      - server
+
+volumes:
+  pokersoul-data:

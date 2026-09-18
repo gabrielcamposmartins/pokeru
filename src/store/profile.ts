@@ -67,6 +67,12 @@ export interface Settings {
   uiTheme: string;
 }
 
+/** Credenciais de uma conta num servidor (o token volta a entrar como o mesmo jogador). */
+export interface ServerAccount {
+  id: string;
+  token: string;
+}
+
 interface ProfileState {
   name: string;
   avatar: AvatarInfo;
@@ -76,16 +82,29 @@ interface ProfileState {
   winFx: WinFxId;
   custom: { [K in StyleKind]: StyleMap[K][] };
   equipped: Record<StyleKind, string>;
+  /** Conta em cada servidor (endereço → credenciais), para voltar com o mesmo saldo e vínculo. */
+  accounts: Record<string, ServerAccount>;
   settings: Settings;
   setName(name: string): void;
   setAvatar(a: AvatarInfo): void;
   setCharacter(id: string): void;
   setWinFx(id: WinFxId): void;
+  setAccount(server: string, account: ServerAccount): void;
   equip(kind: StyleKind, id: string): void;
   saveStyle<K extends StyleKind>(kind: K, style: StyleMap[K]): void;
   deleteStyle(kind: StyleKind, id: string): void;
   updateSettings(p: Partial<Settings>): void;
   resetAll(): void;
+}
+
+/**
+ * Endereço padrão do servidor, na ordem: o `config.js` que o servidor web do cliente escreve
+ * (POKERSOUL_SERVER_URL no Docker), a variável de build `VITE_SERVER_URL` (usada ao gerar o
+ * instalador) e, por fim, o servidor local.
+ */
+function defaultServerUrl(): string {
+  const cfg = (globalThis as { PokerSoulConfig?: { serverUrl?: string } }).PokerSoulConfig?.serverUrl;
+  return cfg || import.meta.env?.VITE_SERVER_URL || 'ws://localhost:3001';
 }
 
 const initial = {
@@ -94,6 +113,7 @@ const initial = {
   character: CHARACTER_PRESETS[0].id,
   winFx: DEFAULT_WIN_FX,
   custom: { face: [], back: [], chip: [], table: [] },
+  accounts: {} as Record<string, ServerAccount>,
   equipped: {
     face: FACE_PRESETS[0].id,
     back: BACK_PRESETS[1].id,
@@ -106,7 +126,7 @@ const initial = {
     voices: true,
     voiceVolume: 1,
     animSpeed: 1,
-    serverUrl: 'ws://localhost:3001',
+    serverUrl: defaultServerUrl(),
     handHint: true,
     autoMuck: true,
     uiTheme: 'default',
@@ -127,6 +147,7 @@ export const useProfile = create<ProfileState>()(
       setAvatar: (avatar) => set({ avatar }),
       setCharacter: (character) => set({ character }),
       setWinFx: (winFx) => set({ winFx }),
+      setAccount: (server, account) => set((s) => ({ accounts: { ...s.accounts, [server]: account } })),
       equip: (kind, id) => set((s) => ({ equipped: { ...s.equipped, [kind]: id } })),
       saveStyle: (kind, style) =>
         set((s) => {
@@ -154,6 +175,7 @@ export const useProfile = create<ProfileState>()(
         return {
           ...current,
           ...p,
+          accounts: { ...current.accounts, ...(p.accounts ?? {}) },
           custom: known(current.custom, p.custom),
           equipped: known(current.equipped, p.equipped),
           settings: known(current.settings, p.settings),

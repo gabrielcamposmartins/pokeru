@@ -76,6 +76,11 @@ class Director {
   private skipping = false;
   /** A mesa acabou para este jogador (ele saiu): ignora o que ainda chegar. */
   private frozen = false;
+  /**
+   * O servidor hospedado é o dono do vínculo: quando ele manda a conta, o cliente para de
+   * pontuar sozinho (senão o progresso contaria duas vezes).
+   */
+  serverBond = false;
   /** Mãos que renderam vínculo nesta partida (para o bônus de fim de partida). */
   private bondHands = 0;
   /** O bônus de fim de partida já foi dado (não conta duas vezes ao sair depois do placar). */
@@ -177,6 +182,7 @@ class Director {
    * e o fim da partida dá o bônus. Roda uma vez por evento, com a mesa visível ou não.
    */
   private bond(item: Item): void {
+    if (this.serverBond) return;
     const { ev, view } = item;
     const me = view.mySeat;
     if (me === null || !view.seats[me]) return;

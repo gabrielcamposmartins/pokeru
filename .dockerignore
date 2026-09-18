@@ -1,0 +1,12 @@
+# pesos que não devem entrar no contexto do build
+node_modules
+src-tauri
+dist
+dist-server
+data
+.git
+.github
+*.log
+# saídas de apoio
+coverage
+preview.html.bak

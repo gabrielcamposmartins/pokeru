@@ -1,4 +1,5 @@
 import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
+import type { AccountService } from './accounts';
 import type { BotDifficulty, ClientMsg, RoomSummary, ServerMsg } from './protocol';
 import {
   BACK_PRESETS,
@@ -14,13 +15,29 @@ import {
 /**
  * Lobby: gerencia conexões e salas. É independente de transporte —
  * o servidor Node conecta WebSockets aqui e o modo offline conecta direto no navegador.
+ *
+ * Com um serviço de contas (`accounts`), o servidor guarda saldo e vínculo de cada jogador: o
+ * `hello` entra na conta, as mesas a dinheiro cobram o buy-in e o cliente recebe a foto da conta
+ * sempre que ela muda. Sem contas, tudo funciona como antes (fichas de brinquedo).
  */
 export class Lobby {
   readonly rooms = new Map<string, Room>();
   private conns = new Set<Connection>();
   private listTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(readonly serverName = 'PokerSoul') {}
+  constructor(
+    readonly serverName = 'PokerSoul',
+    readonly accounts: AccountService | null = null,
+  ) {
+    if (accounts) accounts.onChange = (id) => this.accountChanged(id);
+  }
+
+  /** Manda a foto nova da conta para quem está logado nela. */
+  private accountChanged(accountId: string): void {
+    const account = this.accounts?.info(accountId);
+    if (!account) return;
+    for (const c of this.conns) if (c.accountId === accountId) c.send({ type: 'account', account });
+  }
 
   connect(send: (m: ServerMsg) => void): Connection {
     const c = new Connection(this, send);
@@ -41,6 +58,7 @@ export class Lobby {
     let id = makeId(5);
     while (this.rooms.has(id)) id = makeId(5);
     const room = new Room(id, sanitizeSettings(settings as never), host);
+    room.bank = this.accounts;
     room.onChange = () => this.roomsChanged();
     room.onEmpty = () => {
       this.rooms.delete(id);
@@ -69,6 +87,8 @@ const DIFFICULTIES: BotDifficulty[] = ['easy', 'normal', 'hard'];
 
 export class Connection implements ClientHandle {
   readonly id = 'p-' + makeId(10);
+  /** Conta do servidor hospedado (undefined quando o servidor não guarda contas). */
+  accountId?: string;
   name = 'Jogador';
   avatar: AvatarInfo = { color: '#7c5cff', icon: '♠' };
   cosmetics: PlayerCosmetics = { back: BACK_PRESETS[0], character: CHARACTER_PRESETS[0], winFx: DEFAULT_WIN_FX };
@@ -114,6 +134,16 @@ export class Connection implements ClientHandle {
         this.setProfile(msg);
         this.greeted = true;
         this.send({ type: 'welcome', playerId: this.id, serverName: this.lobby.serverName });
+        // servidor com contas: entra (ou cria) a conta e manda saldo e vínculo
+        const accounts = this.lobby.accounts;
+        if (accounts) {
+          const account = accounts.login(msg.account, { name: this.name, avatar: this.avatar, cosmetics: this.cosmetics });
+          // sem conta (servidor cheio), o jogador segue só nas mesas livres
+          if (account) {
+            this.accountId = account.id;
+            this.send({ type: 'account', account });
+          }
+        }
         this.send({ type: 'rooms', rooms: this.lobby.list() });
         break;
       }

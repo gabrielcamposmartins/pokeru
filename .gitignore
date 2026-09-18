@@ -1,6 +1,9 @@
 node_modules
 dist
+dist-server
 src-tauri/target
 src-tauri/gen/schemas
+# dados do servidor hospedado (contas dos jogadores)
+data
 *.log
 .DS_Store

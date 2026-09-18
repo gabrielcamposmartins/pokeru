@@ -76,7 +76,8 @@ export function newDeck(): Card[] {
 
 /** Inteiro uniforme em [0, max) usando crypto quando disponível. */
 export function randomInt(max: number): number {
-  const c = (globalThis as { crypto?: Crypto }).crypto;
+  // tipado à mão: shared/ roda no navegador e no Node, sem depender dos tipos do DOM
+  const c = (globalThis as { crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array } }).crypto;
   if (c?.getRandomValues) {
     const buf = new Uint32Array(1);
     // rejeição para evitar viés de módulo

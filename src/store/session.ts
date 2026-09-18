@@ -3,6 +3,7 @@ import {
   DEFAULT_SETTINGS,
   type BotDifficulty,
   type ClientMsg,
+  type AccountInfo,
   type GameMode,
   type GameVariant,
   type RoomInfo,
@@ -11,6 +12,7 @@ import {
 } from '../../shared/protocol';
 import { connectLocal, connectWs, type Transport } from '../net/transport';
 import { findStyle, myCosmetics, useProfile } from './profile';
+import { useBond } from './bond';
 import { useTable } from './table';
 import { director } from '../game/director';
 import { sfx } from '../audio/sfx';
@@ -47,6 +49,10 @@ interface SessionState {
   mode: 'none' | 'local' | 'online';
   status: 'idle' | 'connecting' | 'connected';
   serverName: string;
+  /** Endereço do servidor conectado (chave das credenciais da conta). */
+  serverUrl: string;
+  /** Conta no servidor hospedado: saldo, vínculo e números (null offline ou sem contas). */
+  account: AccountInfo | null;
   playerId: string | null;
   rooms: RoomSummary[];
   room: RoomInfo | null;
@@ -66,9 +72,11 @@ interface SessionState {
 let transport: Transport | null = null;
 let seq = 1;
 
-function hello(): ClientMsg {
+/** O `hello` leva o perfil e, num servidor com contas, as credenciais guardadas para aquele endereço. */
+function hello(server?: string): ClientMsg {
   const p = useProfile.getState();
-  return { type: 'hello', name: p.name, avatar: p.avatar, cosmetics: myCosmetics() };
+  const account = server ? p.accounts[server] : undefined;
+  return { type: 'hello', name: p.name, avatar: p.avatar, cosmetics: myCosmetics(), account };
 }
 
 function handle(m: ServerMsg): void {
@@ -77,6 +85,15 @@ function handle(m: ServerMsg): void {
     case 'welcome':
       set({ playerId: m.playerId, serverName: m.serverName, status: 'connected' });
       break;
+    case 'account': {
+      // o servidor é o dono do saldo e do vínculo quando se joga online
+      const server = useSession.getState().serverUrl;
+      if (m.account.token && server) useProfile.getState().setAccount(server, { id: m.account.id, token: m.account.token });
+      set({ account: { ...m.account, token: undefined } });
+      useBond.getState().applyServer(m.account.bond);
+      director.serverBond = true;
+      break;
+    }
     case 'rooms':
       set({ rooms: m.rooms });
       break;
@@ -114,6 +131,8 @@ export const useSession = create<SessionState>()((set, get) => ({
   mode: 'none',
   status: 'idle',
   serverName: '',
+  serverUrl: '',
+  account: null,
   playerId: null,
   rooms: [],
   room: null,
@@ -122,10 +141,12 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   connectOnline(url) {
     get().disconnect();
-    set({ mode: 'online', status: 'connecting' });
+    // até o servidor mandar uma conta, o vínculo é do cliente (servidor sem contas continua assim)
+    director.serverBond = false;
+    set({ mode: 'online', status: 'connecting', serverUrl: url, account: null });
     const t = connectWs(url, {
       onMessage: handle,
-      onOpen: () => t.send(hello()),
+      onOpen: () => t.send(hello(url)),
       onClose: (reason) => {
         if (transport !== t) return;
         transport = null;
@@ -139,7 +160,9 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   startLocal(o) {
     get().disconnect();
-    set({ mode: 'local', status: 'connecting', chat: [] });
+    // offline não tem conta: o vínculo volta a ser pontuado e salvo no cliente
+    director.serverBond = false;
+    set({ mode: 'local', status: 'connecting', chat: [], serverUrl: '', account: null });
     const t = connectLocal({ onMessage: handle });
     transport = t;
     t.send(hello());
@@ -188,7 +211,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     transport = null;
     t?.close();
     director.reset();
-    set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [] });
+    set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [], account: null });
   },
 
   toast(text, kind = 'info') {

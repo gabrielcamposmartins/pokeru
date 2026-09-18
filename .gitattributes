@@ -1,0 +1,10 @@
+# Padrão: o git normaliza as quebras de linha no repositório.
+* text=auto
+
+# Estes arquivos rodam dentro de contêineres Linux: precisam de LF mesmo no Windows,
+# senão o shell reclama do "\r" (bad interpreter / command not found).
+*.sh text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+docker/* text eol=lf
+docker-compose.yml text eol=lf

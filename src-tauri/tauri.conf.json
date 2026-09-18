@@ -36,6 +36,16 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "PokerSoul",
+    "copyright": "© PokerSoul",
+    "category": "Game",
+    "shortDescription": "Poker 2D multiplayer (Texas Hold'em e poker de 5 cartas)",
+    "longDescription": "PokerSoul: poker 2D multiplayer no estilo Mahjong Soul, com personagens, vinculo, temas de interface e partidas contra bots ou online num servidor proprio.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }

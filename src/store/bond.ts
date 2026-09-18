@@ -5,6 +5,7 @@ import type { FalaSlot } from '../audio/voice';
 import {
   BOND_POINTS,
   EMPTY_BOND,
+  addBond,
   bondLevel,
   heartsOf,
   rewardAt,
@@ -32,22 +33,14 @@ interface BondState {
   /** Pontos ganhos na partida atual, por personagem (para o placar final). */
   gain: Record<string, number>;
   award(charId: string, ev: BondEvent): void;
+  /** Aplica o vínculo guardado no servidor (jogo online). */
+  applyServer(chars: Record<string, BondStats>): void;
   /** Tira o primeiro aviso da fila (o jogador viu a recompensa). */
   ack(): void;
   /** Zera o ganho da partida (começo de uma partida nova). */
   clearGain(): void;
   reset(): void;
 }
-
-/** Quanto cada momento mexe nos contadores, além dos pontos. */
-const COUNTERS: Record<BondEvent, Partial<BondStats>> = {
-  win: { wins: 1, hands: 1 },
-  bigWin: { wins: 1, hands: 1 },
-  loss: { losses: 1, hands: 1 },
-  fold: { folds: 1, hands: 1 },
-  match: { matches: 1 },
-  matchWin: { matches: 1 },
-};
 
 /** Avisos guardados na fila (o resto é descartado: ninguém completa cinco corações de uma vez). */
 const MAX_PENDING = 5;
@@ -63,8 +56,8 @@ export const useBond = create<BondState>()(
       award: (charId, ev) =>
         set((s) => {
           const cur = s.chars[charId] ?? EMPTY_BOND;
-          const points = cur.points + BOND_POINTS[ev];
-          const next: BondStats = { ...cur, ...sum(cur, COUNTERS[ev]), points };
+          const next = addBond(cur, ev);
+          const points = next.points;
           // corações que fecharam agora entram na fila do anúncio
           const unlocked: BondUnlock[] = [];
           for (let heart = heartsOf(cur.points) + 1; heart <= heartsOf(points); heart++) {
@@ -77,6 +70,28 @@ export const useBond = create<BondState>()(
           };
         }),
       ack: () => set((s) => ({ pending: s.pending.slice(1) })),
+      /**
+       * Vínculo que veio do servidor hospedado (ele é o dono do progresso quando você joga online).
+       * Substitui as fichas dos personagens que chegaram, anuncia os corações que fecharam e soma
+       * o ganho da sessão — o mesmo que `award` faz, mas com as contas já feitas do outro lado.
+       */
+      applyServer: (chars) =>
+        set((s) => {
+          const unlocked: BondUnlock[] = [];
+          const gain = { ...s.gain };
+          for (const [char, next] of Object.entries(chars)) {
+            const cur = s.chars[char];
+            if (cur && next.points > cur.points) gain[char] = (gain[char] ?? 0) + (next.points - cur.points);
+            const from = cur ? heartsOf(cur.points) : 0;
+            // sem ficha anterior é a primeira foto da conta: mostra o progresso sem anunciar nada
+            if (cur) for (let heart = from + 1; heart <= heartsOf(next.points); heart++) unlocked.push({ id: unlockId++, char, heart });
+          }
+          return {
+            chars: { ...s.chars, ...chars },
+            gain,
+            pending: unlocked.length ? [...s.pending, ...unlocked].slice(-MAX_PENDING) : s.pending,
+          };
+        }),
       clearGain: () => set({ gain: {} }),
       reset: () => set({ chars: {}, pending: [], gain: {} }),
     }),
@@ -88,12 +103,6 @@ export const useBond = create<BondState>()(
     },
   ),
 );
-
-function sum(cur: BondStats, delta: Partial<BondStats>): Partial<BondStats> {
-  const out: Partial<BondStats> = {};
-  for (const [k, v] of Object.entries(delta) as [keyof BondStats, number][]) out[k] = cur[k] + v;
-  return out;
-}
 
 // ------------------------------------------------------------------ leitura
 

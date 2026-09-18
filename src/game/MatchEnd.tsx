@@ -218,6 +218,15 @@ export function MatchEndScreen() {
   const room = useSession((s) => s.room);
   const startingStack = room?.settings.startingStack ?? 0;
   const rows = useMemo(() => (view ? buildMatchRows(view, ranking, startingStack) : []), [view, ranking, startingStack]);
-  const info = [room?.settings.name, room ? matchLabel(room.settings) : null, view ? `${view.handNo} mãos` : null].filter(Boolean).join(' · ');
+  const account = useSession((s) => s.account);
+  const info = [
+    room?.settings.name,
+    room ? matchLabel(room.settings) : null,
+    view ? `${view.handNo} mãos` : null,
+    // servidor hospedado: o saldo já com o que entrou (ou saiu) nesta partida
+    account ? `Saldo ${fmt(account.money)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return <AnimatePresence>{match && rows.length > 0 && <MatchEndPanel key={match.id} m={match} rows={rows} info={info} />}</AnimatePresence>;
 }

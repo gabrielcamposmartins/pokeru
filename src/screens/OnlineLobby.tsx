@@ -3,7 +3,8 @@ import { DEFAULT_SETTINGS, type GameMode, type GameVariant, type RoomSummary } f
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { Field, ScreenHeader, Segmented } from '../ui/controls';
-import { MODE_LABEL, MODE_SHORT, VARIANT_LABEL, VARIANT_SHORT } from '../util/format';
+import { ChipSvg } from '../render/Chip';
+import { MODE_LABEL, MODE_SHORT, VARIANT_LABEL, VARIANT_SHORT, fmt } from '../util/format';
 import { Petals } from './MainMenu';
 
 function RoomCard({ r }: { r: RoomSummary }) {
@@ -22,6 +23,7 @@ function RoomCard({ r }: { r: RoomSummary }) {
         </b>
         <span className="muted small">
           #{r.id} · {MODE_SHORT[r.mode] ?? r.mode} · {VARIANT_SHORT[r.variant] ?? r.variant} · Blinds {r.blinds}
+          {r.buyIn > 0 ? ` · Buy-in ${fmt(r.buyIn)}` : ' · livre'}
         </span>
       </div>
       <div className={`room-status st-${r.status}`}>{r.status === 'waiting' ? 'Aguardando' : r.status === 'playing' ? 'Jogando' : 'Encerrada'}</div>
@@ -51,7 +53,7 @@ function RoomCard({ r }: { r: RoomSummary }) {
 export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const serverUrl = useProfile((s) => s.settings.serverUrl);
   const updateSettings = useProfile((s) => s.updateSettings);
-  const { status, serverName, rooms, connectOnline, disconnect, send } = useSession();
+  const { status, serverName, rooms, account, connectOnline, disconnect, send } = useSession();
   const [url, setUrl] = useState(serverUrl);
   const [code, setCode] = useState('');
   const [name, setName] = useState('Mesa de ' + useProfile.getState().name);
@@ -59,6 +61,7 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const [mode, setMode] = useState<GameMode>('cash');
   const [variant, setVariant] = useState<GameVariant>('holdem');
   const [rounds, setRounds] = useState(8);
+  const [buyIn, setBuyIn] = useState(0);
   const [stack, setStack] = useState(2000);
   const [bb, setBb] = useState(20);
   const [turnTime, setTurnTime] = useState(25);
@@ -102,6 +105,16 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
             {status === 'connecting' && 'Conectando…'}
             {connected && `Conectado a ${serverName}`}
           </div>
+          {connected && account && (
+            <div className="wallet">
+              <span className="wallet-money">
+                <ChipSvg value={100} size={20} />
+                {fmt(account.money)}
+              </span>
+              {account.inPlay > 0 && <span className="wallet-inplay">{fmt(account.inPlay)} em mesa</span>}
+              <small className="muted">Saldo guardado no servidor · conta desde {new Date(account.since).toLocaleDateString('pt-BR')}</small>
+            </div>
+          )}
           {!connected && (
             <div className="help-box">
               <b>Como hospedar:</b> em um computador da rede, rode <code>npm run server</code> na pasta do projeto. Os amigos se conectam em
@@ -168,6 +181,17 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
             <Segmented label="Fichas iniciais" value={stack} onChange={setStack} options={[1000, 2000, 5000, 10000].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))} />
             <Segmented label="Blinds" value={bb} onChange={setBb} options={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v / 2}/${v}` }))} />
             <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[15, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
+            {account && (
+              <Segmented
+                label="Buy-in (do seu saldo)"
+                value={buyIn}
+                onChange={setBuyIn}
+                options={[
+                  { value: 0, label: 'Livre' },
+                  ...[500, 1000, 2500, 5000].map((v) => ({ value: v, label: fmt(v) })),
+                ]}
+              />
+            )}
             <Field label="Senha (opcional)">
               <input className="input" type="password" value={password} maxLength={32} onChange={(e) => setPassword(e.target.value)} />
             </Field>
@@ -185,7 +209,9 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                   mode,
                   variant,
                   rounds,
-                  startingStack: stack,
+                  // mesa a dinheiro: as fichas são o próprio buy-in
+                  buyIn,
+                  startingStack: buyIn > 0 ? buyIn : stack,
                   smallBlind: bb / 2,
                   bigBlind: bb,
                   turnTime,

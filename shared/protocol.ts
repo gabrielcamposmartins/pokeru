@@ -1,6 +1,9 @@
 import type { Card } from './cards';
 import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
 import type { AvatarInfo, CharacterStyle, PlayerCosmetics } from './styles';
+import type { AccountCreds, AccountInfo } from './accounts';
+
+export type { AccountCreds, AccountInfo };
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard';
 
@@ -25,6 +28,11 @@ export interface RoomSettings {
   variant: GameVariant;
   /** Modo normal: quantas rodadas (mãos) a partida tem. */
   rounds: number;
+  /**
+   * Fichas que custam para sentar, descontadas do saldo da conta (servidor hospedado).
+   * 0 = mesa livre: as fichas são de brinquedo e ninguém paga nada.
+   */
+  buyIn: number;
   /** Segundos por decisão. */
   turnTime: number;
   /** Sit & Go: blinds dobram a cada N mãos. */
@@ -43,6 +51,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   mode: 'cash',
   variant: 'holdem',
   rounds: 8,
+  buyIn: 0,
   turnTime: 20,
   blindLevelHands: 8,
   pace: 1,
@@ -76,6 +85,8 @@ export interface RoomSummary {
   blinds: string;
   mode: GameMode;
   variant: GameVariant;
+  /** Buy-in da mesa (0 = livre). */
+  buyIn: number;
   hasPassword: boolean;
 }
 
@@ -144,7 +155,7 @@ export type TableEvent =
   | { t: 'gameOver'; ranking: { name: string; place: number; seat: number }[] };
 
 export type ClientMsg =
-  | { type: 'hello'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics }
+  | { type: 'hello'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics; account?: AccountCreds }
   | { type: 'updateProfile'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics }
   | { type: 'listRooms' }
   | { type: 'createRoom'; settings: RoomSettings }
@@ -163,6 +174,8 @@ export type ClientMsg =
 
 export type ServerMsg =
   | { type: 'welcome'; playerId: string; serverName: string }
+  /** Servidor hospedado: a conta do jogador (saldo, vínculo e números). */
+  | { type: 'account'; account: AccountInfo }
   | { type: 'rooms'; rooms: RoomSummary[] }
   | { type: 'room'; room: RoomInfo }
   | { type: 'left' }
