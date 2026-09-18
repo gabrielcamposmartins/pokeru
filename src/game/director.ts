@@ -35,6 +35,25 @@ const CALLOUT: Record<string, [string, CalloutKind]> = {
 };
 
 /**
+ * Quanto cada jogador pagou ao vencedor `seat` numa mão: as fichas que ele colocou nos potes
+ * levados por `seat`. Em pote dividido conta só a fração que esse vencedor levou, e quem também
+ * ganhou o pote não entra (ninguém "paga" a si mesmo nem a um co-vencedor).
+ */
+export function paymentsTo(pots: PotResult[], seat: number): Map<number, number> {
+  const paid = new Map<number, number>();
+  for (const p of pots) {
+    const share = p.winners.filter((w) => w.seat === seat).reduce((t, w) => t + w.amount, 0) / (p.amount || 1);
+    if (!share) continue;
+    const winners = p.winners.map((w) => w.seat);
+    for (const c of p.paid ?? []) {
+      if (winners.includes(c.seat)) continue;
+      paid.set(c.seat, (paid.get(c.seat) ?? 0) + c.amount * share);
+    }
+  }
+  return paid;
+}
+
+/**
  * Diretor de animações: recebe eventos do servidor (cada um com o estado resultante)
  * e os encena em sequência — cartas voando, fichas — antes de aplicar o estado.
  */
@@ -186,6 +205,10 @@ class Director {
     const hole = s.cards.filter(Boolean) as Card[];
     const board = best.filter((c) => !hole.some((h) => sameCard(h, c)));
     const potLines = pots.flatMap((p, i) => mine(p).map((w) => ({ label: i === 0 ? 'Pote principal' : `Pote ${i + 1}`, amount: w.amount })));
+    const payers = [...paymentsTo(pots, seat)]
+      .map(([x, amount]) => ({ name: this.seatName(view, x), character: this.charOf(view, x).character ?? findCharacter(''), amount: Math.round(amount) }))
+      .filter((x) => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
     const others = [...new Set(pots.flatMap((p) => p.winners.map((w) => w.seat)))].filter((x) => x !== seat);
     return {
       id: nextId(),
@@ -197,6 +220,7 @@ class Director {
       best,
       handName: pots.flatMap((p) => mine(p).map((w) => w.hand)).find(Boolean) ?? s.handName ?? '',
       pots: potLines,
+      payers,
       won: potLines.reduce((t, p) => t + p.amount, 0),
       stack: s.stack,
       split: others.map((x) => this.seatName(view, x)),

@@ -4,7 +4,7 @@ import { sameCard, type Card } from '../../shared/cards';
 import { useTable, type RoundResult as Result } from '../store/table';
 import { CardView } from '../render/CardArt';
 import { findWinFx } from '../render/cardfx';
-import { CharacterFull } from '../render/CharacterArt';
+import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { ChipSvg } from '../render/Chip';
 import { useUiTheme } from '../ui/themes';
 import { fmt } from '../util/format';
@@ -93,12 +93,16 @@ export function RoundResultPanel({ r }: { r: Result }) {
         </motion.div>
 
         <div className="rr-bottom">
-          <div className="rr-pots">
-            {r.pots.map((p, i) => (
-              <motion.div key={p.label} className="rr-pot-line" initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.45 + i * 0.1 }}>
-                <span>{p.label}</span>
+          <div className="rr-pays">
+            <span className="rr-kicker">{r.payers.length ? 'Quem pagou' : 'Sem pagamentos'}</span>
+            {r.payers.map((p, i) => (
+              <motion.div key={p.name} className="rr-pay" initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.45 + i * 0.08 }}>
+                <span className="rr-pay-face" style={{ background: `linear-gradient(160deg, ${p.character.bg}, ${p.character.bg2})` }}>
+                  <CharacterPortrait st={p.character} size={40} />
+                </span>
+                <span className="rr-pay-name">{p.name}</span>
                 <b>
-                  <ChipSvg value={100} size={18} />
+                  <ChipSvg value={100} size={16} />
                   {fmt(p.amount)}
                 </b>
               </motion.div>
@@ -112,6 +116,7 @@ export function RoundResultPanel({ r }: { r: Result }) {
               <ChipSvg value={500} size={24} />
               {fmt(r.stack)} fichas
             </div>
+            {r.pots.length > 1 && <div className="rr-pot-note">{r.pots.map((p) => `${p.label} ${fmt(p.amount)}`).join(' · ')}</div>}
           </motion.div>
         </div>
       </div>

@@ -48,6 +48,8 @@ export interface RoundResult {
   handName: string;
   /** Um item por pote ganho (pote principal, secundários…). */
   pots: { label: string; amount: number }[];
+  /** Quem pagou o vencedor nesta mão: as fichas que saíram de cada um para ele. */
+  payers: { name: string; character: CharacterStyle; amount: number }[];
   won: number;
   /** Fichas depois de receber. */
   stack: number;

@@ -3514,3 +3514,55 @@ button.avatar {
 .me-confirm {
   position: static;
 }
+
+/* quem pagou quem, no fim do round */
+.rr-pays {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 330px;
+}
+.rr-pay {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px 4px 6px;
+  border-radius: 26px;
+  background: linear-gradient(90deg, rgba(8, 4, 16, 0.85), rgba(8, 4, 16, 0.35));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.rr-pay-face {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--gold-2);
+}
+.rr-pay-face > * {
+  display: block;
+}
+.rr-pay-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-pay b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 19px;
+  color: var(--gold-2);
+}
+.rr-pot-note {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}

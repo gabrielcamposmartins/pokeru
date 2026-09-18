@@ -8,6 +8,7 @@
  *   /preview.html?cena=match-me6       você em 6º (1º, 2º, 3º e você no 4º lugar da lista)
  *   /preview.html?cena=result-board    mão feita só com o bordo (5 cartas na mesa)
  *   /preview.html?cena=result-long     nome de mão comprido e pote dividido
+ *   /preview.html?cena=result-pays     mesa cheia: cinco jogadores pagaram o vencedor
  *   &ui=victorian                      com o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -71,6 +72,11 @@ const base: RoundResult = {
   best: [...hole, ...board],
   handName: 'Full House, Áses com Noves',
   pots: [{ label: 'Pote principal', amount: 1240 }],
+  payers: [
+    { name: 'Ren', character: CHARACTER_PRESETS[1], amount: 620 },
+    { name: 'Tobi', character: CHARACTER_PRESETS[2], amount: 380 },
+    { name: 'Yukina', character: CHARACTER_PRESETS[3], amount: 240 },
+  ],
   won: 1240,
   stack: 3240,
   split: [],
@@ -79,6 +85,17 @@ const base: RoundResult = {
 
 const SCENES: Record<string, RoundResult> = {
   result: base,
+  'result-pays': {
+    ...base,
+    winFx: 'lightning',
+    payers: ['Ren', 'Tobi', 'Yukina', 'Marina 2', 'Ren 2'].map((name, i) => ({
+      name,
+      character: CHARACTER_PRESETS[(i + 1) % CHARACTER_PRESETS.length],
+      amount: 620 - i * 110,
+    })),
+    won: 2100,
+    stack: 5100,
+  },
   'result-board': { ...base, hole, board: fullBoard, best: fullBoard, handName: 'Royal Straight Flush', winFx: 'holy', character: CHARACTER_PRESETS[3] },
   'result-long': {
     ...base,
@@ -90,6 +107,11 @@ const SCENES: Record<string, RoundResult> = {
     ],
     won: 1640,
     stack: 12480,
+    payers: [
+      { name: 'Tobi', character: CHARACTER_PRESETS[2], amount: 820 },
+      { name: 'Yukina', character: CHARACTER_PRESETS[3], amount: 500 },
+      { name: 'Marina 2', character: CHARACTER_PRESETS[0], amount: 320 },
+    ],
     split: ['Ren', 'Yukina 2'],
     winFx: 'ice',
     character: CHARACTER_PRESETS[1],

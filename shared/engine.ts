@@ -50,6 +50,8 @@ export interface PotWinner {
 export interface PotResult {
   amount: number;
   winners: PotWinner[];
+  /** Quanto cada jogador colocou neste pote (inclui quem desistiu). */
+  paid: { seat: number; amount: number }[];
 }
 
 export type HandEvent =
@@ -403,7 +405,7 @@ export class Hand {
       const amount = this.pot;
       w.stack += amount;
       this.pot = 0;
-      this.results = [{ amount, winners: [{ seat: w.seat, amount }] }];
+      this.results = [{ amount, winners: [{ seat: w.seat, amount }], paid: this.players.filter((p) => p.total > 0).map((p) => ({ seat: p.seat, amount: p.total })) }];
       this.finished = true;
       this.onEvent({ t: 'win', pots: this.results, uncontested: true });
       return;
@@ -444,7 +446,7 @@ export class Hand {
         const v = values.get(w.seat)!;
         return { seat: w.seat, amount: amt, hand: v.name, best: v.best };
       });
-      results.push({ amount: pot.amount, winners: pw });
+      results.push({ amount: pot.amount, winners: pw, paid: pot.contributions });
     }
     this.pot = 0;
     this.results = results;
@@ -459,31 +461,60 @@ export class Hand {
 }
 
 /** Divide o pote em principal + laterais com base no total investido por cada jogador. */
+/**
+ * Divide as fichas em potes (principal e laterais) por faixas de aposta.
+ * Cada pote também traz quanto cada jogador colocou nele (`contributions`),
+ * o que permite mostrar quem pagou quem no fim da mão.
+ */
 export function computePots(players: { seat: number; total: number; folded: boolean }[]): {
   amount: number;
   eligible: number[];
+  contributions: { seat: number; amount: number }[];
 }[] {
   const active = players.filter((p) => !p.folded);
   const levels = [...new Set(active.map((p) => p.total))].filter((l) => l > 0).sort((a, b) => a - b);
-  const pots: { amount: number; eligible: number[] }[] = [];
+  const pots: { amount: number; eligible: number[]; contributions: { seat: number; amount: number }[] }[] = [];
+  const done = new Map<number, number>(players.map((p) => [p.seat, 0]));
   let prev = 0;
-  let accounted = 0;
   for (const level of levels) {
     let amount = 0;
-    for (const p of players) amount += Math.min(p.total, level) - Math.min(p.total, prev);
+    const contributions: { seat: number; amount: number }[] = [];
+    for (const p of players) {
+      const part = Math.min(p.total, level) - Math.min(p.total, prev);
+      if (part > 0) {
+        contributions.push({ seat: p.seat, amount: part });
+        done.set(p.seat, done.get(p.seat)! + part);
+      }
+      amount += part;
+    }
     const eligible = active.filter((p) => p.total >= level).map((p) => p.seat);
-    if (amount > 0) pots.push({ amount, eligible });
-    accounted += amount;
+    if (amount > 0) pots.push({ amount, eligible, contributions });
     prev = level;
   }
-  const all = players.reduce((s, p) => s + p.total, 0);
-  if (all > accounted && pots.length) pots[pots.length - 1].amount += all - accounted;
+  // sobras (fichas de quem desistiu acima do maior nível ativo) entram no último pote
+  if (pots.length) {
+    const last = pots[pots.length - 1];
+    for (const p of players) {
+      const rest = p.total - done.get(p.seat)!;
+      if (rest <= 0) continue;
+      last.amount += rest;
+      const c = last.contributions.find((x) => x.seat === p.seat);
+      if (c) c.amount += rest;
+      else last.contributions.push({ seat: p.seat, amount: rest });
+    }
+  }
   // funde potes com o mesmo conjunto de elegíveis
   const merged: typeof pots = [];
   for (const pot of pots) {
     const last = merged[merged.length - 1];
-    if (last && last.eligible.join(',') === pot.eligible.join(',')) last.amount += pot.amount;
-    else merged.push({ ...pot });
+    if (last && last.eligible.join(',') === pot.eligible.join(',')) {
+      last.amount += pot.amount;
+      for (const c of pot.contributions) {
+        const prevC = last.contributions.find((x) => x.seat === c.seat);
+        if (prevC) prevC.amount += c.amount;
+        else last.contributions.push({ ...c });
+      }
+    } else merged.push({ ...pot, contributions: pot.contributions.map((c) => ({ ...c })) });
   }
   return merged;
 }

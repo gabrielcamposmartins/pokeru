@@ -147,17 +147,25 @@ referência) e o conteúdo se distribui assim:
 - **em cima**, as cartas da mão feita, separadas em **Mão** (as do jogador) e **Mesa**, com o efeito de
   vitória dele nas cartas que entraram na mão (as que sobraram ficam apagadas);
 - **no meio**, o nome da mão em letra grande e, se o pote foi dividido, com quem;
-- **embaixo à direita**, a lista de potes ganhos ao lado do total (`+1.240`) e as fichas dele depois de
-  receber;
+- **embaixo à esquerda**, **quem pagou**: cada jogador que deixou fichas com o vencedor, com retrato,
+  nome e o valor;
+- **embaixo à direita**, o total ganho (`+1.240`), as fichas dele depois de receber e, quando há potes
+  laterais, a quebra por pote;
 - **botão Continuar** no canto, com contagem: a tela sai sozinha em 5s, no clique, ou quando a mão
   seguinte começa.
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
-`/preview.html?cena=result` (também `result-board`, `result-long`, `match`, `match-6`, `match-me6`, e
+`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, e
 `&ui=victorian`, `&rects=1` para medir as caixas). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
 `Director.roundResult`; a faixa diagonal do fundo usa a mesma função `cutinBand` do tema de UI.
+
+**Quem pagou quem** sai exato, inclusive com potes laterais: `computePots` (em `shared/engine.ts`) agora
+devolve também quanto **cada** jogador colocou em cada pote, e isso viaja no evento `win` (`PotResult.paid`).
+No cliente, `paymentsTo(pots, seat)` soma, para cada perdedor, as fichas dele que foram para aquele
+vencedor — em pote dividido conta só a fração que ele levou, e um co-vencedor não aparece como pagador.
+Os dois estão cobertos por testes (`shared/engine.test.ts` e `src/game/payments.test.ts`).
 
 ## Fim da partida (placar)
 

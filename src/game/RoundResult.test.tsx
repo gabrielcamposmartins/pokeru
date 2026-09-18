@@ -27,6 +27,10 @@ const result: RoundResult = {
     { label: 'Pote principal', amount: 1240 },
     { label: 'Pote 2', amount: 320 },
   ],
+  payers: [
+    { name: 'Ren', character: CHARACTER_PRESETS[1], amount: 620 },
+    { name: 'Tobi', character: CHARACTER_PRESETS[2], amount: 380 },
+  ],
   won: 1560,
   stack: 3540,
   split: ['Ren'],
@@ -48,6 +52,12 @@ describe('tela de fim de round', () => {
     expect(html).toContain(CHARACTER_PRESETS[0].full); // ilustração de corpo inteiro
     expect(html).toContain('Pote principal');
     expect(html).toContain('Pote 2');
+    // quem pagou o vencedor nesta mão
+    expect(html).toContain('Quem pagou');
+    expect(html).toContain('Ren');
+    expect(html).toContain('620');
+    expect(html).toContain('Tobi');
+    expect(html).toContain('380');
     expect(html).toContain('+1.560'); // ganho do round
     expect(html).toContain('3.540'); // fichas depois de receber
     expect(html).toContain('Pote dividido com Ren');

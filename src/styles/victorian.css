@@ -1514,6 +1514,27 @@
     letter-spacing: 4px;
   }
 
+  .rr-pay {
+    border-radius: 2px;
+    border: 1px solid rgba(201, 162, 90, 0.4);
+    background: var(--grain), linear-gradient(90deg, rgba(40, 18, 10, 0.9), rgba(18, 8, 4, 0.5));
+  }
+  .rr-pay-face {
+    border-radius: 2px;
+    border-color: var(--gold-2);
+  }
+  .rr-pay-name {
+    font-size: 18px;
+  }
+  .rr-pay b {
+    font-family: var(--num);
+    font-size-adjust: none;
+  }
+  .rr-pot-note {
+    font-style: italic;
+    font-size: 16px;
+  }
+
   /* fim da partida: placas de couro e latão */
   .me-row {
     border: 1px solid rgba(201, 162, 90, 0.75);
