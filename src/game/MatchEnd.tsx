@@ -6,6 +6,7 @@ import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { useTable, type MatchEnd, type Ranking } from '../store/table';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
+import { BondGain } from './BondBar';
 import { ChipSvg } from '../render/Chip';
 import { useUiTheme } from '../ui/themes';
 import { fmt } from '../util/format';
@@ -173,6 +174,7 @@ export function MatchEndPanel({ m, rows, info }: { m: MatchEnd; rows: MatchRow[]
         {shown.map((r, i) => (
           <Row key={`${r.place}-${r.name}`} r={r} i={i} />
         ))}
+        {me && <BondGain char={me.character} />}
         {info && <div className="me-foot">{info}</div>}
         {pages.length > 1 && (
           <div className="me-pager">

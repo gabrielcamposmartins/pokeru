@@ -5,6 +5,7 @@ import { useCharacter, useEquipped, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
+import { BondBar } from '../game/BondBar';
 import { Segmented } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { useUiTheme } from '../ui/themes';
@@ -74,6 +75,7 @@ export function CharacterStageView({ heightVh = 92, className }: { heightVh?: nu
       <div className="char-nameplate">
         <small>{st.title || 'Jogador(a)'}</small>
         <b>{st.name}</b>
+        <BondBar char={st} size={16} compact />
       </div>
     </div>
   );

@@ -93,16 +93,20 @@ cada personagem as fala com a própria voz.
 
 **No jogo** (`src/audio/voice.ts`, disparado pelo diretor), uma voz de cada vez:
 
-As falas são sempre as **comuns**; as **próprias** do personagem só tocam no all-in e na vitória.
+As falas são sempre as **comuns**; as **próprias** do personagem tocam no all-in e na vitória — e nos
+momentos que o [vínculo](#vínculo-com-os-personagens) liberar.
 
 | Momento | Fala |
 |---|---|
 | check / bet / call / raise / fold | chamada comum: チェック, ベット, コール, レイズ (リレイズ num aumento sobre aumento), フォールド |
 | all-in | fala própria `allin` (se ainda não tiver áudio, a comum オールイン) |
-| showdown | quem abre as cartas primeiro diz a comum オープン |
+| showdown | quem abre as cartas primeiro diz a comum オープン — com o 1º coração de vínculo, a sua fala própria `showdown` |
 | vitória | o vencedor anuncia a mão (ワンペア … ロイヤルストレートフラッシュ) e diz a própria `win` ou `big_win` |
+| derrota na mão disputada | nada — com o 3º coração, a fala própria `lose` |
+| sua vez | nada — com o 4º coração, a fala própria `turn` |
 
-As outras falas próprias dos `.jsonc` (`join`, `turn`, `showdown`, `lose`, `bust`, `rebuy`, `blinds_up`,
+As falas liberadas pelo vínculo valem só para o **seu** personagem (os outros jogadores têm o vínculo
+deles, na máquina deles). As demais falas próprias dos `.jsonc` (`join`, `bust`, `rebuy`, `blinds_up`,
 `idle` e as das jogadas) ficam guardadas, mas não tocam no jogo. Enquanto a fala do all-in toca, os outros
 jogadores ficam quietos (as vozes deles que chegarem nesse meio-tempo são descartadas); chamadas comuns não
 calam ninguém, e os anúncios (showdown, vitória) apenas esperam a fala terminar. Áudios que ainda não
@@ -187,8 +191,9 @@ referência) e o conteúdo se distribui assim:
   seguinte começa.
 
 Para mexer no layout sem jogar uma mão, o servidor de desenvolvimento serve uma página de apoio:
-`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, `voo`, e
-`&ui=victorian`, `&rects=1` para medir as caixas). Ela não entra no build do app.
+`/preview.html?cena=result` (também `result-board`, `result-long`, `result-pays`, `match`, `match-6`, `match-me6`, `solids`, `mesa`, `voo`,
+`bond`, `personagens`, e `&ui=victorian`, `&rects=1` para medir as caixas — `&rects=<seletores>` mede
+outras). Ela não entra no build do app.
 
 Os dados vêm do evento `win` (potes, vencedores, `best` de cada mão) e são montados em
 `Director.roundResult`; a faixa diagonal do fundo usa a mesma função `cutinBand` do tema de UI.
@@ -229,6 +234,63 @@ partir do 3º.
   (`director.freeze()`: o que ainda chegar e ignorado) e, no modo offline, a sala local e fechada na
   hora — bots e temporizadores param. O placar aparece sobre a mesa parada e a saida em si acontece no
   **Confirmar**.
+
+## Vínculo com os personagens
+
+Jogar com um personagem aproxima você dele. Cada mão rende **pontos de vínculo** e a barra tem **cinco
+corações**; a cada coração completo o personagem entrega uma **recompensa** dele.
+
+| Momento | Pontos |
+|---|---|
+| mão ganha | 10 (18 quando a mão feita é sequência ou melhor) |
+| mão disputada e perdida | 4 |
+| mão em que você desistiu | 1 |
+| partida terminada | 20 (40 se você ficou em 1º) |
+
+Ganhar rende mais, mas **perder também conta**: quem senta e joga junto acumula. Os corações custam
+`60 · 140 · 260 · 440 · 700` pontos (`HEART_COST`), o que dá cerca de uma dúzia de partidas para o
+vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela; o progresso é por personagem e
+fica salvo na máquina (`pokersoul-bond`), como o perfil.
+
+Para conferir sem jogar: `/preview.html?cena=bond` (barra, recompensas e o anúncio) e
+`/preview.html?cena=personagens` (a tela de Personagens inteira).
+
+**Onde aparece:** a barra completa, os números da convivência e a escada de recompensas ficam em
+**Personagens** (a galeria mostra os corações de cada retrato); o menu principal traz a barra curta na
+placa do personagem; o placar final mostra quanto a partida rendeu; e o coração que fecha aparece na
+hora, num cartão no alto da tela que sai sozinho — sem travar a mesa.
+
+**As recompensas de cada coração** (escada padrão, igual para todos os personagens):
+
+| Coração | Recompensa |
+|---|---|
+| 1º | **Voz de mão completa**: no showdown, o personagem abre as cartas com a fala dele em vez da chamada comum |
+| 2º | **Emote exclusivo** (em breve) |
+| 3º | **Voz de derrota** |
+| 4º | **Voz na sua vez** |
+| 5º | **Skin alternativa** (em breve) |
+
+### Acrescentar uma recompensa
+
+O catálogo está em `src/game/bond.ts`: `DEFAULT_LADDER` é a escada usada por todos e `BOND_LADDERS` guarda
+escadas próprias por personagem (id → degraus). Um degrau diz o coração, o tipo, o nome/descrição (texto ou
+função que recebe o personagem) e **o que libera**:
+
+```ts
+{ heart: 3, kind: 'voice', icon: '♪', voice: 'lose', name: 'Voz de derrota', description: (c) => `…` }
+```
+
+- `voice: 'lose'` — uma fala própria do personagem (momento em `FALA_SLOTS`, `src/audio/voice.ts`). Lembre
+  de incluir o momento em `FALAS_USADAS` (e no `PROPRIAS_USADAS` de `scripts/audios-faltando.mjs`) para o
+  áudio dela ser cobrado.
+- `emotes: ['🔥']` — emotes novos; precisam estar em `EMOTES` (`shared/protocol.ts`), e o menu de emotes
+  esconde os emotes de vínculo até o coração fechar.
+- `skin: { kind, id }` — um estilo (preset de `shared/styles.ts`).
+- `soon: true` — recompensa ainda não implementada: fecha o coração, aparece como "em breve" e não libera nada.
+
+Quem consome são o diretor (vozes, via `voiceUnlocked`), o menu de emotes e a lista de estilos — todos só
+perguntam se a recompensa está liberada. O progresso salvo está em `src/store/bond.ts` e a interface em
+`src/game/BondBar.tsx`.
 
 ## Efeitos das cartas vencedoras
 

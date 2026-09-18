@@ -1600,6 +1600,105 @@
     font-size: 16px;
     list-style: '❧  ';
   }
+  /* ---------------------------------------------------------------- vínculo com os personagens */
+
+  .bond-heart-bg {
+    fill: rgba(20, 10, 7, 0.55);
+  }
+  .bond-heart-fill {
+    /* o bordô puro desaparece no fundo escuro: o coração pela metade precisa de brilho */
+    fill: #a8283a;
+  }
+  .bond-heart.bond-full .bond-heart-fill {
+    fill: #a8283a;
+    filter: drop-shadow(0 0 4px rgba(194, 74, 90, 0.6));
+  }
+  .bond-heart-line {
+    stroke: #d4ad62;
+    stroke-width: 1.5;
+  }
+  .bond-track,
+  .bond-fill {
+    border-radius: 2px;
+  }
+  .bond-fill {
+    background: linear-gradient(90deg, var(--oxblood-2), var(--oxblood) 55%, #d4ad62);
+    box-shadow: 0 0 8px rgba(194, 74, 90, 0.5);
+  }
+  .bond-count {
+    font-size: 14px;
+    letter-spacing: 0.4px;
+  }
+  /* sobre a placa de latão do menu, o texto claro não lê e o coração vazio vira um borrão escuro */
+  .char-nameplate .bond-count {
+    color: #6b4318;
+  }
+  .char-nameplate .bond-heart-bg {
+    fill: rgba(80, 45, 12, 0.18);
+  }
+  .char-nameplate .bond-heart-line {
+    stroke: #7a5320;
+  }
+  .bond-total {
+    font-family: var(--num);
+    font-variant-numeric: lining-nums;
+  }
+  .bond-stats span,
+  .bond-reward,
+  .bond-gain {
+    border-radius: 3px;
+    background-image: var(--grain);
+    background-blend-mode: overlay;
+  }
+  .bond-stats b {
+    font-family: var(--num);
+    font-variant-numeric: lining-nums;
+  }
+  .bond-stats small,
+  .bond-reward-info small {
+    font-size: 13px;
+  }
+  .bond-reward.on {
+    background: linear-gradient(120deg, rgba(122, 26, 38, 0.35), rgba(20, 10, 7, 0.4));
+  }
+  .bond-reward-info b {
+    font-family: var(--title);
+    font-size: 13px;
+    letter-spacing: 0.8px;
+    font-size-adjust: none;
+  }
+  .bond-unlock {
+    border-radius: 4px;
+    background: var(--leather);
+    background-image: var(--grain), var(--leather);
+    border: 2px solid var(--gold);
+    box-shadow:
+      0 14px 40px rgba(0, 0, 0, 0.7),
+      inset 0 0 0 1px rgba(239, 220, 174, 0.25);
+  }
+  .bond-unlock-face,
+  .bond-unlock-face img {
+    border-radius: 2px;
+  }
+  .bond-unlock-text b {
+    font-family: var(--display);
+    font-size: 19px;
+    letter-spacing: 1px;
+    font-size-adjust: none;
+  }
+  .bond-unlock-text small {
+    font-family: var(--title);
+    letter-spacing: 1.2px;
+    font-size-adjust: none;
+  }
+  .bond-unlock-desc {
+    font-size: 15px;
+    font-style: italic;
+  }
+  .badge.soon {
+    background: rgba(61, 107, 82, 0.45);
+    color: var(--ivory);
+  }
 }
 
 /* animações do tema (@keyframes não podem ficar aninhadas) */

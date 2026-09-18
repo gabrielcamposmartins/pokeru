@@ -11,6 +11,7 @@ import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
 import { CharactersScreen } from './screens/Characters';
 import { Toasts } from './game/Overlays';
+import { BondUnlockScreen } from './game/BondBar';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
 
@@ -68,6 +69,7 @@ export function App() {
       >
         {content}
       </ErrorBoundary>
+      <BondUnlockScreen />
       <Toasts />
     </>
   );

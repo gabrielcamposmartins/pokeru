@@ -12,6 +12,8 @@
  *   /preview.html?cena=solids          cartas e fichas de perto (volume)
  *   /preview.html?cena=mesa            a mesa parada (cartas deitadas no plano e fichas em pe)
  *   /preview.html?cena=voo&motion=1    voo das fichas (arco, giro e quicada)
+ *   /preview.html?cena=bond            vínculo: barra de corações, recompensas e o anúncio
+ *   /preview.html?cena=personagens     a tela de personagens inteira (ocupa a janela, sem palco)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -45,7 +47,12 @@ import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
 import { TableFelt } from '../render/TableFelt';
 import { FlyersLayer } from '../game/Flyers';
+import { BondBarView, BondPanelView, BondUnlockCard } from '../game/BondBar';
+import { HEART_COST, bondLevel } from '../game/bond';
+import { EMPTY_BOND, useBond } from '../store/bond';
+import { Section } from '../ui/controls';
 import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
+import { CharactersScreen } from '../screens/Characters';
 import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
 
@@ -214,6 +221,29 @@ function Mesa() {
   );
 }
 
+/** Vínculo com o personagem: a barra em dois tamanhos, a escada de recompensas e o anúncio. */
+function Vinculo() {
+  const char = CHARACTER_PRESETS[0];
+  const st = { ...EMPTY_BOND, points: HEART_COST[0] + HEART_COST[1] * 0.45, wins: 23, losses: 31, folds: 62, hands: 116, matches: 7 };
+  return (
+    <div className="preview-bond">
+      <div className="panel pad" style={{ width: 560 }}>
+        <Section title="Vínculo">
+          <BondPanelView char={char} st={st} />
+        </Section>
+      </div>
+      <div className="col gap" style={{ gap: 26 }}>
+        <div className="char-nameplate" style={{ position: 'relative', left: 0, bottom: 0 }}>
+          <small>{char.title}</small>
+          <b>{char.name}</b>
+          <BondBarView lv={bondLevel(st.points)} size={16} compact />
+        </div>
+        <BondUnlockCard u={{ id: 1, char: char.id, heart: 2 }} onDone={() => {}} />
+      </div>
+    </div>
+  );
+}
+
 /** Cartas e fichas de perto, para conferir o volume. */
 function Solids() {
   return (
@@ -237,12 +267,21 @@ function Solids() {
 }
 
 const cena = q.get('cena') ?? 'result';
+// a tela de personagens lê o vínculo salvo: semeia um progresso para os corações aparecerem
+if (cena === 'personagens') {
+  for (const [char, wins] of [['marina', 9], ['ren', 3], ['tobi', 24]] as const) {
+    for (let i = 0; i < wins; i++) useBond.getState().award(char, 'win');
+  }
+}
 const matchRows = MATCHES[cena];
 const scene = SCENES[cena] ?? base;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
+      {cena === 'personagens' ? (
+        <CharactersScreen onBack={() => {}} />
+      ) : (
       <div className="game-screen">
         <div className="stage-wrap">
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, background: 'radial-gradient(ellipse at 50% 40%, #3a1418 0%, #0e0506 75%)' }}>
@@ -250,6 +289,8 @@ createRoot(document.getElementById('root')!).render(
               <Voo />
             ) : cena === 'mesa' ? (
               <Mesa />
+            ) : cena === 'bond' ? (
+              <Vinculo />
             ) : cena === 'solids' ? (
               <Solids />
             ) : matchRows ? (
@@ -260,19 +301,24 @@ createRoot(document.getElementById('root')!).render(
           </div>
         </div>
       </div>
+      )}
     </MotionConfig>
   </StrictMode>,
 );
 
 // medição das caixas (para depurar o layout): /preview.html?cena=…&rects=1
+// &rects=<seletores separados por vírgula> mede outras caixas (todas as que casarem)
 if (q.has('rects')) {
   setTimeout(() => {
-    const pick = ['.stage', '.round-result', '.rr-info', '.rr-cards', '.rr-hand', '.rr-bottom', '.rr-char', '.rr-total', '.flyer', '.flyer + .flyer', '.flyer + .flyer + .flyer'];
-    const out = pick.map((sel) => {
-      const el = document.querySelector(sel);
-      if (!el) return `${sel}: —`;
-      const r = el.getBoundingClientRect();
-      return `${sel}: x=${Math.round(r.x)} y=${Math.round(r.y)} w=${Math.round(r.width)} h=${Math.round(r.height)}`;
+    const asked = (q.get('rects') ?? '').split(',').filter((s) => s && s !== '1');
+    const pick = asked.length ? asked : ['.stage', '.round-result', '.rr-info', '.rr-cards', '.rr-hand', '.rr-bottom', '.rr-char', '.rr-total', '.flyer', '.flyer + .flyer', '.flyer + .flyer + .flyer'];
+    const out = pick.flatMap((sel) => {
+      const els = [...document.querySelectorAll(sel)];
+      if (!els.length) return [`${sel}: —`];
+      return els.map((el, i) => {
+        const r = el.getBoundingClientRect();
+        return `${sel}${els.length > 1 ? `[${i}]` : ''}: x=${Math.round(r.x)} y=${Math.round(r.y)} w=${Math.round(r.width)} h=${Math.round(r.height)}`;
+      });
     });
     const pre = document.createElement('pre');
     pre.id = 'rects';

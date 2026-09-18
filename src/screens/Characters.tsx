@@ -4,9 +4,22 @@ import { CHARACTER_PRESETS } from '../../shared/styles';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
-import { ScreenHeader } from '../ui/controls';
+import { BondBar, BondHearts, BondPanel } from '../game/BondBar';
+import { useBondLevel } from '../store/bond';
+import { ScreenHeader, Section } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { Petals } from './MainMenu';
+
+/** Corações do vínculo no cantinho de cada retrato da galeria. */
+function CardHearts({ id }: { id: string }) {
+  const lv = useBondLevel(id);
+  if (!lv.hearts && lv.progress <= 0) return null;
+  return (
+    <span className="char-card-bond">
+      <BondHearts hearts={lv.hearts} progress={lv.progress} size={13} />
+    </span>
+  );
+}
 
 /** Galeria de personagens (estilo tela de personagens do Mahjong Soul). */
 export function CharactersScreen({ onBack }: { onBack: () => void }) {
@@ -59,6 +72,7 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
                   {current.name}
                 </h2>
                 <div className="muted">{current.title}</div>
+                <BondBar char={current} size={18} compact />
                 {chosen && (
                   <div className="badges" style={{ marginTop: 6 }}>
                     <span className="badge eq">Em uso</span>
@@ -80,6 +94,11 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
               </button>
             </div>
           </div>
+          <div className="chars-bond">
+            <Section title="Vínculo">
+              <BondPanel char={current} />
+            </Section>
+          </div>
           <div className="char-grid">
             {CHARACTER_PRESETS.map((c) => (
               <button
@@ -93,6 +112,7 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
               >
                 <CharacterPortrait st={c} size={120} />
                 <span className="char-card-name">{c.name}</span>
+                <CardHearts id={c.id} />
                 {profile.character === c.id && <span className="char-card-eq">✓</span>}
               </button>
             ))}

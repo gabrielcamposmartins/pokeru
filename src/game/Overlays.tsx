@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { EMOTES } from '../../shared/protocol';
 import { useSession } from '../store/session';
+import { useCharacter } from '../store/profile';
+import { useBond } from '../store/bond';
+import { allBondEmotes, emotesUnlockedAt } from './bond';
 import { useTable, type Splash } from '../store/table';
 import { CharacterFull } from '../render/CharacterArt';
 import { sfx } from '../audio/sfx';
@@ -136,12 +139,18 @@ export function ChatPanel({ open, onClose }: { open: boolean; onClose: () => voi
 export function EmoteMenu() {
   const [open, setOpen] = useState(false);
   const send = useSession((s) => s.send);
+  const character = useCharacter();
+  const points = useBond((s) => s.chars[character.id]?.points ?? 0);
+  // emotes que são recompensa de vínculo só aparecem depois do coração que os libera
+  const locked = new Set(allBondEmotes());
+  const mine = new Set(emotesUnlockedAt(character, points));
+  const emotes = EMOTES.filter((e) => !locked.has(e) || mine.has(e));
   return (
     <div className="emote-menu">
       <AnimatePresence>
         {open && (
           <motion.div className="emote-grid panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
-            {EMOTES.map((e) => (
+            {emotes.map((e) => (
               <button
                 key={e}
                 onClick={() => {

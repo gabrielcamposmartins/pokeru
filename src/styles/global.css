@@ -3624,3 +3624,326 @@ button.avatar {
   justify-content: center;
   gap: 70px;
 }
+
+/* ------------------------------------------------------------------ vínculo com os personagens */
+
+.bond-hearts {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.bond-heart {
+  overflow: visible;
+}
+.bond-heart-bg {
+  fill: rgba(0, 0, 0, 0.42);
+}
+.bond-heart-fill {
+  fill: var(--pink);
+}
+.bond-heart.bond-full .bond-heart-fill {
+  fill: var(--pink);
+  filter: drop-shadow(0 0 4px rgba(255, 107, 154, 0.7));
+}
+.bond-heart-line {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.4;
+}
+.bond-heart.bond-full .bond-heart-line {
+  stroke: var(--gold-2);
+}
+
+.bond-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 6px;
+  min-width: 0;
+}
+.bond-bar.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.bond-track {
+  height: 7px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.bond-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--pink-2), var(--pink) 60%, var(--gold-2));
+  box-shadow: 0 0 10px rgba(255, 107, 154, 0.55);
+}
+.bond-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+
+.bond-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bond-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.bond-head .bond-bar {
+  flex: 1;
+  margin-top: 0;
+}
+.bond-total {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--gold-2);
+  line-height: 1;
+}
+.bond-total small {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 3px;
+}
+.bond-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.bond-stats span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 2px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line-soft);
+}
+.bond-stats b {
+  font-size: 17px;
+  color: var(--text);
+}
+.bond-stats small {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.bond-rewards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bond-reward {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--line-soft);
+  opacity: 0.75;
+}
+.bond-reward.on {
+  opacity: 1;
+  background: linear-gradient(120deg, rgba(255, 107, 154, 0.2), rgba(0, 0, 0, 0.3));
+  border-color: var(--line);
+}
+.bond-reward.next {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.bond-reward-heart {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+}
+.bond-reward-heart i {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 900;
+  font-style: normal;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.bond-reward-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bond-reward-info b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--gold-2);
+}
+.bond-reward.soon .bond-reward-info b {
+  color: var(--text);
+}
+.bond-reward-ico {
+  font-size: 14px;
+}
+.bond-reward-info small {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.badge.soon {
+  background: rgba(124, 92, 255, 0.4);
+  color: #e4dcff;
+}
+
+/* tela de personagens: o vínculo entre a ficha do personagem e a galeria */
+.chars-bond {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.chars-side .char-grid {
+  flex: none;
+  max-height: 168px;
+}
+.char-card-bond {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 24px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+/* sobre a arte do retrato, os corações precisam de um fundo para não sumir */
+.char-card-bond .bond-hearts {
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: rgba(10, 6, 24, 0.6);
+}
+
+/* placar final: quanto de vínculo a partida rendeu */
+.bond-gain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: linear-gradient(100deg, rgba(255, 107, 154, 0.25), rgba(0, 0, 0, 0.38));
+  border: 1px solid var(--line);
+}
+.bond-gain-face {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid var(--gold-2);
+  flex: none;
+}
+.bond-gain-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.bond-gain-text b {
+  font-size: 13px;
+  color: var(--gold-2);
+}
+
+/* anúncio do coração completo */
+.bond-unlock {
+  /* fica por cima de qualquer tela (o anúncio vem do App), logo abaixo dos avisos */
+  position: fixed;
+  top: 74px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 280;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px 12px 14px;
+  min-width: 420px;
+  max-width: 560px;
+  border-radius: 18px;
+  cursor: pointer;
+  background: linear-gradient(120deg, rgba(48, 36, 96, 0.96), rgba(22, 16, 48, 0.96));
+  border: 2px solid var(--gold);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.6),
+    0 0 28px rgba(255, 107, 154, 0.35);
+}
+.bond-unlock-face {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  overflow: visible;
+  border: 2px solid var(--gold-2);
+  flex: none;
+}
+.bond-unlock-face img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.bond-unlock-burst {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  font-size: 26px;
+  font-style: normal;
+  color: var(--pink);
+  text-shadow: 0 0 10px rgba(255, 107, 154, 0.9);
+}
+.bond-unlock-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.bond-unlock-text small {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.bond-unlock-text b {
+  font-size: 18px;
+  color: var(--gold-2);
+}
+.bond-unlock-desc {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* vínculo de perto (página de apoio) */
+.preview-bond {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 40px;
+}
+.preview-bond .bond-unlock {
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+}

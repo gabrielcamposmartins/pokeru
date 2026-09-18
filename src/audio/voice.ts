@@ -207,8 +207,12 @@ export function stopVoices(): void {
 
 // ------------------------------------------------------------------ jogadas
 
-/** Falas próprias que o jogo usa: só no all-in e na vitória (o resto é sempre fala comum). */
-export const FALAS_USADAS: FalaSlot[] = ['allin', 'win', 'big_win'];
+/**
+ * Falas próprias que o jogo usa: no all-in e na vitória, sempre; no showdown, na derrota e na sua
+ * vez, quando o vínculo com o personagem libera (as recompensas estão em src/game/bond.ts).
+ * Nos outros momentos é sempre a fala comum.
+ */
+export const FALAS_USADAS: FalaSlot[] = ['allin', 'win', 'big_win', 'showdown', 'lose', 'turn'];
 
 /**
  * Fala da jogada de `player`: a chamada comum (チェック, ベット, コール, レイズ/リレイズ, フォールド).

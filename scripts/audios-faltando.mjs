@@ -8,8 +8,9 @@
  * Falas comuns ainda soltas na raiz (<NNN>_<Personagem>_<fala>.wav, como a ferramenta de voz gera)
  * contam como geradas, com o aviso para rodar `npm run audios:organizar`.
  *
- * Das falas próprias, só as que o jogo usa (all-in e vitória, veja FALAS_USADAS em src/audio/voice.ts)
- * são cobradas; as outras continuam nos .jsonc, e os áudios delas que já existem não contam como sobra.
+ * Das falas próprias, só as que o jogo usa são cobradas (all-in e vitória, mais as que o vínculo com
+ * o personagem libera — showdown, derrota e a sua vez; veja FALAS_USADAS em src/audio/voice.ts); as
+ * outras continuam nos .jsonc, e os áudios delas que já existem não contam como sobra.
  *
  * Um áudio conta como gerado se existe o .wav com o mesmo texto na pasta certa, é um WAV válido e
  * não está mudo. Arquivos que não batem com nenhuma fala (ex.: texto alterado depois de gerar) são
@@ -23,7 +24,7 @@ import { COMUM_DIR, FALAS_DIR, checkWav, fileText, listWavs, loadFalas, pad, par
 
 const OUT = join(FALAS_DIR, 'audios-faltando.json');
 /** Falas próprias tocadas no jogo — mesmo que FALAS_USADAS em src/audio/voice.ts. */
-const PROPRIAS_USADAS = new Set(['allin', 'win', 'big_win']);
+const PROPRIAS_USADAS = new Set(['allin', 'win', 'big_win', 'showdown', 'lose', 'turn']);
 const { personagens, comum } = loadFalas();
 
 /** Slot de uma fala, pelo comentário ("allin: Tudo ou nada!" → "allin"). */

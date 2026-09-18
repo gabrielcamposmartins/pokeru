@@ -5,8 +5,10 @@ import { evaluateHand, HandCategory } from '../../shared/evaluator';
 import type { PotResult } from '../../shared/engine';
 import { setTimeScale, wait } from '../anim/tween';
 import { sfx } from '../audio/sfx';
-import { handSlot, resetVoices, sayAction, sayCommon, sayWith, voiceUrl, type ComumSlot } from '../audio/voice';
+import { handSlot, resetVoices, sayAction, sayCommon, sayLine, sayWith, voiceUrl, type ComumSlot } from '../audio/voice';
 import { findStyle, useProfile } from '../store/profile';
+import { useBond, voiceUnlocked } from '../store/bond';
+import type { BondEvent } from './bond';
 import { findWinFx } from '../render/cardfx';
 import { nextId, useTable, type CalloutKind, type Flyer, type RoundResult, type Splash } from '../store/table';
 import { ACTION_LABEL, fmt } from '../util/format';
@@ -73,6 +75,10 @@ class Director {
   private skipping = false;
   /** A mesa acabou para este jogador (ele saiu): ignora o que ainda chegar. */
   private frozen = false;
+  /** Mãos que renderam vínculo nesta partida (para o bônus de fim de partida). */
+  private bondHands = 0;
+  /** O bônus de fim de partida já foi dado (não conta duas vezes ao sair depois do placar). */
+  private bondClosed = false;
 
   reset(): void {
     this.epoch++;
@@ -83,7 +89,10 @@ class Director {
     this.lastBet = 0;
     this.skipping = false;
     this.frozen = false;
+    this.bondHands = 0;
+    this.bondClosed = false;
     resetVoices();
+    useBond.getState().clearGain();
     useTable.getState().reset();
   }
 
@@ -97,6 +106,8 @@ class Director {
    * (sem animações, sons ou mudanças no placar já mostrado).
    */
   freeze(): void {
+    // sair da mesa fecha a partida: as mãos jogadas rendem o bônus de partida completa
+    this.closeBond(false);
     this.frozen = true;
     this.epoch++;
     this.queue = [];
@@ -149,12 +160,70 @@ class Director {
     return seat === view.mySeat ? findCharacter(useProfile.getState().character).id : view.seats[seat]!.cosmetics.character.id;
   }
 
+  // ---------------------------------------------------------------- vínculo com o personagem
+
+  /** Meu personagem (o vínculo é só com ele: os outros jogadores têm o vínculo deles, na máquina deles). */
+  private myChar(): string {
+    return findCharacter(useProfile.getState().character).id;
+  }
+
+  private awardBond(ev: BondEvent): void {
+    useBond.getState().award(this.myChar(), ev);
+  }
+
+  /**
+   * Vínculo: cada mão jogada com o personagem rende pontos (ganhar vale mais, perder também conta)
+   * e o fim da partida dá o bônus. Roda uma vez por evento, com a mesa visível ou não.
+   */
+  private bond(item: Item): void {
+    const { ev, view } = item;
+    const me = view.mySeat;
+    if (me === null || !view.seats[me]) return;
+    if (ev.t === 'win') {
+      const s = view.seats[me]!;
+      const iWon = ev.pots.some((p) => p.winners.some((w) => w.seat === me));
+      if (iWon) {
+        const cards = s.cards.filter(Boolean) as Card[];
+        const big = !ev.uncontested && cards.length >= 2 && BIG_HANDS.has(evaluateHand([...cards, ...view.board]).category);
+        this.awardBond(big ? 'bigWin' : 'win');
+      } else if (s.folded) this.awardBond('fold');
+      else if (s.inHand) this.awardBond('loss');
+      else return; // não estava na mão (sentou agora, eliminado…)
+      this.bondHands++;
+      return;
+    }
+    if (ev.t === 'gameOver') this.closeBond(ev.ranking.find((r) => r.seat === me)?.place === 1);
+  }
+
+  /** Fecha o vínculo da partida: bônus de partida completa (ou de partida vencida). */
+  private closeBond(won: boolean): void {
+    if (this.bondClosed || this.bondHands === 0) return;
+    this.bondClosed = true;
+    this.awardBond(won ? 'matchWin' : 'match');
+  }
+
+  /** Voz da abertura das cartas: com o vínculo feito, o personagem usa a fala própria dele. */
+  private showVoice(view: TableView, seat: number): void {
+    const char = this.charId(view, seat);
+    if (!char) return;
+    if (seat === view.mySeat && voiceUnlocked(char, 'showdown')) sayLine(char, 'showdown', { important: true });
+    else sayCommon(char, 'show', { important: true });
+  }
+
+  /** Fala própria liberada pelo vínculo (só vale para o meu assento). */
+  private bondVoice(view: TableView, seat: number, slot: 'turn' | 'lose'): void {
+    if (this.skipping || seat !== view.mySeat) return;
+    const char = this.charId(view, seat);
+    if (char && voiceUnlocked(char, slot)) sayLine(char, slot, { speaker: `${seat}:${char}`, important: slot === 'lose' });
+  }
+
   private async run(): Promise<void> {
     this.running = true;
     const epoch = this.epoch;
     while (this.queue.length && epoch === this.epoch) {
       const item = this.queue.shift()!;
       this.updateSpeed();
+      this.bond(item);
       try {
         if (this.mounted && useTable.getState().display && !document.hidden) await this.play(item, epoch);
         else this.sideEffects(item);
@@ -393,8 +462,8 @@ class Director {
       }
 
       case 'showdown': {
-        // quem abre as cartas primeiro diz a chamada comum (オープン！)
-        if (ev.reveals[0] && !this.skipping) sayCommon(this.charId(next, ev.reveals[0].seat), 'show', { important: true });
+        // quem abre as cartas primeiro diz a chamada comum (オープン！) — ou a fala própria, com o vínculo feito
+        if (ev.reveals[0] && !this.skipping) this.showVoice(next, ev.reveals[0].seat);
         for (const r of ev.reveals) {
           if (!alive()) return;
           store.addLog(`${this.seatName(next, r.seat)} mostra ${r.cards.map(cardText).join(' ')} — ${r.hand}`);
@@ -441,6 +510,8 @@ class Director {
           const iLost = !iWon && me !== null && !!next.seats[me]?.inHand && !ev.uncontested;
           if (iWon) sfx.win();
           else if (iLost) sfx.lose();
+          // voz de derrota: liberada pelo vínculo com o personagem
+          if (iLost) this.bondVoice(next, me!, 'lose');
           // som do efeito das cartas vencedoras (só quando há cartas marcadas)
           if (next.highlight.length) {
             const fxSeat = winnerSeats.includes(me ?? -1) ? me! : main.seat;
@@ -478,7 +549,10 @@ class Director {
       }
 
       case 'turn':
-        if (ev.seat === next.mySeat) sfx.turn();
+        if (ev.seat === next.mySeat) {
+          sfx.turn();
+          this.bondVoice(next, ev.seat, 'turn');
+        }
         return;
 
       case 'bust':
