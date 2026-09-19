@@ -20,7 +20,8 @@
     "tauri": "tauri",
     "app": "tauri dev",
     "app:build": "tauri build",
-    "release:json": "node scripts/build-latest-json.mjs"
+    "release:json": "node scripts/build-latest-json.mjs",
+    "version:set": "node scripts/version.mjs"
   },
   "dependencies": {
     "@fontsource/cinzel": "^5.3.0",

@@ -143,21 +143,56 @@ O pacote precisa estar **assinado**, senão o atualizador recusa. A chave públi
 `~/.tauri/pokeru-updater.key` — sem ela não dá para publicar atualizações, então guarde uma cópia
 (num gerenciador de senhas, ou como segredo do repositório se um dia o build for automatizado).
 
-Publicar uma versão nova:
+### Publicar uma versão
+
+A publicação é automática: **criar uma tag `vX.Y.Z` na main** dispara a action
+(`.github/workflows/release.yml`), que compila o app assinado, cria a release e sobe o instalador,
+o `.sig` e o `latest.json`.
 
 ```bash
-# 1. suba a versão em package.json, src-tauri/tauri.conf.json e src-tauri/Cargo.toml
-# 2. compile assinando
+npm run version:set 0.2.1     # troca a versão nos três arquivos (e nos locks)
+git commit -am "Versao 0.2.1" && git push origin main
+git tag v0.2.1 && git push origin v0.2.1
+```
+
+Antes da primeira publicação, configure os dois segredos em **Settings → Secrets and variables →
+Actions**:
+
+| Segredo | Conteúdo |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | o arquivo `~/.tauri/pokeru-updater.key` inteiro |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | a senha da chave (vazio se ela não tiver) |
+
+A action confere, antes de compilar, se a chave está configurada, se a tag aponta para um commit da
+**main** e se os três arquivos de versão batem com a tag — e roda `typecheck` e os testes, para não
+publicar algo quebrado. Ela também aceita ser rodada à mão em *Actions → Release → Run workflow*
+(escolhendo a tag), útil para repetir uma publicação que falhou.
+
+Hoje ela gera só o instalador de **Windows**; o fim do arquivo explica como transformar o job numa
+matriz com macOS e Linux.
+
+**Publicando na mão** (sem a action), o caminho continua valendo:
+
+```bash
 TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/pokeru-updater.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD= npm run app:build
-# 3. monte o manifesto (lê o instalador e o .sig do bundle)
-npm run release:json
-# 4. crie a release com a tag vX.Y.Z e suba os três arquivos:
-#    o instalador, o .sig e o latest.json
+npm run release:json    # monta o latest.json a partir do instalador e do .sig
+# e suba os três arquivos numa release com a tag vX.Y.Z
 ```
 
 O `latest.json` precisa estar na **última** release (é o endereço `releases/latest/download/…` que
 o app consulta), e a tag tem de bater com a versão. Quem está na 0.1.0 não se atualiza sozinho (a
 versão é anterior ao atualizador): é instalar a 0.2.0 na mão uma vez.
+
+### Branches
+
+| Branch | Para quê |
+|---|---|
+| `main` | o que está publicado; tag aqui = release automática |
+| `develop` | o trabalho do dia a dia — **sem action nenhuma**, nada roda e nada é publicado |
+
+O fluxo é trabalhar na `develop` (ou em branches a partir dela), juntar na `main` quando estiver
+pronto e, só então, criar a tag. Como a action só escuta tags `v*.*.*`, empurrar para a `develop`
+nunca dispara nada; e se uma tag for criada fora da main, a action para com um erro explicando.
 
 Para distribuir um instalador **já apontando** para o seu servidor, defina o endereço no build:
 

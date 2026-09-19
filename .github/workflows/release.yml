@@ -1,0 +1,113 @@
+# Publica uma versão do cliente desktop.
+#
+# Só a main publica, e só por tag: ao criar `vX.Y.Z` na main, esta action compila o app assinado,
+# cria a release e sobe o instalador, o `.sig` e o `latest.json` — que é o arquivo consultado pelo
+# atualizador automático do jogo.
+#
+# A develop é de propósito sem action: lá o trabalho corre sem CI, e nada é publicado.
+#
+# Antes da primeira execução, configure os dois segredos do repositório (Settings → Secrets and
+# variables → Actions), com a chave gerada por `tauri signer generate`:
+#
+#   TAURI_SIGNING_PRIVATE_KEY           conteúdo de ~/.tauri/pokeru-updater.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  a senha da chave (vazio se ela não tiver)
+#
+# Sem eles o pacote sai sem assinatura e o atualizador dos jogadores recusa a versão — por isso o
+# primeiro passo confere que a chave está lá.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  # permite repetir uma publicação pela interface do GitHub (escolha a tag em "Run workflow")
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Instalador (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: A chave de assinatura está configurada?
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Falta o segredo TAURI_SIGNING_PRIVATE_KEY (veja 'Publicar uma versão' no README)."
+            exit 1
+          fi
+
+      - name: A tag está na main?
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Esta tag não aponta para um commit da main — publique a partir da main."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: As versões batem com a tag?
+        shell: bash
+        run: node scripts/version.mjs --check "${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}"
+
+      # nada de publicar uma versão quebrada
+      - run: npm run typecheck
+      - run: npm test
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Compila, assina e publica
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
+          releaseName: Pokeru __VERSION__
+          releaseBody: |
+            Instalador do cliente desktop (Windows x64). O app **se atualiza sozinho**: quem já está
+            na 0.2.0 ou mais recente recebe esta versão ao abrir o jogo.
+
+            Instalação manual: baixe e execute `Pokeru___VERSION___x64-setup.exe` (instala para o
+            usuário atual, sem administrador). O instalador não é assinado com certificado de
+            código, então o SmartScreen avisa — *Mais informações* → *Executar assim mesmo*.
+
+            Os arquivos `latest.json` e `.sig` são o que o atualizador consulta.
+          releaseDraft: false
+          prerelease: false
+          # gera e sobe o latest.json (o manifesto lido pelo atualizador)
+          includeUpdaterJson: true
+
+  # Para publicar também macOS e Linux, troque o job acima por uma matriz:
+  #
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - { runner: windows-latest, args: '' }
+  #         - { runner: macos-latest,   args: '--target universal-apple-darwin' }
+  #         - { runner: ubuntu-22.04,   args: '' }
+  #
+  # No Ubuntu, instale antes as dependências do WebKit:
+  #   sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+  #
+  # A tauri-action junta as plataformas no mesmo latest.json quando os jobs usam a mesma tag.
