@@ -1,7 +1,7 @@
 {
   "name": "pokeru",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +19,8 @@
     "audios:organizar": "node scripts/organizar-audios.mjs",
     "tauri": "tauri",
     "app": "tauri dev",
-    "app:build": "tauri build"
+    "app:build": "tauri build",
+    "release:json": "node scripts/build-latest-json.mjs"
   },
   "dependencies": {
     "@fontsource/cinzel": "^5.3.0",
@@ -28,6 +29,8 @@
     "@fontsource/m-plus-rounded-1c": "^5.3.0",
     "@fontsource/playfair-display": "^5.3.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "framer-motion": "^13.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

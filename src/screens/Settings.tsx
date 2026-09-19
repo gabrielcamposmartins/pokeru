@@ -93,6 +93,7 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
               onChange={(v) => p.updateSettings({ animSpeed: v })}
             />
             <Toggle label="Mostrar dica da minha mão" value={s.handHint} onChange={(v) => p.updateSettings({ handHint: v })} />
+            <Toggle label="Atualizar o app sozinho ao abrir" value={s.autoUpdate} onChange={(v) => p.updateSettings({ autoUpdate: v })} />
           </Section>
           <Section title="Rede">
             <Field label="Servidor padrão" hint="Endereço WebSocket do servidor Pokeru (npm run server).">

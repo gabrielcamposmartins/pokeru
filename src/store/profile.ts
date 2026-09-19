@@ -66,6 +66,8 @@ export interface Settings {
   autoMuck: boolean;
   /** Aparência da interface (id em src/ui/themes.ts). */
   uiTheme: string;
+  /** App desktop: procurar e instalar a versão nova ao abrir. */
+  autoUpdate: boolean;
 }
 
 /** Credenciais de uma conta num servidor (o token volta a entrar como o mesmo jogador). */
@@ -131,6 +133,7 @@ const initial = {
     handHint: true,
     autoMuck: true,
     uiTheme: 'default',
+    autoUpdate: true,
   },
 };
 

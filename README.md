@@ -130,6 +130,35 @@ docker compose up -d --build
 | macOS | `dmg/Pokeru_<versão>_x64.dmg` e `macos/Pokeru.app` |
 | Linux | `deb/`, `rpm/` e `appimage/` |
 
+### Atualização automática
+
+A partir da 0.2.0 o app desktop **se atualiza sozinho**: ao abrir, ele lê o `latest.json` da última
+release no GitHub, compara com a versão que está rodando e, se houver uma mais nova, baixa,
+instala e reinicia (um aviso com a barra de progresso aparece no canto). Sem internet ou sem
+release, o jogo abre normalmente — a falha é só um aviso que some sozinho. Dá para desligar em
+**Configurações → Jogo → Atualizar o app sozinho ao abrir**.
+
+O pacote precisa estar **assinado**, senão o atualizador recusa. A chave pública fica em
+`src-tauri/tauri.conf.json` (`plugins.updater.pubkey`) e a privada **fora do repositório**, em
+`~/.tauri/pokeru-updater.key` — sem ela não dá para publicar atualizações, então guarde uma cópia
+(num gerenciador de senhas, ou como segredo do repositório se um dia o build for automatizado).
+
+Publicar uma versão nova:
+
+```bash
+# 1. suba a versão em package.json, src-tauri/tauri.conf.json e src-tauri/Cargo.toml
+# 2. compile assinando
+TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/pokeru-updater.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD= npm run app:build
+# 3. monte o manifesto (lê o instalador e o .sig do bundle)
+npm run release:json
+# 4. crie a release com a tag vX.Y.Z e suba os três arquivos:
+#    o instalador, o .sig e o latest.json
+```
+
+O `latest.json` precisa estar na **última** release (é o endereço `releases/latest/download/…` que
+o app consulta), e a tag tem de bater com a versão. Quem está na 0.1.0 não se atualiza sozinho (a
+versão é anterior ao atualizador): é instalar a 0.2.0 na mão uma vez.
+
 Para distribuir um instalador **já apontando** para o seu servidor, defina o endereço no build:
 
 ```bash
