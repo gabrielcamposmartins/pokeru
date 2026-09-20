@@ -7,6 +7,7 @@ import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
 import { Segmented } from '../ui/controls';
+import { WalletBar } from '../ui/Wallet';
 import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
 import { sfx } from '../audio/sfx';
 import { useUiTheme } from '../ui/themes';
@@ -182,6 +183,7 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
           <span className="player-sub">♠ Pokeru · clique no personagem para conversar</span>
         </div>
       </div>
+      <WalletBar />
       <div className="top-actions">
         <button className="round-icon" title={muted ? 'Ativar som' : 'Silenciar'} onClick={() => updateSettings({ muted: !muted })}>
           {muted ? '🔇' : '🔊'}

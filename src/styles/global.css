@@ -636,7 +636,6 @@ button.avatar {
   background-clip: text;
 }
 .logo-accent {
-  margin-left: 12px;
   background: linear-gradient(180deg, #ffe3ef, #ff8fb1 55%, #d93f72);
   -webkit-background-clip: text;
   background-clip: text;
@@ -4331,4 +4330,58 @@ button.avatar {
   border-radius: 6px;
   background: linear-gradient(90deg, var(--pink-2), var(--pink) 60%, var(--gold-2));
   transition: width 0.2s;
+}
+
+/* ------------------------------------------------------------------ fichas no topo do menu */
+
+.wallet-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.wallet-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 6px 0 8px;
+  border-radius: 40px;
+  background: rgba(20, 14, 44, 0.85);
+  border: 1.5px solid rgba(242, 193, 78, 0.6);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+.wallet-pill-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+.wallet-pill-value {
+  min-width: 68px;
+  padding-right: 4px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--gold-2);
+  letter-spacing: 0.4px;
+  font-variant-numeric: tabular-nums;
+}
+.wallet-pill-plus {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  background: linear-gradient(180deg, #ffe7a0, var(--gold) 55%, var(--gold-3));
+  color: #3a2300;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+}
+.wallet-pill-plus:hover {
+  filter: brightness(1.08);
 }

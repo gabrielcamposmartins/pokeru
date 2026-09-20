@@ -74,6 +74,8 @@ export interface Settings {
 export interface ServerAccount {
   id: string;
   token: string;
+  /** Último saldo visto — o menu mostra isso antes de conectar, para não abrir zerado. */
+  money?: number;
 }
 
 interface ProfileState {

@@ -13,7 +13,7 @@ import { dataFile } from './store';
  *   PORT=3001                porta HTTP/WebSocket
  *   SERVER_NAME=…            nome que aparece no cliente
  *   DATA_DIR=./data          onde ficam os dados (monte um volume aqui no Docker)
- *   POKERU_ACCOUNTS=1     0 desliga as contas: mesas livres, sem saldo nem vínculo salvo
+ *   POKERU_ACCOUNTS=1        0 desliga as contas: mesas livres, sem saldo nem vínculo salvo
  *   STARTING_MONEY=10000     saldo de uma conta nova
  *   FAUCET=2000              recarga de cortesia de quem zera (0 desliga)
  *   MAX_ACCOUNTS=1000        teto de contas guardadas (passando disso, só mesas livres)

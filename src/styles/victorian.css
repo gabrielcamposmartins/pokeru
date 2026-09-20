@@ -408,7 +408,6 @@
     background-clip: text;
   }
   .logo-accent {
-    margin-left: 10px;
     font-style: normal;
     background: linear-gradient(180deg, #fff8e2 0%, #f0d596 34%, #b08d4a 52%, #7a5a26 60%, #d9b56a 82%, #f6e2a8 100%);
     -webkit-background-clip: text;
@@ -1698,6 +1697,24 @@
   .badge.soon {
     background: rgba(61, 107, 82, 0.45);
     color: var(--ivory);
+  }
+
+  /* fichas no topo do menu */
+  .wallet-pill {
+    border-radius: 3px;
+    background: var(--leather);
+    background-image: var(--grain), var(--leather);
+    border: 1.5px solid var(--gold);
+  }
+  .wallet-pill-value {
+    font-family: var(--num);
+    font-variant-numeric: lining-nums tabular-nums;
+    font-size: 20px;
+  }
+  .wallet-pill-plus {
+    border-radius: 2px;
+    background: var(--brass-grad);
+    color: #3a2109;
   }
 
   /* saldo da conta */

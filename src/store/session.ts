@@ -88,7 +88,12 @@ function handle(m: ServerMsg): void {
     case 'account': {
       // o servidor é o dono do saldo e do vínculo quando se joga online
       const server = useSession.getState().serverUrl;
-      if (m.account.token && server) useProfile.getState().setAccount(server, { id: m.account.id, token: m.account.token });
+      if (server) {
+        const known = useProfile.getState().accounts[server];
+        const token = m.account.token ?? known?.token;
+        // o saldo fica guardado junto: é o que o menu mostra antes de conectar
+        if (token) useProfile.getState().setAccount(server, { id: m.account.id, token, money: m.account.money });
+      }
       set({ account: { ...m.account, token: undefined } });
       useBond.getState().applyServer(m.account.bond);
       director.serverBond = true;
