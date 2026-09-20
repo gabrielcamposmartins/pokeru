@@ -267,8 +267,12 @@ VITE_SERVER_URL=wss://poker.seudominio.com npm run app:build
 ```
 
 A ordem de escolha do endereço no cliente é: o que o jogador digitou (fica salvo no perfil), o
-`config.js` do servidor web, a variável `VITE_SERVER_URL` do build e, por último,
-`ws://localhost:3001`.
+`config.js` do servidor web, a variável `VITE_SERVER_URL` do build e, por último, o **servidor
+oficial** — o IP fixo da VM, embutido em `DEFAULT_SERVER_URL` (`src/store/profile.ts`). É por isso
+que o app instalado já abre com o endereço preenchido.
+
+Para desenvolver contra um servidor local, rode com `VITE_SERVER_URL=ws://localhost:3001 npm run
+dev` (ou troque o endereço em **Configurações → Rede**, que ele fica salvo no perfil).
 
 ## Estrutura
 

@@ -103,13 +103,23 @@ interface ProfileState {
 }
 
 /**
+ * Servidor oficial do Pokeru: o IP fixo da VM. É o endereço que vem preenchido no app, para
+ * ninguém precisar digitar nada para jogar online.
+ *
+ * Para apontar para outro (um servidor local, por exemplo), sobreponha na hora do build com
+ * `VITE_SERVER_URL=ws://localhost:3001` — ou troque em Configurações → Rede, que o endereço
+ * escolhido fica salvo no perfil.
+ */
+export const DEFAULT_SERVER_URL = 'ws://35.209.186.9:3001';
+
+/**
  * Endereço padrão do servidor, na ordem: o `config.js` que o servidor web do cliente escreve
  * (POKERU_SERVER_URL no Docker), a variável de build `VITE_SERVER_URL` (usada ao gerar o
- * instalador) e, por fim, o servidor local.
+ * instalador) e, por fim, o servidor oficial.
  */
 function defaultServerUrl(): string {
   const cfg = (globalThis as { PokeruConfig?: { serverUrl?: string } }).PokeruConfig?.serverUrl;
-  return cfg || import.meta.env?.VITE_SERVER_URL || 'ws://localhost:3001';
+  return cfg || import.meta.env?.VITE_SERVER_URL || DEFAULT_SERVER_URL;
 }
 
 const initial = {

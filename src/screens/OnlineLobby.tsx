@@ -117,8 +117,8 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
           )}
           {!connected && (
             <div className="help-box">
-              <b>Como hospedar:</b> em um computador da rede, rode <code>npm run server</code> na pasta do projeto. Os amigos se conectam em
-              <code>ws://IP-DO-HOST:3001</code>.
+              O endereço já vem preenchido com o <b>servidor oficial</b>. Para jogar num servidor seu, rode <code>npm run server</code> em
+              algum computador da rede e troque aqui por <code>ws://IP-DO-HOST:3001</code>.
             </div>
           )}
           {connected && (
