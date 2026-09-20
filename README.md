@@ -51,6 +51,37 @@ dados dele (o navegador, sim); e os ids internos de estilos e temas (`table-soul
 mesmas peças. Só os **nomes visíveis** mudaram: o tema padrão virou *Sakura*, e os estilos *Roxo
 Soul* e *Pastel Soul* viraram *Roxo Sakura* e *Pastel Sakura*.
 
+## Servidor em Rust (em andamento)
+
+O servidor está sendo reescrito em **Rust**, com as progressões (fichas, vínculo, estatísticas)
+num banco **Turso/libSQL**. O de Node (`server/`) continua sendo o que roda até o novo alcançar
+paridade — nada quebra no meio do caminho.
+
+As regras do poker passam a existir em dois lugares: em Rust no servidor e em TypeScript no
+cliente (que precisa delas para a Partida Rápida offline). Para as duas não divergirem em
+silêncio, **os testes vieram junto no porte**: os casos de `shared/engine.test.ts` estão
+traduzidos em `server-rs/src/engine_tests.rs`, incluindo os de conservação de fichas em 200 mãos
+de Hold'em e 120 de poker de 5 cartas. Se uma regra sair diferente, um deles quebra.
+
+```bash
+cd server-rs
+cargo test     # regras do jogo
+cargo run      # executável (ainda sem rede)
+```
+
+| Fatia | Situação |
+|---|---|
+| Baralho, avaliador (nomes em português e cartas do jogo) | pronto |
+| Motor: Hold'em, poker de 5 cartas, potes laterais, eventos | pronto |
+| Bots (equidade Monte Carlo e a troca do draw) | a fazer |
+| Sala e lobby (fila com ritmo, vezes, views por jogador) | a fazer |
+| Contas e progressão no Turso | a fazer |
+| WebSocket + HTTP, Docker, virada do Node para o Rust | a fazer |
+
+O banco é escolhido por variável de ambiente: em desenvolvimento um arquivo local
+(`DATABASE_URL=file:./data/pokeru.db`), em produção a instância do Turso
+(`DATABASE_URL=libsql://…` e `DATABASE_TOKEN=…`).
+
 ## Hospedar o servidor
 
 O servidor guarda as **contas dos jogadores** — saldo, vínculo com os personagens e números — e

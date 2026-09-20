@@ -7,3 +7,4 @@ src-tauri/gen/schemas
 data
 *.log
 .DS_Store
+server-rs/target
