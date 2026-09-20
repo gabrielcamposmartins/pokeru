@@ -148,6 +148,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     get().disconnect();
     // até o servidor mandar uma conta, o vínculo é do cliente (servidor sem contas continua assim)
     director.serverBond = false;
+    useBond.getState().clearServer();
     set({ mode: 'online', status: 'connecting', serverUrl: url, account: null });
     const t = connectWs(url, {
       onMessage: handle,
@@ -167,6 +168,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     get().disconnect();
     // offline não tem conta: o vínculo volta a ser pontuado e salvo no cliente
     director.serverBond = false;
+    useBond.getState().clearServer();
     set({ mode: 'local', status: 'connecting', chat: [], serverUrl: '', account: null });
     const t = connectLocal({ onMessage: handle });
     transport = t;
@@ -216,6 +218,8 @@ export const useSession = create<SessionState>()((set, get) => ({
     transport = null;
     t?.close();
     director.reset();
+    director.serverBond = false;
+    useBond.getState().clearServer();
     set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [], account: null });
   },
 

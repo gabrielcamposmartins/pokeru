@@ -27,15 +27,26 @@ export interface BondUnlock {
 }
 
 interface BondState {
-  /** Progresso por personagem (id do personagem → números). */
+  /**
+   * Progresso **local**, do jogo offline (id do personagem → números). Fica salvo no navegador.
+   * Quando há servidor, ele não manda em nada: quem vale é `server`.
+   */
   chars: Record<string, BondStats>;
+  /**
+   * Progresso que **o servidor** guarda para a conta. É a verdade enquanto a sessão durar: chega
+   * no `hello` e a cada mudança, não é salvo aqui e some ao desconectar. Mexer no armazenamento
+   * do navegador não libera recompensa nenhuma numa partida online.
+   */
+  server: Record<string, BondStats> | null;
   /** Fila dos corações completados à espera do anúncio. */
   pending: BondUnlock[];
   /** Pontos ganhos na partida atual, por personagem (para o placar final). */
   gain: Record<string, number>;
   award(charId: string, ev: BondEvent): void;
-  /** Aplica o vínculo guardado no servidor (jogo online). */
+  /** Aplica o vínculo guardado no servidor (jogo online) — ele passa a mandar. */
   applyServer(chars: Record<string, BondStats>): void;
+  /** Sai da sessão do servidor: o vínculo mostrado volta a ser o local. */
+  clearServer(): void;
   /** Tira o primeiro aviso da fila (o jogador viu a recompensa). */
   ack(): void;
   /** Zera o ganho da partida (começo de uma partida nova). */
@@ -55,10 +66,13 @@ export const useBond = create<BondState>()(
   persist(
     (set) => ({
       chars: {},
+      server: null,
       pending: [],
       gain: {},
       award: (charId, ev) =>
         set((s) => {
+          // com servidor na linha, quem pontua é ele (o cliente nem tenta)
+          if (s.server) return {};
           const cur = s.chars[charId] ?? EMPTY_BOND;
           const next = addBond(cur, ev);
           const points = next.points;
@@ -83,21 +97,27 @@ export const useBond = create<BondState>()(
         set((s) => {
           const unlocked: BondUnlock[] = [];
           const gain = { ...s.gain };
+          // a comparação é sempre com a foto anterior *do servidor*: o progresso local não conta
           for (const [char, next] of Object.entries(chars)) {
-            const cur = s.chars[char];
+            const cur = s.server?.[char];
             if (cur && next.points > cur.points) gain[char] = (gain[char] ?? 0) + (next.points - cur.points);
-            const from = cur ? heartsOf(cur.points) : 0;
-            // sem ficha anterior é a primeira foto da conta: mostra o progresso sem anunciar nada
-            if (cur) for (let heart = from + 1; heart <= heartsOf(next.points); heart++) unlocked.push({ id: unlockId++, char, heart });
+            // sem foto anterior é a primeira da sessão: mostra o progresso sem anunciar nada
+            if (cur) {
+              for (let heart = heartsOf(cur.points) + 1; heart <= heartsOf(next.points); heart++) {
+                unlocked.push({ id: unlockId++, char, heart });
+              }
+            }
           }
           return {
-            chars: { ...s.chars, ...chars },
+            // substitui, não mistura: o que o servidor não conhece, a conta não tem
+            server: chars,
             gain,
             pending: unlocked.length ? [...s.pending, ...unlocked].slice(-MAX_PENDING) : s.pending,
           };
         }),
+      clearServer: () => set({ server: null, gain: {} }),
       clearGain: () => set({ gain: {} }),
-      reset: () => set({ chars: {}, pending: [], gain: {} }),
+      reset: () => set({ chars: {}, server: null, pending: [], gain: {} }),
     }),
     {
       name: 'pokeru-bond',
@@ -110,8 +130,16 @@ export const useBond = create<BondState>()(
 
 // ------------------------------------------------------------------ leitura
 
+/**
+ * De onde vem o vínculo mostrado: do servidor quando há sessão com conta, senão do progresso
+ * local (offline). É uma função só para ninguém ler a fonte errada por engano.
+ */
+function source(s: { chars: Record<string, BondStats>; server: Record<string, BondStats> | null }): Record<string, BondStats> {
+  return s.server ?? s.chars;
+}
+
 export function bondOf(charId: string): BondStats {
-  return useBond.getState().chars[charId] ?? EMPTY_BOND;
+  return source(useBond.getState())[charId] ?? EMPTY_BOND;
 }
 
 export function bondPoints(charId: string): number {
@@ -120,7 +148,7 @@ export function bondPoints(charId: string): number {
 
 /** Vínculo com um personagem (reage às mudanças). */
 export function useBondStats(charId: string): BondStats {
-  return useBond((s) => s.chars[charId] ?? EMPTY_BOND);
+  return useBond((s) => source(s)[charId] ?? EMPTY_BOND);
 }
 
 export function useBondLevel(charId: string): BondLevel {

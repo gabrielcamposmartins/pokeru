@@ -4385,3 +4385,10 @@ button.avatar {
 .wallet-pill-plus:hover {
   filter: brightness(1.08);
 }
+/* saldo de memória (fora do servidor): fica apagado, para não passar por saldo de verdade */
+.wallet-pill.stale {
+  opacity: 0.6;
+}
+.wallet-pill.stale .wallet-pill-value {
+  color: var(--muted);
+}

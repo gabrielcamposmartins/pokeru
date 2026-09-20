@@ -168,6 +168,10 @@ function client(lobby: Lobby, name: string): Client {
 
 const fast = { pace: 0.4, turnTime: 5 };
 
+async function runUntil(cond: () => boolean, maxMs = 300_000) {
+  for (let t = 0; t < maxMs && !cond(); t += 250) await vi.advanceTimersByTimeAsync(250);
+}
+
 describe('mesa a dinheiro', () => {
   it('sentar custa o buy-in e sair devolve as fichas', async () => {
     vi.useFakeTimers();
@@ -230,6 +234,30 @@ describe('mesa a dinheiro', () => {
     expect(acc.money).toBeGreaterThanOrEqual(4000);
     expect(acc.money).toBeLessThanOrEqual(7000);
     expect(p.errors).toEqual([]);
+    accounts.close();
+  }, 30_000);
+
+  it('o vínculo vai para o personagem com que a mão foi jogada', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'normal', rounds: 1, maxPlayers: 3, smallBlind: 25, bigBlind: 50 },
+    });
+    for (let i = 0; i < 2; i++) p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    p.conn.handle({ type: 'startGame' });
+
+    // troca de personagem no meio da mão: os pontos são de quem começou a mão
+    await runUntil(() => p.events.includes('deal'));
+    p.conn.handle({ type: 'updateProfile', name: 'Gabi', avatar: {}, cosmetics: { character: { id: 'yukina' } } });
+    await runUntil(() => p.events.includes('gameOver'));
+    await vi.advanceTimersByTimeAsync(500);
+
+    const acc = accounts.info(p.account!.id)!;
+    expect(acc.bond.marina?.hands).toBe(1);
+    expect(acc.bond.yukina).toBeUndefined();
     accounts.close();
   }, 30_000);
 

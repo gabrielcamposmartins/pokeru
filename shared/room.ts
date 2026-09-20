@@ -31,6 +31,14 @@ interface Member {
   id: string;
   /** Conta do servidor, quando houver (bots e modo offline não têm). */
   accountId?: string;
+  /**
+   * Personagem com que o jogador entrou na mão atual. O vínculo vai para ele, não para o que
+   * estiver escolhido quando a mão acabar — senão daria para trocar de personagem no meio e
+   * levar os pontos para outro.
+   */
+  handCharacter?: string;
+  /** Personagem com que entrou na partida (o bônus de fim de partida é dele). */
+  matchCharacter?: string;
   name: string;
   isBot: boolean;
   difficulty: BotDifficulty;
@@ -367,6 +375,7 @@ export class Room {
     this.smallBlind = this.settings.smallBlind;
     this.bigBlind = this.settings.bigBlind;
     for (const m of seated) {
+      m.matchCharacter = m.cosmetics.character.id;
       if (this.paid()) {
         // todos começam com o buy-in: os bots de graça, os jogadores pagando a diferença
         if (m.isBot) m.stack = this.settings.buyIn;
@@ -498,6 +507,11 @@ export class Room {
       const left = this.settings.rounds - this.handNo;
       this.system(left === 0 ? 'Última rodada!' : `Rodada ${this.handNo} de ${this.settings.rounds}.`);
     }
+    // o vínculo da mão é do personagem com que ela começou; o da partida, do primeiro de todos
+    for (const m of eligible) {
+      m.handCharacter = m.cosmetics.character.id;
+      m.matchCharacter ??= m.handCharacter;
+    }
     this.emit({ t: 'handStart', handNo: this.handNo, dealerSeat: d });
     this.hand.start();
     this.onChange();
@@ -538,8 +552,8 @@ export class Room {
   }
 
   /**
-   * Vínculo das contas com o personagem que estão usando: as mesmas contas do cliente
-   * (shared/bond.ts), mas pontuadas aqui — num servidor hospedado, o progresso é do servidor.
+   * Vínculo das contas: as mesmas regras do cliente (shared/bond.ts), mas pontuadas **aqui**.
+   * Num servidor hospedado o progresso é dele; o cliente só mostra o que recebe.
    */
   private awardBond(h: Hand): void {
     if (!this.bank) return;
@@ -555,7 +569,7 @@ export class Room {
         ev = big ? 'bigWin' : 'win';
       } else if (hp.folded) ev = 'fold';
       else ev = 'loss';
-      this.bank.bond(m.accountId, m.cosmetics.character.id, ev);
+      this.bank.bond(m.accountId, m.handCharacter ?? m.cosmetics.character.id, ev);
       this.bank.note(m.accountId, 'hand');
       if (won) this.bank.note(m.accountId, 'win');
     }
@@ -575,7 +589,7 @@ export class Room {
       for (const m of this.members()) {
         if (m.isBot || !m.accountId) continue;
         const place = ranking.find((r) => r.seat === m.seat)?.place;
-        this.bank.bond(m.accountId, m.cosmetics.character.id, place === 1 ? 'matchWin' : 'match');
+        this.bank.bond(m.accountId, m.matchCharacter ?? m.handCharacter ?? m.cosmetics.character.id, place === 1 ? 'matchWin' : 'match');
         this.bank.note(m.accountId, 'match');
       }
     }

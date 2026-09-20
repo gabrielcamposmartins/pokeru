@@ -546,10 +546,22 @@ Ganhar rende mais, mas **perder também conta**: quem senta e joga junto acumula
 `60 · 140 · 260 · 440 · 700` pontos (`HEART_COST`), o que dá cerca de uma dúzia de partidas para o
 vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela.
 
-Quem guarda o progresso depende de onde se joga: **offline** fica na máquina (`pokeru-bond`,
-como o perfil); num **servidor com contas** quem pontua e guarda é o servidor, com as mesmas regras
-(`shared/bond.ts`), e o cliente mostra o que vier de lá. As regras ficam em `shared/` justamente
-para os dois lados contarem igual; o catálogo de recompensas é do cliente (`src/game/bond.ts`).
+Quem guarda o progresso depende de onde se joga: **offline** fica na máquina (`pokeru-bond`, como
+o perfil); num **servidor com contas** quem manda é o servidor. As regras ficam em `shared/`
+justamente para os dois lados contarem igual; o catálogo de recompensas é do cliente
+(`src/game/bond.ts`).
+
+**Fichas e vínculo são do servidor** quando há sessão com conta:
+
+- o servidor pontua o vínculo no fim de cada mão e da partida, e cobra/devolve as fichas nas mesas
+  a dinheiro — o cliente não calcula nada disso, só recebe a foto da conta e mostra;
+- o vínculo da mão vai para o personagem com que ela **começou**, e o bônus da partida para o
+  personagem com que você **sentou** — trocar de personagem no meio não muda o dono dos pontos;
+- na sessão online, o vínculo que aparece (e o que ele libera: vozes, emotes) é só o que veio do
+  servidor. O progresso local existe em paralelo, para o jogo offline, e volta a aparecer quando
+  você desconecta — mexer no armazenamento do navegador não libera nada numa partida online;
+- o saldo mostrado fora do servidor é o **último conhecido** (aparece apagado): é uma lembrança
+  para a barra não abrir vazia, e o valor de verdade chega ao conectar.
 
 **Onde aparece:** em **Personagens**, o botão **♥ Vínculo · N/5** abre a *página de vínculo* do
 personagem (a galeria mostra os corações de cada retrato e a ficha traz a barra curta); o menu principal

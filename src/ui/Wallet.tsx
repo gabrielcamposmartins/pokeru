@@ -14,9 +14,9 @@ import { sfx } from '../audio/sfx';
  * A moeda secundária entra aqui do lado quando existir: é só outro `<Coin>`.
  */
 
-export function WalletPill({ amount, onPlus, hint, children }: { amount: number; onPlus?: () => void; hint?: string; children: React.ReactNode }) {
+export function WalletPill({ amount, onPlus, hint, stale, children }: { amount: number; onPlus?: () => void; hint?: string; stale?: boolean; children: React.ReactNode }) {
   return (
-    <div className="wallet-pill" title={hint}>
+    <div className={`wallet-pill ${stale ? 'stale' : ''}`} title={hint}>
       <span className="wallet-pill-icon">{children}</span>
       <span className="wallet-pill-value">{fmt(amount)}</span>
       {onPlus && (
@@ -28,7 +28,10 @@ export function WalletPill({ amount, onPlus, hint, children }: { amount: number;
   );
 }
 
-/** Saldo mostrado: o da conta conectada, ou o último que vimos naquele servidor. */
+/**
+ * Saldo mostrado: o da conta conectada. Fora dela, o último que vimos naquele servidor — é só
+ * uma lembrança para a barra não abrir vazia; quem diz quanto você tem é sempre o servidor.
+ */
 export function useChips(): number {
   const account = useSession((s) => s.account);
   const server = useProfile((s) => s.settings.serverUrl);
@@ -38,12 +41,14 @@ export function useChips(): number {
 
 export function WalletBar() {
   const chips = useChips();
+  const live = useSession((s) => !!s.account);
   const toast = useSession((s) => s.toast);
   return (
     <div className="wallet-bar">
       <WalletPill
         amount={chips}
-        hint="Suas fichas, guardadas no servidor"
+        stale={!live}
+        hint={live ? 'Suas fichas, guardadas no servidor' : 'Último saldo conhecido — o valor de verdade vem do servidor ao conectar'}
         onPlus={() => {
           sfx.click();
           toast('A loja de fichas chega numa próxima atualização.');
