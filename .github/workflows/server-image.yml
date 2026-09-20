@@ -1,0 +1,90 @@
+# Publica a imagem do servidor no Artifact Registry do GCP.
+#
+# Roda quando algo do servidor muda na main (ou a pedido, em Actions → Run workflow) e empurra
+# para us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server — a mesma região da VM
+# do Turso, então o pull de lá é rápido e sem custo de saída.
+#
+# Autenticação **sem chave**: o GitHub troca o token do próprio job por credenciais do GCP
+# (Workload Identity Federation). Não há segredo para guardar; o que libera é o repositório de
+# origem, preso no provedor OIDC — outro repositório não consegue publicar aqui.
+#
+# A develop não dispara nada: o gatilho é a main (e o manual).
+
+name: Imagem do servidor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'shared/**'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'scripts/build-server.mjs'
+      - '.github/workflows/server-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # necessário para pegar o token OIDC que autentica no GCP
+  id-token: write
+
+env:
+  REGION: us-central1
+  PROJECT: gen-lang-client-0425635607
+  REPO: pokeru
+  IMAGE: server
+
+jobs:
+  build:
+    name: Constrói e publica
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autentica no GCP (sem chave)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/87290125413/locations/global/workloadIdentityPools/github/providers/pokeru
+          service_account: github-pokeru@gen-lang-client-0425635607.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Libera o docker para o Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Etiquetas da imagem
+        id: tags
+        shell: bash
+        run: |
+          base="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${IMAGE}"
+          version=$(node -p "require('./package.json').version")
+          # o sha identifica a imagem exata; latest e a versão são atalhos
+          echo "tags=${base}:${GITHUB_SHA::12},${base}:v${version},${base}:latest" >> "$GITHUB_OUTPUT"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Constrói e empurra
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          # o cache fica na própria action: a segunda build só refaz o que mudou
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Onde ficou
+        run: |
+          echo "### Imagem publicada" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.tags.outputs.base }}:${GITHUB_SHA::12}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Na VM: \`docker pull ${{ steps.tags.outputs.base }}:latest\`" >> $GITHUB_STEP_SUMMARY
+
+# Quando o servidor em Rust (server-rs/) alcançar paridade, é trocar `file: Dockerfile` pelo
+# Dockerfile dele e ajustar os `paths` acima — o resto do caminho continua igual.

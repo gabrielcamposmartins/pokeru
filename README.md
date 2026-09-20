@@ -131,6 +131,41 @@ valem dinheiro de verdade), mas quer dizer que qualquer um que alcance a porta c
 recebe o saldo inicial. Para uma mesa fechada, deixe o servidor numa rede privada (ou atrás de um
 proxy com autenticação), use senha nas salas e ajuste `MAX_ACCOUNTS`.
 
+### Imagem no Artifact Registry (GCP)
+
+A imagem do servidor é publicada automaticamente pela action
+`.github/workflows/server-image.yml`: quando algo de `server/`, `shared/` ou do `Dockerfile` muda
+na **main** (ou a pedido, em *Actions → Run workflow*), ela constrói e empurra para
+
+```
+us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server
+```
+
+com três etiquetas: o `sha` curto do commit (a imagem exata), `vX.Y.Z` (a versão do
+`package.json`) e `latest`. A região é a mesma da VM do Turso (`us-central1`), então o pull de lá
+é rápido e sem custo de saída.
+
+**Autenticação sem chave:** a action troca o token OIDC do próprio job por credenciais do GCP
+(Workload Identity Federation). Não há segredo guardado no GitHub, e o provedor só aceita
+tokens vindos deste repositório.
+
+Na VM, para rodar a imagem publicada:
+
+```bash
+gcloud auth configure-docker us-central1-docker.pkg.dev
+docker pull us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server:latest
+docker run -d -p 3001:3001 -v pokeru-data:/data   us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server:latest
+```
+
+O que existe no GCP para isso funcionar (tudo no projeto `gen-lang-client-0425635607`):
+
+| Recurso | Nome |
+|---|---|
+| Artifact Registry (docker, us-central1) | `pokeru` |
+| Conta de serviço (escreve no registry) | `github-pokeru@gen-lang-client-0425635607.iam.gserviceaccount.com` |
+| Pool de identidade | `github` |
+| Provedor OIDC (preso a este repositório) | `pokeru` |
+
 ### Docker
 
 Duas imagens: o **servidor de jogo** (`Dockerfile`) e o **servidor web do cliente**
