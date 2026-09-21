@@ -224,6 +224,21 @@ Com um domínio de verdade, um certificado do Let's Encrypt dispensa tudo isso �
 desligar a verificação: `NODE_EXTRA_CA_CERTS=/certs/ca-interna.pem`. Não há código para isso — é
 do Node.
 
+#### Como o servidor oficial está montado
+
+Os dois scripts que fizeram isso na VM estão no repositório, e são idempotentes:
+
+```bash
+bash scripts/prep-vm.sh     # certificado em /etc/pokeru/certs, conta de serviço no GBOT
+                            # e /etc/pokeru/server.env (chmod 600, com a senha da conta)
+bash scripts/deploy-vm.sh   # pull da imagem, troca o contêiner e confere health + acesso ao bot
+```
+
+O certificado é para `IP:35.209.186.9`, a chave fica `640 root:1000` (o contêiner roda como o
+usuário `node`, uid 1000 — com 600 ele não conseguiria ler), e o servidor entra na rede
+`gbot_default` para alcançar o bot em `http://bot:8090`. O par de chaves **não** está na imagem:
+entra por `-v /etc/pokeru/certs:/certs:ro`.
+
 ### Login, Discord e padocoins
 
 A API do GBOT é **interna** (não é exposta à internet) e o jogo roda na máquina do jogador, que não
