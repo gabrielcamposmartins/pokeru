@@ -11,6 +11,8 @@
  *   /preview.html?cena=result-pays     mesa cheia: cinco jogadores pagaram o vencedor
  *   /preview.html?cena=solids          cartas e fichas de perto (volume)
  *   /preview.html?cena=mesa            a mesa parada (cartas deitadas no plano e fichas em pe)
+ *   /preview.html?cena=placa           as placas da mesa: com titulo, com titulo comprido e sem
+ *   /preview.html?cena=abertura        a abertura da partida (a "tela de carregamento" com os cards)
  *   /preview.html?cena=voo&motion=1    voo das fichas (arco, giro e quicada)
  *   /preview.html?cena=draw5           mesa do poker de 5 cartas na hora da troca (mão marcada)
  *   /preview.html?cena=bond            a página de vínculo (missões e recompensas com as falas)
@@ -28,11 +30,11 @@
  *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
+ *   /preview.html?cena=titulos         as configurações com os títulos e o progresso das conquistas
  *   /preview.html?cena=estudio&aba=ui  o Estúdio (aba= face|back|chip|table|fx|ui)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
-import { EMPTY_STATS } from '../../shared/achievements';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'framer-motion';
 import '@fontsource/m-plus-rounded-1c/400.css';
@@ -57,12 +59,14 @@ import '@fontsource/playfair-display/900-italic.css';
 import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
-import { CHARACTER_PRESETS, TABLE_PRESETS } from '../../shared/styles';
+import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS } from '../../shared/styles';
+import type { Opening, SeatView } from '../../shared/protocol';
 import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
 import { TableFelt } from '../render/TableFelt';
 import { FlyersLayer } from '../game/Flyers';
+import { Nameplate } from '../game/Nameplate';
 import { BondBarView, BondUnlockCard } from '../game/BondBar';
 import { BondPageView } from '../game/BondPage';
 import { HEART_COST, bondLevel } from '../game/bond';
@@ -73,6 +77,7 @@ import { LoginScreen } from '../screens/Login';
 import { SettingsScreen } from '../screens/Settings';
 import { OnlineLobby } from '../screens/OnlineLobby';
 import { MainMenu } from '../screens/MainMenu';
+import { OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
 import { Studio } from '../screens/Studio';
 import { useSession } from '../store/session';
@@ -257,6 +262,55 @@ function Mesa() {
 }
 
 /**
+ * As placas da mesa, para conferir o título do jogador: um com título, um com título comprido
+ * (para ver onde ele corta) e um bot, que não tem título nenhum.
+ */
+function Placas() {
+  const geo = seatLayout(6, 0, true);
+  const seat = (i: number, over: Partial<SeatView> = {}): SeatView => ({
+    seat: i,
+    id: `p${i}`,
+    name: 'Jogador',
+    isBot: false,
+    avatar: { color: '#7c5cff', icon: '♠' },
+    cosmetics: {
+      face: FACE_PRESETS[0],
+      back: BACK_PRESETS[0],
+      chip: CHIP_PRESETS[0],
+      table: TABLE_PRESETS[0],
+      character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
+      winFx: 'gold',
+    },
+    title: null,
+    stack: 3240,
+    bet: 0,
+    inHand: true,
+    folded: false,
+    allIn: false,
+    cards: [],
+    lastAction: null,
+    connected: true,
+    busted: false,
+    ...over,
+  });
+  const placas: SeatView[] = [
+    seat(0, { name: 'Você', title: 'Tubarão' }),
+    seat(2, { name: 'Marina', title: 'Lenda do Showdown' }),
+    seat(4, { name: 'Bot Ren', isBot: true }),
+  ];
+  return (
+    <div className="table-stage">
+      <div className="table-plane" style={planeStyle()}>
+        <TableFelt st={TABLE_PRESETS[0]} showSlots={false} />
+      </div>
+      {placas.map((p, i) => (
+        <Nameplate key={p.seat} seat={p} geo={geo[p.seat]} acting={i === 1} isMe={i === 0} winner={false} badge={i === 0 ? 'D' : null} />
+      ))}
+    </div>
+  );
+}
+
+/**
  * Mesa do poker de 5 cartas na hora da troca: cinco cartas na minha mão (duas marcadas),
  * cinco viradas na frente de cada oponente e nenhuma carta no meio.
  */
@@ -404,7 +458,7 @@ if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina
 if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'connecting', botsPending: true });
 if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queueing: true });
 // a loja: finge uma conta no servidor, com itens e as duas moedas
-if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 'fila' || cena === 'fila-esperando') {
+if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 'titulos' || cena === 'fila' || cena === 'fila-esperando') {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
   useSession.setState({
@@ -421,12 +475,30 @@ if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
       owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
       bond: {},
-      stats: { ...EMPTY_STATS },
-    title: null,
+      // contadores de verdade: sem eles a lista de conquistas fica toda em zero e a tela não dá para conferir
+      stats: { hands: 137, wins: 62, matches: 11, folds: 74, allIns: 9, bigWins: 3, showdowns: 41, matchWins: 2 },
+      title: 'Colecionador de Potes',
       since: '2026-03-04T12:00:00.000Z',
     },
   });
 }
+// a abertura: cinco na mesa (um bot e um que ainda nao confirmou), com titulo, nivel e o par de cartas
+const ABERTURA: Opening = {
+  waitMs: 12_000,
+  players: [
+    { seat: 0, name: 'Você', isBot: false, title: 'Colecionador de Potes', level: 7, ready: true },
+    { seat: 1, name: 'Marina', isBot: false, title: 'Lenda do Showdown', level: 23, ready: true },
+    { seat: 2, name: 'dokidoki_tt', isBot: false, title: null, level: 3, ready: false },
+    { seat: 3, name: 'Bot Ren', isBot: true, title: null, level: 0, ready: true },
+    { seat: 4, name: 'berlineta', isBot: false, title: 'Sem Medo', level: 12, ready: true },
+  ].map((q, i) => ({
+    ...q,
+    character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
+    face: FACE_PRESETS[i % FACE_PRESETS.length],
+    back: BACK_PRESETS[i % BACK_PRESETS.length],
+  })),
+};
+
 // a lista de salas: finge um servidor conectado, para a tela não tentar ligar de verdade
 if (cena === 'salas') {
   useSession.setState({
@@ -449,11 +521,13 @@ const scene = SCENES[cena] ?? base;
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
-      {cena === 'personagens' ? (
+      {cena === 'abertura' ? (
+        <OpeningView opening={ABERTURA} mySeat={0} mesa="Fila Rápida · blinds 10/20" />
+      ) : cena === 'personagens' ? (
         <CharactersScreen onBack={() => {}} />
       ) : cena === 'login' || cena === 'login-erro' ? (
         <LoginScreen />
-      ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' ? (
+      ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' || cena === 'titulos' ? (
         <SettingsScreen onBack={() => {}} onCharacters={() => {}} />
       ) : cena === 'salas' ? (
         <OnlineLobby onBack={() => {}} />
@@ -471,6 +545,8 @@ createRoot(document.getElementById('root')!).render(
               <Voo />
             ) : cena === 'mesa' ? (
               <Mesa />
+            ) : cena === 'placa' ? (
+              <Placas />
             ) : cena === 'draw5' ? (
               <Draw5 />
             ) : cena === 'bond' ? (

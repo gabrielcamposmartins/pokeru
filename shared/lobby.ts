@@ -1,5 +1,6 @@
 import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
-import type { AccountProfile, AccountService, AuthIdentity } from './accounts';
+import type { AccountInfo, AccountProfile, AccountService, AuthIdentity } from './accounts';
+import { playerLevel } from './achievements';
 import { clampCosmetics } from './catalog';
 import { queueSettings, type BotDifficulty, type ClientMsg, type Currency, type RoomSummary, type ServerMsg } from './protocol';
 import {
@@ -49,7 +50,12 @@ export class Lobby {
   private accountChanged(accountId: string): void {
     const account = this.accounts?.info(accountId);
     if (!account) return;
-    for (const c of this.conns) if (c.accountId === accountId) c.send({ type: 'account', account });
+    for (const c of this.conns) {
+      if (c.accountId !== accountId) continue;
+      c.send({ type: 'account', account });
+      // subiu de nível (ou o título deixou de valer) no meio da partida: a mesa precisa saber
+      if (c.applyAccount(account)) c.room?.updateProfile(c);
+    }
   }
 
   connect(send: (m: ServerMsg) => void): Connection {
@@ -133,6 +139,8 @@ export class Connection implements ClientHandle {
   };
   /** Titulo de conquista da conta (null sem conta ou sem titulo escolhido). */
   title: string | null = null;
+  /** Nível do jogador, dos contadores da conta. 0 = sem conta. */
+  level = 0;
   /** O que o cliente pediu, antes do corte — é o que volta a valer quando ele compra o item. */
   private wanted: PlayerCosmetics = this.cosmetics;
   /** Itens da conta (chaves do catálogo). Vazio = só o que é grátis. */
@@ -178,6 +186,19 @@ export class Connection implements ClientHandle {
    * sozinho contra bots na própria máquina. Não existe posse para conferir nem ninguém para
    * proteger, e cortar ali só tiraria da pessoa o que ela já tem no perfil.
    */
+  /**
+   * O que da conta vai para a mesa: título e nível. Devolve true quando mudou algo — é o que
+   * decide se vale reavisar a sala.
+   */
+  applyAccount(account: AccountInfo): boolean {
+    const title = account.title;
+    const level = playerLevel(account.stats);
+    if (title === this.title && level === this.level) return false;
+    this.title = title;
+    this.level = level;
+    return true;
+  }
+
   private applyOwned(owned: readonly string[]): void {
     this.owns = owned;
     this.cosmetics = this.lobby.accounts ? clampCosmetics(this.wanted, owned) : this.wanted;
@@ -196,7 +217,7 @@ export class Connection implements ClientHandle {
     if (account) {
       this.accountId = account.id;
       this.applyOwned(account.owned);
-      this.title = account.title;
+      this.applyAccount(account);
       this.send({ type: 'account', account });
     }
     this.send({ type: 'rooms', rooms: this.lobby.list() });
@@ -259,7 +280,8 @@ export class Connection implements ClientHandle {
         }
         accounts.setTitle(this.accountId, typeof msg.title === 'string' ? msg.title : null);
         // o servidor e' quem decide se o titulo vale; o que ele devolver e' o que vai a mesa
-        this.title = accounts.info(this.accountId)?.title ?? null;
+        const info = accounts.info(this.accountId);
+        if (info) this.applyAccount(info);
         this.room?.updateProfile(this);
         break;
       }
@@ -346,6 +368,10 @@ export class Connection implements ClientHandle {
       case 'removeBot':
         if (!this.room) return;
         this.error(this.room.removeBot(this.id, Number(msg.seat)));
+        break;
+      case 'ready':
+        // a tela de abertura acabou de carregar deste lado
+        this.room?.ready(this.id);
         break;
       case 'startGame':
         if (!this.room) return;

@@ -5,10 +5,12 @@ import {
   availableTitles,
   findAchievement,
   isUnlocked,
+  playerLevel,
   progressOf,
   sanitizeStats,
   sanitizeTitle,
   unlockedIds,
+  xpOf,
   type PlayerStats,
 } from './achievements';
 
@@ -106,5 +108,26 @@ describe('sanitizeStats', () => {
 
   it('corta fracionário', () => {
     expect(sanitizeStats({ hands: 7.9 }).hands).toBe(7);
+  });
+});
+
+describe('nível do jogador', () => {
+  it('começa no 1 e sobe com o que a pessoa jogou', () => {
+    expect(playerLevel(EMPTY_STATS)).toBe(1);
+    // 40 de xp é o nível 2: 40 mãos, ou 4 partidas terminadas
+    expect(playerLevel({ ...EMPTY_STATS, hands: 39 })).toBe(1);
+    expect(playerLevel({ ...EMPTY_STATS, hands: 40 })).toBe(2);
+    expect(playerLevel({ ...EMPTY_STATS, matches: 4 })).toBe(2);
+    // a curva é de raiz: cada nível pede mais que o anterior
+    expect(playerLevel({ ...EMPTY_STATS, hands: 160 })).toBe(3);
+    expect(playerLevel({ ...EMPTY_STATS, hands: 360 })).toBe(4);
+  });
+
+  it('ganhar vale mais que só jogar', () => {
+    const jogou = xpOf({ ...EMPTY_STATS, hands: 10 });
+    const ganhou = xpOf({ ...EMPTY_STATS, hands: 10, wins: 10 });
+    expect(ganhou).toBeGreaterThan(jogou);
+    // contador que não dá xp (fold) não mexe no nível
+    expect(xpOf({ ...EMPTY_STATS, folds: 500 })).toBe(0);
   });
 });

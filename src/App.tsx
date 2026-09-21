@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSession } from './store/session';
+import { useTable } from './store/table';
 import { useProfile } from './store/profile';
 import { useAuth } from './store/auth';
 import { setSoundSet, setVolume, sfx } from './audio/sfx';
@@ -15,6 +16,7 @@ import { StoreScreen } from './screens/Store';
 import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
+import { OpeningScreen } from './game/Opening';
 import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
@@ -26,6 +28,7 @@ export function App() {
   const room = useSession((s) => s.room);
   const mode = useSession((s) => s.mode);
   const botsPending = useSession((s) => s.botsPending);
+  const opening = useTable((s) => s.opening);
   const connStatus = useSession((s) => s.status);
   const connError = useSession((s) => s.connError);
   const connectOnline = useSession((s) => s.connectOnline);
@@ -83,6 +86,8 @@ export function App() {
   // a entrada é a tela de login; "jogar sem conta" e a sessão logada seguem para o jogo
   const gated = authStatus !== 'logged' && authStatus !== 'offline' && mode === 'none' && !room;
   if (gated) content = <LoginScreen />;
+  // a mesa está montada e conferindo os jogadores: a abertura passa na frente da partida
+  else if (opening) content = <OpeningScreen />;
   else if (mode === 'local') content = <GameScreen />;
   else if (mode === 'online' && room && room.status !== 'waiting') content = <GameScreen />;
   // partida contra bots sendo montada no servidor: o menu segue na frente ("sentando à mesa…")

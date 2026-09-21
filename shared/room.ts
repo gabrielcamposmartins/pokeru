@@ -15,6 +15,7 @@ import {
   type TableEvent,
   type TableView,
 } from './protocol';
+import type { Opening, OpeningPlayer } from './protocol';
 import {
   AVATAR_ICONS,
   BACK_PRESETS,
@@ -36,6 +37,8 @@ export interface ClientHandle {
   cosmetics: PlayerCosmetics;
   /** Título de conquista que o jogador mostra na mesa (null = nenhum). */
   title: string | null;
+  /** Nível do jogador (0 = sem conta: o número não vai para a mesa). */
+  level: number;
   send(msg: ServerMsg): void;
 }
 
@@ -57,6 +60,7 @@ interface Member {
   avatar: AvatarInfo;
   cosmetics: PlayerCosmetics;
   title: string | null;
+  level: number;
   seat: number;
   stack: number;
   client: ClientHandle | null;
@@ -117,6 +121,11 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
  * Todos os eventos da mão passam por uma fila com pausas, para que as animações dos clientes
  * tenham tempo de acontecer antes da próxima decisão.
  */
+/** Quanto a abertura espera, no máximo, pelas confirmações. */
+const OPENING_MAX_MS = 12_000;
+/** Pausa depois da última confirmação, para a mesa aparecer em vez de piscar. */
+const OPENING_HOLD_MS = 1_400;
+
 export class Room {
   readonly id: string;
   settings: RoomSettings;
@@ -150,6 +159,13 @@ export class Room {
   /** Correndo a mão atual até o fim (pedido de "pular" numa partida contra bots). */
   private rushing = false;
   private eliminated: { name: string; seat: number; place: number }[] = [];
+  /**
+   * A abertura: a mesa está montada e esperando cada jogador confirmar que carregou.
+   *
+   * `ready` guarda quem já confirmou; `began` fecha a porta para o começo acontecer duas vezes
+   * (o tempo limite e a última confirmação podem cair quase juntos).
+   */
+  private opening: { ready: Set<string>; began: boolean } | null = null;
 
   constructor(id: string, settings: RoomSettings, host: ClientHandle) {
     this.id = id;
@@ -248,6 +264,8 @@ export class Room {
     const room = this.info();
     this.sendAll({ type: 'room', room });
     this.onChange();
+    // toda entrada, saída e troca de perfil passa por aqui: é o lugar de manter a abertura em dia
+    this.openingChanged();
   }
 
   // ------------------------------------------------------------------ membros
@@ -336,6 +354,7 @@ export class Room {
       avatar: client.avatar,
       cosmetics: client.cosmetics,
       title: client.title,
+      level: client.level,
       seat,
       stack,
       client,
@@ -360,6 +379,7 @@ export class Room {
     m.avatar = client.avatar;
     m.cosmetics = client.cosmetics;
     m.title = client.title;
+    m.level = client.level;
     this.broadcastRoom();
     if (this.status === 'playing') for (const h of this.humans()) h.client!.send({ type: 'sync', view: this.buildView(h.id) });
   }
@@ -382,6 +402,13 @@ export class Room {
       return;
     }
     this.broadcastRoom();
+  }
+
+  /** Alguém entrou ou saiu durante a abertura: o retrato mudou, e a espera pode ter acabado. */
+  private openingChanged(): void {
+    if (!this.opening) return;
+    this.broadcastOpening();
+    this.checkOpening();
   }
 
   private removeOrMark(m: Member): void {
@@ -422,6 +449,7 @@ export class Room {
       difficulty,
       avatar: { color: pick(AVATAR_COLORS), icon: pick(AVATAR_ICONS) },
       title: null,
+      level: 0,
       cosmetics: {
         face: pick(FACE_PRESETS),
         back: pick(BACK_PRESETS),
@@ -479,9 +507,82 @@ export class Room {
     this.dealerSeat = this.prevSeat(this.dealerSeat);
     this.broadcastRoom();
     for (const h of this.humans()) h.client!.send({ type: 'sync', view: this.buildView(h.id) });
-    this.system('A partida começou! Boa sorte.');
-    this.later(() => this.startHand(), 1200);
+    // no servidor hospedado a partida passa pela abertura: a mesa espera cada um confirmar.
+    // Offline não há ninguém para esperar (nem conta para mostrar), então começa direto.
+    if (this.bank) this.openUp();
+    else {
+      this.system('A partida começou! Boa sorte.');
+      this.later(() => this.startHand(), 1200);
+    }
     return null;
+  }
+
+  // -------------------------------------------------------------- abertura
+
+  /**
+   * Abre a partida: manda a todos o retrato da mesa e espera as confirmações.
+   *
+   * O tempo limite não é decoração — sem ele, um cliente que travou no carregamento deixaria a
+   * mesa inteira parada. Passado o limite, a mesa começa sem quem não respondeu.
+   */
+  private openUp(): void {
+    this.opening = { ready: new Set(), began: false };
+    this.broadcastOpening();
+    this.later(() => this.beginPlay(), OPENING_MAX_MS);
+  }
+
+  /** O jogador confirmou que carregou. */
+  ready(clientId: string): void {
+    const o = this.opening;
+    const m = this.memberById(clientId);
+    if (!o || !m || m.isBot || o.ready.has(clientId)) return;
+    o.ready.add(clientId);
+    this.broadcastOpening();
+    this.checkOpening();
+  }
+
+  /** Todos confirmaram? Então começa — com uma pausa curta, para dar tempo de ver a mesa. */
+  private checkOpening(): void {
+    const o = this.opening;
+    if (!o || o.began) return;
+    const gente = this.humans().filter((m) => !m.leaving);
+    if (gente.length > 0 && !gente.every((m) => o.ready.has(m.id))) return;
+    this.later(() => this.beginPlay(), OPENING_HOLD_MS);
+  }
+
+  private beginPlay(): void {
+    const o = this.opening;
+    if (!o || o.began) return;
+    o.began = true;
+    this.opening = null;
+    this.sendAll({ type: 'opening', opening: { players: [], waitMs: 0 } });
+    this.system('A partida começou! Boa sorte.');
+    this.startHand();
+  }
+
+  /** Quem está na mesa, do jeito que a abertura mostra. */
+  private openingRoster(): OpeningPlayer[] {
+    const o = this.opening;
+    return this.members()
+      .filter((m) => !m.leaving)
+      .map((m) => ({
+        seat: m.seat,
+        name: m.name,
+        isBot: m.isBot,
+        title: m.title,
+        level: m.level,
+        character: m.cosmetics.character,
+        face: m.cosmetics.face,
+        back: m.cosmetics.back,
+        // bot não carrega nada: entra pronto
+        ready: m.isBot || !!o?.ready.has(m.id),
+      }));
+  }
+
+  private broadcastOpening(): void {
+    if (!this.opening) return;
+    const opening: Opening = { players: this.openingRoster(), waitMs: OPENING_MAX_MS };
+    this.sendAll({ type: 'opening', opening });
   }
 
   /** Mesa a dinheiro: custa fichas do saldo para sentar (e a saída devolve o que sobrou). */
@@ -564,7 +665,7 @@ export class Room {
 
   /** Retoma o jogo em modo cash quando havia menos de 2 jogadores. */
   private maybeResume(): void {
-    if (this.status !== 'playing') return;
+    if (this.status !== 'playing' || this.opening) return;
     if ((!this.hand || this.handClosed) && !this.nextHandScheduled && this.queue.length === 0 && !this.pumping) {
       this.nextHandScheduled = true;
       this.later(() => {
@@ -577,7 +678,7 @@ export class Room {
   // ------------------------------------------------------------------ mãos
 
   private startHand(): void {
-    if (this.status !== 'playing') return;
+    if (this.status !== 'playing' || this.opening) return;
     this.rushing = false;
     // limpa quem saiu
     for (const m of this.members()) {

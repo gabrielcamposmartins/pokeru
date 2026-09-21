@@ -1,6 +1,6 @@
 import type { Card } from './cards';
 import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
-import type { AvatarInfo, CharacterStyle, PlayerCosmetics } from './styles';
+import type { AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, PlayerCosmetics } from './styles';
 import type { AccountCreds, AccountInfo } from './accounts';
 import type { Currency } from './catalog';
 
@@ -217,6 +217,36 @@ export type TableEvent =
   | { t: 'blindsUp'; smallBlind: number; bigBlind: number }
   | { t: 'gameOver'; ranking: { name: string; place: number; seat: number }[] };
 
+/**
+ * Um jogador na **abertura** da partida — a tela que o jogo mostra como "preparando a mesa" antes
+ * da primeira mão.
+ *
+ * Ela é de verdade: a mesa só reparte cartas depois que cada jogador confirmou (ou depois do
+ * tempo limite, para ninguém ficar preso esperando quem travou). E é onde cada um aparece com o
+ * que escolheu — personagem, título, frente e verso das cartas.
+ */
+export interface OpeningPlayer {
+  seat: number;
+  name: string;
+  isBot: boolean;
+  /** Título de conquista (null = nenhum). */
+  title: string | null;
+  /** Nível do jogador; 0 nos bots, que não têm conta. */
+  level: number;
+  character: CharacterStyle;
+  /** Frente e verso das cartas dele, para o par mostrado no card. */
+  face: CardFaceStyle;
+  back: CardBackStyle;
+  /** Confirmou que está pronto. Bot entra pronto. */
+  ready: boolean;
+}
+
+export interface Opening {
+  players: OpeningPlayer[];
+  /** Quanto a mesa espera, no máximo, antes de começar de todo jeito. */
+  waitMs: number;
+}
+
 export type ClientMsg =
   /**
    * Apresentação. `jwt` é o token do serviço de contas — é ele que diz **quem** o jogador é, e o
@@ -234,6 +264,8 @@ export type ClientMsg =
   | { type: 'addBot'; difficulty: BotDifficulty }
   | { type: 'removeBot'; seat: number }
   | { type: 'startGame' }
+  /** "Terminei de carregar": a mesa espera isso de cada jogador antes da primeira mão. */
+  | { type: 'ready' }
   | { type: 'action'; action: PlayerAction }
   /** Poker de 5 cartas: troca as cartas nas posições indicadas (vazio = manter todas). */
   | { type: 'draw'; discards: number[] }
@@ -258,6 +290,8 @@ export type ServerMsg =
   | { type: 'rooms'; rooms: RoomSummary[] }
   | { type: 'room'; room: RoomInfo }
   | { type: 'left' }
+  /** A mesa está montada e conferindo os jogadores (veja `Opening`). */
+  | { type: 'opening'; opening: Opening }
   | { type: 'sync'; view: TableView }
   | { type: 'event'; ev: TableEvent; view: TableView }
   | { type: 'chat'; from: string; seat: number | null; text: string; system?: boolean }

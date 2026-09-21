@@ -254,6 +254,10 @@ function handle(m: ServerMsg): void {
       set({ mode: 'none', room: null, chat: [] });
       director.reset();
       break;
+    case 'opening':
+      // a mesa está montada e conferindo os jogadores; lista vazia = a abertura acabou
+      useTable.getState().setOpening(m.opening.players.length ? m.opening : null);
+      break;
     case 'sync':
       director.sync(m.view);
       break;

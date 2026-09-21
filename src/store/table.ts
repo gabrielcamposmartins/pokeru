@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Card } from '../../shared/cards';
-import type { SeatView, TableView } from '../../shared/protocol';
+import type { Opening, SeatView, TableView } from '../../shared/protocol';
 import type { CardBackStyle, CharacterStyle, WinFxId } from '../../shared/styles';
 import type { Pt } from '../game/layout';
 
@@ -119,6 +119,11 @@ interface TableState {
   winners: number[];
   /** Assento que esta abrindo a mao no showdown (primeiro a mostrar). */
   opener: number | null;
+  /**
+   * A abertura da partida: a tela de "preparando a mesa" com o card de cada jogador.
+   * null = não há abertura em curso (a partida já está rolando, ou é offline).
+   */
+  opening: Opening | null;
   /** Poker de 5 cartas: posições da minha mão marcadas para trocar. */
   discards: number[];
   setDisplay(v: TableView | null, receivedAt?: number): void;
@@ -135,6 +140,7 @@ interface TableState {
   setGameOver(r: Ranking[] | null): void;
   setWinners(w: number[]): void;
   setOpener(opener: number | null): void;
+  setOpening(opening: Opening | null): void;
   toggleDiscard(i: number): void;
   clearDiscards(): void;
   reset(): void;
@@ -156,6 +162,7 @@ export const useTable = create<TableState>()((set, get) => ({
   gameOver: null,
   winners: [],
   opener: null,
+  opening: null,
   discards: [],
   setDisplay: (v, receivedAt) =>
     set({
@@ -193,6 +200,7 @@ export const useTable = create<TableState>()((set, get) => ({
   setGameOver: (gameOver) => set({ gameOver }),
   setWinners: (winners) => set({ winners }),
   setOpener: (opener) => set({ opener }),
+  setOpening: (opening) => set({ opening }),
   toggleDiscard: (i) => set((s) => ({ discards: s.discards.includes(i) ? s.discards.filter((x) => x !== i) : [...s.discards, i].sort((a, b) => a - b) })),
   clearDiscards: () => set({ discards: [] }),
   reset: () =>
@@ -209,6 +217,7 @@ export const useTable = create<TableState>()((set, get) => ({
       gameOver: null,
       winners: [],
       opener: null,
+      opening: null,
       discards: [],
     }),
 }));

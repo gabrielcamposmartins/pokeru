@@ -102,6 +102,30 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'unbeaten', name: 'Invicto', hint: 'Ganhe 25 partidas.', title: 'Imbatível', of: 'matchWins', need: 25 },
 ];
 
+/**
+ * Quanto cada coisa vale de experiência. Mão jogada é o chão; partida terminada vale mais porque
+ * custa tempo, e ganhar a partida vale mais ainda.
+ */
+const XP: Partial<Record<StatEvent, number>> = { hands: 1, wins: 3, matches: 10, matchWins: 25 };
+
+/** Experiência acumulada da conta. */
+export function xpOf(stats: PlayerStats): number {
+  let xp = 0;
+  for (const [k, peso] of Object.entries(XP)) xp += (stats[k as StatEvent] ?? 0) * peso;
+  return xp;
+}
+
+/**
+ * Nível do jogador, dos mesmos contadores das conquistas — nada de guardar nível à parte, que
+ * poderia discordar do resto.
+ *
+ * A curva é de raiz: cada nível pede mais que o anterior (nível 2 com 40 de xp, 3 com 160, 4 com
+ * 360…), então o número cresce rápido no começo e devagar depois. Começa em 1.
+ */
+export function playerLevel(stats: PlayerStats): number {
+  return 1 + Math.floor(Math.sqrt(xpOf(stats) / 40));
+}
+
 export function findAchievement(id: string): Achievement | undefined {
   return ACHIEVEMENTS.find((a) => a.id === id);
 }

@@ -390,6 +390,9 @@ class Director {
         this.skipping = false;
         store.setWinners([]);
         store.setOpener(null);
+        // a primeira mão chegou: a tela de abertura sai de cena (mesmo que o 'opening' vazio
+        // tenha se perdido no caminho)
+        store.setOpening(null);
         store.setSplash(null);
         store.setResult(null);
         store.addLog(`Mão #${ev.handNo}`, 'hand');
