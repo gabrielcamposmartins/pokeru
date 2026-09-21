@@ -54,7 +54,10 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
                 <CharacterPortrait st={character} size={72} />
               </div>
               <div>
-                <b>{character.name}</b>
+                {/* o nome precisa de linha propria: sem o titulo do personagem embaixo, o botao subia para o lado dele */}
+                <div>
+                  <b>{character.name}</b>
+                </div>
                 <button className="btn btn-pink small" style={{ marginTop: 6 }} onClick={onCharacters}>
                   Trocar personagem
                 </button>

@@ -8,7 +8,7 @@ import {
   TABLE_PRESETS,
   type PlayerCosmetics,
 } from '../../shared/styles';
-import { chipSkin, hasOtherHumans, mainChipSkin, openerCardSkin, tableSkin } from './skins';
+import { chipSkin, mainChipSkin, openerCardSkin, tableSkin } from './skins';
 
 /** Cosméticos distintos por assento, para dar para diferenciar nos asserts. */
 function cosmetics(i: number): PlayerCosmetics {
@@ -75,16 +75,36 @@ const MEU_TABLE = TABLE_PRESETS[TABLE_PRESETS.length - 1];
 const MEU_CHIP = CHIP_PRESETS[CHIP_PRESETS.length - 1];
 const MINHAS_CARTAS = { face: FACE_PRESETS[FACE_PRESETS.length - 1], back: BACK_PRESETS[BACK_PRESETS.length - 1] };
 
-describe('hasOtherHumans', () => {
-  it('só conta humano em outro assento', () => {
-    expect(hasOtherHumans(view())).toBe(true);
-    expect(hasOtherHumans(view({ seats: [seat(0), seat(1, true), null, null, null, null] }))).toBe(false);
-    expect(hasOtherHumans(view({ seats: [seat(0), null, null, null, null, null] }))).toBe(false);
+describe('bot não empresta skin', () => {
+  // a mesa da fila nasce com tres bots: se o botao do dealer emprestasse a skin deles, o feltro
+  // trocaria de cor a cada mao, com um estilo sorteado
+  const comBots = view({ seats: [seat(0), seat(1, true), seat(2, true), null, null, null] });
+
+  it('o botão num bot não muda o feltro nem a stack principal', () => {
+    expect(tableSkin({ ...comBots, dealerSeat: 1 }, MEU_TABLE)).toBe(MEU_TABLE);
+    expect(mainChipSkin({ ...comBots, dealerSeat: 2 }, MEU_CHIP)).toBe(MEU_CHIP);
+  });
+
+  it('a aposta de um bot sai com as minhas fichas', () => {
+    expect(chipSkin(comBots, 1, MEU_CHIP)).toBe(MEU_CHIP);
+  });
+
+  it('bot abrindo a mão não empresta as cartas', () => {
+    expect(openerCardSkin(comBots, 1, MINHAS_CARTAS)).toBeNull();
+  });
+
+  it('numa mesa mista, o bot continua de fora', () => {
+    // eu (0), gente (1) e um bot (2): a skin de quem e' gente vale, a do bot nao
+    const mista = view({ seats: [seat(0), seat(1), seat(2, true), null, null, null] });
+    expect(tableSkin({ ...mista, dealerSeat: 1 }, MEU_TABLE)).toBe(cosmetics(2).table);
+    expect(tableSkin({ ...mista, dealerSeat: 2 }, MEU_TABLE)).toBe(MEU_TABLE);
+    expect(chipSkin(mista, 1, MEU_CHIP)).toBe(cosmetics(2).chip);
+    expect(chipSkin(mista, 2, MEU_CHIP)).toBe(MEU_CHIP);
   });
 });
 
 describe('mesa segue o dealer', () => {
-  it('usa a mesa do dealer quando há outro humano', () => {
+  it('usa a mesa do dealer quando o dealer é gente', () => {
     expect(tableSkin(view(), MEU_TABLE)).toBe(cosmetics(2).table);
   });
 

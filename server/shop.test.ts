@@ -469,3 +469,57 @@ describe('sessão guardada no aparelho', () => {
     acc.close();
   });
 });
+
+describe('títulos: quem valida é o servidor', () => {
+  /** Um cliente ligado no lobby, guardando o que recebeu. */
+  function client(lobby: Lobby) {
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: profile().cosmetics });
+    const last = <T extends ServerMsg['type']>(type: T) => [...got].reverse().find((m) => m.type === type) as Extract<ServerMsg, { type: T }> | undefined;
+    return { conn, last };
+  }
+
+  it('título que a conta não liberou não chega à mesa', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
+    const lobby = new Lobby('Teste', acc);
+    const c = client(lobby);
+    c.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    const id = c.conn.accountId!;
+
+    // conta nova não tem conquista nenhuma: o pedido é recusado em silêncio
+    c.conn.handle({ type: 'setTitle', title: 'Tubarão' });
+    expect(c.last('room')!.room.members[0].title).toBeNull();
+    expect(acc.info(id)!.title).toBeNull();
+
+    // uma mão jogada libera 'Novato da Mesa' — esse o servidor aceita
+    acc.note(id, 'hands');
+    c.conn.handle({ type: 'setTitle', title: 'Novato da Mesa' });
+    expect(c.last('room')!.room.members[0].title).toBe('Novato da Mesa');
+    expect(acc.info(id)!.title).toBe('Novato da Mesa');
+    acc.close();
+  });
+
+  it('o título volta com a conta na próxima entrada', () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = acc.login(undefined, profile())!;
+    acc.note(a.id, 'hands');
+    acc.setTitle(a.id, 'Novato da Mesa');
+
+    const lobby = new Lobby('Teste', acc);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: profile().cosmetics, account: { id: a.id, token: a.token! } });
+    conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    const sala = [...got].reverse().find((m) => m.type === 'room') as Extract<ServerMsg, { type: 'room' }>;
+    expect(sala.room.members[0].title).toBe('Novato da Mesa');
+    acc.close();
+  });
+
+  it('sem conta no servidor não há título', () => {
+    const lobby = new Lobby('Modo Offline', null);
+    const c = client(lobby);
+    c.conn.handle({ type: 'setTitle', title: 'Tubarão' });
+    expect(c.last('error')!.message).toMatch(/precisam de uma conta/);
+  });
+});
