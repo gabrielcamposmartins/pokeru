@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { CHARACTER_PRESETS } from '../../shared/styles';
+import { itemKey, ownsItem, priceOf } from '../../shared/catalog';
 import { HEARTS } from '../game/bond';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
@@ -8,6 +9,8 @@ import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { BondBar, BondHearts } from '../game/BondBar';
 import { BondPage } from '../game/BondPage';
 import { useBondLevel } from '../store/bond';
+import { useOwned } from '../store/shop';
+import { fmt } from '../util/format';
 import { ScreenHeader } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { Petals } from './MainMenu';
@@ -23,9 +26,16 @@ function CardHearts({ id }: { id: string }) {
   );
 }
 
+/** Cadeado no canto do retrato de quem ainda não é do jogador. */
+function CardLock({ id }: { id: string }) {
+  const owned = useOwned();
+  return ownsItem(owned, 'character', id) ? null : <span className="char-card-lock">🔒</span>;
+}
+
 /** Galeria de personagens (estilo tela de personagens do Mahjong Soul). */
-export function CharactersScreen({ onBack }: { onBack: () => void }) {
+export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onStore?: () => void }) {
   const profile = useProfile();
+  const owned = useOwned();
   const toast = useSession((s) => s.toast);
   const [sel, setSel] = useState(profile.character);
   const [bondOpen, setBondOpen] = useState(false);
@@ -33,6 +43,9 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
   const hop = useAnimationControls();
   const current = CHARACTER_PRESETS.find((c) => c.id === sel) ?? CHARACTER_PRESETS[0];
   const chosen = profile.character === current.id;
+  // personagem é item de loja: só entra na mesa quem é do jogador (o servidor confere de novo)
+  const mine = ownsItem(owned, 'character', current.id);
+  const preco = priceOf(itemKey('character', current.id), 'chips') ?? 0;
   const bond = useBondLevel(current.id);
 
   const say = () => {
@@ -85,17 +98,30 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
               </div>
             </div>
             <div className="row gap wrap" style={{ marginTop: 14 }}>
-              <button
-                className="btn btn-gold"
-                disabled={chosen}
-                onClick={() => {
-                  profile.setCharacter(current.id);
-                  sfx.win();
-                  toast(`${current.name} agora te acompanha na mesa!`);
-                }}
-              >
-                {chosen ? '✓ Em uso' : 'Usar este personagem'}
-              </button>
+              {mine ? (
+                <button
+                  className="btn btn-gold"
+                  disabled={chosen}
+                  onClick={() => {
+                    profile.setCharacter(current.id);
+                    sfx.win();
+                    toast(`${current.name} agora te acompanha na mesa!`);
+                  }}
+                >
+                  {chosen ? '✓ Em uso' : 'Usar este personagem'}
+                </button>
+              ) : (
+                <button
+                  className="btn btn-gold"
+                  onClick={() => {
+                    sfx.click();
+                    if (onStore) onStore();
+                    else toast('Abra a Loja para desbloquear este personagem.');
+                  }}
+                >
+                  🔒 {fmt(preco)} fichas · na Loja
+                </button>
+              )}
               <button
                 className="btn btn-pink"
                 onClick={() => {
@@ -121,6 +147,7 @@ export function CharactersScreen({ onBack }: { onBack: () => void }) {
                 <CharacterPortrait st={c} size={120} />
                 <span className="char-card-name">{c.name}</span>
                 <CardHearts id={c.id} />
+                <CardLock id={c.id} />
                 {profile.character === c.id && <span className="char-card-eq">✓</span>}
               </button>
             ))}

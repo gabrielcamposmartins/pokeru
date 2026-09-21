@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { SERVER_URL, useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
-import { useAuth } from '../store/auth';
+import { AccountSection } from './Account';
 import { ScreenHeader, Section, Slider, Toggle, Field } from '../ui/controls';
 import { CharacterPortrait } from '../render/CharacterArt';
 import { sfx } from '../audio/sfx';
@@ -35,9 +35,6 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
   const toast = useSession((s) => s.toast);
   const info = useAppInfo();
   const [confirmReset, setConfirmReset] = useState(false);
-  const authStatus = useAuth((a) => a.status);
-  const authUser = useAuth((a) => a.user);
-  const signOut = useAuth((a) => a.signOut);
   const s = p.settings;
   return (
     <div className="screen">
@@ -65,41 +62,7 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
             </div>
           </Section>
           <Section title="Conta">
-            {authStatus === 'logged' ? (
-              <>
-                <div className="row gap between">
-                  <div>
-                    <b>{authUser}</b>
-                    <div className="muted small">Sessão guardada neste computador.</div>
-                  </div>
-                  <button
-                    className="btn btn-ghost small"
-                    onClick={() => {
-                      void signOut();
-                      toast('Você saiu da conta.');
-                    }}
-                  >
-                    Sair da conta
-                  </button>
-                </div>
-                <div className="field-hint">As fichas e o vínculo ficam no servidor, ligados a esta conta.</div>
-              </>
-            ) : (
-              <>
-                <div className="muted small">{authUser ? `Último usuário: ${authUser}` : 'Você está jogando sem conta.'}</div>
-                <button
-                  className="btn btn-pink small"
-                  style={{ marginTop: 8 }}
-                  onClick={() => {
-                    // volta o login para a frente: sem sessão, o App mostra a tela de entrada
-                    void signOut();
-                  }}
-                >
-                  Entrar numa conta
-                </button>
-                <div className="field-hint">O "lembrar-me" guarda o usuário e a sessão cifrados. A senha não é salva.</div>
-              </>
-            )}
+            <AccountSection />
           </Section>
           <Section title="Áudio">
             <Slider label="Volume" value={s.volume} min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.updateSettings({ volume: v })} />

@@ -236,6 +236,7 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
   const { menu } = useUiTheme();
   const icons: { key: Screen; icon: string; label: string }[] = [
     { key: 'characters', icon: menu.icons.characters, label: 'Personagens' },
+    { key: 'store', icon: '🛍', label: 'Loja' },
     { key: 'studio', icon: menu.icons.studio, label: 'Estúdio' },
     { key: 'settings', icon: menu.icons.settings, label: 'Ajustes' },
   ];

@@ -11,6 +11,7 @@ import { GameScreen } from './screens/GameScreen';
 import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
 import { CharactersScreen } from './screens/Characters';
+import { StoreScreen } from './screens/Store';
 import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
@@ -18,7 +19,7 @@ import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
 
-export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters';
+export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters' | 'store';
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('menu');
@@ -57,7 +58,7 @@ export function App() {
 
   // volta ao menu certo ao sair de uma partida
   useEffect(() => {
-    if (mode === 'none' && screen !== 'online' && screen !== 'studio' && screen !== 'settings' && screen !== 'characters') setScreen('menu');
+    if (mode === 'none' && screen !== 'online' && screen !== 'studio' && screen !== 'settings' && screen !== 'characters' && screen !== 'store') setScreen('menu');
   }, [mode, screen]);
 
   let content;
@@ -72,7 +73,8 @@ export function App() {
   else if (screen === 'online' || mode === 'online') content = <OnlineLobby onBack={() => setScreen('menu')} />;
   else if (screen === 'studio') content = <Studio onBack={() => setScreen('menu')} />;
   else if (screen === 'settings') content = <SettingsScreen onBack={() => setScreen('menu')} onCharacters={() => setScreen('characters')} />;
-  else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} onStore={() => setScreen('store')} />;
+  else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
   else content = <MainMenu go={setScreen} />;
 
   return (

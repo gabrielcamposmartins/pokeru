@@ -1,20 +1,37 @@
 import { ChipSvg } from '../render/Chip';
+import { PadoCoinSvg } from '../render/PadoCoin';
 import { SERVER_URL, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
+import { usePado } from '../store/shop';
 import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
 
 /**
- * As fichas do jogador, no alto do menu (como a barra de moedas do Mahjong Soul).
+ * As moedas do jogador, no alto do menu (como a barra do Mahjong Soul).
  *
- * O saldo é do servidor: enquanto o jogo está conectado, o valor vem da conta; fora dele, mostra
- * o último saldo conhecido daquele servidor (guardado no perfil), para a barra não ficar vazia
- * toda vez que o jogo abre. O `+` ainda não tem loja — avisa e fica esperando.
+ * São duas, e elas vêm de lugares diferentes:
  *
- * A moeda secundária entra aqui do lado quando existir: é só outro `<Coin>`.
+ *   - **fichas** — do próprio Pokeru, guardadas na conta do servidor;
+ *   - **padocoins** — da economia do bot do Discord. Só aparecem **se houver Discord vinculado**:
+ *     sem vínculo a moeda não existe para aquela conta, e mostrá-la zerada seria mentira.
+ *
+ * O saldo é sempre do servidor. Fora da conexão, a barra mostra o último valor conhecido (guardado
+ * no perfil) para não abrir vazia, e diz que está assim.
  */
 
-export function WalletPill({ amount, onPlus, hint, stale, children }: { amount: number; onPlus?: () => void; hint?: string; stale?: boolean; children: React.ReactNode }) {
+export function WalletPill({
+  amount,
+  onPlus,
+  hint,
+  stale,
+  children,
+}: {
+  amount: number;
+  onPlus?: () => void;
+  hint?: string;
+  stale?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className={`wallet-pill ${stale ? 'stale' : ''}`} title={hint}>
       <span className="wallet-pill-icon">{children}</span>
@@ -29,7 +46,7 @@ export function WalletPill({ amount, onPlus, hint, stale, children }: { amount: 
 }
 
 /**
- * Saldo mostrado: o da conta conectada. Fora dela, o último que vimos naquele servidor — é só
+ * Saldo de fichas: o da conta conectada. Fora dela, o último que vimos naquele servidor — é só
  * uma lembrança para a barra não abrir vazia; quem diz quanto você tem é sempre o servidor.
  */
 export function useChips(): number {
@@ -40,6 +57,7 @@ export function useChips(): number {
 
 export function WalletBar() {
   const chips = useChips();
+  const pado = usePado();
   const live = useSession((s) => !!s.account);
   const toast = useSession((s) => s.toast);
   return (
@@ -55,6 +73,12 @@ export function WalletBar() {
       >
         <ChipSvg value={100} size={30} />
       </WalletPill>
+      {/* a segunda moeda só existe para quem vinculou o Discord */}
+      {pado !== null && (
+        <WalletPill amount={pado} hint="Seus padocoins, da economia do bot do Discord">
+          <PadoCoinSvg size={30} />
+        </WalletPill>
+      )}
     </div>
   );
 }

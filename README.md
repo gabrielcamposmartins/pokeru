@@ -113,9 +113,15 @@ no cabeçalho `X-Admin-Token` ou em `?token=`.
 
 ### Contas, saldo e vínculo
 
-- **Identidade sem senha:** na primeira conexão o servidor cria a conta e devolve um **token**
-  aleatório; o cliente guarda o token por endereço de servidor e o manda no `hello` para voltar
-  como ele mesmo. O servidor nunca vê (nem pede) uma senha.
+Há **dois jeitos de entrar**, e eles convivem:
+
+- **Com login** (recomendado): o jogador entra com usuário e senha do **serviço do GBOT** (o bot
+  do Discord) e recebe um **JWT**. A conta é a mesma em qualquer computador, e é essa que pode ter
+  Discord vinculado — e portanto padocoins. Veja "Login, Discord e padocoins".
+- **Sem conta:** na primeira conexão o servidor cria uma conta e devolve um **token** aleatório; o
+  cliente guarda o token e o manda no `hello` para voltar como ele mesmo. Serve para jogar na
+  hora, sem cadastro — mas o que se compra fica preso àquele aparelho.
+
 - **Saldo:** sentar numa mesa com buy-in **desconta** do saldo e as fichas da mesa são esse
   buy-in; sair (ou o fim da partida) **devolve** o que sobrou. No cash, a recompra custa outro
   buy-in — sem saldo, o jogador sai da partida. Mesas com buy-in `0` são livres: fichas de
@@ -123,17 +129,78 @@ no cabeçalho `X-Admin-Token` ou em `?token=`.
 - **Vínculo:** num servidor com contas, quem pontua é o **servidor** (as mesmas regras de
   `shared/bond.ts`), e o cliente mostra o que vier de lá — inclusive os corações que fecharam.
   Offline, o vínculo continua salvo no próprio cliente.
+- **Itens:** o que o jogador tem (`owned`) fica na conta, no servidor. Ao entrar, os cosméticos que
+  ele pediu e não possui são trocados pelos gratuitos (`clampCosmetics`) — veja "Loja".
 - **Desligar com cuidado:** no `SIGTERM`/`SIGINT` o servidor devolve as fichas de quem está
   sentado e grava os dados antes de sair (é o que o Docker manda ao parar o contêiner).
 - Os dados ficam num JSON só (`accounts.json`), gravado de forma atômica e em bloco. Dá para
   copiar, versionar e ler com os olhos; se o arquivo estiver corrompido, o servidor guarda uma
   cópia `.broken-…` e sobe vazio em vez de não subir.
 
-**O que este servidor não é:** não há senha, e-mail nem confirmação de identidade — quem tem o
-token é o dono da conta. Isso é de propósito (é um servidor de jogo entre amigos, e as fichas não
-valem dinheiro de verdade), mas quer dizer que qualquer um que alcance a porta cria uma conta e
-recebe o saldo inicial. Para uma mesa fechada, deixe o servidor numa rede privada (ou atrás de um
-proxy com autenticação), use senha nas salas e ajuste `MAX_ACCOUNTS`.
+**Sem `GBOT_URL`** o servidor roda como antes: só contas por token, sem login e sem padocoins.
+Nesse modo não há senha nem confirmação de identidade — quem tem o token é o dono da conta, e
+qualquer um que alcance a porta cria uma conta e recebe o saldo inicial. Para uma mesa fechada,
+deixe o servidor numa rede privada (ou atrás de um proxy com autenticação), use senha nas salas e
+ajuste `MAX_ACCOUNTS`.
+
+### Login, Discord e padocoins
+
+A API do GBOT é **interna** (não é exposta à internet) e o jogo roda na máquina do jogador, que não
+alcança o bot. Então o servidor Pokeru é o **gateway**:
+
+```
+jogo ──HTTP──>  /auth/*  (servidor Pokeru)  ──HTTP──>  API do GBOT (rede interna)
+jogo ──WS────>  mesa, salas, loja           ──valida o JWT com o JWKS do GBOT
+```
+
+Configuração (todas no servidor):
+
+| Variável | Para que serve |
+| --- | --- |
+| `GBOT_URL` | base da API, ex. `https://gbot.interno`. Sem ela, nada de login nem padocoins |
+| `GBOT_JWKS` | URL do JWKS (padrão: `GBOT_URL` + `/.well-known/jwks.json`) |
+| `GBOT_ISSUER` | emissor esperado no JWT (padrão `gbot`) |
+| `GBOT_AUDIENCE` | audiência esperada, só se a instância do GBOT definir uma |
+| `GBOT_USER` / `GBOT_PASS` | conta de serviço: é com ela que o servidor lê saldo e cobra padocoins |
+
+O servidor **valida o JWT por conta própria** (`server/jwt.ts`): `alg` fixo em RS256 — nunca o do
+header —, assinatura pela chave do JWKS escolhida pelo `kid` (com cache e refetch na rotação),
+`exp` com 60s de tolerância, `iss` e `aud` quando configurada. Um token que não passa não derruba
+ninguém: o jogador entra sem conta e recebe o aviso para entrar de novo. Não há refresh token —
+quando o JWT vence (1h), é entrar de novo.
+
+**Vínculo do Discord** (em Ajustes → Conta): o jogador informa o id do Discord, o bot manda um
+código de 5 caracteres **na DM** daquela pessoa, e o código conclui o vínculo. É assim que se prova
+que o Discord é dele sem o jogo pedir a senha do Discord. O vínculo é anotado na conta do jogo na
+hora, porque a claim `discord_id` do JWT só entra no login seguinte.
+
+**Padocoins** são a moeda da economia do bot, indexada pelo **id do Discord** (nunca pelo id da
+conta). O saldo é lido do GBOT e **só aparece no jogo se houver vínculo** — sem Discord a moeda não
+existe para aquela conta, em vez de aparecer zerada. As compras em padocoin saem por
+`/economy/debit` com `Idempotency-Key` fixa por conta+item, então um reenvio não cobra duas vezes.
+
+> **TLS.** A senha passa pelo gateway (só no login/cadastro, e não é guardada em lugar nenhum).
+> Sem `https`/`wss` ela vai em claro na rede — a documentação do GBOT diz para nunca chamar
+> `/login` por HTTP puro, e isso vale para o caminho inteiro. Ponha TLS antes de ligar o login de
+> verdade.
+
+### Loja
+
+O catálogo é **compartilhado** (`shared/catalog.ts`): a vitrine desenha com ele e o servidor cobra
+com ele, então não há como o preço na tela ser um e a cobrança ser outra.
+
+- O jogador começa com **Marina e Tobi** e um jogo completo de mesa (carta, verso, ficha, mesa,
+  efeito e aparência). O resto é da loja.
+- Tudo tem preço nas duas moedas; o de **padocoin só aparece — e só é aceito — com Discord
+  vinculado**. Padocoin = fichas ÷ 50.
+- **Quem valida é o servidor.** A compra confere catálogo, posse e saldo antes de mexer em nada;
+  ao entrar, `clampCosmetics` troca pelo gratuito o que o jogador pediu e não tem. Pedir Yukina sem
+  tê-la põe Marina na mesa — e comprar faz valer na hora, sem reconectar.
+- A **personalização** (Estúdio) trabalha só com o que foi adquirido: a lista de peças mostra os
+  presets que são do jogador, e uma cópia guarda de onde saiu (`from`). Um verso personalizado vale
+  no servidor pelo preset de origem.
+- No **modo offline** (sem contas) não há corte: o jogador joga sozinho contra bots na própria
+  máquina, não há posse para conferir nem ninguém para proteger.
 
 ### Imagem no Artifact Registry (GCP)
 

@@ -12,6 +12,8 @@ import {
 } from '../../shared/protocol';
 import { connectLocal, connectWs, type Transport } from '../net/transport';
 import { SERVER_URL, findStyle, myCosmetics, useProfile } from './profile';
+import { useAuth } from './auth';
+import { findItem } from '../../shared/catalog';
 import { useBond } from './bond';
 import { useTable } from './table';
 import { director } from '../game/director';
@@ -139,11 +141,19 @@ function fallbackToLocal(why: string): void {
   useSession.setState({ offline: true });
 }
 
-/** O `hello` leva o perfil e, num servidor com contas, as credenciais guardadas para aquele endereço. */
+/**
+ * O `hello` leva o perfil e a identidade.
+ *
+ * Duas formas, na ordem: o **JWT** do serviço de contas, quando o jogador entrou (é o que faz a
+ * conta ser a mesma em qualquer computador); e, sem login, as credenciais que o servidor sorteou
+ * para este aparelho. O servidor valida o JWT por conta própria — mandar um forjado não leva a
+ * nada além de entrar sem conta.
+ */
 function hello(server?: string): ClientMsg {
   const p = useProfile.getState();
   const account = server ? p.accounts[server] : undefined;
-  return { type: 'hello', name: p.name, avatar: p.avatar, cosmetics: myCosmetics(), account };
+  const jwt = useAuth.getState().token ?? undefined;
+  return { type: 'hello', name: p.name, avatar: p.avatar, cosmetics: myCosmetics(), account, jwt };
 }
 
 function handle(m: ServerMsg): void {
@@ -158,13 +168,15 @@ function handle(m: ServerMsg): void {
       }
       break;
     case 'account': {
-      // o servidor é o dono do saldo e do vínculo quando se joga online
+      // o servidor é o dono do saldo, dos itens e do vínculo quando se joga online
       const server = useSession.getState().serverUrl;
       if (server) {
         const known = useProfile.getState().accounts[server];
         const token = m.account.token ?? known?.token;
-        // o saldo fica guardado junto: é o que o menu mostra antes de conectar
-        if (token) useProfile.getState().setAccount(server, { id: m.account.id, token, money: m.account.money });
+        // saldo e itens ficam guardados junto: é o que as telas mostram antes de conectar
+        if (token) {
+          useProfile.getState().setAccount(server, { id: m.account.id, token, money: m.account.money, owned: m.account.owned });
+        }
       }
       set({ account: { ...m.account, token: undefined } });
       useBond.getState().applyServer(m.account.bond);
@@ -203,6 +215,13 @@ function handle(m: ServerMsg): void {
       useTable.getState().addEmote(m.seat, m.emote);
       sfx.pop();
       break;
+    case 'bought': {
+      // o item já é dele: o `account` com a lista nova chega logo atrás
+      const item = findItem(m.item);
+      sfx.win();
+      useSession.getState().toast(item ? `${item.name} é seu!` : 'Compra concluída!');
+      break;
+    }
     case 'error':
       // erro antes da mesa começar derruba a partida contra bots para o local
       if (botMatch) {

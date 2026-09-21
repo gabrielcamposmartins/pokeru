@@ -16,7 +16,9 @@ import {
   type TableStyle,
   type WinFxId,
 } from '../../shared/styles';
-import { KIND_LABEL, PRESETS, SANITIZE, allStyles, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
+import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
+import { useMyStyles, useOwns } from '../store/shop';
+import { itemKey, padoPrice, priceOf } from '../../shared/catalog';
 import { useSession } from '../store/session';
 import { CardBackSvg, CardFaceSvg, CardView, FONT_FAMILY, FONT_LABEL } from '../render/CardArt';
 import { ChipStack, ChipSvg } from '../render/Chip';
@@ -630,6 +632,11 @@ function ThemeSample() {
  * Aba "UI": escolhe a aparência da interface. O tema selecionado já aparece na tela inteira
  * (pré-visualização); "Usar esta aparência" grava no perfil, e sair sem aplicar volta ao atual.
  */
+/** Cadeado na lista de aparências: o que não é do jogador aparece marcado. */
+function ThemeLock({ id }: { id: string }) {
+  return useOwns('ui', id) ? null : <span className="badge locked">🔒 Loja</span>;
+}
+
 function UiThemeStudio() {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
@@ -638,6 +645,8 @@ function UiThemeStudio() {
   const [sel, setSel] = useState(chosen.id);
   const theme = findTheme(sel);
   const inUse = theme.id === chosen.id;
+  // aparência é item de loja como os outros: só se usa a que foi adquirida
+  const mine = useOwns('ui', theme.id);
   const kinds = Object.keys(theme.styles) as StyleKind[];
   const stylesOn = kinds.every((k) => profile.equipped[k] === theme.styles[k]) && profile.winFx === theme.winFx;
 
@@ -661,7 +670,10 @@ function UiThemeStudio() {
             </span>
             <span className="style-name">
               {t.name}
-              <span className="badges">{t.id === chosen.id && <span className="badge eq">Em uso</span>}</span>
+              <span className="badges">
+                {t.id === chosen.id && <span className="badge eq">Em uso</span>}
+                <ThemeLock id={t.id} />
+              </span>
             </span>
           </button>
         ))}
@@ -685,14 +697,15 @@ function UiThemeStudio() {
             </button>
             <button
               className={`btn ${inUse ? 'btn-ghost' : 'btn-gold'} small`}
-              disabled={inUse}
+              disabled={inUse || !mine}
+              title={mine ? undefined : 'Esta aparência é da loja'}
               onClick={() => {
                 profile.updateSettings({ uiTheme: theme.id });
                 sfx.pop();
                 toast(`Aparência “${theme.name}” aplicada!`);
               }}
             >
-              {inUse ? '✓ Em uso' : 'Usar esta aparência'}
+              {inUse ? '✓ Em uso' : mine ? 'Usar esta aparência' : '🔒 Comprar na Loja'}
             </button>
           </div>
         </div>
@@ -700,7 +713,11 @@ function UiThemeStudio() {
           <ThemeSample />
         </div>
         <div className="preset-note">
-          {inUse ? 'Esta é a aparência em uso.' : 'Pré-visualização: a tela inteira já mostra este tema. Se sair sem aplicar, volta a aparência atual.'}
+          {!mine
+            ? `Pré-visualização. Esta aparência custa ${priceOf(itemKey('ui', theme.id), 'chips')?.toLocaleString('pt-BR')} fichas (ou ${padoPrice(priceOf(itemKey('ui', theme.id), 'chips') ?? 0)} padocoins) na Loja.`
+            : inUse
+              ? 'Esta é a aparência em uso.'
+              : 'Pré-visualização: a tela inteira já mostra este tema. Se sair sem aplicar, volta a aparência atual.'}
         </div>
       </div>
       <div className="panel editor">
@@ -911,7 +928,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
   const [importing, setImporting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
-  const list = allStyles(profile, kind);
+  // só o que é dele: presets comprados (ou gratuitos) e as criações do próprio Estúdio
+  const list = useMyStyles(kind);
   const current = (list.find((x) => x.id === selected[kind]) ?? list[0]) as StyleMap[StyleKind];
   const preset = isPreset(kind, current.id);
   const equipped = profile.equipped[kind] === current.id;
@@ -922,7 +940,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
 
   const commit = (next: StyleMap[StyleKind]) => {
     if (preset) {
-      const copy = { ...next, id: newId(), name: `${current.name} (cópia)` } as StyleMap[StyleKind];
+      const copy = { ...next, id: newId(), name: `${current.name} (cópia)`, from: current.id } as StyleMap[StyleKind];
       profile.saveStyle(kind, copy);
       select(kind, copy.id);
       toast('Estilos padrão não mudam — criamos uma cópia editável para você.');
@@ -934,7 +952,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
 
   const createNew = () => {
     const n = profile.custom[kind].length + 1;
-    const copy = { ...current, id: newId(), name: `Meu estilo ${n}` } as StyleMap[StyleKind];
+    // `from` diz de qual peça esta saiu — o servidor aceita o personalizado por causa dele
+    const copy = { ...current, id: newId(), name: `Meu estilo ${n}`, from: isPreset(kind, current.id) ? current.id : ((current as { from?: string }).from ?? current.id) } as StyleMap[StyleKind];
     profile.saveStyle(kind, copy);
     select(kind, copy.id);
     sfx.pop();

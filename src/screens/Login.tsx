@@ -5,35 +5,44 @@ import { CharacterStageView, Petals } from './MainMenu';
 import { sfx } from '../audio/sfx';
 
 /**
- * Tela de entrada: usuário, senha e "lembrar-me".
+ * Tela de entrada: usuário, senha e "lembrar-me" — e, na mesma tela, criar a conta.
  *
- * O serviço que emite o token está sendo construído à parte — a tela já faz a parte dela (valida,
- * guarda a sessão, mostra o erro) e avisa quando não há com quem falar. Dá para seguir sem conta:
- * o jogo offline e as mesas livres não dependem de login.
+ * A conta é do serviço do bot do Discord (o GBOT). O jogo não fala com ele diretamente: o pedido
+ * vai ao servidor Pokeru, que repassa para a API interna e devolve o **token** — é esse token que
+ * identifica o jogador na conexão da mesa.
+ *
+ * Dá para seguir sem conta: o jogo offline e as mesas livres não dependem de login. O que precisa
+ * de conta é o que fica guardado — fichas, itens da loja e vínculo.
  *
  * O "lembrar-me" guarda **usuário e token**, cifrados (src/auth/vault.ts). A senha não é salva.
  */
 
+export type LoginMode = 'in' | 'up';
+
 /** A parte visual, sem estado — é o que os testes desenham. */
 export function LoginPanel({
+  mode,
   user,
   password,
   remember,
   error,
   busy,
   serviceReady,
+  onMode,
   onUser,
   onPassword,
   onRemember,
   onSubmit,
   onSkip,
 }: {
+  mode: LoginMode;
   user: string;
   password: string;
   remember: boolean;
   error: string | null;
   busy: boolean;
   serviceReady: boolean;
+  onMode: (m: LoginMode) => void;
   onUser: (v: string) => void;
   onPassword: (v: string) => void;
   onRemember: (v: boolean) => void;
@@ -41,6 +50,7 @@ export function LoginPanel({
   onSkip: () => void;
 }) {
   const [showPass, setShowPass] = useState(false);
+  const novo = mode === 'up';
   return (
     <motion.form
       className="panel login-panel"
@@ -52,8 +62,17 @@ export function LoginPanel({
         onSubmit();
       }}
     >
-      <h2 className="title-deco login-title">Entrar</h2>
-      <p className="muted login-sub">Sua conta guarda fichas, vínculo e histórico no servidor.</p>
+      <h2 className="title-deco login-title">{novo ? 'Criar conta' : 'Entrar'}</h2>
+      <p className="muted login-sub">Sua conta guarda fichas, itens da loja e vínculo no servidor.</p>
+
+      <div className="login-modes">
+        <button type="button" className={`login-mode ${novo ? '' : 'on'}`} onClick={() => onMode('in')}>
+          Já tenho conta
+        </button>
+        <button type="button" className={`login-mode ${novo ? 'on' : ''}`} onClick={() => onMode('up')}>
+          Criar conta
+        </button>
+      </div>
 
       <label className="login-field">
         <span className="field-label">Usuário</span>
@@ -74,9 +93,9 @@ export function LoginPanel({
             className="input"
             type={showPass ? 'text' : 'password'}
             value={password}
-            autoComplete="current-password"
+            autoComplete={novo ? 'new-password' : 'current-password'}
             maxLength={128}
-            placeholder="sua senha"
+            placeholder={novo ? 'pelo menos 8 caracteres' : 'sua senha'}
             onChange={(e) => onPassword(e.target.value)}
           />
           <button
@@ -103,7 +122,7 @@ export function LoginPanel({
 
       <div className="row gap center login-actions">
         <button className="btn btn-gold big" disabled={busy}>
-          {busy ? 'Entrando…' : 'Entrar'}
+          {busy ? (novo ? 'Criando…' : 'Entrando…') : novo ? 'Criar e entrar' : 'Entrar'}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onSkip}>
           Jogar sem conta
@@ -112,7 +131,7 @@ export function LoginPanel({
 
       {!serviceReady && (
         <p className="field-hint login-soon">
-          O serviço de login está sendo construído. Enquanto isso, <b>Jogar sem conta</b> libera a Partida Rápida e as mesas livres.
+          O servidor está sem serviço de contas agora. <b>Jogar sem conta</b> libera a Partida Rápida e as mesas livres.
         </p>
       )}
     </motion.form>
@@ -121,7 +140,8 @@ export function LoginPanel({
 
 /** A tela, ligada na loja de login. */
 export function LoginScreen() {
-  const { status, user: saved, remember, error, serviceReady, setRemember, signIn, continueOffline } = useAuth();
+  const { status, user: saved, remember, error, serviceReady, setRemember, signIn, register, continueOffline } = useAuth();
+  const [mode, setMode] = useState<LoginMode>('in');
   const [user, setUser] = useState(saved ?? '');
   const [password, setPassword] = useState('');
 
@@ -137,12 +157,17 @@ export function LoginScreen() {
       <CharacterStageView className="login-char" heightVh={86} />
       <div className="login-side">
         <LoginPanel
+          mode={mode}
           user={user}
           password={password}
           remember={remember}
           error={error}
           busy={status === 'signing' || status === 'restoring'}
           serviceReady={serviceReady}
+          onMode={(m) => {
+            sfx.hover();
+            setMode(m);
+          }}
           onUser={setUser}
           onPassword={setPassword}
           onRemember={(v) => {
@@ -151,7 +176,8 @@ export function LoginScreen() {
           }}
           onSubmit={() => {
             sfx.click();
-            void signIn(user, password).then((ok) => {
+            const go = mode === 'up' ? register : signIn;
+            void go(user, password).then((ok) => {
               // a senha não fica nem na tela depois de usada
               if (ok) setPassword('');
             });

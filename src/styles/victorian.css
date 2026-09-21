@@ -1868,3 +1868,32 @@
     background: rgba(74, 14, 23, 0.55);
   }
 }
+
+/* loja no tema vitoriano */
+:root[data-ui='victorian'] {
+  .shop-tab,
+  .shop-coin {
+    border-radius: 2px;
+    border: 1px solid rgba(201, 162, 90, 0.45);
+  }
+  .shop-tab.on {
+    background: var(--brass-grad);
+    color: #2a1206;
+  }
+  .shop-card,
+  .shop-warn,
+  .shop-hint {
+    border-radius: 3px;
+    border: 1px solid rgba(201, 162, 90, 0.35);
+  }
+  .shop-art {
+    border-radius: 2px;
+  }
+  .login-modes,
+  .login-mode {
+    border-radius: 2px;
+  }
+  .acc-dc-mark {
+    border-radius: 2px;
+  }
+}

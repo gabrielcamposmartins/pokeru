@@ -4511,3 +4511,230 @@ button.avatar {
     margin-right: 0;
   }
 }
+
+/* ==========================================================================
+   Loja, segunda moeda e conta
+   ========================================================================== */
+
+/* botão de pagar com padocoin: latão, para não se confundir com o dourado das fichas */
+.btn-pado {
+  background: linear-gradient(180deg, #ffe9a8, #e8b850 50%, #a9762a);
+  color: #3a2300;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.shop-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.shop-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.shop-wallet {
+  display: flex;
+  gap: 10px;
+}
+.shop-coin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.55);
+  font-family: var(--num);
+  font-weight: 800;
+  font-size: 16px;
+}
+.shop-warn,
+.shop-hint {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.45);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.shop-warn {
+  border-color: rgba(255, 190, 120, 0.4);
+  background: rgba(120, 70, 20, 0.28);
+}
+
+.shop-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.shop-tab {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.5);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.shop-tab:hover {
+  color: var(--text);
+  border-color: var(--line);
+}
+.shop-tab.on {
+  background: linear-gradient(180deg, rgba(255, 210, 120, 0.25), rgba(255, 170, 60, 0.12));
+  border-color: var(--gold);
+  color: var(--text);
+}
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  padding-bottom: 20px;
+}
+.shop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px 10px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--panel-a), var(--panel-b));
+}
+.shop-card.owned {
+  border-color: rgba(107, 242, 193, 0.4);
+}
+/* a miniatura tem altura fixa: a grade não pode dançar de um tipo para o outro */
+.shop-art {
+  height: 112px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.shop-art.char-info-portrait {
+  width: 112px;
+  border-radius: 12px;
+}
+.shop-felt {
+  width: 112px;
+  border: 2px solid;
+  font-size: 22px;
+  font-weight: 800;
+}
+.shop-ui {
+  width: 112px;
+  place-items: center;
+}
+.shop-ui span {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 10px;
+  font-size: 26px;
+}
+.shop-name {
+  font-weight: 800;
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.25;
+}
+.shop-owned {
+  font-size: 12px;
+  color: var(--mint);
+  font-weight: 700;
+}
+.shop-buy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.shop-buy .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--num);
+}
+.shop-short {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* cadeado no retrato de quem ainda não é do jogador */
+.char-card-lock {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  background: rgba(10, 6, 24, 0.75);
+  border: 1px solid var(--line-soft);
+}
+.badge.locked {
+  background: rgba(255, 190, 120, 0.2);
+  color: #ffd9a0;
+}
+
+/* seção Conta: o vínculo do Discord */
+.acc-discord {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.acc-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.acc-dc-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.acc-dc-mark {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #5865f2;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* entrar / criar conta, na mesma tela */
+.login-modes {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+}
+.login-mode {
+  flex: 1;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.login-mode.on {
+  background: linear-gradient(180deg, rgba(255, 210, 120, 0.28), rgba(255, 170, 60, 0.14));
+  color: var(--text);
+}

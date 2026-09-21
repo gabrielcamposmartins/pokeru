@@ -5,12 +5,14 @@ import { LoginPanel } from './Login';
 const panel = (over: Partial<Parameters<typeof LoginPanel>[0]> = {}) =>
   renderToStaticMarkup(
     <LoginPanel
+      mode="in"
       user=""
       password=""
       remember={false}
       error={null}
       busy={false}
       serviceReady={false}
+      onMode={() => {}}
       onUser={() => {}}
       onPassword={() => {}}
       onRemember={() => {}}
@@ -62,8 +64,19 @@ describe('painel de login', () => {
     expect(html).toContain('disabled');
   });
 
-  it('enquanto o serviço não existe, aponta o caminho de sempre', () => {
-    expect(panel({ serviceReady: false })).toContain('está sendo construído');
-    expect(panel({ serviceReady: true })).not.toContain('está sendo construído');
+  it('servidor sem serviço de contas: aponta o caminho de sempre', () => {
+    expect(panel({ serviceReady: false })).toContain('sem serviço de contas');
+    expect(panel({ serviceReady: true })).not.toContain('sem serviço de contas');
+  });
+
+  it('a mesma tela cria conta, com os textos trocados', () => {
+    const entrar = panel({ mode: 'in' });
+    expect(entrar).toContain('>Entrar<');
+    expect(entrar).toContain('Já tenho conta');
+
+    const criar = panel({ mode: 'up' });
+    expect(criar).toContain('Criar conta');
+    expect(criar).toContain('Criar e entrar');
+    expect(criar).toContain('pelo menos 8 caracteres');
   });
 });

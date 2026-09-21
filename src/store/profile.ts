@@ -75,6 +75,11 @@ export interface ServerAccount {
   token: string;
   /** Último saldo visto — o menu mostra isso antes de conectar, para não abrir zerado. */
   money?: number;
+  /**
+   * Últimos itens vistos (chaves do catálogo). Serve para as telas não abrirem com tudo
+   * trancado enquanto a conexão não veio; quem manda de verdade é sempre o servidor.
+   */
+  owned?: string[];
 }
 
 interface ProfileState {

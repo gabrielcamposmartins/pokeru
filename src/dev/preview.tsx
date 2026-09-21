@@ -23,6 +23,9 @@
  *   /preview.html?cena=salas           a lista de salas do servidor (uma delas com senha)
  *   /preview.html?cena=menu            o menu principal
  *   /preview.html?cena=menu-sentando   o menu com a Partida Rápida montando a mesa no servidor
+ *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
+ *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
+ *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -66,6 +69,7 @@ import { LoginScreen } from '../screens/Login';
 import { SettingsScreen } from '../screens/Settings';
 import { OnlineLobby } from '../screens/OnlineLobby';
 import { MainMenu } from '../screens/MainMenu';
+import { StoreScreen } from '../screens/Store';
 import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
@@ -393,6 +397,29 @@ if (cena === 'login-erro') useAuth.setState({ remember: true, user: 'marina', er
 if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina', token: 'jwt.exemplo', remember: true });
 // o menu com a Partida Rápida esperando o servidor montar a mesa
 if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'connecting', botsPending: true });
+// a loja: finge uma conta no servidor, com itens e as duas moedas
+if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta') {
+  const comPado = cena !== 'loja-sem-pado';
+  useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
+  useSession.setState({
+    mode: 'online',
+    status: 'connected',
+    serverName: 'Pokeru Oficial',
+    account: {
+      id: 'a-1',
+      name: 'Gabi',
+      user: 'gabi',
+      money: 18_400,
+      inPlay: 0,
+      pado: comPado ? 2785 : null,
+      discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
+      owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
+      bond: {},
+      stats: { hands: 0, wins: 0, matches: 0 },
+      since: '2026-03-04T12:00:00.000Z',
+    },
+  });
+}
 // a lista de salas: finge um servidor conectado, para a tela não tentar ligar de verdade
 if (cena === 'salas') {
   useSession.setState({
@@ -418,12 +445,14 @@ createRoot(document.getElementById('root')!).render(
         <CharactersScreen onBack={() => {}} />
       ) : cena === 'login' || cena === 'login-erro' ? (
         <LoginScreen />
-      ) : cena === 'config' || cena === 'config-logado' ? (
+      ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' ? (
         <SettingsScreen onBack={() => {}} onCharacters={() => {}} />
       ) : cena === 'salas' ? (
         <OnlineLobby onBack={() => {}} />
       ) : cena === 'menu' || cena === 'menu-sentando' ? (
         <MainMenu go={() => {}} />
+      ) : cena === 'loja' || cena === 'loja-sem-pado' ? (
+        <StoreScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} />
       ) : (
       <div className="game-screen">
         <div className="stage-wrap">
