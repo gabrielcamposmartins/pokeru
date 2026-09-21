@@ -1,5 +1,5 @@
 import { ChipSvg } from '../render/Chip';
-import { useProfile } from '../store/profile';
+import { SERVER_URL, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
@@ -34,8 +34,7 @@ export function WalletPill({ amount, onPlus, hint, stale, children }: { amount: 
  */
 export function useChips(): number {
   const account = useSession((s) => s.account);
-  const server = useProfile((s) => s.settings.serverUrl);
-  const cached = useProfile((s) => s.accounts[server]?.money ?? 0);
+  const cached = useProfile((s) => s.accounts[SERVER_URL]?.money ?? 0);
   return account ? account.money : cached;
 }
 

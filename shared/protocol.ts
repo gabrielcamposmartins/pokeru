@@ -40,6 +40,11 @@ export interface RoomSettings {
   password?: string;
   /** Multiplicador de ritmo das animações/pausas do servidor (1 = normal). */
   pace: number;
+  /**
+   * A sala aparece na lista pública do lobby?
+   * As partidas contra bots ficam de fora: são suas, não têm por que poluir a lista.
+   */
+  listed: boolean;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -55,6 +60,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   turnTime: 20,
   blindLevelHands: 8,
   pace: 1,
+  listed: true,
 };
 
 export interface MemberInfo {

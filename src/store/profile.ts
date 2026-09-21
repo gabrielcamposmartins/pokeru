@@ -61,7 +61,6 @@ export interface Settings {
   voices: boolean;
   voiceVolume: number;
   animSpeed: number;
-  serverUrl: string;
   handHint: boolean;
   autoMuck: boolean;
   /** Aparência da interface (id em src/ui/themes.ts). */
@@ -103,24 +102,22 @@ interface ProfileState {
 }
 
 /**
- * Servidor oficial do Pokeru: o IP fixo da VM. É o endereço que vem preenchido no app, para
- * ninguém precisar digitar nada para jogar online.
+ * Servidor oficial do Pokeru: o IP fixo da VM.
  *
- * Para apontar para outro (um servidor local, por exemplo), sobreponha na hora do build com
- * `VITE_SERVER_URL=ws://localhost:3001` — ou troque em Configurações → Rede, que o endereço
- * escolhido fica salvo no perfil.
+ * O jogador **não escolhe** endereço: o jogo fala sempre com o servidor oficial, e o que ele
+ * escolhe é a *sala* (veja a lista de salas no lobby). Quem hospeda um servidor próprio aponta o
+ * app na hora de montá-lo, não em tempo de uso:
+ *
+ *   - `config.js` servido pelo servidor web do cliente (POKERU_SERVER_URL no Docker);
+ *   - `VITE_SERVER_URL=ws://localhost:3001` no build (é como se desenvolve contra um servidor local).
  */
 export const DEFAULT_SERVER_URL = 'ws://35.209.186.9:3001';
 
-/**
- * Endereço padrão do servidor, na ordem: o `config.js` que o servidor web do cliente escreve
- * (POKERU_SERVER_URL no Docker), a variável de build `VITE_SERVER_URL` (usada ao gerar o
- * instalador) e, por fim, o servidor oficial.
- */
-function defaultServerUrl(): string {
-  const cfg = (globalThis as { PokeruConfig?: { serverUrl?: string } }).PokeruConfig?.serverUrl;
-  return cfg || import.meta.env?.VITE_SERVER_URL || DEFAULT_SERVER_URL;
-}
+/** O endereço que este app usa — decidido no build/hospedagem, nunca digitado pelo jogador. */
+export const SERVER_URL: string =
+  (globalThis as { PokeruConfig?: { serverUrl?: string } }).PokeruConfig?.serverUrl ||
+  import.meta.env?.VITE_SERVER_URL ||
+  DEFAULT_SERVER_URL;
 
 const initial = {
   name: 'Jogador',
@@ -141,7 +138,6 @@ const initial = {
     voices: true,
     voiceVolume: 1,
     animSpeed: 1,
-    serverUrl: defaultServerUrl(),
     handHint: true,
     autoMuck: true,
     uiTheme: 'default',

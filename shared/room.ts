@@ -92,6 +92,8 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
     password: typeof o.password === 'string' && o.password ? o.password.slice(0, 32) : undefined,
     pace:
       typeof o.pace === 'number' && Number.isFinite(o.pace) ? Math.min(2, Math.max(0.4, o.pace)) : 1,
+    // quem não disser nada entra na lista: só as partidas contra bots pedem para ficar fora
+    listed: o.listed !== false,
   };
 }
 

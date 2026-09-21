@@ -24,6 +24,7 @@ export function App() {
   const [screen, setScreen] = useState<Screen>('menu');
   const room = useSession((s) => s.room);
   const mode = useSession((s) => s.mode);
+  const botsPending = useSession((s) => s.botsPending);
   const volume = useProfile((s) => s.settings.volume);
   const muted = useProfile((s) => s.settings.muted);
   const voices = useProfile((s) => s.settings.voices);
@@ -65,6 +66,8 @@ export function App() {
   if (gated) content = <LoginScreen />;
   else if (mode === 'local') content = <GameScreen />;
   else if (mode === 'online' && room && room.status !== 'waiting') content = <GameScreen />;
+  // partida contra bots sendo montada no servidor: o menu segue na frente ("sentando à mesa…")
+  else if (botsPending) content = <MainMenu go={setScreen} />;
   else if (mode === 'online' && room) content = <RoomLobby />;
   else if (screen === 'online' || mode === 'online') content = <OnlineLobby onBack={() => setScreen('menu')} />;
   else if (screen === 'studio') content = <Studio onBack={() => setScreen('menu')} />;

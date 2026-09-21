@@ -11,7 +11,7 @@ import {
   type ServerMsg,
 } from '../../shared/protocol';
 import { connectLocal, connectWs, type Transport } from '../net/transport';
-import { findStyle, myCosmetics, useProfile } from './profile';
+import { SERVER_URL, findStyle, myCosmetics, useProfile } from './profile';
 import { useBond } from './bond';
 import { useTable } from './table';
 import { director } from '../game/director';
@@ -51,6 +51,12 @@ interface SessionState {
   serverName: string;
   /** Endereço do servidor conectado (chave das credenciais da conta). */
   serverUrl: string;
+  /** Por que a última conexão caiu (a tela de salas mostra isso e oferece tentar de novo). */
+  connError: string | null;
+  /** A partida contra bots caiu para o computador do jogador (o servidor não respondeu). */
+  offline: boolean;
+  /** Uma partida contra bots está sendo montada (o menu fica na frente até a mesa começar). */
+  botsPending: boolean;
   /** Conta no servidor hospedado: saldo, vínculo e números (null offline ou sem contas). */
   account: AccountInfo | null;
   playerId: string | null;
@@ -58,7 +64,10 @@ interface SessionState {
   room: RoomInfo | null;
   chat: ChatLine[];
   toasts: Toast[];
-  connectOnline(url: string): void;
+  /** Liga no servidor oficial (o jogador não escolhe endereço: ele escolhe sala). */
+  connectOnline(): void;
+  /** Partida contra bots: no servidor, e no seu computador se ele não responder. */
+  startBots(o: LocalOptions): void;
   startLocal(o: LocalOptions): void;
   send(msg: ClientMsg): void;
   leaveRoom(): void;
@@ -72,6 +81,64 @@ interface SessionState {
 let transport: Transport | null = null;
 let seq = 1;
 
+/**
+ * Por onde a sessão fala com a rede. É uma costura: os testes trocam `ws` por um transporte de
+ * mentira para exercitar a queda para local sem precisar de um servidor de verdade.
+ */
+export const net = { ws: connectWs, local: connectLocal };
+
+/** Quanto tempo esperar o servidor antes de jogar contra bots aqui mesmo. */
+export const BOT_CONNECT_MS = 6000;
+
+/**
+ * Partida contra bots pedida ao servidor, do `hello` até a mesa começar. Enquanto isso estiver
+ * preenchido, qualquer tropeço (conexão caída, erro do servidor, demora) cai para o local.
+ */
+let botMatch: { o: LocalOptions; step: 'connect' | 'create' } | null = null;
+let botTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearBotMatch(): void {
+  botMatch = null;
+  if (botTimer) clearTimeout(botTimer);
+  botTimer = null;
+}
+
+/** A sala de uma partida contra bots: do tamanho da mesa pedida. */
+function botRoomSettings(o: LocalOptions, name: string) {
+  return {
+    ...DEFAULT_SETTINGS,
+    name,
+    maxPlayers: Math.min(6, o.bots + 1),
+    startingStack: o.startingStack,
+    smallBlind: o.smallBlind,
+    bigBlind: o.bigBlind,
+    mode: o.mode,
+    variant: o.variant,
+    rounds: o.rounds,
+    turnTime: o.turnTime,
+    pace: o.pace,
+  };
+}
+
+/** Senta os bots e começa a mão (serve para a sala do servidor e para a local). */
+function seatBotsAndStart(t: Transport, o: LocalOptions): void {
+  for (let i = 0; i < o.bots; i++) t.send({ type: 'addBot', difficulty: o.difficulty });
+  t.send({ type: 'startGame' });
+}
+
+/** O servidor não deu conta: a mesma partida roda no computador do jogador. */
+function fallbackToLocal(why: string): void {
+  const m = botMatch;
+  if (!m) return;
+  clearBotMatch();
+  const t = transport;
+  transport = null;
+  t?.close();
+  useSession.getState().toast(`${why} — a partida contra bots seguiu no seu computador.`, 'error');
+  useSession.getState().startLocal(m.o);
+  useSession.setState({ offline: true });
+}
+
 /** O `hello` leva o perfil e, num servidor com contas, as credenciais guardadas para aquele endereço. */
 function hello(server?: string): ClientMsg {
   const p = useProfile.getState();
@@ -83,7 +150,12 @@ function handle(m: ServerMsg): void {
   const set = useSession.setState;
   switch (m.type) {
     case 'welcome':
-      set({ playerId: m.playerId, serverName: m.serverName, status: 'connected' });
+      set({ playerId: m.playerId, serverName: m.serverName, status: 'connected', connError: null });
+      // partida contra bots: a sala é pedida assim que o servidor cumprimenta
+      if (botMatch?.step === 'connect') {
+        botMatch.step = 'create';
+        transport?.send({ type: 'createRoom', settings: { ...botRoomSettings(botMatch.o, 'Treino contra bots'), listed: false } });
+      }
       break;
     case 'account': {
       // o servidor é o dono do saldo e do vínculo quando se joga online
@@ -103,7 +175,14 @@ function handle(m: ServerMsg): void {
       set({ rooms: m.rooms });
       break;
     case 'room':
-      set({ room: m.room });
+      // a mesa começou: sai o "sentando à mesa" e entra a mesa
+      set({ room: m.room, ...(m.room.status === 'waiting' ? {} : { botsPending: false }) });
+      // a sala nasceu: senta os bots e começa. Daqui para frente, quem manda na mesa é o servidor.
+      if (botMatch?.step === 'create' && m.room.status === 'waiting') {
+        const o = botMatch.o;
+        clearBotMatch();
+        if (transport) seatBotsAndStart(transport, o);
+      }
       break;
     case 'left':
       set({ room: null, chat: [] });
@@ -125,6 +204,11 @@ function handle(m: ServerMsg): void {
       sfx.pop();
       break;
     case 'error':
+      // erro antes da mesa começar derruba a partida contra bots para o local
+      if (botMatch) {
+        fallbackToLocal(`O servidor recusou a mesa (${m.message})`);
+        break;
+      }
       useSession.getState().toast(m.message, 'error');
       break;
     default:
@@ -137,6 +221,9 @@ export const useSession = create<SessionState>()((set, get) => ({
   status: 'idle',
   serverName: '',
   serverUrl: '',
+  connError: null,
+  offline: false,
+  botsPending: false,
   account: null,
   playerId: null,
   rooms: [],
@@ -144,24 +231,37 @@ export const useSession = create<SessionState>()((set, get) => ({
   chat: [],
   toasts: [],
 
-  connectOnline(url) {
+  connectOnline() {
     get().disconnect();
     // até o servidor mandar uma conta, o vínculo é do cliente (servidor sem contas continua assim)
     director.serverBond = false;
     useBond.getState().clearServer();
-    set({ mode: 'online', status: 'connecting', serverUrl: url, account: null });
-    const t = connectWs(url, {
+    set({ mode: 'online', status: 'connecting', serverUrl: SERVER_URL, account: null, connError: null, offline: false });
+    const t = net.ws(SERVER_URL, {
       onMessage: handle,
-      onOpen: () => t.send(hello(url)),
+      onOpen: () => t.send(hello(SERVER_URL)),
       onClose: (reason) => {
         if (transport !== t) return;
+        // a partida contra bots tem plano B; a lista de salas só tem o servidor
+        if (botMatch) {
+          fallbackToLocal(reason);
+          return;
+        }
         transport = null;
         director.reset();
-        set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [] });
+        set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], connError: reason });
         get().toast(reason, 'error');
       },
     });
     transport = t;
+  },
+
+  startBots(o) {
+    get().connectOnline();
+    set({ botsPending: true });
+    botMatch = { o, step: 'connect' };
+    // se o servidor não abrir a mesa nesse tempo, a partida começa aqui mesmo
+    botTimer = setTimeout(() => fallbackToLocal('O servidor não respondeu'), BOT_CONNECT_MS);
   },
 
   startLocal(o) {
@@ -169,28 +269,12 @@ export const useSession = create<SessionState>()((set, get) => ({
     // offline não tem conta: o vínculo volta a ser pontuado e salvo no cliente
     director.serverBond = false;
     useBond.getState().clearServer();
-    set({ mode: 'local', status: 'connecting', chat: [], serverUrl: '', account: null });
-    const t = connectLocal({ onMessage: handle });
+    set({ mode: 'local', status: 'connecting', chat: [], serverUrl: '', account: null, botsPending: false });
+    const t = net.local({ onMessage: handle });
     transport = t;
     t.send(hello());
-    t.send({
-      type: 'createRoom',
-      settings: {
-        ...DEFAULT_SETTINGS,
-        name: 'Treino Offline',
-        maxPlayers: Math.min(6, o.bots + 1),
-        startingStack: o.startingStack,
-        smallBlind: o.smallBlind,
-        bigBlind: o.bigBlind,
-        mode: o.mode,
-        variant: o.variant,
-        rounds: o.rounds,
-        turnTime: o.turnTime,
-        pace: o.pace,
-      },
-    });
-    for (let i = 0; i < o.bots; i++) t.send({ type: 'addBot', difficulty: o.difficulty });
-    t.send({ type: 'startGame' });
+    t.send({ type: 'createRoom', settings: botRoomSettings(o, 'Treino Offline') });
+    seatBotsAndStart(t, o);
   },
 
   send(msg) {
@@ -214,13 +298,14 @@ export const useSession = create<SessionState>()((set, get) => ({
   },
 
   disconnect() {
+    clearBotMatch();
     const t = transport;
     transport = null;
     t?.close();
     director.reset();
     director.serverBond = false;
     useBond.getState().clearServer();
-    set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [], account: null });
+    set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [], account: null, offline: false, botsPending: false });
   },
 
   toast(text, kind = 'info') {

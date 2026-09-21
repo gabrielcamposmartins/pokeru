@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DEFAULT_SETTINGS, type GameMode, type GameVariant, type RoomSummary } from '../../shared/protocol';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
@@ -6,19 +6,33 @@ import { Field, ScreenHeader, Segmented } from '../ui/controls';
 import { ChipSvg } from '../render/Chip';
 import { MODE_LABEL, MODE_SHORT, VARIANT_LABEL, VARIANT_SHORT, fmt } from '../util/format';
 import { Petals } from './MainMenu';
+import { sfx } from '../audio/sfx';
 
+/**
+ * Salas do servidor.
+ *
+ * O jogador não digita endereço: o app já sabe com quem falar (SERVER_URL, decidido no build ou
+ * pela hospedagem) e conecta sozinho ao abrir esta tela. O que ele escolhe é a **sala** — as que
+ * estão abertas no servidor aparecem aqui, com ou sem senha, e é só entrar.
+ */
+
+/** Uma sala da lista. Com senha, pede a senha antes de entrar. */
 function RoomCard({ r }: { r: RoomSummary }) {
   const send = useSession((s) => s.send);
   const [pw, setPw] = useState('');
   const [asking, setAsking] = useState(false);
-  const join = () => send({ type: 'joinRoom', roomId: r.id, password: pw || undefined });
+  const join = () => {
+    sfx.click();
+    send({ type: 'joinRoom', roomId: r.id, password: pw || undefined });
+  };
   const full = r.players >= r.maxPlayers;
+  // cash game deixa entrar com a mesa rodando; os outros formatos, não
   const locked = r.status !== 'waiting' && r.mode !== 'cash';
   return (
     <div className="room-card">
       <div className="room-main">
         <b>
-          {r.hasPassword && '🔒 '}
+          {r.hasPassword && <span title="Sala com senha">🔒 </span>}
           {r.name}
         </b>
         <span className="muted small">
@@ -38,12 +52,38 @@ function RoomCard({ r }: { r: RoomSummary }) {
             join();
           }}
         >
-          <input className="input small" type="password" placeholder="Senha" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
-          <button className="btn btn-pink small">OK</button>
+          <input className="input small" type="password" placeholder="Senha" value={pw} maxLength={32} onChange={(e) => setPw(e.target.value)} autoFocus />
+          <button className="btn btn-pink small">Entrar</button>
         </form>
       ) : (
         <button className="btn btn-pink small" disabled={full || locked} onClick={() => (r.hasPassword ? setAsking(true) : join())}>
-          {full ? 'Cheia' : locked ? 'Em jogo' : 'Entrar'}
+          {full ? 'Cheia' : locked ? 'Em jogo' : r.hasPassword ? '🔒 Entrar' : 'Entrar'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Estado da conexão com o servidor, em uma linha (e o botão de tentar de novo). */
+function ServerLine() {
+  const { status, serverName, connError, connectOnline } = useSession();
+  return (
+    <div className="server-line">
+      <span className={`dot-status ${status}`} />
+      <span className="server-line-text">
+        {status === 'connecting' && 'Conectando ao servidor…'}
+        {status === 'connected' && `Servidor ${serverName}`}
+        {status === 'idle' && (connError ?? 'Fora do servidor')}
+      </span>
+      {status === 'idle' && (
+        <button
+          className="btn btn-ghost small"
+          onClick={() => {
+            sfx.click();
+            connectOnline();
+          }}
+        >
+          ↻ Tentar de novo
         </button>
       )}
     </div>
@@ -51,10 +91,7 @@ function RoomCard({ r }: { r: RoomSummary }) {
 }
 
 export function OnlineLobby({ onBack }: { onBack: () => void }) {
-  const serverUrl = useProfile((s) => s.settings.serverUrl);
-  const updateSettings = useProfile((s) => s.updateSettings);
-  const { status, serverName, rooms, account, connectOnline, disconnect, send } = useSession();
-  const [url, setUrl] = useState(serverUrl);
+  const { status, rooms, account, connectOnline, disconnect, send } = useSession();
   const [code, setCode] = useState('');
   const [name, setName] = useState('Mesa de ' + useProfile.getState().name);
   const [maxPlayers, setMaxPlayers] = useState(6);
@@ -67,13 +104,18 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const [turnTime, setTurnTime] = useState(25);
   const [password, setPassword] = useState('');
 
+  // entrar nesta tela já é pedir a lista: conecta sozinho
+  useEffect(() => {
+    if (useSession.getState().status === 'idle') connectOnline();
+  }, [connectOnline]);
+
   const connected = status === 'connected';
   return (
     <div className="screen">
       <div className="menu-bg" />
       <Petals />
       <ScreenHeader
-        title="Jogar Online"
+        title="Salas"
         onBack={() => {
           disconnect();
           onBack();
@@ -81,30 +123,13 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
       />
       <div className="lobby-grid">
         <div className="panel pad">
-          <h3>Servidor</h3>
-          <form
-            className="row gap"
-            onSubmit={(e) => {
-              e.preventDefault();
-              updateSettings({ serverUrl: url });
-              connectOnline(url);
-            }}
-          >
-            <input className="input grow" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="ws://endereço:3001" disabled={status !== 'idle'} />
-            {status === 'idle' ? (
-              <button className="btn btn-gold">Conectar</button>
-            ) : (
-              <button type="button" className="btn btn-ghost" onClick={disconnect}>
-                {status === 'connecting' ? 'Cancelar' : 'Desconectar'}
-              </button>
-            )}
-          </form>
-          <div className="conn-status">
-            <span className={`dot-status ${status}`} />
-            {status === 'idle' && 'Desconectado'}
-            {status === 'connecting' && 'Conectando…'}
-            {connected && `Conectado a ${serverName}`}
+          <div className="row between">
+            <h3>Salas abertas</h3>
+            <button className="btn btn-ghost small" disabled={!connected} onClick={() => send({ type: 'listRooms' })}>
+              ↻ Atualizar
+            </button>
           </div>
+          <ServerLine />
           {connected && account && (
             <div className="wallet">
               <span className="wallet-money">
@@ -115,26 +140,13 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
               <small className="muted">Saldo guardado no servidor · conta desde {new Date(account.since).toLocaleDateString('pt-BR')}</small>
             </div>
           )}
-          {!connected && (
-            <div className="help-box">
-              O endereço já vem preenchido com o <b>servidor oficial</b>. Para jogar num servidor seu, rode <code>npm run server</code> em
-              algum computador da rede e troque aqui por <code>ws://IP-DO-HOST:3001</code>.
-            </div>
-          )}
+          <div className="room-list">
+            {!connected && <div className="muted empty">{status === 'connecting' ? 'Buscando as salas…' : 'Sem conexão com o servidor.'}</div>}
+            {connected && rooms.length === 0 && <div className="muted empty">Nenhuma sala aberta agora. Crie a primeira do lado!</div>}
+            {connected && rooms.map((r) => <RoomCard key={r.id} r={r} />)}
+          </div>
           {connected && (
             <>
-              <div className="row between" style={{ marginTop: 16 }}>
-                <h3>Salas</h3>
-                <button className="btn btn-ghost small" onClick={() => send({ type: 'listRooms' })}>
-                  ↻ Atualizar
-                </button>
-              </div>
-              <div className="room-list">
-                {rooms.length === 0 && <div className="muted empty">Nenhuma sala aberta. Crie a primeira!</div>}
-                {rooms.map((r) => (
-                  <RoomCard key={r.id} r={r} />
-                ))}
-              </div>
               <form
                 className="row gap"
                 style={{ marginTop: 12 }}
@@ -143,9 +155,10 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                   if (code.trim()) send({ type: 'joinRoom', roomId: code.trim() });
                 }}
               >
-                <input className="input grow" placeholder="Código da sala" value={code} onChange={(e) => setCode(e.target.value)} />
+                <input className="input grow" placeholder="Entrar por código" value={code} maxLength={8} onChange={(e) => setCode(e.target.value)} />
                 <button className="btn btn-pink">Entrar</button>
               </form>
+              <div className="field-hint">Uma sala com senha vai pedir a senha na hora de sentar.</div>
             </>
           )}
         </div>
@@ -192,7 +205,7 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                 ]}
               />
             )}
-            <Field label="Senha (opcional)">
+            <Field label="Senha (opcional)" hint="Com senha, a sala aparece com 🔒 e só entra quem souber.">
               <input className="input" type="password" value={password} maxLength={32} onChange={(e) => setPassword(e.target.value)} />
             </Field>
           </div>

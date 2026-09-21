@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useCharacter, useProfile } from '../store/profile';
+import { SERVER_URL, useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { ScreenHeader, Section, Slider, Toggle, Field } from '../ui/controls';
@@ -137,9 +137,14 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
             <Toggle label="Atualizar o app sozinho ao abrir" value={s.autoUpdate} onChange={(v) => p.updateSettings({ autoUpdate: v })} />
           </Section>
           <Section title="Rede">
-            <Field label="Servidor padrão" hint="Endereço WebSocket do servidor Pokeru (npm run server).">
-              <input className="input" value={s.serverUrl} onChange={(e) => p.updateSettings({ serverUrl: e.target.value })} />
-            </Field>
+            <div className="field-label">Servidor</div>
+            <div className="server-info">
+              <code>{SERVER_URL}</code>
+              <div className="field-hint">
+                O jogo fala sempre com o servidor oficial — o que você escolhe é a <b>sala</b>, em Salas. Quem hospeda o próprio
+                servidor aponta o app na hora de montá-lo (<code>VITE_SERVER_URL</code> ou <code>POKERU_SERVER_URL</code>).
+              </div>
+            </div>
           </Section>
           <Section title="Dados">
             {confirmReset ? (

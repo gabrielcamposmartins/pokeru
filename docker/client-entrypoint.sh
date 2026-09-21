@@ -11,5 +11,5 @@ JS
 if [ -n "$url" ]; then
   echo "[pokeru] cliente aponta para $url"
 else
-  echo "[pokeru] POKERU_SERVER_URL não definido: o jogador digita o endereço no app"
+  echo "[pokeru] POKERU_SERVER_URL não definido: o app usa o servidor oficial embutido"
 fi

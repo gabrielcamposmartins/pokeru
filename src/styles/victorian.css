@@ -693,13 +693,6 @@
     margin-top: 6px;
     background: linear-gradient(90deg, var(--gold), transparent);
   }
-  .help-box {
-    border-radius: 2px;
-    background: rgba(243, 233, 210, 0.05);
-    border: 1px solid rgba(201, 162, 90, 0.3);
-    border-left: 3px solid var(--gold);
-    font-size: 16px;
-  }
   .room-card {
     background: rgba(10, 4, 2, 0.35);
     border: 1px solid rgba(201, 162, 90, 0.18);

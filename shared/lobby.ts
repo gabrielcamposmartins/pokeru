@@ -50,8 +50,9 @@ export class Lobby {
     this.conns.delete(c);
   }
 
+  /** As salas da lista pública (as partidas contra bots ficam de fora). */
   list(): RoomSummary[] {
-    return [...this.rooms.values()].map((r) => r.summary());
+    return [...this.rooms.values()].filter((r) => r.settings.listed).map((r) => r.summary());
   }
 
   createRoom(host: Connection, settings: unknown): Room {

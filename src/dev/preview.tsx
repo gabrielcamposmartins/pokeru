@@ -20,6 +20,9 @@
  *   /preview.html?cena=login-erro      a mesma tela com "lembrar" marcado e um erro do serviço
  *   /preview.html?cena=config          as configurações (sem conta)
  *   /preview.html?cena=config-logado   as configurações com uma conta logada
+ *   /preview.html?cena=salas           a lista de salas do servidor (uma delas com senha)
+ *   /preview.html?cena=menu            o menu principal
+ *   /preview.html?cena=menu-sentando   o menu com a Partida Rápida montando a mesa no servidor
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -61,6 +64,9 @@ import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
 import { CharactersScreen } from '../screens/Characters';
 import { LoginScreen } from '../screens/Login';
 import { SettingsScreen } from '../screens/Settings';
+import { OnlineLobby } from '../screens/OnlineLobby';
+import { MainMenu } from '../screens/MainMenu';
+import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
@@ -385,6 +391,23 @@ if (cena === 'personagens') {
 // a tela de entrada com erro: o estado vem da loja, como viria de um login recusado
 if (cena === 'login-erro') useAuth.setState({ remember: true, user: 'marina', error: 'Usuário ou senha incorretos.' });
 if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina', token: 'jwt.exemplo', remember: true });
+// o menu com a Partida Rápida esperando o servidor montar a mesa
+if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'connecting', botsPending: true });
+// a lista de salas: finge um servidor conectado, para a tela não tentar ligar de verdade
+if (cena === 'salas') {
+  useSession.setState({
+    mode: 'online',
+    status: 'connected',
+    serverName: 'Pokeru Oficial',
+    rooms: [
+      { id: 'k3f7a', name: 'Mesa da Marina', players: 3, maxPlayers: 6, status: 'waiting', blinds: '10/20', mode: 'cash', variant: 'holdem', buyIn: 0, hasPassword: false },
+      { id: 'q9x2b', name: 'Só entre amigos', players: 2, maxPlayers: 4, status: 'waiting', blinds: '25/50', mode: 'normal', variant: 'draw5', buyIn: 0, hasPassword: true },
+      { id: 'm1p5c', name: 'Torneio da noite', players: 6, maxPlayers: 6, status: 'playing', blinds: '50/100', mode: 'sitgo', variant: 'holdem', buyIn: 2500, hasPassword: false },
+      { id: 'z7t4d', name: 'Mesa livre', players: 1, maxPlayers: 6, status: 'waiting', blinds: '10/20', mode: 'cash', variant: 'holdem', buyIn: 0, hasPassword: false },
+    ],
+    account: { id: 'a1', money: 12_400, inPlay: 0, since: '2026-03-04T12:00:00.000Z', bond: {}, hands: 0, wins: 0 } as never,
+  });
+}
 const matchRows = MATCHES[cena];
 const scene = SCENES[cena] ?? base;
 
@@ -397,6 +420,10 @@ createRoot(document.getElementById('root')!).render(
         <LoginScreen />
       ) : cena === 'config' || cena === 'config-logado' ? (
         <SettingsScreen onBack={() => {}} onCharacters={() => {}} />
+      ) : cena === 'salas' ? (
+        <OnlineLobby onBack={() => {}} />
+      ) : cena === 'menu' || cena === 'menu-sentando' ? (
+        <MainMenu go={() => {}} />
       ) : (
       <div className="game-screen">
         <div className="stage-wrap">

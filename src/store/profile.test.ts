@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SERVER_URL, useProfile } from './profile';
+import { DEFAULT_SERVER_URL, SERVER_URL, useProfile } from './profile';
 
 describe('endereço do servidor', () => {
-  it('o app já vem apontando para o servidor oficial', () => {
+  it('é o servidor oficial, e o jogador não escolhe', () => {
     expect(DEFAULT_SERVER_URL).toBe('ws://35.209.186.9:3001');
-    // é o que o perfil usa quando o jogador nunca trocou nada
-    expect(useProfile.getState().settings.serverUrl).toBe(DEFAULT_SERVER_URL);
+    expect(SERVER_URL).toBe(DEFAULT_SERVER_URL);
+    // não existe mais campo de endereço nas configurações: o que se escolhe é a sala
+    expect('serverUrl' in useProfile.getState().settings).toBe(false);
   });
 
-  it('o endereço escolhido pelo jogador manda no padrão', () => {
-    useProfile.getState().updateSettings({ serverUrl: 'ws://192.168.0.10:3001' });
-    expect(useProfile.getState().settings.serverUrl).toBe('ws://192.168.0.10:3001');
-    useProfile.getState().updateSettings({ serverUrl: DEFAULT_SERVER_URL });
+  it('o saldo guardado é por servidor, chaveado pelo endereço em uso', () => {
+    useProfile.getState().setAccount(SERVER_URL, { id: 'a1', token: 't1', money: 1234 });
+    expect(useProfile.getState().accounts[SERVER_URL]?.money).toBe(1234);
   });
 });

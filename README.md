@@ -31,11 +31,15 @@ npm run app:build
 
 ### Jogando online
 
-1. Em um computador da rede (ou num servidor), rode `npm run server`.
-2. No app, vá em **Jogar Online**, informe `ws://IP-DO-HOST:3001` e conecte.
-3. Crie uma sala (escolha o **jogo** e o **formato**), adicione bots se quiser e compartilhe o **código** da sala.
+O jogador **não digita endereço**: o app já sabe com quem falar (o servidor oficial, embutido no
+build) e conecta sozinho. O que ele escolhe é a **sala**.
 
-A **Partida Rápida** roda tudo offline, no próprio app, contra bots (fácil / normal / difícil).
+1. Abra **Salas**: o app conecta e lista as salas abertas no servidor. As com 🔒 pedem senha.
+2. Entre numa sala da lista, ou por **código**, ou **crie** a sua (jogo, formato e senha opcional).
+
+A **Partida Rápida** (contra bots) também roda **no servidor** — as fichas e o vínculo contam, como
+em qualquer mesa. Se o servidor não responder, a mesma partida começa no seu computador e o jogo
+avisa. Para apontar o app para outro servidor, veja "Endereço do servidor".
 
 ### O nome mudou
 
@@ -177,8 +181,8 @@ docker compose up -d --build
 ```
 
 - O endereço do servidor de jogo é escolhido **na hora de subir** o cliente, não no build:
-  `POKERU_SERVER_URL=ws://192.168.0.10:3001`. O entrypoint escreve `/config.js` e o app usa
-  como padrão (o jogador ainda pode digitar outro). Use o endereço que o **navegador** dos
+  `POKERU_SERVER_URL=ws://192.168.0.10:3001`. O entrypoint escreve `/config.js` e é esse o
+  endereço que o app usa (o jogador não escolhe). Use o endereço que o **navegador** dos
   jogadores alcança — `localhost` só serve para quem abre no próprio host.
 - Os dados do servidor ficam no volume `pokeru-data` (montado em `/data`).
 - Atrás de um proxy com TLS, use `wss://…` no `POKERU_SERVER_URL` e encaminhe o WebSocket
@@ -266,13 +270,14 @@ Para distribuir um instalador **já apontando** para o seu servidor, defina o en
 VITE_SERVER_URL=wss://poker.seudominio.com npm run app:build
 ```
 
-A ordem de escolha do endereço no cliente é: o que o jogador digitou (fica salvo no perfil), o
-`config.js` do servidor web, a variável `VITE_SERVER_URL` do build e, por último, o **servidor
-oficial** — o IP fixo da VM, embutido em `DEFAULT_SERVER_URL` (`src/store/profile.ts`). É por isso
-que o app instalado já abre com o endereço preenchido.
+O endereço é decidido **por quem monta o app**, nunca em tempo de uso — o jogador escolhe sala, não
+servidor. A ordem é: o `config.js` do servidor web (`POKERU_SERVER_URL`), a variável
+`VITE_SERVER_URL` do build e, por último, o **servidor oficial** — o IP fixo da VM, em
+`DEFAULT_SERVER_URL` (`src/store/profile.ts`). O valor em uso é `SERVER_URL`, e **Configurações →
+Rede** apenas o mostra.
 
 Para desenvolver contra um servidor local, rode com `VITE_SERVER_URL=ws://localhost:3001 npm run
-dev` (ou troque o endereço em **Configurações → Rede**, que ele fica salvo no perfil).
+dev`.
 
 ## Estrutura
 

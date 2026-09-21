@@ -84,7 +84,8 @@ export function CharacterStageView({ heightVh = 92, className }: { heightVh?: nu
 }
 
 function QuickPlayModal({ onClose }: { onClose: () => void }) {
-  const startLocal = useSession((s) => s.startLocal);
+  const startBots = useSession((s) => s.startBots);
+  const pending = useSession((s) => s.botsPending);
   const [bots, setBots] = useState(5);
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
   const [mode, setMode] = useState<GameMode>('cash');
@@ -98,7 +99,9 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
     <div className="modal-back" onClick={onClose}>
       <motion.div className="modal panel quick-modal" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()}>
         <h2 className="title-deco">Partida Rápida</h2>
-        <p className="muted">Treine offline contra bots — tudo roda no seu computador.</p>
+        <p className="muted">
+          Contra bots <b>no servidor</b> — as fichas e o vínculo contam. Se ele não responder, a partida começa no seu computador.
+        </p>
         <div className="form-stack">
           <Segmented label="Oponentes" value={bots} onChange={setBots} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}` }))} />
           <Segmented
@@ -150,14 +153,15 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
         <div className="row gap center" style={{ marginTop: 18 }}>
           <button
             className="btn btn-gold big"
+            disabled={pending}
             onClick={() => {
               sfx.click();
-              startLocal({ bots, difficulty, mode, variant, rounds, startingStack: stack, smallBlind: blinds / 2, bigBlind: blinds, turnTime, pace });
+              startBots({ bots, difficulty, mode, variant, rounds, startingStack: stack, smallBlind: blinds / 2, bigBlind: blinds, turnTime, pace });
             }}
           >
-            ♠ Sentar à mesa
+            {pending ? 'Sentando à mesa…' : '♠ Sentar à mesa'}
           </button>
-          <button className="btn btn-ghost" onClick={onClose}>
+          <button className="btn btn-ghost" disabled={pending} onClick={onClose}>
             Cancelar
           </button>
         </div>
@@ -258,8 +262,8 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
       </motion.div>
       <div className="mode-area">
         <div className="mode-cards">
-          <ModeCard title="Partida Rápida" sub="Treino offline contra bots" glyph="♠" cls="gold" onClick={() => setQuick(true)} delay={0.15} />
-          <ModeCard title="Jogar Online" sub="Salas multiplayer" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.25} />
+          <ModeCard title="Partida Rápida" sub="Contra bots, no servidor" glyph="♠" cls="gold" onClick={() => setQuick(true)} delay={0.15} />
+          <ModeCard title="Salas" sub="Entrar numa mesa do servidor" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.25} />
         </div>
         <div className="bottom-icons">
           {icons.map((it, i) => (
