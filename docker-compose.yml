@@ -9,6 +9,12 @@
 # Aqui vai sem TLS de propósito: nada sai da máquina, e `localhost` é origem segura para o
 # navegador. Ao expor o servidor para fora, ligue o TLS — a senha do login passa por ele.
 # Veja os blocos comentados abaixo e "TLS" no README.
+#
+# O servidor entra também na rede do GBOT (`gbot_default`, criada pelo compose do bot): é por ela
+# que ele alcança a API interna das contas e dos padocoins, pelo nome do serviço, sem expor o bot.
+# Como a rede é `external`, ela precisa existir antes — numa máquina sem o bot:
+#
+#   docker network create gbot_default
 
 services:
   server:
@@ -26,12 +32,20 @@ services:
       # TLS: gere o par com `npm run cert -- <seu-ip>` e descomente as duas linhas
       # TLS_CERT_PATH: /certs/cert.pem
       # TLS_KEY_PATH: /certs/chave.pem
+      # Contas e padocoins: o endereço é o nome do serviço do bot na rede gbot_default
+      # GBOT_URL: http://gbot:5000
+      # GBOT_USER: pokeru
+      # GBOT_PASS: troque-este-segredo
     volumes:
       - pokeru-data:/data
       # o certificado entra por montagem, nunca dentro da imagem (a chave é secreta)
       - ./certs:/certs:ro
     ports:
       - "3001:3001"
+    networks:
+      # `default` fica explícita porque declarar redes tira o serviço da rede padrão do projeto
+      - default
+      - gbot_default
 
   client:
     build:
@@ -47,6 +61,11 @@ services:
       - "8080:80"
     depends_on:
       - server
+
+networks:
+  # criada pelo compose do GBOT; aqui só entramos nela
+  gbot_default:
+    external: true
 
 volumes:
   pokeru-data:

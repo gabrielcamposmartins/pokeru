@@ -244,6 +244,13 @@ Configuração (todas no servidor):
 | `GBOT_AUDIENCE` | audiência esperada, só se a instância do GBOT definir uma |
 | `GBOT_USER` / `GBOT_PASS` | conta de serviço: é com ela que o servidor lê saldo e cobra padocoins |
 
+**Como o servidor alcança o bot.** A API é interna, então o melhor caminho é não expor porta
+nenhuma: o `docker-compose.yml` põe o servidor também na rede do bot (`gbot_default`, criada pelo
+compose dele) e o endereço passa a ser o **nome do serviço** — `GBOT_URL: http://gbot:5000`. Nada
+do bot precisa sair para o host. A rede é declarada como `external`, então precisa existir antes;
+numa máquina sem o bot, `docker network create gbot_default` resolve (e `docker compose up` diz
+`network gbot_default declared as external, but could not be found` quando falta).
+
 O servidor **valida o JWT por conta própria** (`server/jwt.ts`): `alg` fixo em RS256 — nunca o do
 header —, assinatura pela chave do JWKS escolhida pelo `kid` (com cache e refetch na rotação),
 `exp` com 60s de tolerância, `iss` e `aud` quando configurada. Um token que não passa não derruba
@@ -332,6 +339,8 @@ docker compose up -d --build
   endereço que o app usa (o jogador não escolhe). Use o endereço que o **navegador** dos
   jogadores alcança — `localhost` só serve para quem abre no próprio host.
 - Os dados do servidor ficam no volume `pokeru-data` (montado em `/data`).
+- O servidor entra na rede `gbot_default` (a do bot do Discord) além da rede do projeto, para
+  alcançar a API interna pelo nome do serviço. Ela é `external`: crie-a ou suba o bot antes.
 - Atrás de um proxy com TLS, use `wss://…` no `POKERU_SERVER_URL` e encaminhe o WebSocket
   (`Upgrade`/`Connection`) para a porta 3001.
 - As duas imagens rodam sem privilégios e trazem `HEALTHCHECK`.
