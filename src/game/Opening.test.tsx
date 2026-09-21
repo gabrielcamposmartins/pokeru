@@ -52,6 +52,26 @@ describe('abertura: o card de cada jogador', () => {
     expect(html).not.toContain('Nv. 0');
   });
 
+  it('sempre duas linhas, com o de sobra em cima', () => {
+    const seis = render({ waitMs: 12_000, players: [0, 1, 2, 3, 4, 5].map((i) => jogador({ seat: i, name: `J${i}` })) });
+    expect([...seis.matchAll(/class="pm-row"/g)]).toHaveLength(2);
+    // 3 e 3: a primeira linha fecha antes da segunda começar
+    const [antes, depois] = seis.split('class="pm-row"').slice(1);
+    expect([...antes.matchAll(/pm-card/g)].length).toBe(3);
+    expect([...depois.matchAll(/pm-card/g)].length).toBe(3);
+
+    // com cinco, a de cima leva o extra — e continuam sendo duas linhas
+    const cinco = render({ waitMs: 12_000, players: [0, 1, 2, 3, 4].map((i) => jogador({ seat: i, name: `J${i}` })) });
+    expect([...cinco.matchAll(/class="pm-row"/g)]).toHaveLength(2);
+    const [a5, b5] = cinco.split('class="pm-row"').slice(1);
+    expect([...a5.matchAll(/pm-card/g)].length).toBe(3);
+    expect([...b5.matchAll(/pm-card/g)].length).toBe(2);
+
+    // e com dois também: uma em cada linha
+    const dois = render({ waitMs: 12_000, players: [0, 1].map((i) => jogador({ seat: i, name: `J${i}` })) });
+    expect([...dois.matchAll(/class="pm-row"/g)]).toHaveLength(2);
+  });
+
   it('mesa vazia não quebra a tela', () => {
     const html = render({ waitMs: 12_000, players: [] });
     expect(html).toContain('Preparando a mesa');

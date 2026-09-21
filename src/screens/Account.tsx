@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../store/auth';
 import { useSession } from '../store/session';
-import { useDiscord, usePado } from '../store/shop';
+import { pedeSaldo, useDiscord, usePado } from '../store/shop';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
@@ -31,6 +31,11 @@ export function AccountSection() {
   const [id, setId] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // o saldo de padocoins é lido no servidor a pedido: ao abrir o perfil, pede um número fresco
+  useEffect(() => {
+    pedeSaldo();
+  }, []);
 
   const logged = status === 'logged';
   // o servidor é a fonte; a sessão serve de resposta rápida enquanto a conta não chega
@@ -90,7 +95,16 @@ export function AccountSection() {
                       <PadoCoinSvg size={14} /> {fmt(pado)} padocoins
                     </>
                   ) : (
-                    'saldo indisponível agora'
+                    // sem saldo em mãos o jogador não fica sem saída: o botão pede de novo ao servidor
+                    <button
+                      className="btn btn-ghost small"
+                      onClick={() => {
+                        sfx.click();
+                        pedeSaldo(true);
+                      }}
+                    >
+                      saldo indisponível — tentar de novo
+                    </button>
                   )}
                 </div>
               </div>

@@ -461,6 +461,40 @@ describe('sessão guardada no aparelho', () => {
     acc.close();
   });
 
+  it('o saldo de padocoins volta com a sessão guardada', async () => {
+    // Este é o buraco que a sessão de duas semanas abriu: quem lia o saldo era o login com senha,
+    // e ele passou a acontecer uma vez a cada duas semanas. O saldo mora no bot e não é guardado
+    // em disco de propósito, então todo reinício do servidor o deixava vazio até a próxima senha.
+    const file = newFile();
+    const g = fakeGbot(777);
+    const antes = new Accounts({ file, gbot: g.gbot });
+    const entrada = (await antes.loginAuth(identity, profile()))!;
+    expect(entrada.pado).toBe(777);
+    antes.close();
+
+    // servidor reiniciado: mesma conta em disco, memória zerada
+    const depois = new Accounts({ file, gbot: g.gbot });
+    expect(depois.info(entrada.id)!.pado).toBeNull();
+
+    const lobby = new Lobby('Teste', depois);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({
+      type: 'hello',
+      name: 'Gabi',
+      avatar: { color: '#fff', icon: '♠' },
+      cosmetics: profile().cosmetics,
+      account: { id: entrada.id, token: entrada.token! },
+    });
+
+    // a entrada não espera pela rede: o número chega logo atrás, noutro `account`
+    await vi.waitFor(() => {
+      const contas = got.filter((m) => m.type === 'account') as Extract<ServerMsg, { type: 'account' }>[];
+      expect(contas.at(-1)!.account.pado).toBe(777);
+    });
+    depois.close();
+  });
+
   it('conta sem login continua voltando pela chave, como antes', () => {
     const acc = new Accounts({ file: newFile() });
     const a = acc.login(undefined, profile())!;

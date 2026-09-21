@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CATALOG, KIND_LABELS, isFree, itemsOfKind, owns, padoPrice, type CatalogItem, type Currency, type ItemKind } from '../../shared/catalog';
 import { BACK_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, findCharacter } from '../../shared/styles';
@@ -9,7 +9,7 @@ import { ChipSvg } from '../render/Chip';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { findWinFx } from '../render/cardfx';
 import { useSession } from '../store/session';
-import { buyItem, useCanShop, useOwned, usePado } from '../store/shop';
+import { buyItem, pedeSaldo, useCanShop, useOwned, usePado } from '../store/shop';
 import { useChips } from '../ui/Wallet';
 import { ScreenHeader } from '../ui/controls';
 import { fmt } from '../util/format';
@@ -156,6 +156,11 @@ export function StoreScreen({ onBack, initial = 'character' }: { onBack: () => v
   const pado = usePado();
   const canShop = useCanShop();
   const status = useSession((s) => s.status);
+
+  // a vitrine em padocoins depende do saldo, que o servidor só relê a pedido
+  useEffect(() => {
+    pedeSaldo();
+  }, []);
 
   const items = itemsOfKind(kind);
   const total = CATALOG.filter((i) => !isFree(i.key)).length;

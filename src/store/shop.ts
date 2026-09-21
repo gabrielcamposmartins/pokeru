@@ -31,6 +31,24 @@ export function useOwned(): readonly string[] {
   return live ?? cached ?? NENHUM;
 }
 
+/**
+ * Pede ao servidor uma leitura nova do saldo de padocoins.
+ *
+ * O saldo mora no bot do Discord: quem fala com ele é o servidor, e só quando alguém pede. Isto é
+ * chamado ao abrir a loja e o perfil — as duas telas onde o número importa — e pelo botão de
+ * tentar de novo. O intervalo mínimo existe para uma tela que remonta não virar enxurrada de
+ * chamadas no bot.
+ */
+let ultimoPedido = 0;
+export function pedeSaldo(force = false): void {
+  const s = useSession.getState();
+  if (s.status !== 'connected') return;
+  const agora = Date.now();
+  if (!force && agora - ultimoPedido < 10_000) return;
+  ultimoPedido = agora;
+  s.send({ type: 'refreshAccount' });
+}
+
 export function ownedNow(): readonly string[] {
   return useSession.getState().account?.owned ?? useProfile.getState().accounts[SERVER_URL]?.owned ?? [];
 }

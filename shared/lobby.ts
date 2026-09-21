@@ -219,6 +219,16 @@ export class Connection implements ClientHandle {
       this.applyOwned(account.owned);
       this.applyAccount(account);
       this.send({ type: 'account', account });
+      // Conta que voltou pela chave guardada não passou pelo login com senha, e é o login com senha
+      // que lia o saldo de padocoins. O saldo mora no bot e não é guardado em disco de propósito
+      // (o dono dele é o bot), então depois de um reinício do servidor ele volta vazio — e com a
+      // sessão de duas semanas isso podia durar duas semanas. Lê agora, sem travar a entrada: o
+      // número chega logo atrás, noutro `account`.
+      if (account.discord && account.pado === null) {
+        void this.lobby.accounts?.refresh?.(account.id).catch(() => {
+          /* bot fora do ar: a conta segue valendo, só sem o saldo */
+        });
+      }
     }
     this.send({ type: 'rooms', rooms: this.lobby.list() });
   }

@@ -88,6 +88,8 @@ export function OpeningView({ opening, mySeat = null, mesa }: { opening: Opening
   }, []);
 
   const faltam = opening.players.filter((p) => !p.ready).length;
+  const meio = Math.ceil(opening.players.length / 2);
+  const linhas = [opening.players.slice(0, meio), opening.players.slice(meio)];
 
   return (
     <div className="screen pm-screen">
@@ -99,9 +101,15 @@ export function OpeningView({ opening, mySeat = null, mesa }: { opening: Opening
         </p>
       </div>
 
-      <div className="pm-row">
-        {opening.players.map((p, i) => (
-          <PlayerCard key={p.seat} p={p} isMe={p.seat === mySeat} delay={i * 0.07} />
+      {/* sempre duas linhas: a mesa fica com a mesma cara com dois ou com seis, e ninguém precisa
+          caçar o próprio card numa fileira que muda de tamanho. Sobrando um, ele fica em cima. */}
+      <div className="pm-rows">
+        {linhas.map((linha, n) => (
+          <div className="pm-row" key={n}>
+            {linha.map((p, i) => (
+              <PlayerCard key={p.seat} p={p} isMe={p.seat === mySeat} delay={(n === 0 ? i : meio + i) * 0.07} />
+            ))}
+          </div>
         ))}
       </div>
 

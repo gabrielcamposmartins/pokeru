@@ -4952,13 +4952,20 @@ button.avatar {
   /* o texto muda de "Preparando a mesa" para "...mesa..." sem empurrar o resto */
   min-width: 420px;
 }
+.pm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 .pm-row {
   display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: 14px;
-  flex-wrap: wrap;
+  /* a quebra em duas linhas é feita no componente, não pelo wrap: assim a de cima é sempre a de
+     cima, mesmo quando a janela é estreita */
   max-width: min(1500px, 96vw);
+  min-height: 1px;
 }
 .pm-card {
   position: relative;

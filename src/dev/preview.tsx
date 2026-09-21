@@ -491,6 +491,7 @@ const ABERTURA: Opening = {
     { seat: 2, name: 'dokidoki_tt', isBot: false, title: null, level: 3, ready: false },
     { seat: 3, name: 'Bot Ren', isBot: true, title: null, level: 0, ready: true },
     { seat: 4, name: 'berlineta', isBot: false, title: 'Sem Medo', level: 12, ready: true },
+    { seat: 5, name: 'Bot Yukina', isBot: true, title: null, level: 0, ready: true },
   ].map((q, i) => ({
     ...q,
     character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
