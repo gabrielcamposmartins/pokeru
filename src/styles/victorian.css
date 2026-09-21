@@ -1856,3 +1856,22 @@
     background-position: -440px 0;
   }
 }
+
+/* tela de login no tema vitoriano */
+:root[data-ui='victorian'] {
+  .login-panel {
+    gap: 12px;
+  }
+  .login-title {
+    font-family: var(--title);
+    letter-spacing: 0.02em;
+  }
+  .login-eye {
+    border-radius: 2px;
+  }
+  .login-error {
+    border-radius: 2px;
+    border: 1px solid rgba(200, 70, 60, 0.7);
+    background: rgba(74, 14, 23, 0.55);
+  }
+}

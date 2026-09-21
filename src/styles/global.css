@@ -4392,3 +4392,114 @@ button.avatar {
 .wallet-pill.stale .wallet-pill-value {
   color: var(--muted);
 }
+
+/* ==========================================================================
+   Tela de login
+   O personagem fica à esquerda (mesma montagem do menu) e o painel à direita.
+   ========================================================================== */
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0;
+}
+.screen.login-screen > .login-char {
+  position: absolute;
+  left: 6vw;
+  bottom: 0;
+}
+.login-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(460px, 92vw);
+  margin-right: clamp(16px, 6vw, 96px);
+}
+.login-panel {
+  width: 100%;
+  padding: 26px 26px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.login-title {
+  font-size: 34px;
+  margin: 0;
+}
+.login-sub {
+  margin: -4px 0 6px;
+  font-size: 13px;
+}
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* a senha divide a linha com o olhinho */
+.login-pass {
+  position: relative;
+  display: block;
+}
+.login-pass .input {
+  width: 100%;
+  padding-right: 44px;
+}
+.login-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.login-eye:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+.login-remember {
+  align-self: flex-start;
+  margin-top: 4px;
+  cursor: pointer;
+}
+.login-hint,
+.login-soon {
+  margin: 0;
+  line-height: 1.45;
+}
+.login-error {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255, 120, 120, 0.55);
+  background: rgba(120, 20, 30, 0.35);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.login-actions {
+  margin-top: 6px;
+}
+.login-soon {
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+/* em telas estreitas o painel manda; o personagem sai do caminho */
+@media (max-width: 820px) {
+  .login-screen {
+    justify-content: center;
+  }
+  .screen.login-screen > .login-char {
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0.3;
+  }
+  .login-side {
+    margin-right: 0;
+  }
+}

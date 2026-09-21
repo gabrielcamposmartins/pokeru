@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSession } from './store/session';
 import { useProfile } from './store/profile';
+import { useAuth } from './store/auth';
 import { setSoundSet, setVolume, sfx } from './audio/sfx';
 import { setVoiceVolume } from './audio/voice';
 import { MainMenu } from './screens/MainMenu';
@@ -10,6 +11,7 @@ import { GameScreen } from './screens/GameScreen';
 import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
 import { CharactersScreen } from './screens/Characters';
+import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
 import { UpdateOverlay } from './update/UpdateOverlay';
@@ -27,6 +29,13 @@ export function App() {
   const voices = useProfile((s) => s.settings.voices);
   const voiceVolume = useProfile((s) => s.settings.voiceVolume);
   const theme = useUiTheme();
+  const authStatus = useAuth((s) => s.status);
+  const restore = useAuth((s) => s.restore);
+
+  // ao abrir, lê a sessão guardada (o usuário lembrado e, quando houver, o token)
+  useEffect(() => {
+    void restore();
+  }, [restore]);
 
   // tema da interface: o CSS de cada tema vale sob <html data-ui="…">
   useEffect(() => {
@@ -51,7 +60,10 @@ export function App() {
   }, [mode, screen]);
 
   let content;
-  if (mode === 'local') content = <GameScreen />;
+  // a entrada é a tela de login; "jogar sem conta" e a sessão logada seguem para o jogo
+  const gated = authStatus !== 'logged' && authStatus !== 'offline' && mode === 'none' && !room;
+  if (gated) content = <LoginScreen />;
+  else if (mode === 'local') content = <GameScreen />;
   else if (mode === 'online' && room && room.status !== 'waiting') content = <GameScreen />;
   else if (mode === 'online' && room) content = <RoomLobby />;
   else if (screen === 'online' || mode === 'online') content = <OnlineLobby onBack={() => setScreen('menu')} />;

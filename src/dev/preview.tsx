@@ -16,6 +16,10 @@
  *   /preview.html?cena=bond            a página de vínculo (missões e recompensas com as falas)
  *   /preview.html?cena=bond-aviso      o cartão do coração completo e a barra curta
  *   /preview.html?cena=personagens     a tela de personagens inteira (ocupa a janela, sem palco)
+ *   /preview.html?cena=login           a tela de entrada (usuário, senha e "lembrar-me")
+ *   /preview.html?cena=login-erro      a mesma tela com "lembrar" marcado e um erro do serviço
+ *   /preview.html?cena=config          as configurações (sem conta)
+ *   /preview.html?cena=config-logado   as configurações com uma conta logada
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -55,6 +59,9 @@ import { HEART_COST, bondLevel } from '../game/bond';
 import { EMPTY_BOND, useBond } from '../store/bond';
 import { MatchEndPanel, type MatchRow } from '../game/MatchEnd';
 import { CharactersScreen } from '../screens/Characters';
+import { LoginScreen } from '../screens/Login';
+import { SettingsScreen } from '../screens/Settings';
+import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
 
@@ -375,6 +382,9 @@ if (cena === 'personagens') {
     for (let i = 0; i < wins; i++) useBond.getState().award(char, 'win');
   }
 }
+// a tela de entrada com erro: o estado vem da loja, como viria de um login recusado
+if (cena === 'login-erro') useAuth.setState({ remember: true, user: 'marina', error: 'Usuário ou senha incorretos.' });
+if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina', token: 'jwt.exemplo', remember: true });
 const matchRows = MATCHES[cena];
 const scene = SCENES[cena] ?? base;
 
@@ -383,6 +393,10 @@ createRoot(document.getElementById('root')!).render(
     <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
       {cena === 'personagens' ? (
         <CharactersScreen onBack={() => {}} />
+      ) : cena === 'login' || cena === 'login-erro' ? (
+        <LoginScreen />
+      ) : cena === 'config' || cena === 'config-logado' ? (
+        <SettingsScreen onBack={() => {}} onCharacters={() => {}} />
       ) : (
       <div className="game-screen">
         <div className="stage-wrap">
