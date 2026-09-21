@@ -119,6 +119,8 @@ export interface MemberInfo {
   isBot: boolean;
   avatar: AvatarInfo;
   character: CharacterStyle;
+  /** Titulo de conquista que o jogador escolheu mostrar (null = nenhum). */
+  title: string | null;
   stack: number;
   connected: boolean;
 }
@@ -156,6 +158,8 @@ export interface SeatView {
   isBot: boolean;
   avatar: AvatarInfo;
   cosmetics: PlayerCosmetics;
+  /** Titulo de conquista que aparece junto do nome (null = nenhum). */
+  title: string | null;
   stack: number;
   bet: number;
   inHand: boolean;
@@ -221,6 +225,8 @@ export type ClientMsg =
    */
   | { type: 'hello'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics; account?: AccountCreds; jwt?: string }
   | { type: 'updateProfile'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics }
+  /** Equipa um titulo de conquista (null = nenhum). O servidor recusa o que a conta nao liberou. */
+  | { type: 'setTitle'; title: string | null }
   | { type: 'listRooms' }
   | { type: 'createRoom'; settings: RoomSettings }
   | { type: 'joinRoom'; roomId: string; password?: string }

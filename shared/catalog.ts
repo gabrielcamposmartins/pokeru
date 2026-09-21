@@ -173,7 +173,22 @@ export function freeIdOf(kind: ItemKind): string {
 export function clampCosmetics(c: PlayerCosmetics, owned: readonly string[] | undefined): PlayerCosmetics {
   const character = ownsItem(owned, 'character', c.character.id) ? c.character : findCharacter(freeIdOf('character'));
   const winFx = ownsItem(owned, 'winfx', c.winFx) ? c.winFx : (freeIdOf('winfx') as WinFxId);
-  return { character, winFx, back: ownsBack(c.back, owned) ? c.back : freeBack() };
+  return {
+    character,
+    winFx,
+    // Estes tres agora vao para a mesa dos outros (frente no showdown, fichas da
+    // aposta, mesa quando o jogador e' o dealer), entao passam pela mesma trava.
+    face: ownsItem(owned, 'face', c.face.id) ? c.face : freePreset('face', FACE_PRESETS),
+    back: ownsBack(c.back, owned) ? c.back : freeBack(),
+    chip: ownsItem(owned, 'chip', c.chip.id) ? c.chip : freePreset('chip', CHIP_PRESETS),
+    table: ownsItem(owned, 'table', c.table.id) ? c.table : freePreset('table', TABLE_PRESETS),
+  };
+}
+
+/** Preset gratuito de um tipo, para quando o pedido nao e' do jogador. */
+function freePreset<T extends { id: string }>(kind: ItemKind, presets: readonly T[]): T {
+  const id = freeIdOf(kind);
+  return presets.find((p) => p.id === id) ?? presets[0];
 }
 
 /** O verso é do jogador? (preset comprado, ou criado a partir de um que ele tem) */

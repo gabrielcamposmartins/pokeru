@@ -50,6 +50,7 @@ export function Nameplate({
         )}
       </div>
       <div className="seat-info">
+        {seat.title && <div className="seat-title">{seat.title}</div>}
         <div className="seat-name">
           {seat.name}
           {seat.isBot && <span className="tag">BOT</span>}

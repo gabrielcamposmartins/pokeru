@@ -4854,3 +4854,81 @@ button.avatar {
     opacity: 1;
   }
 }
+
+/* ---------------------------------------------------------------- titulos e conquistas */
+/* o titulo fica acima do nome na placa da mesa, menor e dourado */
+.seat-title {
+  font-size: 10px;
+  line-height: 1.1;
+  text-align: center;
+  color: #f2c14e;
+  opacity: 0.9;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.achievements {
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.achv {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  opacity: 0.65;
+}
+.achv.done {
+  opacity: 1;
+  background: rgba(242, 193, 78, 0.1);
+}
+.achv-mark {
+  font-size: 16px;
+  text-align: center;
+  color: #f2c14e;
+}
+.achv-info {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.achv-info small {
+  opacity: 0.7;
+}
+.achv-title {
+  font-size: 11px;
+  color: #f2c14e;
+  opacity: 0.85;
+}
+.achv-count {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  min-width: 64px;
+}
+.achv-track {
+  display: block;
+  width: 60px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.achv-fill {
+  display: block;
+  height: 100%;
+  background: #f2c14e;
+}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TitlePanel } from '../game/Titles';
 import { SERVER_URL, useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { AccountSection } from './Account';
@@ -54,12 +55,14 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
               </div>
               <div>
                 <b>{character.name}</b>
-                <div className="muted small">{character.title}</div>
                 <button className="btn btn-pink small" style={{ marginTop: 6 }} onClick={onCharacters}>
                   Trocar personagem
                 </button>
               </div>
             </div>
+          </Section>
+          <Section title="Títulos e conquistas">
+            <TitlePanel />
           </Section>
           <Section title="Conta">
             <AccountSection />

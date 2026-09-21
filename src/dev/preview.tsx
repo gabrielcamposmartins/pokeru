@@ -32,6 +32,7 @@
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
+import { EMPTY_STATS } from '../../shared/achievements';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'framer-motion';
 import '@fontsource/m-plus-rounded-1c/400.css';
@@ -103,6 +104,7 @@ const base: RoundResult = {
   id: 1,
   seat: 0,
   name: 'Jogador',
+  title: 'Tubarão',
   character: CHARACTER_PRESETS[0],
   hole,
   board,
@@ -358,7 +360,6 @@ function VinculoAviso() {
   return (
     <div className="preview-bond">
       <div className="char-nameplate" style={{ position: 'relative', left: 0, bottom: 0 }}>
-        <small>{char.title}</small>
         <b>{char.name}</b>
         <BondBarView lv={bondLevel(bondStats.points)} size={16} compact />
       </div>
@@ -420,7 +421,8 @@ if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
       owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
       bond: {},
-      stats: { hands: 0, wins: 0, matches: 0 },
+      stats: { ...EMPTY_STATS },
+    title: null,
       since: '2026-03-04T12:00:00.000Z',
     },
   });

@@ -14,7 +14,6 @@ describe('página de vínculo', () => {
   it('abre com o personagem, os pontos e o que falta para o próximo coração', () => {
     const html = page(HEART_COST[0]);
     expect(html).toContain('Vínculo com Marina');
-    expect(html).toContain('A Fênix da Mesa');
     expect(html).toContain(`${HEART_COST[0]} <small>pts</small>`);
     expect(html).toContain('1 de 5 corações');
     // o próximo coração vem com o nome da recompensa dele

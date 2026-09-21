@@ -4,6 +4,7 @@ import { sameCard, type Card } from '../../shared/cards';
 import { sfx } from '../audio/sfx';
 import { evaluateHand } from '../../shared/evaluator';
 import type { TableView } from '../../shared/protocol';
+import type { CardBackStyle, CardFaceStyle, ChipStyle } from '../../shared/styles';
 import { useEquipped, useProfile } from '../store/profile';
 import { useTable } from '../store/table';
 import { TableFelt } from '../render/TableFelt';
@@ -12,6 +13,7 @@ import { findWinFx, type WinFx } from '../render/cardfx';
 import { ChipStack } from '../render/Chip';
 import { FlyersLayer } from './Flyers';
 import { Nameplate } from './Nameplate';
+import { chipSkin, openerCardSkin, tableSkin } from './skins';
 import { CenterConsole } from './CenterConsole';
 import { MyCountdown } from './Countdown';
 import { director } from './director';
@@ -26,7 +28,17 @@ function isHl(hl: Card[], c: Card | null): boolean {
 
 /* ----------------------------------------------------------- dentro do plano (deitado) */
 
-function Board({ board, highlight, fx }: { board: Card[]; highlight: Card[]; fx: WinFx | null }) {
+function Board({
+  board,
+  highlight,
+  fx,
+  skin,
+}: {
+  board: Card[];
+  highlight: Card[];
+  fx: WinFx | null;
+  skin: { face: CardFaceStyle; back: CardBackStyle } | null;
+}) {
   const prevLen = useRef(board.length);
   const start = prevLen.current;
   useEffect(() => {
@@ -50,6 +62,8 @@ function Board({ board, highlight, fx }: { board: Card[]; highlight: Card[]; fx:
             <CardView
               card={c}
               width={CARD_W}
+              face={skin?.face}
+              back={skin?.back}
               flipIn={isNew}
               flipDelay={isNew ? 0.12 + (i - start) * 0.14 : 0}
               highlight={highlight.length > 0 && isHl(highlight, c)}
@@ -63,7 +77,17 @@ function Board({ board, highlight, fx }: { board: Card[]; highlight: Card[]; fx:
   );
 }
 
-function OpponentCards({ view, geo, fxOf }: { view: TableView; geo: SeatGeo[]; fxOf: (seat: number) => WinFx | null }) {
+function OpponentCards({
+  view,
+  geo,
+  fxOf,
+  skin,
+}: {
+  view: TableView;
+  geo: SeatGeo[];
+  fxOf: (seat: number) => WinFx | null;
+  skin: { face: CardFaceStyle; back: CardBackStyle } | null;
+}) {
   return (
     <>
       {view.seats.map((s, seat) => {
@@ -83,7 +107,8 @@ function OpponentCards({ view, geo, fxOf }: { view: TableView; geo: SeatGeo[]; f
                 card={c}
                 faceUp={!!c}
                 width={w}
-                back={s.cosmetics.back}
+                face={skin?.face}
+                back={skin?.back ?? s.cosmetics.back}
                 highlight={view.highlight.length > 0 && isHl(view.highlight, c)}
                 winFx={fx && isHl(view.highlight, c) ? fx : null}
               />
@@ -107,7 +132,7 @@ function DealerButton({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
 
 /* ----------------------------------------------------------- no palco (em pé) */
 
-function BetChips({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
+function BetChips({ view, geo, myChip }: { view: TableView; geo: SeatGeo[]; myChip: ChipStyle }) {
   return (
     <>
       {view.seats.map((s, seat) => {
@@ -117,7 +142,7 @@ function BetChips({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
         return (
           <div key={seat} className="seat-bet" style={{ left: p.x, top: p.y, transform: `scale(${p.s})` }}>
             <div className="seat-bet-inner">
-              <ChipStack amount={s.bet} size={32} maxCols={3} seed={seat * 13 + 1} />
+              <ChipStack amount={s.bet} size={32} maxCols={3} seed={seat * 13 + 1} style={chipSkin(view, seat, myChip)} />
             </div>
           </div>
         );
@@ -131,7 +156,15 @@ function BetChips({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
  * No poker de 5 cartas são cinco, e na hora da troca elas ficam clicáveis: as marcadas
  * sobem com um selo e saem quando a troca é confirmada (no painel de ações).
  */
-function MyHand({ view, fx }: { view: TableView; fx: WinFx | null }) {
+function MyHand({
+  view,
+  fx,
+  skin,
+}: {
+  view: TableView;
+  fx: WinFx | null;
+  skin: { face: CardFaceStyle; back: CardBackStyle } | null;
+}) {
   const me = view.mySeat !== null ? view.seats[view.mySeat] : null;
   const cards = me && !me.folded ? me.cards : [];
   const hl = view.highlight;
@@ -168,7 +201,8 @@ function MyHand({ view, fx }: { view: TableView; fx: WinFx | null }) {
                     card={c}
                     faceUp={!!c}
                     width={width}
-                    back={me.cosmetics.back}
+                    face={skin?.face}
+                    back={skin?.back ?? me.cosmetics.back}
                     highlight={hl.length > 0 && isHl(hl, c)}
                     dim={hl.length > 0 && !isHl(hl, c)}
                     winFx={fx && isHl(hl, c) ? fx : null}
@@ -202,7 +236,11 @@ function HandHint({ view }: { view: TableView }) {
 export function TableStage() {
   const view = useTable((s) => s.display);
   const winners = useTable((s) => s.winners);
-  const tableStyle = useEquipped('table');
+  const myTable = useEquipped('table');
+  const myChip = useEquipped('chip');
+  const myFace = useEquipped('face');
+  const myBack = useEquipped('back');
+  const opener = useTable((s) => s.opener);
   const myFx = useProfile((s) => s.winFx);
   const maxPlayers = view?.maxPlayers ?? 6;
   const mySeat = view?.mySeat ?? null;
@@ -216,6 +254,9 @@ export function TableStage() {
   }, []);
 
   if (!view) return null;
+  // a mesa e' do dealer; as cartas abertas, de quem abre a mao
+  const tableStyle = tableSkin(view, myTable);
+  const openSkin = openerCardSkin(view, opener, { face: myFace, back: myBack });
   /** Efeito das cartas de um vencedor (cada jogador tem o seu); null para quem não ganhou. */
   const fxOf = (seat: number | null): WinFx | null => {
     if (seat === null || !winners.includes(seat)) return null;
@@ -231,15 +272,15 @@ export function TableStage() {
       <div className="table-plane" style={PLANE}>
         <TableFelt st={tableStyle} />
         <CenterConsole view={view} geo={geo} />
-        <Board board={view.board} highlight={view.highlight} fx={boardFx} />
-        <OpponentCards view={view} geo={geo} fxOf={fxOf} />
+        <Board board={view.board} highlight={view.highlight} fx={boardFx} skin={openSkin} />
+        <OpponentCards view={view} geo={geo} fxOf={fxOf} skin={openSkin} />
         <DealerButton view={view} geo={geo} />
         <FlyersLayer space="plane" />
       </div>
-      <BetChips view={view} geo={geo} />
+      <BetChips view={view} geo={geo} myChip={myChip} />
       <FlyersLayer space="screen" />
       <HandHint view={view} />
-      <MyHand view={view} fx={fxOf(view.mySeat)} />
+      <MyHand view={view} fx={fxOf(view.mySeat)} skin={openSkin} />
       {view.seats.map((s, seat) =>
         s && geo[seat] ? (
           <Nameplate

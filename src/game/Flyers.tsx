@@ -3,6 +3,8 @@ import { useTable, type Flyer } from '../store/table';
 import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
 import { scaled } from '../anim/tween';
+import { useEquipped } from '../store/profile';
+import { mainChipSkin } from './skins';
 
 export type FlyerSpace = 'plane' | 'screen';
 
@@ -76,7 +78,13 @@ export function chipFlight(f: Flyer): {
   };
 }
 
+/**
+ * Fichas em voo: sao as da stack principal (entram e saem do pote), entao usam a
+ * skin do dealer numa mesa com outros humanos.
+ */
 function ChipFlyer({ f }: { f: Flyer }) {
+  const view = useTable((s) => s.display);
+  const myChip = useEquipped('chip');
   const dur = scaled(f.dur) / 1000;
   const { times, ease, ...kf } = chipFlight(f);
   return (
@@ -89,7 +97,14 @@ function ChipFlyer({ f }: { f: Flyer }) {
       onAnimationComplete={() => f.onDone?.()}
     >
       <div className="flyer-chip-inner">
-        <ChipStack amount={f.amount ?? 0} size={30} label={false} maxCols={3} seed={f.id} />
+        <ChipStack
+          amount={f.amount ?? 0}
+          size={30}
+          label={false}
+          maxCols={3}
+          seed={f.id}
+          style={view ? mainChipSkin(view, myChip) : myChip}
+        />
       </div>
     </motion.div>
   );

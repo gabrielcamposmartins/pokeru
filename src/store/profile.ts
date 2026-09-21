@@ -257,7 +257,10 @@ export function isPreset(kind: StyleKind, id: string): boolean {
 export function myCosmetics(): PlayerCosmetics {
   const s = useProfile.getState();
   return {
+    face: sanitizeFace(findStyle(s, 'face', s.equipped.face)),
     back: sanitizeBack(findStyle(s, 'back', s.equipped.back), false),
+    chip: sanitizeChip(findStyle(s, 'chip', s.equipped.chip)),
+    table: sanitizeTable(findStyle(s, 'table', s.equipped.table)),
     character: findCharacter(s.character),
     winFx: sanitizeWinFx(s.winFx),
   };

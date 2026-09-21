@@ -1,0 +1,148 @@
+/**
+ * Conquistas e títulos do **jogador**.
+ *
+ * Título não se compra: cada um vem de uma conquista, e conquista é um contador que
+ * chegou na meta. Guardar só os contadores (e não a lista de conquistas) faz o
+ * desbloqueio ser sempre recalculável — nada de migração quando a lista mudar, e
+ * uma conquista nova já vale para quem tem o número.
+ *
+ * Os contadores sobem no servidor (shared/room.ts chama `bank.note`); o cliente só
+ * mostra o que recebe.
+ */
+
+/** Contadores de uma conta. Tudo por jogador, não por personagem. */
+export interface PlayerStats {
+  /** Mãos jogadas até o fim (sem contar as que a pessoa nem recebeu carta). */
+  hands: number;
+  /** Mãos ganhas. */
+  wins: number;
+  /** Partidas terminadas. */
+  matches: number;
+  /** Mãos em que desistiu. */
+  folds: number;
+  /** Vezes que foi de all-in. */
+  allIns: number;
+  /** Vitórias com mão grande (trinca para cima). */
+  bigWins: number;
+  /** Mãos que chegaram ao showdown. */
+  showdowns: number;
+  /** Partidas ganhas (1º lugar). */
+  matchWins: number;
+}
+
+export const EMPTY_STATS: PlayerStats = {
+  hands: 0,
+  wins: 0,
+  matches: 0,
+  folds: 0,
+  allIns: 0,
+  bigWins: 0,
+  showdowns: 0,
+  matchWins: 0,
+};
+
+/** Momento que faz um contador subir. */
+export type StatEvent = keyof PlayerStats;
+
+export const STAT_EVENTS: readonly StatEvent[] = [
+  'hands',
+  'wins',
+  'matches',
+  'folds',
+  'allIns',
+  'bigWins',
+  'showdowns',
+  'matchWins',
+];
+
+export interface Achievement {
+  id: string;
+  /** Nome da conquista. */
+  name: string;
+  /** Como se consegue, em uma linha. */
+  hint: string;
+  /** Título que ela libera. */
+  title: string;
+  /** Contador que conta. */
+  of: StatEvent;
+  /** Meta. */
+  need: number;
+}
+
+/**
+ * A lista. Ordem = ordem de exibição, do mais fácil ao mais difícil dentro de cada trilha.
+ * Mexer em `need` ou acrescentar linhas é seguro: o desbloqueio é recalculado do contador.
+ */
+export const ACHIEVEMENTS: readonly Achievement[] = [
+  // presença
+  { id: 'first-hand', name: 'Primeira mão', hint: 'Jogue uma mão até o fim.', title: 'Novato da Mesa', of: 'hands', need: 1 },
+  { id: 'regular', name: 'Presença', hint: 'Jogue 100 mãos.', title: 'Frequentador', of: 'hands', need: 100 },
+  { id: 'veteran', name: 'Veterania', hint: 'Jogue 1.000 mãos.', title: 'Veterano do Feltro', of: 'hands', need: 1000 },
+
+  // potes
+  { id: 'first-pot', name: 'Primeiro pote', hint: 'Ganhe uma mão.', title: 'Primeiro Pote', of: 'wins', need: 1 },
+  { id: 'pot-collector', name: 'Colecionador', hint: 'Ganhe 50 mãos.', title: 'Colecionador de Potes', of: 'wins', need: 50 },
+  { id: 'shark', name: 'Tubarão', hint: 'Ganhe 500 mãos.', title: 'Tubarão', of: 'wins', need: 500 },
+
+  // mãos grandes
+  { id: 'golden-hand', name: 'Mão de ouro', hint: 'Ganhe com trinca ou melhor.', title: 'Mão de Ouro', of: 'bigWins', need: 1 },
+  { id: 'showdown-legend', name: 'Lenda', hint: 'Ganhe 25 vezes com mão grande.', title: 'Lenda do Showdown', of: 'bigWins', need: 25 },
+
+  // coragem
+  { id: 'fearless', name: 'Sem medo', hint: 'Vá de all-in uma vez.', title: 'Sem Medo', of: 'allIns', need: 1 },
+  { id: 'all-or-nothing', name: 'Tudo ou nada', hint: 'Vá de all-in 50 vezes.', title: 'Tudo ou Nada', of: 'allIns', need: 50 },
+
+  // leitura
+  { id: 'stone-patience', name: 'Paciência', hint: 'Desista de 100 mãos — saber sair também é jogar.', title: 'Paciência de Pedra', of: 'folds', need: 100 },
+  { id: 'face-to-face', name: 'Cara a cara', hint: 'Chegue ao showdown 50 vezes.', title: 'Cara a Cara', of: 'showdowns', need: 50 },
+
+  // partidas
+  { id: 'marathon', name: 'Maratona', hint: 'Termine 10 partidas.', title: 'Maratonista', of: 'matches', need: 10 },
+  { id: 'champion', name: 'Campeão', hint: 'Ganhe uma partida.', title: 'Campeão', of: 'matchWins', need: 1 },
+  { id: 'unbeaten', name: 'Invicto', hint: 'Ganhe 25 partidas.', title: 'Imbatível', of: 'matchWins', need: 25 },
+];
+
+export function findAchievement(id: string): Achievement | undefined {
+  return ACHIEVEMENTS.find((a) => a.id === id);
+}
+
+/** Quanto do caminho já andou, de 0 a 1. */
+export function progressOf(a: Achievement, stats: PlayerStats): number {
+  if (a.need <= 0) return 1;
+  return Math.min(1, (stats[a.of] ?? 0) / a.need);
+}
+
+export function isUnlocked(a: Achievement, stats: PlayerStats): boolean {
+  return (stats[a.of] ?? 0) >= a.need;
+}
+
+export function unlockedIds(stats: PlayerStats): string[] {
+  return ACHIEVEMENTS.filter((a) => isUnlocked(a, stats)).map((a) => a.id);
+}
+
+/** Títulos que o jogador pode usar, na ordem da lista. */
+export function availableTitles(stats: PlayerStats): string[] {
+  return ACHIEVEMENTS.filter((a) => isUnlocked(a, stats)).map((a) => a.title);
+}
+
+/**
+ * O título equipado, se ainda valer. Um título que o jogador não desbloqueou (ou que saiu
+ * da lista) vira `null` em vez de aparecer na mesa — a checagem é a mesma no cliente e no
+ * servidor, então não há como forjar um pelo `hello`.
+ */
+export function sanitizeTitle(v: unknown, stats: PlayerStats): string | null {
+  if (typeof v !== 'string' || !v) return null;
+  return availableTitles(stats).includes(v) ? v : null;
+}
+
+/** Contadores vindos de fora (disco, rede): o que não for número vira 0. */
+export function sanitizeStats(v: unknown): PlayerStats {
+  const o = (typeof v === 'object' && v ? v : {}) as Record<string, unknown>;
+  const num = (x: unknown): number => {
+    const n = typeof x === 'number' ? x : Number(x);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  };
+  const out = { ...EMPTY_STATS };
+  for (const k of STAT_EVENTS) out[k] = num(o[k]);
+  return out;
+}

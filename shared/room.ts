@@ -15,7 +15,17 @@ import {
   type TableEvent,
   type TableView,
 } from './protocol';
-import { AVATAR_ICONS, BACK_PRESETS, CHARACTER_PRESETS, WIN_FX_IDS, type AvatarInfo, type PlayerCosmetics } from './styles';
+import {
+  AVATAR_ICONS,
+  BACK_PRESETS,
+  CHARACTER_PRESETS,
+  CHIP_PRESETS,
+  FACE_PRESETS,
+  TABLE_PRESETS,
+  WIN_FX_IDS,
+  type AvatarInfo,
+  type PlayerCosmetics,
+} from './styles';
 
 export interface ClientHandle {
   id: string;
@@ -24,6 +34,8 @@ export interface ClientHandle {
   name: string;
   avatar: AvatarInfo;
   cosmetics: PlayerCosmetics;
+  /** Título de conquista que o jogador mostra na mesa (null = nenhum). */
+  title: string | null;
   send(msg: ServerMsg): void;
 }
 
@@ -44,6 +56,7 @@ interface Member {
   difficulty: BotDifficulty;
   avatar: AvatarInfo;
   cosmetics: PlayerCosmetics;
+  title: string | null;
   seat: number;
   stack: number;
   client: ClientHandle | null;
@@ -207,6 +220,7 @@ export class Room {
           isBot: m.isBot,
           avatar: m.avatar,
           character: m.cosmetics.character,
+          title: m.title,
           stack: m.stack,
           connected: m.connected,
         })),
@@ -321,6 +335,7 @@ export class Room {
       difficulty: 'normal',
       avatar: client.avatar,
       cosmetics: client.cosmetics,
+      title: client.title,
       seat,
       stack,
       client,
@@ -344,6 +359,7 @@ export class Room {
     m.name = client.name;
     m.avatar = client.avatar;
     m.cosmetics = client.cosmetics;
+    m.title = client.title;
     this.broadcastRoom();
     if (this.status === 'playing') for (const h of this.humans()) h.client!.send({ type: 'sync', view: this.buildView(h.id) });
   }
@@ -405,7 +421,15 @@ export class Room {
       isBot: true,
       difficulty,
       avatar: { color: pick(AVATAR_COLORS), icon: pick(AVATAR_ICONS) },
-      cosmetics: { back: pick(BACK_PRESETS), character, winFx: pick(WIN_FX_IDS) },
+      title: null,
+      cosmetics: {
+        face: pick(FACE_PRESETS),
+        back: pick(BACK_PRESETS),
+        chip: pick(CHIP_PRESETS),
+        table: pick(TABLE_PRESETS),
+        character,
+        winFx: pick(WIN_FX_IDS),
+      },
       seat,
       stack: this.settings.startingStack,
       client: null,
@@ -673,8 +697,12 @@ export class Room {
       } else if (hp.folded) ev = 'fold';
       else ev = 'loss';
       this.bank.bond(m.accountId, m.handCharacter ?? m.cosmetics.character.id, ev);
-      this.bank.note(m.accountId, 'hand');
-      if (won) this.bank.note(m.accountId, 'win');
+      this.bank.note(m.accountId, 'hands');
+      if (won) this.bank.note(m.accountId, 'wins');
+      if (hp.folded) this.bank.note(m.accountId, 'folds');
+      if (hp.allIn) this.bank.note(m.accountId, 'allIns');
+      if (h.street === 'showdown' && !hp.folded) this.bank.note(m.accountId, 'showdowns');
+      if (won && ev === 'bigWin') this.bank.note(m.accountId, 'bigWins');
     }
   }
 
@@ -693,7 +721,8 @@ export class Room {
         if (m.isBot || !m.accountId) continue;
         const place = ranking.find((r) => r.seat === m.seat)?.place;
         this.bank.bond(m.accountId, m.matchCharacter ?? m.handCharacter ?? m.cosmetics.character.id, place === 1 ? 'matchWin' : 'match');
-        this.bank.note(m.accountId, 'match');
+        this.bank.note(m.accountId, 'matches');
+        if (place === 1) this.bank.note(m.accountId, 'matchWins');
       }
     }
     for (const m of this.members()) this.cashOut(m);
@@ -1009,6 +1038,7 @@ export class Room {
         isBot: m.isBot,
         avatar: m.avatar,
         cosmetics: m.cosmetics,
+        title: m.title,
         stack: live ? hp!.stack : m.stack,
         bet: hp?.bet ?? 0,
         inHand: !!hp,

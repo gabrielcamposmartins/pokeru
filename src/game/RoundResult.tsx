@@ -75,7 +75,7 @@ export function RoundResultPanel({ r }: { r: Result }) {
       >
         <CharacterFull st={r.character} height={880} />
         <div className="rr-plate">
-          <small>{r.character.title}</small>
+          {r.title && <small>{r.title}</small>}
           <b>{r.name}</b>
         </div>
       </motion.div>

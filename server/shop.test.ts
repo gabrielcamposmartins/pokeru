@@ -5,7 +5,15 @@ import { join } from 'node:path';
 import type { AccountProfile, AuthIdentity } from '../shared/accounts';
 import { Lobby } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type ServerMsg } from '../shared/protocol';
-import { CHARACTER_PRESETS, DEFAULT_WIN_FX, findCharacter, BACK_PRESETS } from '../shared/styles';
+import {
+  BACK_PRESETS,
+  CHARACTER_PRESETS,
+  CHIP_PRESETS,
+  DEFAULT_WIN_FX,
+  FACE_PRESETS,
+  TABLE_PRESETS,
+  findCharacter,
+} from '../shared/styles';
 import { priceOf } from '../shared/catalog';
 import { Accounts } from './accounts';
 import { Gbot, GbotError, type GbotMove, type GbotUser } from './gbot';
@@ -25,7 +33,14 @@ function newFile(): string {
 const profile = (character = 'marina'): AccountProfile => ({
   name: 'Gabi',
   avatar: { color: '#fff', icon: '♠' },
-  cosmetics: { back: BACK_PRESETS[1], character: findCharacter(character), winFx: DEFAULT_WIN_FX },
+  cosmetics: {
+    face: FACE_PRESETS[0],
+    back: BACK_PRESETS[1],
+    chip: CHIP_PRESETS[0],
+    table: TABLE_PRESETS[0],
+    character: findCharacter(character),
+    winFx: DEFAULT_WIN_FX,
+  },
 });
 
 const identity: AuthIdentity = { sub: '42', username: 'gabi', discordId: '343954786300854276', nickname: 'Mogleo' };

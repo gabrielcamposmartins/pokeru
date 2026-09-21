@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMyTitle } from '../store/titles';
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
 import type { BotDifficulty, GameMode, GameVariant } from '../../shared/protocol';
 import { useCharacter, useEquipped, useProfile } from '../store/profile';
@@ -45,6 +46,8 @@ export function Petals() {
 /** Personagem grande e interativo (clique para ouvir uma fala). */
 export function CharacterStageView({ heightVh = 92, className }: { heightVh?: number; className?: string }) {
   const st = useCharacter();
+  // a placa mostra o titulo do JOGADOR (conquista), nao do personagem
+  const myTitle = useMyTitle();
   const [talk, setTalk] = useState<string | null>(null);
   const hop = useAnimationControls();
   const [h, setH] = useState(() => (window.innerHeight * heightVh) / 100);
@@ -81,7 +84,7 @@ export function CharacterStageView({ heightVh = 92, className }: { heightVh?: nu
         )}
       </AnimatePresence>
       <div className="char-nameplate">
-        <small>{st.title || 'Jogador(a)'}</small>
+        <small>{myTitle || 'Jogador(a)'}</small>
         <b>{st.name}</b>
         <BondBar char={st} size={16} compact />
       </div>

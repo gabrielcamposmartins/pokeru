@@ -1,4 +1,11 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import {
+  EMPTY_STATS,
+  sanitizeStats,
+  sanitizeTitle,
+  type PlayerStats,
+  type StatEvent,
+} from '../shared/achievements';
 import { EMPTY_BOND, addBond, type BondEvent, type BondStats } from '../shared/bond';
 import { findItem, isFree, priceOf, type Currency } from '../shared/catalog';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, AuthIdentity, DiscordLink } from '../shared/accounts';
@@ -26,7 +33,9 @@ interface Stored {
   /** Itens comprados (chaves do catálogo). O que já vem com o jogo não entra aqui. */
   owned: string[];
   bond: Record<string, BondStats>;
-  stats: { hands: number; wins: number; matches: number };
+  stats: PlayerStats;
+  /** Titulo de conquista escolhido (null/ausente = nenhum). */
+  title?: string | null;
   since: string;
   seen: string;
 }
@@ -166,7 +175,8 @@ export class Accounts implements AccountService {
       money: Math.max(0, Math.round(this.opts.startingMoney ?? 10_000)),
       owned: [],
       bond: {},
-      stats: { hands: 0, wins: 0, matches: 0 },
+      stats: { ...EMPTY_STATS },
+      title: null,
       since: new Date().toISOString(),
       seen: new Date().toISOString(),
       ...extra,
@@ -293,7 +303,8 @@ export class Accounts implements AccountService {
       discord: acc.discord ? { ...acc.discord } : null,
       owned: [...acc.owned],
       bond: { ...acc.bond },
-      stats: { ...acc.stats },
+      stats: sanitizeStats(acc.stats),
+      title: sanitizeTitle(acc.title, sanitizeStats(acc.stats)),
       since: acc.since,
     };
   }
@@ -491,12 +502,21 @@ export class Accounts implements AccountService {
     this.changed(acc.id);
   }
 
-  note(accountId: string, what: 'hand' | 'win' | 'match'): void {
+  note(accountId: string, what: StatEvent): void {
     const acc = this.byId(accountId);
     if (!acc) return;
-    if (what === 'hand') acc.stats.hands++;
-    else if (what === 'win') acc.stats.wins++;
-    else acc.stats.matches++;
+    acc.stats = sanitizeStats(acc.stats);
+    acc.stats[what]++;
+    // um titulo pode ter deixado de valer (ou o contador acabou de liberar outro)
+    acc.title = sanitizeTitle(acc.title, acc.stats);
+    this.changed(acc.id);
+  }
+
+  /** Equipa um titulo. Recusa o que as conquistas da conta nao sustentam. */
+  setTitle(accountId: string, title: string | null): void {
+    const acc = this.byId(accountId);
+    if (!acc) return;
+    acc.title = sanitizeTitle(title, sanitizeStats(acc.stats));
     this.changed(acc.id);
   }
 

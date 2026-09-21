@@ -181,7 +181,6 @@ export function BondPageView({ char, st, onClose }: { char: CharacterStyle; st: 
             <h2 className="title-deco" style={{ margin: 0 }}>
               Vínculo com {char.name}
             </h2>
-            <div className="muted">{char.title}</div>
             <BondBarView lv={lv} />
           </div>
           <div className="bond-page-side">

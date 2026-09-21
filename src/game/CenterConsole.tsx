@@ -5,6 +5,7 @@ import { fmt } from '../util/format';
 import { shade } from '../util/color';
 import { CONSOLE, type SeatGeo } from './layout';
 import { useUiTheme } from '../ui/themes';
+import { tableSkin } from './skins';
 
 const STREET: Record<string, string> = {
   preflop: 'Pré-flop',
@@ -23,7 +24,8 @@ const STREET: Record<string, string> = {
  * a rua atual e luzes nas bordas apontando para cada jogador (a da vez pulsa).
  */
 export function CenterConsole({ view, geo }: { view: TableView; geo: SeatGeo[] }) {
-  const table = useEquipped('table');
+  const myTable = useEquipped('table');
+  const table = tableSkin(view, myTable);
   const { table: look } = useUiTheme();
   const [bgTop, bgBottom] = look.consoleBg === 'rail' ? [shade(table.rail, 0.12), shade(table.rail, -0.6)] : look.consoleBg;
   const r = look.consoleRadius;

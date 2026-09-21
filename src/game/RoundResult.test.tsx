@@ -18,6 +18,7 @@ const result: RoundResult = {
   id: 1,
   seat: 0,
   name: 'Jogador',
+  title: 'Campeão',
   character: CHARACTER_PRESETS[0],
   hole,
   board,
@@ -50,7 +51,7 @@ describe('tela de fim de round', () => {
     const html = renderToStaticMarkup(<RoundResultPanel r={result} />);
     expect(html).toContain('Full House, Áses com Noves');
     expect(html).toContain('Jogador');
-    expect(html).toContain(CHARACTER_PRESETS[0].title);
+    expect(html).toContain(CHARACTER_PRESETS[0].name);
     expect(html).toContain(CHARACTER_PRESETS[0].full); // ilustração de corpo inteiro
     expect(html).toContain('Pote principal');
     expect(html).toContain('Pote 2');

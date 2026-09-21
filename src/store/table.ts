@@ -44,6 +44,8 @@ export interface RoundResult {
   id: number;
   seat: number;
   name: string;
+  /** Titulo de conquista do jogador (null = nenhum). */
+  title: string | null;
   character: CharacterStyle;
   /** As cartas do jogador e as da mesa que entraram na mão feita (`best`). */
   hole: Card[];
@@ -115,6 +117,8 @@ interface TableState {
   log: LogLine[];
   gameOver: Ranking[] | null;
   winners: number[];
+  /** Assento que esta abrindo a mao no showdown (primeiro a mostrar). */
+  opener: number | null;
   /** Poker de 5 cartas: posições da minha mão marcadas para trocar. */
   discards: number[];
   setDisplay(v: TableView | null, receivedAt?: number): void;
@@ -130,6 +134,7 @@ interface TableState {
   addLog(text: string, kind?: LogLine['kind']): void;
   setGameOver(r: Ranking[] | null): void;
   setWinners(w: number[]): void;
+  setOpener(opener: number | null): void;
   toggleDiscard(i: number): void;
   clearDiscards(): void;
   reset(): void;
@@ -150,6 +155,7 @@ export const useTable = create<TableState>()((set, get) => ({
   log: [],
   gameOver: null,
   winners: [],
+  opener: null,
   discards: [],
   setDisplay: (v, receivedAt) =>
     set({
@@ -186,6 +192,7 @@ export const useTable = create<TableState>()((set, get) => ({
   addLog: (text, kind) => set((s) => ({ log: [...s.log.slice(-120), { id: nextId(), text, kind }] })),
   setGameOver: (gameOver) => set({ gameOver }),
   setWinners: (winners) => set({ winners }),
+  setOpener: (opener) => set({ opener }),
   toggleDiscard: (i) => set((s) => ({ discards: s.discards.includes(i) ? s.discards.filter((x) => x !== i) : [...s.discards, i].sort((a, b) => a - b) })),
   clearDiscards: () => set({ discards: [] }),
   reset: () =>
@@ -201,6 +208,7 @@ export const useTable = create<TableState>()((set, get) => ({
       log: [],
       gameOver: null,
       winners: [],
+      opener: null,
       discards: [],
     }),
 }));

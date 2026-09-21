@@ -1,5 +1,6 @@
 import type { BondEvent, BondStats } from './bond';
 import type { Currency } from './catalog';
+import type { PlayerStats, StatEvent } from './achievements';
 import type { AvatarInfo, PlayerCosmetics } from './styles';
 
 /**
@@ -58,7 +59,13 @@ export interface AccountInfo {
   owned: string[];
   /** Vínculo por personagem (id do personagem → ficha). */
   bond: Record<string, BondStats>;
-  stats: { hands: number; wins: number; matches: number };
+  /** Contadores das conquistas (shared/achievements.ts). */
+  stats: PlayerStats;
+  /**
+   * Titulo escolhido pelo jogador, ou null. Vale so' se as conquistas sustentarem:
+   * quem valida e' `sanitizeTitle`, com os mesmos contadores.
+   */
+  title: string | null;
   /** Quando a conta foi criada (ISO). */
   since: string;
 }
@@ -117,7 +124,10 @@ export interface TableBank {
   /** Pontos de vínculo com o personagem que a conta está usando. */
   bond(accountId: string, character: string, ev: BondEvent): void;
   /** Contadores gerais da conta. */
-  note(accountId: string, what: 'hand' | 'win' | 'match'): void;
+  /** Sobe um contador de conquista da conta. */
+  note(accountId: string, what: StatEvent): void;
+  /** Equipa um titulo. Recusa silenciosamente o que as conquistas nao sustentam. */
+  setTitle(accountId: string, title: string | null): void;
 }
 
 /** A banca mais o login e a loja — é o que o lobby recebe do servidor. */

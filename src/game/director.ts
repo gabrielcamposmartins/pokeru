@@ -331,6 +331,7 @@ class Director {
       seat,
       name: this.seatName(view, seat),
       character: this.charOf(view, seat).character ?? findCharacter(''),
+      title: view.seats[seat]?.title ?? null,
       hole,
       board,
       best,
@@ -388,6 +389,7 @@ class Director {
       case 'handStart': {
         this.skipping = false;
         store.setWinners([]);
+        store.setOpener(null);
         store.setSplash(null);
         store.setResult(null);
         store.addLog(`Mão #${ev.handNo}`, 'hand');
@@ -536,6 +538,8 @@ class Director {
 
       case 'showdown': {
         // quem abre as cartas primeiro diz a chamada comum (オープン！) — ou a fala própria, com o vínculo feito
+        // e e' a skin dele que vale nas cartas enquanto a mao esta sendo aberta
+        if (ev.reveals[0]) store.setOpener(ev.reveals[0].seat);
         if (ev.reveals[0] && !this.skipping) this.showVoice(next, ev.reveals[0].seat);
         for (const r of ev.reveals) {
           if (!alive()) return;

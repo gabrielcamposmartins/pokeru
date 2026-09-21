@@ -74,7 +74,6 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
             </motion.div>
           )}
           <div className="char-nameplate">
-            <small>{current.title}</small>
             <b>{current.name}</b>
           </div>
         </div>
@@ -88,7 +87,6 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
                 <h2 className="title-deco" style={{ margin: 0 }}>
                   {current.name}
                 </h2>
-                <div className="muted">{current.title}</div>
                 <BondBar char={current} size={18} compact />
                 {chosen && (
                   <div className="badges" style={{ marginTop: 6 }}>

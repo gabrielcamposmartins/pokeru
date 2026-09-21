@@ -138,7 +138,13 @@ export const DEFAULT_WIN_FX: WinFxId = 'gold';
 
 /** Cosméticos que os outros jogadores veem (enviados pela rede). */
 export interface PlayerCosmetics {
+  /** Frente das cartas: usada quando ESTE jogador abre a mão no showdown. */
+  face: CardFaceStyle;
   back: CardBackStyle;
+  /** Fichas do jogador: as apostas dele na mesa saem com essas. */
+  chip: ChipStyle;
+  /** Mesa do jogador: vale para todos quando ele é o dealer. */
+  table: TableStyle;
   character: CharacterStyle;
   /** Id do efeito das cartas quando o jogador ganha (veja WIN_FX_IDS). */
   winFx: WinFxId;
@@ -766,7 +772,14 @@ export function sanitizeWinFx(v: unknown): WinFxId {
 
 export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
   const o = obj(v);
-  return { back: sanitizeBack(o.back, false), character: sanitizeCharacter(o.character), winFx: sanitizeWinFx(o.winFx) };
+  return {
+    face: sanitizeFace(o.face),
+    back: sanitizeBack(o.back, false),
+    chip: sanitizeChip(o.chip),
+    table: sanitizeTable(o.table),
+    character: sanitizeCharacter(o.character),
+    winFx: sanitizeWinFx(o.winFx),
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -777,7 +790,6 @@ export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
 export interface CharacterStyle {
   id: string;
   name: string;
-  title: string;
   /** Cores do fundo do retrato e do cut-in. */
   bg: string;
   bg2: string;
@@ -793,7 +805,6 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   {
     id: 'marina',
     name: 'Marina',
-    title: 'A Fênix da Mesa',
     bg: '#ff8a5c',
     bg2: '#8e1b2b',
     lines: ['Bora apostar alto!', 'Sorte? Eu chamo de talento!', 'Piscou, perdeu o pote!', 'Essa mesa é minha hoje!'],
@@ -803,7 +814,6 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   {
     id: 'ren',
     name: 'Ren',
-    title: 'O Estrategista de Jade',
     bg: '#48b487',
     bg2: '#0f2a22',
     lines: ['Cada ficha tem um propósito.', 'Vejo três jogadas à frente.', 'Paciência é a arma mais afiada.'],
@@ -813,7 +823,6 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   {
     id: 'tobi',
     name: 'Tobi',
-    title: 'O Coringa Sortudo',
     bg: '#ffd35c',
     bg2: '#2b3f9e',
     lines: ['Ei, ei! Bora de all-in?', 'Hoje a sorte tá do meu lado!', 'Tsumo! ...opa, jogo errado!'],
@@ -823,7 +832,6 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   {
     id: 'yukina',
     name: 'Yukina',
-    title: 'Flor de Gelo',
     bg: '#bcd3ff',
     bg2: '#2d3f8f',
     lines: ['O inverno ensina a esperar.', 'Uma mão silenciosa vale mais que mil blefes.', 'Hmm... interessante.'],

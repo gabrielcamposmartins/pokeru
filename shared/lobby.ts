@@ -11,6 +11,9 @@ import {
   sanitizeName,
   type AvatarInfo,
   type PlayerCosmetics,
+  FACE_PRESETS,
+  CHIP_PRESETS,
+  TABLE_PRESETS,
 } from './styles';
 
 /**
@@ -120,7 +123,16 @@ export class Connection implements ClientHandle {
   name = 'Jogador';
   avatar: AvatarInfo = { color: '#7c5cff', icon: '♠' };
   /** Cosméticos que a mesa usa: já cortados para o que a conta possui. */
-  cosmetics: PlayerCosmetics = { back: BACK_PRESETS[0], character: CHARACTER_PRESETS[0], winFx: DEFAULT_WIN_FX };
+  cosmetics: PlayerCosmetics = {
+    face: FACE_PRESETS[0],
+    back: BACK_PRESETS[0],
+    chip: CHIP_PRESETS[0],
+    table: TABLE_PRESETS[0],
+    character: CHARACTER_PRESETS[0],
+    winFx: DEFAULT_WIN_FX,
+  };
+  /** Titulo de conquista da conta (null sem conta ou sem titulo escolhido). */
+  title: string | null = null;
   /** O que o cliente pediu, antes do corte — é o que volta a valer quando ele compra o item. */
   private wanted: PlayerCosmetics = this.cosmetics;
   /** Itens da conta (chaves do catálogo). Vazio = só o que é grátis. */
@@ -184,6 +196,7 @@ export class Connection implements ClientHandle {
     if (account) {
       this.accountId = account.id;
       this.applyOwned(account.owned);
+      this.title = account.title;
       this.send({ type: 'account', account });
     }
     this.send({ type: 'rooms', rooms: this.lobby.list() });
@@ -235,6 +248,18 @@ export class Connection implements ClientHandle {
       }
       case 'updateProfile': {
         this.setProfile(msg);
+        this.room?.updateProfile(this);
+        break;
+      }
+      case 'setTitle': {
+        const accounts = this.lobby.accounts;
+        if (!accounts || !this.accountId) {
+          this.error('titulos precisam de uma conta no servidor');
+          return;
+        }
+        accounts.setTitle(this.accountId, typeof msg.title === 'string' ? msg.title : null);
+        // o servidor e' quem decide se o titulo vale; o que ele devolver e' o que vai a mesa
+        this.title = accounts.info(this.accountId)?.title ?? null;
         this.room?.updateProfile(this);
         break;
       }

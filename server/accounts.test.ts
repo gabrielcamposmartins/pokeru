@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EMPTY_STATS } from '../shared/achievements';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -88,15 +89,15 @@ describe('contas do servidor', () => {
     acc.bond(a.id, 'marina', 'win');
     acc.bond(a.id, 'marina', 'loss');
     acc.bond(a.id, 'ren', 'fold');
-    acc.note(a.id, 'hand');
-    acc.note(a.id, 'win');
-    acc.note(a.id, 'match');
+    acc.note(a.id, 'hands');
+    acc.note(a.id, 'wins');
+    acc.note(a.id, 'matches');
     const info = acc.info(a.id)!;
     expect(info.bond.marina.points).toBe(BOND_POINTS.win + BOND_POINTS.loss);
     expect(info.bond.marina.wins).toBe(1);
     expect(info.bond.marina.losses).toBe(1);
     expect(info.bond.ren.folds).toBe(1);
-    expect(info.stats).toEqual({ hands: 1, wins: 1, matches: 1 });
+    expect(info.stats).toEqual({ ...EMPTY_STATS, hands: 1, wins: 1, matches: 1 });
     acc.close();
   });
 
