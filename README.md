@@ -384,6 +384,54 @@ docker compose up -d --build
 | macOS | `dmg/Pokeru_<versão>_x64.dmg` e `macos/Pokeru.app` |
 | Linux | `deb/`, `rpm/` e `appimage/` |
 
+### "O Windows protegeu seu computador" (SmartScreen)
+
+Ao instalar, o Windows mostra uma tela azul dizendo que protegeu o computador, com o botão
+*Mais informações* → *Executar assim mesmo*. Isso é o **SmartScreen**, e o motivo é um só: o
+instalador **não tem assinatura Authenticode** (certificado de assinatura de código).
+
+A chave que o projeto já usa (`~/.tauri/pokeru-updater.key`, minisign) assina o **manifesto do
+atualizador** — ela garante ao *jogo* que o pacote veio de nós. O Windows não conhece essa chave e
+não olha para ela; são dois mecanismos diferentes com o mesmo nome popular.
+
+Conferindo:
+
+```powershell
+Get-AuthenticodeSignature .\Pokeru_0.4.3_x64-setup.exe
+# Status: NotSigned
+```
+
+**Um certificado autoassinado não resolve.** Windows nenhum confia num emissor que ele não conhece:
+o aviso continua e ainda ganha um "editor não verificado". É a mesma lição do certificado TLS, num
+lugar onde ela custa mais caro.
+
+#### O que faz o aviso desaparecer
+
+| Caminho | Custo | Efeito |
+|---|---|---|
+| **Azure Trusted Signing** (Microsoft) | ~US$ 10/mês | O mais barato hoje. Pede validação de identidade — para pessoa física, a Microsoft exige histórico verificável de 3 anos |
+| Certificado **OV** (Sectigo, DigiCert…) | ~US$ 150–400/ano | Assina, mas o SmartScreen ainda avisa até o binário ganhar reputação (dias a semanas). Desde 2023 a chave privada tem de ficar em token físico ou HSM |
+| Certificado **EV** | ~US$ 300–700/ano | Reputação imediata: sem aviso desde o primeiro download |
+
+Com um deles, é apontar o Tauri para ele (`bundle.windows.certificateThumbprint`, ou `signCommand`
+no caso do Trusted Signing) e a action passa a publicar já assinado.
+
+#### Enquanto não há certificado
+
+- **O aviso é só na primeira instalação.** A atualização automática baixa o instalador pelo próprio
+  jogo, e um arquivo que não veio pelo navegador não carrega a *Mark of the Web* — é essa marca que
+  aciona o SmartScreen. Quem instalou uma vez não vê mais a tela nas versões seguintes.
+- Cada release publica o **SHA-256** dos instaladores, para quem quiser conferir o que baixou:
+
+  ```powershell
+  Get-FileHash .\Pokeru_0.4.3_x64-setup.exe -Algorithm SHA256
+  ```
+
+- O caminho para o jogador é *Mais informações* → *Executar assim mesmo*. O instalador NSIS é
+  **por usuário** (`installMode: currentUser`), então não pede administrador.
+- O aviso vale por binário: cada versão nova recomeça a contagem de reputação, o que torna a
+  estratégia de "esperar a reputação" pouco útil num projeto que publica com frequência.
+
 ### Atualização automática
 
 A partir da 0.2.0 o app desktop **se atualiza sozinho**: ao abrir, ele lê o `latest.json` da última
@@ -436,7 +484,7 @@ matriz com macOS e Linux.
 
 ```bash
 TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/pokeru-updater.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD= npm run app:build
-npm run release:json    # monta o latest.json a partir do instalador e do .sig
+npm run release:json    # monta o latest.json e imprime o SHA-256 de cada pacote
 # e suba os três arquivos numa release com a tag vX.Y.Z
 ```
 
