@@ -69,9 +69,19 @@ export interface AccountCreds {
 export interface AuthIdentity {
   sub: string;
   username: string;
-  /** Id do Discord vinculado; ausente quando a conta não tem vínculo. */
+  /**
+   * Id do Discord **segundo as claims**. Ausente quando a conta não tem vínculo — mas também
+   * quando o token foi emitido *antes* do vínculo, porque ele é assinado no login e não há
+   * refresh. Por isso a ausência aqui não quer dizer "não há vínculo": quem confirma é o serviço
+   * (veja `token`).
+   */
   discordId?: string;
   nickname?: string;
+  /**
+   * O JWT como veio, para o servidor poder perguntar ao serviço de contas qual é o vínculo de
+   * verdade. Sem ele, o que estiver guardado continua valendo.
+   */
+  token?: string;
 }
 
 /** O perfil que viaja no `hello` (nome e cosméticos ficam salvos na conta). */

@@ -94,7 +94,8 @@ const verifyAuth = jwt
   ? async (token: string): Promise<AuthIdentity | null> => {
       try {
         const c = await jwt.verify(token);
-        return { sub: c.sub, username: c.username ?? 'jogador', discordId: c.discord_id, nickname: c.nickname };
+        // o token segue junto: é com ele que o serviço confirma um vínculo feito depois do login
+        return { sub: c.sub, username: c.username ?? 'jogador', discordId: c.discord_id, nickname: c.nickname, token };
       } catch (err) {
         console.warn('[auth] token recusado:', err instanceof Error ? err.message : err);
         return null;

@@ -191,7 +191,7 @@ export function StoreScreen({ onBack, initial = 'character' }: { onBack: () => v
       )}
       {canShop && pado === null && (
         <div className="shop-hint">
-          Vincule seu Discord em <b>Ajustes → Conta</b> para pagar com <b>padocoins</b>.
+          Tem <b>padocoins</b> no Discord? Vincule sua conta em <b>Ajustes → Conta</b> para gastá-los aqui — a conta do jogo e o Discord são separados até você ligar os dois.
         </div>
       )}
 

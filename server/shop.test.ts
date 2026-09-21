@@ -30,13 +30,21 @@ const profile = (character = 'marina'): AccountProfile => ({
 
 const identity: AuthIdentity = { sub: '42', username: 'gabi', discordId: '343954786300854276', nickname: 'Mogleo' };
 
-/** GBOT de mentira: guarda o saldo em memória e conta as chamadas de débito. */
+/**
+ * GBOT de mentira: guarda o saldo em memória, conta os débitos e responde `/me` — que é como o
+ * servidor confirma um vínculo feito depois de o token ser emitido.
+ *
+ * `linked` é o que o serviço diz sobre o vínculo (null = não há) e `down` finge o bot fora do ar.
+ */
 function fakeGbot(saldo = 1000) {
   const debits: { id: string; quantity: number; key: string | null }[] = [];
   let balance = saldo;
+  const state = { linked: null as string | null, down: false };
   const http = (async (url: string | URL, init?: RequestInit) => {
+    if (state.down) throw new Error('ECONNREFUSED');
     const path = String(url).replace('http://gbot.test', '');
     const ok = (body: unknown) => ({ ok: true, status: 200, text: async () => JSON.stringify(body) }) as Response;
+    if (path === '/me') return ok({ id: 4, username: 'gabs', discord_id: state.linked });
     if (path === '/login') return ok({ token: 'servico.jwt', token_type: 'Bearer', expires_in: 3600, account: { id: 1, username: 'pokeru', discord_id: null } });
     if (path.startsWith('/user/')) {
       const user: GbotUser = { user_id: identity.discordId!, username: 'berlineta.', nickname: 'Mogleo', balance };
@@ -60,6 +68,13 @@ function fakeGbot(saldo = 1000) {
     debits,
     get balance() {
       return balance;
+    },
+    /** O que o serviço responde em `/me` sobre o vínculo. */
+    set linked(id: string | null) {
+      state.linked = id;
+    },
+    set down(v: boolean) {
+      state.down = v;
     },
     gbot: new Gbot({ base: 'http://gbot.test', user: 'pokeru', pass: 'segredo', fetch: http }),
   };
@@ -200,12 +215,12 @@ describe('conta com login (JWT)', () => {
     const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
     const com = (await acc.loginAuth(identity, profile()))!;
     expect(com.discord?.id).toBe(identity.discordId);
+    expect(com.pado).toBe(500);
 
-    // entrou de novo com um token sem vínculo: a conta perde o Discord (e a moeda)
-    const sem = (await acc.loginAuth({ sub: identity.sub, username: identity.username }, profile()))!;
-    expect(sem.id).toBe(com.id);
-    expect(sem.discord).toBeNull();
-    expect(sem.pado).toBeNull();
+    // e o cliente não tem como inventar um: o que ele manda no hello é perfil, não identidade
+    const outro = (await acc.loginAuth({ sub: '99', username: 'outro', token: 'jwt' }, profile()))!;
+    expect(outro.discord).toBeNull();
+    expect(outro.pado).toBeNull();
     acc.close();
   });
 
@@ -302,5 +317,63 @@ describe('erro do GBOT', () => {
 
   it('o catálogo de personagens do jogo é o que a loja vende', () => {
     expect(CHARACTER_PRESETS.map((c) => c.id).sort()).toEqual(['marina', 'ren', 'tobi', 'yukina']);
+  });
+});
+
+/**
+ * O vínculo do Discord depois do login — o caso que apareceu no primeiro teste com gente de
+ * verdade. Não há refresh token: o JWT vale uma hora e é assinado **antes** do vínculo, então a
+ * claim `discord_id` não existe nele. Se a entrada seguinte acreditasse só nas claims, ela apagaria
+ * um vínculo que existe — e os padocoins desapareceriam.
+ */
+describe('vínculo feito depois do token ser emitido', () => {
+  it('a entrada seguinte, com o JWT antigo, não apaga o vínculo', async () => {
+    const fake = fakeGbot(2785);
+    const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
+
+    // 1. entra: o JWT é de antes do vínculo, então não traz discord_id
+    const antes = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+    expect(antes.discord).toBeNull();
+    expect(antes.pado).toBeNull();
+
+    // 2. vincula pelo gateway (é o que o bot confirma) — daí os padocoins aparecem
+    const vinculado = await acc.setDiscordBySub('4', { id: identity.discordId!, username: 'gabs', nickname: null });
+    expect(vinculado?.discord?.id).toBe(identity.discordId);
+    expect(vinculado?.pado).toBe(2785);
+
+    // 3. reabre o jogo com o MESMO token de antes: o vínculo tem de continuar lá
+    fake.linked = identity.discordId!;
+    const depois = (await acc.loginAuth({ sub: '4', username: 'gabs', token: 'jwt.antigo' }, profile()))!;
+    expect(depois.discord?.id).toBe(identity.discordId);
+    expect(depois.pado).toBe(2785);
+    acc.close();
+  });
+
+  it('se o serviço disser que não há vínculo, aí sim o jogo esquece', async () => {
+    const fake = fakeGbot(500);
+    const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
+    const a = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+    await acc.setDiscordBySub('4', { id: identity.discordId!, username: 'gabs', nickname: null });
+    expect(acc.info(a.id)!.discord).not.toBeNull();
+
+    // desvinculou (pelo jogo ou pelo próprio bot): a resposta de /me manda
+    fake.linked = null;
+    const depois = (await acc.loginAuth({ sub: '4', username: 'gabs', token: 'jwt.sem.vinculo' }, profile()))!;
+    expect(depois.discord).toBeNull();
+    expect(depois.pado).toBeNull();
+    acc.close();
+  });
+
+  it('serviço fora do ar não apaga o vínculo guardado', async () => {
+    const fake = fakeGbot(500);
+    const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
+    const a = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+    await acc.setDiscordBySub('4', { id: identity.discordId!, username: 'gabs', nickname: null });
+
+    fake.down = true;
+    const depois = (await acc.loginAuth({ sub: '4', username: 'gabs', token: 'jwt' }, profile()))!;
+    expect(depois.discord?.id).toBe(identity.discordId);
+    expect(acc.info(a.id)!.discord).not.toBeNull();
+    acc.close();
   });
 });

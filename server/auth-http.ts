@@ -89,9 +89,20 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
     }
   }
 
-  /** Erro do GBOT repassado como está: a mensagem dele já é para o jogador ler. */
-  function relay(res: ServerResponse, err: unknown, fallback: string): void {
-    if (err instanceof GbotError) return fail(res, err.status === 503 ? 503 : err.status, err.message);
+  /**
+   * Erro do GBOT repassado ao jogador.
+   *
+   * A mensagem do bot serve para as rotas de conta ("usuario ou senha invalidos" é exatamente o que
+   * se quer ler). Para o vínculo, não: um `404 Not Found` é verdade para a API e enigma para quem
+   * está na tela — a pessoa precisa saber que o id não é de alguém que o bot conhece. Por isso
+   * `traduz` mapeia os status conhecidos de cada rota, e o resto continua passando como está.
+   */
+  function relay(res: ServerResponse, err: unknown, fallback: string, traduz: Record<number, string> = {}): void {
+    if (err instanceof GbotError) {
+      const msg = traduz[err.status] ?? err.message;
+      if (err.status >= 500) console.error(`[auth] GBOT ${err.status}: ${err.message}`);
+      return fail(res, err.status, msg);
+    }
     console.error('[auth]', err);
     fail(res, 500, fallback);
   }
@@ -174,9 +185,15 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
         }
         try {
           await gbot.requestLinkCode(id);
+          console.log(`[discord] código pedido para ${id} (conta ${caller.sub})`);
           send(res, 200, { ok: true });
         } catch (err) {
-          relay(res, err, 'não foi possível pedir o código');
+          const status = err instanceof GbotError ? err.status : 0;
+          console.warn(`[discord] pedido de código para ${id} (conta ${caller.sub}) falhou: ${status} ${err instanceof Error ? err.message : err}`);
+          relay(res, err, 'não foi possível pedir o código', {
+            404: 'o bot não conhece esse id do Discord. Confira o id e se você está no servidor onde o bot está — ele precisa ter visto você para mandar a DM.',
+            400: 'o id do Discord não parece válido: são só números (Configurações → Avançado → Modo desenvolvedor, e "Copiar id do usuário").',
+          });
         }
         return true;
       }
@@ -193,14 +210,22 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
           const account = await gbot.link(caller.token, code);
           const discordId = account.discord_id ?? '';
           if (!discordId) {
+            console.error(`[discord] vínculo da conta ${caller.sub} voltou sem discord_id`);
             fail(res, 502, 'o serviço confirmou o vínculo mas não disse qual Discord é');
             return true;
           }
           // anota no jogo: é o que faz os padocoins aparecerem sem precisar entrar de novo
           const info = await accounts?.setDiscordBySub(caller.sub, { id: discordId, username: account.username, nickname: null });
+          console.log(`[discord] conta ${caller.sub} vinculada a ${discordId} · padocoins ${info?.pado ?? 'não lidos'}`);
           send(res, 200, { ok: true, discord: discordId, pado: info?.pado ?? null });
         } catch (err) {
-          relay(res, err, 'não foi possível vincular o Discord');
+          const status = err instanceof GbotError ? err.status : 0;
+          console.warn(`[discord] vínculo da conta ${caller.sub} falhou: ${status} ${err instanceof Error ? err.message : err}`);
+          relay(res, err, 'não foi possível vincular o Discord', {
+            400: 'código inválido ou expirado. Peça outro — ele vale 15 minutos.',
+            404: 'esse código não existe (ou já foi usado). Peça outro.',
+            409: 'esse Discord já está em outra conta, ou esta conta já tem um Discord. Desvincule primeiro.',
+          });
         }
         return true;
       }
@@ -211,9 +236,12 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
         try {
           await gbot.unlink(caller.token);
           await accounts?.setDiscordBySub(caller.sub, null);
+          console.log(`[discord] conta ${caller.sub} desvinculada`);
           send(res, 200, { ok: true });
         } catch (err) {
-          relay(res, err, 'não foi possível desvincular o Discord');
+          relay(res, err, 'não foi possível desvincular o Discord', {
+            404: 'esta conta não tem Discord vinculado.',
+          });
         }
         return true;
       }

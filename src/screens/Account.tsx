@@ -121,7 +121,8 @@ export function AccountSection() {
               Vincular conta do Discord
             </button>
             <div className="field-hint">
-              Liga o jogo à economia do bot: aí os <b>padocoins</b> aparecem no topo e valem na Loja.
+              A conta do jogo e o seu Discord são <b>coisas separadas</b> — o vínculo é o que liga as duas. Feito isso, os{' '}
+              <b>padocoins</b> que você já tem aparecem no topo e valem na Loja.
             </div>
           </>
         ) : step === 'id' ? (
@@ -148,6 +149,8 @@ export function AccountSection() {
             </div>
             <div className="field-hint">
               No Discord: <b>Configurações → Avançado → Modo desenvolvedor</b>, depois clique no seu nome e em <b>Copiar id do usuário</b>.
+              <br />
+              O bot precisa conseguir te mandar DM: esteja no servidor dele e com as mensagens diretas abertas.
             </div>
           </form>
         ) : (

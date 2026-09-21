@@ -195,15 +195,43 @@ export class Accounts implements AccountService {
     acc.user = identity.username;
     acc.character = profile.cosmetics.character.id;
     acc.seen = new Date().toISOString();
-    // o vínculo vem das claims: é o JWT que diz qual Discord é dessa conta, não o cliente
-    acc.discord = identity.discordId
-      ? { id: identity.discordId, username: identity.username, nickname: identity.nickname ?? null }
-      : undefined;
-    if (!acc.discord) this.pado.delete(acc.id);
+    // o vínculo nunca vem do cliente: ou das claims, ou perguntando ao serviço
+    const link = await this.resolveDiscord(identity, acc);
+    if (link !== undefined) {
+      acc.discord = link ?? undefined;
+      if (!acc.discord) this.pado.delete(acc.id);
+    }
     this.store.touch();
     // o saldo de padocoins mora no GBOT; busca agora para a barra abrir com o número certo
     await this.refreshPado(acc.id);
     return this.snapshot(acc);
+  }
+
+  /**
+   * Qual é o Discord desta conta: `DiscordLink` quando há vínculo, `null` quando o serviço diz que
+   * não há, e `undefined` quando **não deu para saber** — e aí o que está guardado continua.
+   *
+   * A distinção entre `null` e `undefined` é o coração do problema que apareceu no primeiro teste
+   * com gente de verdade: o JWT é assinado no login e não há refresh, então quem vincula o Discord
+   * *depois* de entrar fica com um token sem a claim `discord_id`. Tratar essa ausência como "não
+   * tem vínculo" apagava, na entrada seguinte, um vínculo que existia — e os padocoins
+   * desapareciam junto.
+   */
+  private async resolveDiscord(identity: AuthIdentity, acc: Stored): Promise<DiscordLink | null | undefined> {
+    // a claim é a resposta mais rápida e vem assinada: quando existe, manda
+    if (identity.discordId) {
+      return { id: identity.discordId, username: identity.username, nickname: identity.nickname ?? null };
+    }
+    const gbot = this.opts.gbot;
+    // sem como perguntar: mantém o que houver (só zera quem já não tinha nada)
+    if (!identity.token || !gbot) return acc.discord ? undefined : null;
+    try {
+      const me = await gbot.me(identity.token);
+      return me.discord_id ? { id: me.discord_id, username: me.username, nickname: acc.discord?.nickname ?? null } : null;
+    } catch (err) {
+      console.warn('[discord] não deu para confirmar o vínculo:', err instanceof Error ? err.message : err);
+      return undefined;
+    }
   }
 
   info(accountId: string): AccountInfo | null {
