@@ -1,7 +1,7 @@
 {
   "name": "pokeru",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "server": "tsx --import ./server/jsonc-register.mjs server/index.ts",
     "server:dev": "tsx watch --import ./server/jsonc-register.mjs server/index.ts",
     "server:build": "node scripts/build-server.mjs",
-  "cert": "node scripts/cert.mjs",
+    "cert": "node scripts/cert.mjs",
     "server:start": "node dist-server/server/index.js",
     "test": "vitest run",
     "prepare:characters": "node scripts/prepare-characters.mjs",

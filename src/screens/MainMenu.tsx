@@ -10,6 +10,7 @@ import { Segmented } from '../ui/controls';
 import { WalletBar } from '../ui/Wallet';
 import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
 import { sfx } from '../audio/sfx';
+import { APP_VERSION } from '../util/version';
 import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
 
@@ -286,7 +287,7 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
           ))}
         </div>
       </div>
-      <div className="version">v0.2.0</div>
+      <div className="version">v{APP_VERSION}</div>
       {quick && <QuickPlayModal onClose={() => setQuick(false)} />}
     </div>
   );

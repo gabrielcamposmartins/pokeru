@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { parseJsonc } from './shared/jsonc.ts';
+
+/** A versão vem do package.json: o rodapé do menu não pode divergir da release. */
+const version = JSON.parse(readFileSync('./package.json', 'utf8')).version as string;
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -32,6 +36,7 @@ function jsonc(): Plugin {
 // https://v2.tauri.app/start/frontend/vite/
 export default defineConfig({
   plugins: [jsonc(), react()],
+  define: { __APP_VERSION__: JSON.stringify(version) },
   clearScreen: false,
   server: {
     port: 1420,
