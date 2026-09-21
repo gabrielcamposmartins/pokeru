@@ -69,6 +69,13 @@ describe('painel de login', () => {
     expect(panel({ serviceReady: true })).not.toContain('sem serviço de contas');
   });
 
+  it('quando nem o servidor responde, diz o que fazer (certificado)', () => {
+    const html = panel({ serviceReady: false, serviceError: 'Não foi possível falar com o servidor. Se ele usa certificado próprio, abra https://x/health uma vez e aceite o certificado.' });
+    expect(html).toContain('aceite o certificado');
+    // e o caminho de sempre continua à mão
+    expect(html).toContain('Jogar sem conta');
+  });
+
   it('a mesma tela cria conta, com os textos trocados', () => {
     const entrar = panel({ mode: 'in' });
     expect(entrar).toContain('>Entrar<');

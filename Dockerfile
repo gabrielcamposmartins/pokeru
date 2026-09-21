@@ -37,6 +37,6 @@ VOLUME ["/data"]
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const t=!!process.env.TLS_CERT_PATH;const m=require('node:'+(t?'https':'http'));const q=m.request({host:'127.0.0.1',port:process.env.PORT||3001,path:'/health',rejectUnauthorized:false},r=>process.exit(r.statusCode===200?0:1));q.on('error',()=>process.exit(1));q.end()"
 
 CMD ["node", "server/index.js"]

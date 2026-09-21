@@ -143,6 +143,87 @@ qualquer um que alcance a porta cria uma conta e recebe o saldo inicial. Para um
 deixe o servidor numa rede privada (ou atrás de um proxy com autenticação), use senha nas salas e
 ajuste `MAX_ACCOUNTS`.
 
+### TLS
+
+Duas coisas passam pelo endereço do servidor e pedem TLS: a **senha** do jogador (no
+`/auth/login` e no `/auth/register`) e o **token** da sessão, em toda conexão de mesa. Sem TLS, os
+dois andam em claro na rede — a documentação do GBOT diz para nunca chamar `/login` por HTTP puro,
+e isso vale para o caminho inteiro.
+
+**Gerar o certificado** (uma vez, na máquina que vai hospedar):
+
+```bash
+npm run cert                  # para 35.209.186.9, em ./certs
+npm run cert -- 192.168.0.10  # outro IP
+npm run cert -- poker.casa.lan
+```
+
+É o `openssl` direto, com o que importa:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+  -keyout chave.pem -out cert.pem \
+  -subj "/CN=meu-servidor" -addext "subjectAltName=IP:SEU_IP"
+```
+
+O `subjectAltName` é o que decide: navegador nenhum olha mais o CN, então sem o SAN certo a
+conexão é recusada mesmo com o certificado instalado. O script põe `IP:` para um IP e `DNS:` para
+um nome. `certs/` e `*.pem` estão no `.gitignore` — **a chave não vai para o repositório**.
+
+**Ligar no servidor** — com os dois caminhos, a mesma porta passa a servir `https` e `wss`:
+
+```bash
+TLS_CERT_PATH=./certs/cert.pem TLS_KEY_PATH=./certs/chave.pem npm run server
+# ♠ Pokeru Server ouvindo em wss://localhost:3001
+```
+
+Só um dos dois caminhos **derruba a subida** de propósito: quem configurou pela metade acha que
+está protegido, e subir em claro nesse caso é pior do que não subir. Sem nenhum dos dois, o
+servidor volta a ser `ws://` — que é o certo atrás de um proxy (nginx, Caddy, load balancer) que
+já termine o TLS; aí quem tem o certificado é o proxy.
+
+No Docker, o certificado entra por **montagem**, nunca dentro da imagem:
+
+```bash
+docker run -d --name pokeru-server -p 3001:3001 \
+  -v pokeru-data:/data -v /etc/pokeru/certs:/certs:ro \
+  -e TLS_CERT_PATH=/certs/cert.pem -e TLS_KEY_PATH=/certs/chave.pem \
+  us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server:latest
+```
+
+**No cliente** o endereço já é `wss://35.209.186.9:3001` (`DEFAULT_SERVER_URL`, em
+`src/store/profile.ts`), e o gateway de contas é o mesmo endereço em `https`. Para outro servidor,
+`VITE_SERVER_URL=wss://…` no build ou `POKERU_SERVER_URL` no contêiner do cliente.
+
+#### Aceitar o certificado (cada máquina, uma vez)
+
+Um certificado autoassinado **não é confiável por ninguém** por padrão, e um WebSocket recusado não
+conta o motivo — por isso o jogo, ao falhar num endereço `wss://`, já diz o que fazer:
+
+- **Navegador:** abra `https://<host>:3001/health` e aceite o aviso. A partir daí o `wss://` para
+  aquele host e porta funciona no mesmo navegador.
+- **App desktop (Tauri/WebView2):** o WebView usa a store de confiança do **sistema**, e não tem
+  tela para aceitar exceção. Instale o certificado:
+
+  ```powershell
+  # Windows (PowerShell como administrador)
+  certutil -addstore -f Root cert.pem
+  ```
+
+  ```bash
+  # Linux (Debian/Ubuntu)
+  sudo cp cert.pem /usr/local/share/ca-certificates/pokeru.crt && sudo update-ca-certificates
+  # macOS
+  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain cert.pem
+  ```
+
+Com um domínio de verdade, um certificado do Let's Encrypt dispensa tudo isso — aí é só apontar
+`TLS_CERT_PATH`/`TLS_KEY_PATH` para o par emitido (ou deixar um proxy terminar o TLS).
+
+**Do servidor para o GBOT:** se o bot usa certificado interno próprio, dê a CA ao Node em vez de
+desligar a verificação: `NODE_EXTRA_CA_CERTS=/certs/ca-interna.pem`. Não há código para isso — é
+do Node.
+
 ### Login, Discord e padocoins
 
 A API do GBOT é **interna** (não é exposta à internet) e o jogo roda na máquina do jogador, que não
@@ -180,9 +261,8 @@ existe para aquela conta, em vez de aparecer zerada. As compras em padocoin saem
 `/economy/debit` com `Idempotency-Key` fixa por conta+item, então um reenvio não cobra duas vezes.
 
 > **TLS.** A senha passa pelo gateway (só no login/cadastro, e não é guardada em lugar nenhum).
-> Sem `https`/`wss` ela vai em claro na rede — a documentação do GBOT diz para nunca chamar
-> `/login` por HTTP puro, e isso vale para o caminho inteiro. Ponha TLS antes de ligar o login de
-> verdade.
+> Sem `https`/`wss` ela vai em claro na rede. Veja "TLS", acima: `npm run cert` e os dois caminhos
+> no servidor.
 
 ### Loja
 

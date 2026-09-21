@@ -69,6 +69,12 @@ export interface AuthState {
   error: string | null;
   /** O serviço de contas está no ar? (descoberto no `/health` do servidor) */
   serviceReady: boolean;
+  /**
+   * Por que o serviço não respondeu, quando nem o `/health` chegou. Num servidor com certificado
+   * próprio, a causa comum é o certificado ainda não aceito naquela máquina — e a pessoa não tem
+   * como adivinhar isso, então a tela diz o que fazer.
+   */
+  serviceError: string | null;
   /** Uma chamada ao serviço está em curso (vincular Discord, cadastrar…). */
   busy: boolean;
   setRemember(on: boolean): void;
@@ -90,6 +96,15 @@ export interface AuthState {
 }
 
 const api = (path: string) => `${AUTH_URL}/auth${path}`;
+
+/**
+ * O recado de quando nem o `/health` respondeu. Em `https` com certificado próprio, o navegador
+ * recusa antes de qualquer coisa e não conta o motivo — aceitar o certificado uma vez resolve.
+ */
+function certHint(): string {
+  if (!AUTH_URL.startsWith('https://')) return 'Não foi possível falar com o servidor.';
+  return `Não foi possível falar com o servidor. Se ele usa certificado próprio, abra ${AUTH_URL}/health uma vez e aceite o certificado.`;
+}
 
 /** Chamada ao gateway. Devolve o corpo, ou lança com a mensagem que o serviço mandou. */
 async function call<T>(path: string, init: RequestInit & { token?: string | null } = {}): Promise<T> {
@@ -130,6 +145,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
   remember: hasSavedSession(),
   error: null,
   serviceReady: false,
+  serviceError: null,
   busy: false,
 
   setRemember: (remember) => {
@@ -143,8 +159,8 @@ export const useAuth = create<AuthState>()((set, get) => ({
     // o servidor diz se tem serviço de contas; sem ele, a tela avisa em vez de insistir
     const health = fetch(`${AUTH_URL}/health`)
       .then((r) => (r.ok ? (r.json() as Promise<{ auth?: string }>) : null))
-      .then((h) => set({ serviceReady: h?.auth === 'gbot' }))
-      .catch(() => set({ serviceReady: false }));
+      .then((h) => set({ serviceReady: h?.auth === 'gbot', serviceError: null }))
+      .catch(() => set({ serviceReady: false, serviceError: certHint() }));
 
     const saved = await loadSession();
     await health;

@@ -5,6 +5,10 @@
 #
 # Para jogar de outras máquinas, troque POKERU_SERVER_URL pelo endereço que o navegador
 # dos jogadores alcança (ex.: ws://192.168.0.10:3001 ou wss://poker.seudominio.com).
+#
+# Aqui vai sem TLS de propósito: nada sai da máquina, e `localhost` é origem segura para o
+# navegador. Ao expor o servidor para fora, ligue o TLS — a senha do login passa por ele.
+# Veja os blocos comentados abaixo e "TLS" no README.
 
 services:
   server:
@@ -19,8 +23,13 @@ services:
       FAUCET: "2000"
       # descomente e troque para liberar /admin/accounts e /admin/gift
       # ADMIN_TOKEN: troque-este-segredo
+      # TLS: gere o par com `npm run cert -- <seu-ip>` e descomente as duas linhas
+      # TLS_CERT_PATH: /certs/cert.pem
+      # TLS_KEY_PATH: /certs/chave.pem
     volumes:
       - pokeru-data:/data
+      # o certificado entra por montagem, nunca dentro da imagem (a chave é secreta)
+      - ./certs:/certs:ro
     ports:
       - "3001:3001"
 
@@ -32,6 +41,7 @@ services:
     container_name: pokeru-client
     restart: unless-stopped
     environment:
+      # com TLS ligado no servidor, troque por wss://<seu-ip>:3001
       POKERU_SERVER_URL: ws://localhost:3001
     ports:
       - "8080:80"

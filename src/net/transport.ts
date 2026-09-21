@@ -12,6 +12,20 @@ export interface TransportHandlers {
   onClose?(reason: string): void;
 }
 
+/**
+ * Por que a conexão não abriu, quando não há como saber o motivo exato.
+ *
+ * O navegador esconde de propósito o motivo de uma falha de WebSocket (é a especificação), então
+ * um certificado recusado e um servidor fora do ar chegam aqui iguais. Num endereço `wss://` com
+ * certificado próprio, a causa comum é a primeira — e a pessoa não tem como adivinhar que precisa
+ * aceitar o certificado. Então o recado diz as duas coisas, com o que fazer.
+ */
+export function whyClosed(url: string): string {
+  if (!url.startsWith('wss://')) return 'Não foi possível conectar ao servidor';
+  const host = url.replace(/^wss:\/\//, '').replace(/\/.*$/, '');
+  return `Não foi possível conectar ao servidor. Se ele usa certificado próprio, abra https://${host}/health uma vez e aceite o certificado.`;
+}
+
 /** Conexão com um servidor Pokeru via WebSocket. */
 export function connectWs(url: string, h: TransportHandlers): Transport {
   let closed = false;
@@ -36,7 +50,7 @@ export function connectWs(url: string, h: TransportHandlers): Transport {
   };
   ws.onclose = () => {
     clearInterval(ping);
-    if (!closed) h.onClose?.(opened ? 'Conexão perdida' : 'Não foi possível conectar ao servidor');
+    if (!closed) h.onClose?.(opened ? 'Conexão perdida' : whyClosed(url));
     closed = true;
   };
   ws.onerror = () => {};

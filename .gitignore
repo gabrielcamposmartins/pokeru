@@ -5,6 +5,9 @@ src-tauri/target
 src-tauri/gen/schemas
 # dados do servidor hospedado (contas dos jogadores)
 data
+# certificados do servidor: a chave é secreta e o par é de cada instalação (`npm run cert`)
+certs
+*.pem
 *.log
 .DS_Store
 server-rs/target

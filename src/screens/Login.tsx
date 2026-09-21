@@ -28,6 +28,7 @@ export function LoginPanel({
   error,
   busy,
   serviceReady,
+  serviceError,
   onMode,
   onUser,
   onPassword,
@@ -42,6 +43,8 @@ export function LoginPanel({
   error: string | null;
   busy: boolean;
   serviceReady: boolean;
+  /** Por que o serviço não respondeu (certificado não aceito, servidor fora do ar…). */
+  serviceError?: string | null;
   onMode: (m: LoginMode) => void;
   onUser: (v: string) => void;
   onPassword: (v: string) => void;
@@ -131,7 +134,7 @@ export function LoginPanel({
 
       {!serviceReady && (
         <p className="field-hint login-soon">
-          O servidor está sem serviço de contas agora. <b>Jogar sem conta</b> libera a Partida Rápida e as mesas livres.
+          {serviceError ?? 'O servidor está sem serviço de contas agora.'} <b>Jogar sem conta</b> libera a Partida Rápida e as mesas livres.
         </p>
       )}
     </motion.form>
@@ -140,7 +143,7 @@ export function LoginPanel({
 
 /** A tela, ligada na loja de login. */
 export function LoginScreen() {
-  const { status, user: saved, remember, error, serviceReady, setRemember, signIn, register, continueOffline } = useAuth();
+  const { status, user: saved, remember, error, serviceReady, serviceError, setRemember, signIn, register, continueOffline } = useAuth();
   const [mode, setMode] = useState<LoginMode>('in');
   const [user, setUser] = useState(saved ?? '');
   const [password, setPassword] = useState('');
@@ -164,6 +167,7 @@ export function LoginScreen() {
           error={error}
           busy={status === 'signing' || status === 'restoring'}
           serviceReady={serviceReady}
+          serviceError={serviceError}
           onMode={(m) => {
             sfx.hover();
             setMode(m);

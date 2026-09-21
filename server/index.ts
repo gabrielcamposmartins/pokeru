@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createServer as createSecureServer } from 'node:https';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Lobby } from '../shared/lobby';
 import type { AuthIdentity } from '../shared/accounts';
@@ -7,6 +8,7 @@ import { authRoutes } from './auth-http';
 import { Gbot } from './gbot';
 import { JwtVerifier } from './jwt';
 import { dataFile } from './store';
+import { TlsError, clientUrl, loadTls, type TlsPair } from './tls';
 
 /**
  * Servidor Pokeru: hospeda as mesas e guarda as contas dos jogadores (saldo, vínculo e
@@ -32,9 +34,29 @@ import { dataFile } from './store';
  *   GBOT_ISSUER=gbot         emissor esperado no JWT
  *   GBOT_AUDIENCE=…          audiência esperada, se a instância do GBOT definir uma
  *   GBOT_USER / GBOT_PASS    conta de serviço, usada para ler saldo e cobrar padocoins
+ *
+ * TLS (veja server/tls.ts e `npm run cert`):
+ *
+ *   TLS_CERT_PATH=…          certificado PEM. Com os dois caminhos o servidor passa a ser
+ *   TLS_KEY_PATH=…           wss:// e https://; sem nenhum dos dois é ws:// (o certo atrás de
+ *                            um proxy que já termine o TLS).
+ *   NODE_EXTRA_CA_CERTS=…    CA para ESTE servidor confiar no GBOT, quando o bot usa certificado
+ *                            interno próprio (é do Node, não precisa de código).
  */
 
 const PORT = Number(process.env.PORT) || 3001;
+
+/**
+ * TLS. Configuração pela metade derruba a subida de propósito: quem definiu só um dos caminhos
+ * acha que está protegido, e subir em claro nesse caso é pior do que não subir.
+ */
+let tls: TlsPair | null = null;
+try {
+  tls = loadTls();
+} catch (err) {
+  console.error(`\n\u2660 ${err instanceof TlsError ? err.message : err}\n`);
+  process.exit(1);
+}
 const NAME = process.env.SERVER_NAME || 'Pokeru Server';
 const WITH_ACCOUNTS = process.env.POKERU_ACCOUNTS !== '0';
 const ADMIN = process.env.ADMIN_TOKEN || '';
@@ -103,6 +125,7 @@ function status() {
     // o cliente usa isto para saber se mostra a tela de login e a loja de padocoins
     auth: auth ? 'gbot' : 'off',
     pado: gbot?.canMoveMoney ? 'on' : 'off',
+    tls: tls ? 'on' : 'off',
   };
 }
 
@@ -111,7 +134,7 @@ const json = (res: import('node:http').ServerResponse, code: number, body: unkno
   res.end(JSON.stringify(body));
 };
 
-const http = createServer(async (req, res) => {
+const handler = async (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   if (url.pathname === '/health') return json(res, 200, status());
 
@@ -143,8 +166,11 @@ const http = createServer(async (req, res) => {
   }
 
   res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
-  res.end(`${NAME}\nConecte o cliente em ws://<host>:${PORT}\n/health mostra o estado do servidor.\n`);
-});
+  res.end(`${NAME}\nConecte o cliente em ${tls ? 'wss' : 'ws'}://<host>:${PORT}\n/health mostra o estado do servidor.\n`);
+};
+
+// com certificado, o mesmo processo serve https e wss na mesma porta
+const http = tls ? createSecureServer({ cert: tls.cert, key: tls.key }, handler) : createServer(handler);
 
 // 128 KB: cabe um retrato personalizado (≤ 48 KB) junto do perfil
 const wss = new WebSocketServer({ server: http, maxPayload: 128 * 1024 });
@@ -201,7 +227,9 @@ const heartbeat = setInterval(() => {
 wss.on('close', () => clearInterval(heartbeat));
 
 http.listen(PORT, () => {
-  console.log(`♠ ${NAME} ouvindo em ws://localhost:${PORT}`);
+  console.log(`♠ ${NAME} ouvindo em ${clientUrl(!!tls, PORT)}`);
+  if (tls) console.log(`   TLS: ${tls.certPath}`);
+  else if (auth) console.log('   [!] sem TLS: a senha do login vai em claro na rede (veja `npm run cert`)');
   console.log(accounts ? `   contas: ${accounts.count} em ${dataFile('accounts.json')}` : '   contas desligadas (mesas livres)');
   if (auth) {
     console.log(`   login pelo GBOT: ${GBOT_URL}`);
