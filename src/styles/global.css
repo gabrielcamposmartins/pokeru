@@ -2417,16 +2417,18 @@ button.avatar {
   flex-direction: column;
   align-items: center;
   gap: 22px;
-  width: min(482px, 36vw);
+  width: min(660px, 46vw);
 }
+/* três cartas: não quebram a linha, afinam junto com a janela */
 .mode-cards {
   display: flex;
-  gap: 22px;
+  justify-content: center;
+  gap: min(18px, 1.4vw);
 }
 .mode-card {
   position: relative;
-  width: min(230px, 17vw);
-  height: min(360px, 46vh);
+  width: min(206px, 14vw);
+  height: min(340px, 44vh);
   border-radius: 26px;
   border: 3px solid rgba(255, 255, 255, 0.65);
   overflow: hidden;
@@ -2446,6 +2448,9 @@ button.avatar {
 }
 .mode-card.pink {
   background: linear-gradient(170deg, #ffc9dd 0%, #ff6b9a 48%, #8e2455 100%);
+}
+.mode-card.blue {
+  background: linear-gradient(170deg, #cfe0ff 0%, #6b8dff 48%, #26307a 100%);
 }
 .mode-glyph {
   position: absolute;
@@ -4753,4 +4758,99 @@ button.avatar {
 .style-locked {
   margin: 4px 2px 0;
   line-height: 1.45;
+}
+
+/* ==========================================================================
+   Fila rápida
+   ========================================================================== */
+.queue-modal {
+  max-width: 480px;
+}
+.queue-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+.queue-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.5);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.queue-opt:hover:not(:disabled) {
+  border-color: var(--gold);
+  background: rgba(255, 210, 120, 0.1);
+}
+.queue-opt:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.queue-opt-coin {
+  display: grid;
+  place-items: center;
+}
+.queue-opt-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.queue-opt-main small {
+  color: var(--muted);
+  font-family: var(--num);
+}
+.queue-opt-no {
+  font-size: 11px;
+  color: #ffbe78;
+  font-weight: 700;
+}
+.queue-hint {
+  margin: 0;
+  line-height: 1.45;
+}
+/* a espera: três pontinhos, para a tela não parecer travada */
+.queue-wait {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(10, 6, 24, 0.5);
+  border: 1px solid var(--line-soft);
+  font-weight: 700;
+}
+.queue-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.queue-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+  animation: queueDot 1.1s infinite;
+}
+.queue-dots i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.queue-dots i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+@keyframes queueDot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
 }

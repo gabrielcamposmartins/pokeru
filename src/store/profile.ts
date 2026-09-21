@@ -82,6 +82,8 @@ export interface ServerAccount {
   owned?: string[];
   /** Último saldo de padocoins visto (null = sem Discord vinculado). */
   pado?: number | null;
+  /** Quando esta chave de volta expira (ISO) — o servidor decide, isto é só para a tela saber. */
+  until?: string;
 }
 
 interface ProfileState {
@@ -101,6 +103,8 @@ interface ProfileState {
   setCharacter(id: string): void;
   setWinFx(id: WinFxId): void;
   setAccount(server: string, account: ServerAccount): void;
+  /** Esquece a conta guardada de um servidor (ao sair, ou ao desmarcar "lembrar-me"). */
+  forgetAccount(server: string): void;
   equip(kind: StyleKind, id: string): void;
   saveStyle<K extends StyleKind>(kind: K, style: StyleMap[K]): void;
   deleteStyle(kind: StyleKind, id: string): void;
@@ -180,6 +184,11 @@ export const useProfile = create<ProfileState>()(
       setCharacter: (character) => set({ character }),
       setWinFx: (winFx) => set({ winFx }),
       setAccount: (server, account) => set((s) => ({ accounts: { ...s.accounts, [server]: account } })),
+      forgetAccount: (server) =>
+        set((s) => {
+          const { [server]: _fora, ...resto } = s.accounts;
+          return { accounts: resto };
+        }),
       equip: (kind, id) => set((s) => ({ equipped: { ...s.equipped, [kind]: id } })),
       saveStyle: (kind, style) =>
         set((s) => {

@@ -9,8 +9,10 @@ import { JsonStore } from './store';
 /** Uma conta como fica guardada no arquivo. */
 interface Stored {
   id: string;
-  /** Hash do token da conta **sem login** (o token em si só o cliente tem). Vazio com login. */
+  /** Hash da chave de volta (a chave em si só o cliente tem). */
   token: string;
+  /** Quando a chave de volta expira (ISO). Ausente = não expira (contas sem login antigas). */
+  tokenUntil?: string;
   /** `sub` do JWT: a identidade no serviço de contas. Ausente na conta sem login. */
   sub?: string;
   /** Usuário no serviço de contas. */
@@ -65,6 +67,18 @@ function sameToken(token: string, stored: string): boolean {
 
 /** Quanto tempo um saldo de padocoin lido do GBOT vale antes de ser buscado de novo. */
 const PADO_TTL_MS = 60_000;
+
+/**
+ * Quanto tempo a sessão guardada no aparelho continua valendo.
+ *
+ * O JWT do serviço de contas expira em uma hora e não existe refresh, então ele não serve para
+ * "continuar logado" — sem esta chave, o jogador digitaria a senha a cada hora. Duas semanas é o
+ * combinado: longo o bastante para não incomodar, curto o bastante para um aparelho perdido não
+ * virar acesso permanente.
+ */
+const SESSION_DAYS = 14;
+
+const emDias = (dias: number): string => new Date(Date.now() + dias * 86_400_000).toISOString();
 
 /**
  * Contas do servidor hospedado: saldo, vínculo, itens e números de cada jogador, em JSON.
@@ -162,24 +176,43 @@ export class Accounts implements AccountService {
     return acc;
   }
 
+  /**
+   * Entra pela chave de volta guardada no aparelho.
+   *
+   * Vale para os dois tipos de conta: a sem login (identidade só daquele aparelho) e a com login,
+   * cujo JWT já expirou — é isto que faz a sessão durar duas semanas em vez de uma hora. A conta
+   * com login volta com o vínculo do Discord e tudo mais que é dela; o que ela **não** recupera é
+   * o token do serviço de contas, então vincular ou desvincular o Discord pede a senha de novo.
+   */
   login(creds: AccountCreds | undefined, profile: AccountProfile): AccountInfo | null {
     const name = sanitizeName(profile.name);
     const known = this.byId(creds?.id);
-    // conta com login não volta por token: quem tem `sub` entra por `loginAuth`
-    if (known && !known.sub && creds && known.token && sameToken(creds.token, known.token)) {
+    if (known && creds && known.token && sameToken(creds.token, known.token)) {
+      if (known.tokenUntil && Date.parse(known.tokenUntil) < Date.now()) {
+        console.log(`[conta] sessão de ${known.name} (${known.id}) expirou`);
+        return known.sub ? null : this.novaSemLogin(name, profile);
+      }
       known.name = name;
       known.character = profile.cosmetics.character.id;
       known.seen = new Date().toISOString();
       this.store.touch();
+      if (known.sub) console.log(`[conta] ${known.user ?? known.name} voltou pela sessão guardada`);
       return this.snapshot(known);
     }
-    // conta nova (primeira vez, ou token que não bate)
+    // conta com login nunca é criada por aqui: quem cria é o `loginAuth`, com a identidade do serviço
+    if (creds && this.byId(creds.id)?.sub) return null;
+    return this.novaSemLogin(name, profile);
+  }
+
+  /** Conta nova sem login: o servidor sorteia a chave de volta e o cliente a guarda. */
+  private novaSemLogin(name: string, profile: AccountProfile): AccountInfo | null {
     const token = randomBytes(24).toString('base64url');
-    const acc = this.create(name, profile.cosmetics.character.id, { token: hash(token) });
+    const until = emDias(SESSION_DAYS);
+    const acc = this.create(name, profile.cosmetics.character.id, { token: hash(token), tokenUntil: until });
     if (!acc) return null;
     console.log(`[conta] nova sem login: ${acc.name} (${acc.id})`);
     // o token só vai nesta resposta: é o que o cliente guarda
-    return { ...this.snapshot(acc), token };
+    return { ...this.snapshot(acc), token, tokenUntil: until };
   }
 
   async loginAuth(identity: AuthIdentity, profile: AccountProfile): Promise<AccountInfo | null> {
@@ -204,7 +237,12 @@ export class Accounts implements AccountService {
     this.store.touch();
     // o saldo de padocoins mora no GBOT; busca agora para a barra abrir com o número certo
     await this.refreshPado(acc.id);
-    return this.snapshot(acc);
+    // chave de volta nova a cada entrada com senha: é o que estica a sessão para duas semanas
+    const token = randomBytes(24).toString('base64url');
+    acc.token = hash(token);
+    acc.tokenUntil = emDias(SESSION_DAYS);
+    this.store.touch();
+    return { ...this.snapshot(acc), token, tokenUntil: acc.tokenUntil };
   }
 
   /**
@@ -372,6 +410,51 @@ export class Accounts implements AccountService {
 
   // ---------------------------------------------------------------- banca
 
+  /**
+   * Cobra o buy-in na moeda da mesa.
+   *
+   * Em padocoin o dinheiro está no bot do Discord: a cobrança é uma chamada de rede, e a chave de
+   * idempotência vem da sala — a mesma chave não cobra duas vezes, então uma tentativa que deu
+   * timeout pode ser repetida sem medo.
+   */
+  async chargeIn(accountId: string, amount: number, currency: Currency, key: string): Promise<number> {
+    if (currency === 'chips') return this.charge(accountId, amount);
+    const acc = this.byId(accountId);
+    const gbot = this.opts.gbot;
+    const want = Math.max(0, Math.round(amount));
+    if (!acc?.discord || !gbot?.canMoveMoney || !want) return 0;
+    try {
+      const move = await gbot.debit(acc.discord.id, want, `pokeru: buy-in de mesa`, key);
+      this.pado.set(acc.id, { value: move.after, at: Date.now() });
+      this.changed(acc.id);
+      console.log(`[padocoin] ${acc.name} pagou ${want} de buy-in (saldo ${move.after})`);
+      return want;
+    } catch (err) {
+      const motivo = err instanceof GbotError ? `${err.status} ${err.message}` : String(err);
+      console.warn(`[padocoin] buy-in de ${want} recusado para ${acc.name}: ${motivo}`);
+      return 0;
+    }
+  }
+
+  /** Devolve o que sobrou da mesa, na moeda dela. */
+  async creditIn(accountId: string, amount: number, currency: Currency, key: string): Promise<void> {
+    if (currency === 'chips') return this.credit(accountId, amount);
+    const acc = this.byId(accountId);
+    const gbot = this.opts.gbot;
+    const got = Math.max(0, Math.round(amount));
+    if (!acc?.discord || !gbot?.canMoveMoney || !got) return;
+    try {
+      const move = await gbot.credit(acc.discord.id, got, 'pokeru: saída de mesa', key);
+      this.pado.set(acc.id, { value: move.after, at: Date.now() });
+      this.changed(acc.id);
+      console.log(`[padocoin] ${acc.name} levou ${got} da mesa (saldo ${move.after})`);
+    } catch (err) {
+      // o jogador ganhou e a devolução falhou: isto não pode passar em silêncio
+      const motivo = err instanceof GbotError ? `${err.status} ${err.message}` : String(err);
+      console.error(`[padocoin] FALHA ao devolver ${got} para ${acc.name} (${acc.discord.id}), chave ${key}: ${motivo}`);
+    }
+  }
+
   money(accountId: string): number {
     return this.byId(accountId)?.money ?? 0;
   }
@@ -415,6 +498,12 @@ export class Accounts implements AccountService {
     else if (what === 'win') acc.stats.wins++;
     else acc.stats.matches++;
     this.changed(acc.id);
+  }
+
+  /** Só para teste: envelhece a chave de volta, para não haver teste que espere duas semanas. */
+  expireSessionForTests(accountId: string): void {
+    const acc = this.byId(accountId);
+    if (acc) acc.tokenUntil = new Date(Date.now() - 1000).toISOString();
   }
 
   /** Presente do administrador (usado pelo console do servidor). */

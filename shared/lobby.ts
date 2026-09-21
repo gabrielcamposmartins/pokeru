@@ -1,7 +1,7 @@
 import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
 import type { AccountProfile, AccountService, AuthIdentity } from './accounts';
 import { clampCosmetics } from './catalog';
-import type { BotDifficulty, ClientMsg, RoomSummary, ServerMsg } from './protocol';
+import { queueSettings, type BotDifficulty, type ClientMsg, type Currency, type RoomSummary, type ServerMsg } from './protocol';
 import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
@@ -65,6 +65,23 @@ export class Lobby {
     return [...this.rooms.values()].filter((r) => r.settings.listed).map((r) => r.summary());
   }
 
+  /**
+   * As mesas da fila que aceitam mais um, na ordem em que a fila deve tentar: primeiro as que têm
+   * **mais gente**, para juntar jogadores em vez de espalhá-los por mesas vazias.
+   *
+   * Uma mesa cheia de bots ainda conta: o `Room.join` tira um bot para dar lugar. Cheia de gente,
+   * não — e aí a fila tenta a próxima, ou abre uma nova.
+   */
+  queueRooms(currency: Currency): Room[] {
+    return [...this.rooms.values()]
+      .filter((r) => r.settings.queue && r.settings.currency === currency && r.status !== 'finished' && !r.settings.password)
+      .filter((r) => {
+        const s = r.summary();
+        return s.players < s.maxPlayers || s.bots > 0;
+      })
+      .sort((a, b) => b.summary().players - b.summary().bots - (a.summary().players - a.summary().bots));
+  }
+
   createRoom(host: Connection, settings: unknown): Room {
     let id = makeId(5);
     while (this.rooms.has(id)) id = makeId(5);
@@ -112,6 +129,8 @@ export class Connection implements ClientHandle {
   greeted = false;
   /** Já recebeu um `hello` (a validação do token pode ainda estar em curso). */
   private greeting = false;
+  /** Uma entrada na fila por vez: dois cliques não devem virar duas mesas. */
+  private queueing = false;
   private lastChat = 0;
   private closed = false;
   private buying = false;
@@ -269,12 +288,7 @@ export class Connection implements ClientHandle {
       case 'createRoom': {
         if (this.room) this.leave();
         const room = this.lobby.createRoom(this, msg.settings);
-        const err = room.join(this, msg.settings?.password);
-        if (err) {
-          this.error(err);
-          return;
-        }
-        this.room = room;
+        void this.sit(room, msg.settings?.password);
         break;
       }
       case 'joinRoom': {
@@ -285,12 +299,15 @@ export class Connection implements ClientHandle {
         }
         if (this.room === room) return;
         if (this.room) this.leave();
-        const err = room.join(this, typeof msg.password === 'string' ? msg.password : undefined);
-        if (err) {
-          this.error(err);
-          return;
-        }
-        this.room = room;
+        void this.sit(room, typeof msg.password === 'string' ? msg.password : undefined);
+        break;
+      }
+      case 'quickMatch': {
+        if (this.queueing) return;
+        this.queueing = true;
+        void this.quickMatch(msg.currency === 'pado' ? 'pado' : 'chips').finally(() => {
+          this.queueing = false;
+        });
         break;
       }
       case 'leaveRoom':
@@ -339,6 +356,46 @@ export class Connection implements ClientHandle {
       default:
         break;
     }
+  }
+
+  /**
+   * Senta numa sala. Sentar é assíncrono por causa da mesa de padocoin, que cobra o buy-in no bot
+   * antes de ocupar a cadeira.
+   */
+  private async sit(room: Room, password?: string): Promise<boolean> {
+    // mesa normal senta na hora; só a de padocoin passa pela rede antes de ocupar a cadeira
+    const err = room.asyncBuyIn ? await room.joinPaid(this, password) : room.join(this, password);
+    if (this.closed) {
+      // desconectou durante a cobrança: devolve a cadeira em vez de deixar um fantasma sentado
+      if (!err) room.leave(this.id);
+      return false;
+    }
+    if (err) {
+      this.error(err);
+      return false;
+    }
+    this.room = room;
+    return true;
+  }
+
+  /**
+   * Fila rápida: entra numa mesa da fila que já exista ou abre uma com três bots.
+   *
+   * O jogador não escolhe nada — é o ponto da fila. A mesa é cash (com rebuy), seis lugares, e os
+   * bots vão saindo conforme gente chega (veja `Room.join`).
+   */
+  private async quickMatch(currency: Currency): Promise<void> {
+    if (this.room) this.leave();
+    const candidatas = this.lobby.queueRooms(currency);
+    for (const room of candidatas) {
+      if (await this.sit(room)) return;
+      if (this.closed) return;
+    }
+    // nenhuma servia: abre a própria, com três bots para a mesa já ter jogo
+    const room = this.lobby.createRoom(this, queueSettings(currency));
+    if (!(await this.sit(room))) return;
+    for (let i = 0; i < 3; i++) this.error(room.addBot(this.id, 'normal'));
+    this.error(room.start(this.id));
   }
 
   private leave(): void {

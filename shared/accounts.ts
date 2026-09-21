@@ -30,10 +30,17 @@ export interface DiscordLink {
 export interface AccountInfo {
   id: string;
   /**
-   * Chave de volta da conta **sem login**: chega na criação e o cliente guarda para entrar de
-   * novo como ele mesmo. Só vai para o dono da conta, nunca para os outros jogadores.
+   * Chave de volta desta conta: o cliente guarda e manda no `hello` para entrar de novo como ele
+   * mesmo. Só vai para o dono da conta, nunca para os outros jogadores.
+   *
+   * Vale para os dois tipos de conta. Na conta **com login** ela é o que faz a sessão durar:
+   * o JWT do serviço de contas expira em uma hora e não tem refresh, então sem isso o jogador
+   * digitaria a senha a cada hora. Esta chave é nossa, dura duas semanas e é revogável — e, ao
+   * contrário de guardar a senha, um vazamento dela não abre a conta do serviço.
    */
   token?: string;
+  /** Quando a chave de volta expira (ISO). */
+  tokenUntil?: string;
   name: string;
   /** Usuário no serviço de contas (ausente numa conta sem login). */
   user?: string;
@@ -99,6 +106,14 @@ export interface TableBank {
   charge(accountId: string, amount: number): number;
   /** Devolve fichas à conta (saída da mesa, fim de partida). */
   credit(accountId: string, amount: number): void;
+  /**
+   * Cobra o buy-in numa moeda qualquer. Em padocoin o dinheiro está no bot do Discord, então é
+   * ida à rede — daí ser assíncrono. `key` é a chave de idempotência: a mesma chave não cobra
+   * duas vezes, o que deixa uma tentativa que deu timeout ser repetida em segurança.
+   */
+  chargeIn?(accountId: string, amount: number, currency: Currency, key: string): Promise<number>;
+  /** Devolve numa moeda qualquer (a saída da mesa). */
+  creditIn?(accountId: string, amount: number, currency: Currency, key: string): Promise<void>;
   /** Pontos de vínculo com o personagem que a conta está usando. */
   bond(accountId: string, character: string, ev: BondEvent): void;
   /** Contadores gerais da conta. */

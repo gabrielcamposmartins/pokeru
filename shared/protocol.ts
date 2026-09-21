@@ -46,6 +46,20 @@ export interface RoomSettings {
    * As partidas contra bots ficam de fora: são suas, não têm por que poluir a lista.
    */
   listed: boolean;
+  /**
+   * Em que moeda o buy-in é cobrado.
+   *
+   * `chips` são as fichas do Pokeru; `pado` são os padocoins do bot do Discord, que na mesa
+   * aparecem como fichas normais — 1 padocoin é 1 ficha na frente do jogador. Numa mesa de
+   * padocoin **não há rebuy automático**: mexer na economia do bot é ida à rede, e não se faz isso
+   * no meio de uma mão. Quem zera sai da partida e entra de novo se quiser recomprar.
+   */
+  currency: Currency;
+  /**
+   * Sala da **fila rápida**: é entre estas que a fila procura antes de abrir uma nova, e é nelas
+   * que um bot sai para dar lugar a quem chega. Uma mesa criada à mão não entra na fila.
+   */
+  queue: boolean;
 }
 
 export const DEFAULT_SETTINGS: RoomSettings = {
@@ -62,7 +76,41 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   blindLevelHands: 8,
   pace: 1,
   listed: true,
+  currency: 'chips',
+  queue: false,
 };
+
+/**
+ * As mesas da fila rápida: cash (com rebuy), seis lugares, e o jogador joga com o que é dele até
+ * zerar. Os valores são fixos de propósito — fila é para entrar sem escolher nada.
+ *
+ * O padocoin vale muito mais que a ficha, então as apostas acompanham: em fichas são 100 big
+ * blinds de mesa; em padocoin, 50.
+ */
+export const QUEUE_STAKES: Record<Currency, { buyIn: number; smallBlind: number; bigBlind: number }> = {
+  chips: { buyIn: 2000, smallBlind: 10, bigBlind: 20 },
+  pado: { buyIn: 200, smallBlind: 2, bigBlind: 4 },
+};
+
+/** Configuração automática de uma mesa da fila. */
+export function queueSettings(currency: Currency): RoomSettings {
+  const { buyIn, smallBlind, bigBlind } = QUEUE_STAKES[currency];
+  return {
+    ...DEFAULT_SETTINGS,
+    name: currency === 'pado' ? 'Fila · Padocoins' : 'Fila Rápida',
+    maxPlayers: 6,
+    mode: 'cash',
+    variant: 'holdem',
+    buyIn,
+    startingStack: buyIn,
+    smallBlind,
+    bigBlind,
+    turnTime: 25,
+    currency,
+    queue: true,
+    listed: true,
+  };
+}
 
 export interface MemberInfo {
   id: string;
@@ -94,6 +142,10 @@ export interface RoomSummary {
   variant: GameVariant;
   /** Buy-in da mesa (0 = livre). */
   buyIn: number;
+  /** Em que moeda o buy-in é cobrado. */
+  currency: Currency;
+  /** Quantos dos jogadores sentados são bots (a fila troca bot por gente). */
+  bots: number;
   hasPassword: boolean;
 }
 
@@ -184,6 +236,11 @@ export type ClientMsg =
   | { type: 'emote'; emote: string }
   /** Compra um item do catálogo (shared/catalog.ts). Quem cobra e valida é o servidor. */
   | { type: 'buy'; item: string; currency: Currency }
+  /**
+   * Fila rápida: entra numa mesa da fila que já exista, ou abre uma com três bots.
+   * O servidor escolhe — o jogador não configura nada.
+   */
+  | { type: 'quickMatch'; currency?: Currency }
   /** Pede uma foto nova da conta (relê o saldo de padocoins, que vive no bot do Discord). */
   | { type: 'refreshAccount' }
   | { type: 'ping' };

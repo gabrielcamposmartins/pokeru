@@ -38,6 +38,8 @@ function RoomCard({ r }: { r: RoomSummary }) {
         <span className="muted small">
           #{r.id} · {MODE_SHORT[r.mode] ?? r.mode} · {VARIANT_SHORT[r.variant] ?? r.variant} · Blinds {r.blinds}
           {r.buyIn > 0 ? ` · Buy-in ${fmt(r.buyIn)}` : ' · livre'}
+          {r.buyIn > 0 && r.currency === 'pado' && ' em padocoins'}
+          {r.bots > 0 && ` · ${r.bots} bot${r.bots > 1 ? 's' : ''}`}
         </span>
       </div>
       <div className={`room-status st-${r.status}`}>{r.status === 'waiting' ? 'Aguardando' : r.status === 'playing' ? 'Jogando' : 'Encerrada'}</div>

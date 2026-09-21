@@ -4,6 +4,7 @@ import {
   type BotDifficulty,
   type ClientMsg,
   type AccountInfo,
+  type Currency,
   type GameMode,
   type GameVariant,
   type RoomInfo,
@@ -77,6 +78,13 @@ interface SessionState {
   connectOnline(): void;
   /** Partida contra bots: no servidor, e no seu computador se ele não responder. */
   startBots(o: LocalOptions): void;
+  /**
+   * Fila rápida: pede ao servidor uma mesa da fila (ele entra numa que já exista ou abre uma com
+   * bots). Não há nada para configurar — é o ponto da fila.
+   */
+  quickMatch(currency: Currency): void;
+  /** Esperando o servidor achar/abrir a mesa da fila. */
+  queueing: boolean;
   startLocal(o: LocalOptions): void;
   send(msg: ClientMsg): void;
   leaveRoom(): void;
@@ -110,6 +118,19 @@ function clearBotMatch(): void {
   botMatch = null;
   if (botTimer) clearTimeout(botTimer);
   botTimer = null;
+}
+
+/** Quanto tempo esperar a fila achar (ou abrir) uma mesa. */
+export const QUEUE_WAIT_MS = 15_000;
+
+/** Fila pedida antes de haver conexão: o pedido sai quando o servidor cumprimentar. */
+let queueAfterHello: Currency | null = null;
+let queueTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearQueue(): void {
+  queueAfterHello = null;
+  if (queueTimer) clearTimeout(queueTimer);
+  queueTimer = null;
 }
 
 /** A sala de uma partida contra bots: do tamanho da mesa pedida. */
@@ -168,6 +189,11 @@ function handle(m: ServerMsg): void {
   switch (m.type) {
     case 'welcome':
       set({ playerId: m.playerId, serverName: m.serverName, status: 'connected', connError: null });
+      // fila pedida antes da conexão existir: agora dá
+      if (queueAfterHello) {
+        transport?.send({ type: 'quickMatch', currency: queueAfterHello });
+        queueAfterHello = null;
+      }
       // partida contra bots: a sala é pedida assim que o servidor cumprimenta
       if (botMatch?.step === 'connect') {
         botMatch.step = 'create';
@@ -184,7 +210,14 @@ function handle(m: ServerMsg): void {
         if (token) {
           // o padocoin entra junto (inclusive como null, quando não há Discord vinculado): a barra
           // não deve perder a segunda moeda a cada reconexão, nem inventá-la para quem desvinculou
-          useProfile.getState().setAccount(server, { id: m.account.id, token, money: m.account.money, owned: m.account.owned, pado: m.account.pado });
+          useProfile.getState().setAccount(server, {
+            id: m.account.id,
+            token,
+            money: m.account.money,
+            owned: m.account.owned,
+            pado: m.account.pado,
+            until: m.account.tokenUntil ?? known?.until,
+          });
         }
       }
       set({ account: { ...m.account, token: undefined } });
@@ -204,6 +237,11 @@ function handle(m: ServerMsg): void {
         room: m.room,
         ...(m.room.status === 'waiting' ? {} : { botsPending: false }),
       }));
+      // a fila achou (ou abriu) a mesa: a espera terminou
+      if (useSession.getState().queueing) {
+        set({ queueing: false });
+        clearQueue();
+      }
       // a sala nasceu: senta os bots e começa. Daqui para frente, quem manda na mesa é o servidor.
       if (botMatch?.step === 'create' && m.room.status === 'waiting') {
         const o = botMatch.o;
@@ -239,6 +277,11 @@ function handle(m: ServerMsg): void {
       break;
     }
     case 'error':
+      // a fila recusou (sem saldo, mesa cheia): para de esperar e mostra o motivo
+      if (useSession.getState().queueing) {
+        set({ queueing: false });
+        clearQueue();
+      }
       // erro antes da mesa começar derruba a partida contra bots para o local
       if (botMatch) {
         fallbackToLocal(`O servidor recusou a mesa (${m.message})`);
@@ -259,6 +302,7 @@ export const useSession = create<SessionState>()((set, get) => ({
   connError: null,
   offline: false,
   botsPending: false,
+  queueing: false,
   account: null,
   playerId: null,
   rooms: [],
@@ -292,6 +336,24 @@ export const useSession = create<SessionState>()((set, get) => ({
       },
     });
     transport = t;
+  },
+
+  quickMatch(currency) {
+    if (get().queueing) return;
+    set({ queueing: true });
+    // sem conexão não há fila: conecta e pede quando o servidor cumprimentar
+    if (get().status !== 'connected') {
+      get().connectOnline();
+      queueAfterHello = currency;
+    } else {
+      get().send({ type: 'quickMatch', currency });
+    }
+    // a fila não pode ficar girando para sempre se o servidor não responder
+    queueTimer = setTimeout(() => {
+      if (!useSession.getState().queueing) return;
+      set({ queueing: false });
+      get().toast('A fila não respondeu. Tente de novo.', 'error');
+    }, QUEUE_WAIT_MS);
   },
 
   startBots(o) {
@@ -344,6 +406,8 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   disconnect() {
     clearBotMatch();
+    clearQueue();
+    set({ queueing: false });
     const t = transport;
     transport = null;
     t?.close();

@@ -7,10 +7,15 @@ import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
 import { Segmented } from '../ui/controls';
-import { WalletBar } from '../ui/Wallet';
+import { WalletBar, useChips } from '../ui/Wallet';
 import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
 import { sfx } from '../audio/sfx';
 import { APP_VERSION } from '../util/version';
+import { QUEUE_STAKES } from '../../shared/protocol';
+import { PadoCoinSvg } from '../render/PadoCoin';
+import { ChipSvg } from '../render/Chip';
+import { usePado } from '../store/shop';
+import { fmt } from '../util/format';
 import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
 
@@ -171,6 +176,90 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/**
+ * Fila rápida: escolhe só a moeda e entra.
+ *
+ * O resto é do servidor — ele procura uma mesa da fila que já exista e, se não houver, abre uma com
+ * três bots que vão saindo conforme gente chega. A mesa é cash: você joga com o que é seu até zerar.
+ *
+ * Padocoins só aparecem para quem tem o Discord vinculado; na mesa eles são as fichas normais.
+ */
+function QueueModal({ onClose }: { onClose: () => void }) {
+  const quickMatch = useSession((s) => s.quickMatch);
+  const queueing = useSession((s) => s.queueing);
+  const chips = useChips();
+  const pado = usePado();
+  const stakes = QUEUE_STAKES;
+
+  const entrar = (moeda: 'chips' | 'pado') => {
+    sfx.click();
+    quickMatch(moeda);
+  };
+
+  return (
+    <div className="modal-back" onClick={queueing ? undefined : onClose}>
+      <motion.div className="modal panel queue-modal" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()}>
+        <h2 className="title-deco">Fila Rápida</h2>
+        <p className="muted">
+          O servidor acha uma mesa com gente — ou abre uma com bots, que saem conforme jogadores chegam. Cash, com rebuy: você joga com o que é seu
+          até zerar.
+        </p>
+
+        {queueing ? (
+          <div className="queue-wait">
+            <span className="queue-dots" aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+            Procurando mesa…
+          </div>
+        ) : (
+          <div className="queue-opts">
+            <button className="queue-opt" disabled={chips < stakes.chips.buyIn} onClick={() => entrar('chips')}>
+              <span className="queue-opt-coin">
+                <ChipSvg value={100} size={34} />
+              </span>
+              <span className="queue-opt-main">
+                <b>Fichas</b>
+                <small>
+                  Buy-in {fmt(stakes.chips.buyIn)} · blinds {stakes.chips.smallBlind}/{stakes.chips.bigBlind}
+                </small>
+              </span>
+              {chips < stakes.chips.buyIn && <span className="queue-opt-no">saldo insuficiente</span>}
+            </button>
+
+            {pado !== null ? (
+              <button className="queue-opt" disabled={pado < stakes.pado.buyIn} onClick={() => entrar('pado')}>
+                <span className="queue-opt-coin">
+                  <PadoCoinSvg size={34} />
+                </span>
+                <span className="queue-opt-main">
+                  <b>Padocoins</b>
+                  <small>
+                    Buy-in {fmt(stakes.pado.buyIn)} · blinds {stakes.pado.smallBlind}/{stakes.pado.bigBlind}
+                  </small>
+                </span>
+                {pado < stakes.pado.buyIn && <span className="queue-opt-no">padocoins insuficientes</span>}
+              </button>
+            ) : (
+              <div className="field-hint queue-hint">
+                Vincule seu Discord em <b>Ajustes → Conta</b> para jogar valendo <b>padocoins</b>.
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="row gap center" style={{ marginTop: 16 }}>
+          <button className="btn btn-ghost" disabled={queueing} onClick={onClose}>
+            Cancelar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function TopBar({ go }: { go: (s: Screen) => void }) {
   const name = useProfile((s) => s.name);
   const setName = useProfile((s) => s.setName);
@@ -232,8 +321,11 @@ function ModeCard({ title, sub, glyph, cls, onClick, delay }: { title: string; s
   );
 }
 
-export function MainMenu({ go }: { go: (s: Screen) => void }) {
+export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; openQueue?: boolean }) {
   const [quick, setQuick] = useState(false);
+  // `openQueue` existe para a página de pré-visualização poder abrir a fila (veja src/dev/preview.tsx)
+  const [queue, setQueue] = useState(openQueue);
+  const queueing = useSession((s) => s.queueing);
   const { menu } = useUiTheme();
   const icons: { key: Screen; icon: string; label: string }[] = [
     { key: 'characters', icon: menu.icons.characters, label: 'Personagens' },
@@ -264,8 +356,9 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
       </motion.div>
       <div className="mode-area">
         <div className="mode-cards">
-          <ModeCard title="Partida Rápida" sub="Contra bots, no servidor" glyph="♠" cls="gold" onClick={() => setQuick(true)} delay={0.15} />
-          <ModeCard title="Salas" sub="Entrar numa mesa do servidor" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.25} />
+          <ModeCard title="Fila Rápida" sub="Mesa com gente, na hora" glyph="⚡" cls="gold" onClick={() => setQueue(true)} delay={0.12} />
+          <ModeCard title="Partida Rápida" sub="Contra bots, no servidor" glyph="♠" cls="blue" onClick={() => setQuick(true)} delay={0.2} />
+          <ModeCard title="Salas" sub="Escolher a mesa" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.28} />
         </div>
         <div className="bottom-icons">
           {icons.map((it, i) => (
@@ -289,6 +382,7 @@ export function MainMenu({ go }: { go: (s: Screen) => void }) {
       </div>
       <div className="version">v{APP_VERSION}</div>
       {quick && <QuickPlayModal onClose={() => setQuick(false)} />}
+      {(queue || queueing) && <QueueModal onClose={() => setQueue(false)} />}
     </div>
   );
 }

@@ -377,3 +377,80 @@ describe('vínculo feito depois do token ser emitido', () => {
     acc.close();
   });
 });
+
+/**
+ * Sessão de duas semanas.
+ *
+ * O JWT do serviço de contas vale uma hora e não tem refresh, então ele não serve para "continuar
+ * logado" — sem uma chave nossa, o jogador digitaria a senha a cada hora. A chave de volta é
+ * revogável e, ao contrário de guardar a senha, um vazamento dela não abre a conta do serviço.
+ */
+describe('sessão guardada no aparelho', () => {
+  it('entrar com senha devolve uma chave de volta com duas semanas', async () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+
+    expect(a.token).toBeTruthy();
+    const dias = (Date.parse(a.tokenUntil!) - Date.now()) / 86_400_000;
+    expect(dias).toBeGreaterThan(13.9);
+    expect(dias).toBeLessThan(14.1);
+    acc.close();
+  });
+
+  it('a chave de volta traz a conta inteira, sem o JWT', async () => {
+    const fake = fakeGbot(2785);
+    const acc = new Accounts({ file: newFile(), startingMoney: 20_000, gbot: fake.gbot });
+    const entrada = (await acc.loginAuth(identity, profile()))!;
+    await acc.buy(entrada.id, 'character:ren', 'chips');
+
+    // uma hora depois: o JWT venceu e o cliente manda só a chave de volta
+    const volta = acc.login({ id: entrada.id, token: entrada.token! }, profile())!;
+    expect(volta.id).toBe(entrada.id);
+    expect(volta.user).toBe(identity.username);
+    expect(volta.owned).toContain('character:ren');
+    // e o vínculo do Discord continua lá, com o saldo
+    expect(volta.discord?.id).toBe(identity.discordId);
+    expect(volta.pado).toBe(2785);
+    acc.close();
+  });
+
+  it('chave errada não entra na conta de ninguém', async () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+
+    // com login, uma chave que não bate não cria conta nova nem devolve a existente
+    expect(acc.login({ id: a.id, token: 'chave-inventada' }, profile())).toBeNull();
+    acc.close();
+  });
+
+  it('chave vencida não vale mais', async () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+    // envelhece a chave na marra, como o tempo faria
+    acc.expireSessionForTests(a.id);
+
+    expect(acc.login({ id: a.id, token: a.token! }, profile())).toBeNull();
+    acc.close();
+  });
+
+  it('cada entrada com senha renova as duas semanas', async () => {
+    const acc = new Accounts({ file: newFile() });
+    const primeira = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+    const segunda = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+
+    expect(segunda.id).toBe(primeira.id);
+    // chave nova a cada entrada: a antiga deixa de valer
+    expect(segunda.token).not.toBe(primeira.token);
+    expect(acc.login({ id: primeira.id, token: primeira.token! }, profile())).toBeNull();
+    expect(acc.login({ id: segunda.id, token: segunda.token! }, profile())).toBeTruthy();
+    acc.close();
+  });
+
+  it('conta sem login continua voltando pela chave, como antes', () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = acc.login(undefined, profile())!;
+    const volta = acc.login({ id: a.id, token: a.token! }, profile())!;
+    expect(volta.id).toBe(a.id);
+    acc.close();
+  });
+});

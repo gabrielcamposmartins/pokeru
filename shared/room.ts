@@ -94,6 +94,8 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
       typeof o.pace === 'number' && Number.isFinite(o.pace) ? Math.min(2, Math.max(0.4, o.pace)) : 1,
     // quem não disser nada entra na lista: só as partidas contra bots pedem para ficar fora
     listed: o.listed !== false,
+    currency: o.currency === 'pado' ? 'pado' : 'chips',
+    queue: o.queue === true,
   };
 }
 
@@ -114,6 +116,8 @@ export class Room {
   status: 'waiting' | 'playing' | 'finished' = 'waiting';
   readonly seats: (Member | null)[];
   hand: Hand | null = null;
+  /** Quantas vezes cada conta pagou buy-in aqui — a chave de idempotência do padocoin usa isto. */
+  private buyIns = new Map<string, number>();
   handNo = 0;
   smallBlind: number;
   bigBlind: number;
@@ -220,6 +224,8 @@ export class Room {
       mode: this.settings.mode,
       variant: this.settings.variant,
       buyIn: this.settings.buyIn,
+      currency: this.settings.currency,
+      bots: this.members().filter((m) => m.isBot && !m.leaving).length,
       hasPassword: !!this.settings.password,
     };
   }
@@ -232,21 +238,81 @@ export class Room {
 
   // ------------------------------------------------------------------ membros
 
+  /**
+   * A cobrança do buy-in precisa ir à rede? (mesa de padocoin, cujo dinheiro está no bot)
+   *
+   * É o que decide entre `join` e `joinPaid`. As mesas normais continuam sentando o jogador de
+   * forma **síncrona**, e isso não é detalhe: o cliente manda `createRoom` e, logo atrás,
+   * `addBot`/`startGame`. Com o assento resolvido só num microtask, essas mensagens chegariam
+   * antes de haver cadeira e seriam descartadas em silêncio.
+   */
+  get asyncBuyIn(): boolean {
+    return this.settings.buyIn > 0 && this.settings.currency !== 'chips';
+  }
+
+  /** As regras de entrada, sem cobrar nada: devolve a cadeira ou o motivo da recusa. */
+  private checkJoin(client: ClientHandle, password?: string): { erro: string } | { seat: number } {
+    if (this.settings.password && this.settings.password !== password) return { erro: 'Senha incorreta' };
+    if (this.status === 'playing' && this.closedGame()) return { erro: 'Partida em andamento' };
+    if (this.status === 'finished') return { erro: 'Partida encerrada' };
+    let seat = this.seats.findIndex((s) => s === null);
+    // mesa da fila cheia: um bot sai para dar lugar a gente — nunca um que esteja numa mão
+    if (seat < 0 && this.settings.queue) {
+      const bot = this.members().find((m) => m.isBot && !m.leaving && !this.naMao(m));
+      if (bot) {
+        this.system(`${bot.name} saiu para dar lugar a um jogador.`);
+        this.removeOrMark(bot);
+        seat = this.seats.findIndex((s) => s === null);
+      }
+    }
+    if (seat < 0) return { erro: 'Mesa cheia' };
+    if (this.settings.buyIn > 0 && (!this.bank || !client.accountId)) {
+      return { erro: 'Esta mesa é a dinheiro: entre com uma conta do servidor' };
+    }
+    return { seat };
+  }
+
+  /**
+   * Senta o jogador numa mesa de padocoin: cobra no bot do Discord **antes** de ocupar a cadeira.
+   *
+   * Entre a cobrança e o assento passa tempo de rede, então as regras são conferidas de novo — e,
+   * se a cadeira tiver sido tomada nesse meio, o dinheiro volta.
+   */
+  async joinPaid(client: ClientHandle, password?: string): Promise<string | null> {
+    if (this.memberById(client.id)) return null;
+    const antes = this.checkJoin(client, password);
+    if ('erro' in antes) return antes.erro;
+
+    const pago = await this.cobra(client.accountId!, this.settings.buyIn);
+    if (!pago) return 'Padocoins insuficientes para esta mesa';
+
+    const agora = this.checkJoin(client, password);
+    if ('erro' in agora) {
+      void this.bank?.creditIn?.(client.accountId!, pago, this.settings.currency, `pokeru:volta:${this.id}:${client.id}:${Date.now()}`);
+      return agora.erro;
+    }
+    this.seatAt(client, agora.seat, pago);
+    return null;
+  }
+
   join(client: ClientHandle, password?: string): string | null {
     if (this.memberById(client.id)) return null;
-    if (this.settings.password && this.settings.password !== password) return 'Senha incorreta';
-    if (this.status === 'playing' && this.closedGame()) return 'Partida em andamento';
-    if (this.status === 'finished') return 'Partida encerrada';
-    const seat = this.seats.findIndex((s) => s === null);
-    if (seat < 0) return 'Mesa cheia';
+    const check = this.checkJoin(client, password);
+    if ('erro' in check) return check.erro;
+    const seat = check.seat;
     // mesa a dinheiro: as fichas saem do saldo da conta
     let stack = this.settings.startingStack;
     if (this.settings.buyIn > 0) {
-      if (!this.bank || !client.accountId) return 'Esta mesa é a dinheiro: entre com uma conta do servidor';
-      const paid = this.bank.charge(client.accountId, this.settings.buyIn);
+      const paid = this.bank!.charge(client.accountId!, this.settings.buyIn);
       if (!paid) return 'Saldo insuficiente para o buy-in desta mesa';
       stack = paid;
     }
+    this.seatAt(client, seat, stack);
+    return null;
+  }
+
+  /** Ocupa a cadeira (o buy-in já foi pago, se havia). */
+  private seatAt(client: ClientHandle, seat: number, stack: number): void {
     const m: Member = {
       id: client.id,
       accountId: client.accountId,
@@ -270,7 +336,6 @@ export class Room {
       this.emit({ t: 'seatJoin', seat });
       this.maybeResume();
     }
-    return null;
   }
 
   updateProfile(client: ClientHandle): void {
@@ -400,15 +465,51 @@ export class Room {
     return this.settings.buyIn > 0 && !!this.bank;
   }
 
-  /** Cobra fichas do saldo de um membro (devolve quanto saiu; 0 sem conta ou sem saldo). */
+  /** O membro está numa mão em andamento? (tirar quem está jogando quebraria a mão) */
+  private naMao(m: Member): boolean {
+    return !!this.hand && !this.hand.finished && this.hand.players.some((p) => p.id === m.id);
+  }
+
+  /**
+   * Cobra o buy-in na moeda da mesa. Devolve quanto saiu (0 = não deu).
+   *
+   * Em padocoin a cobrança é no bot do Discord, e a chave de idempotência é fixa por
+   * conta + mesa + número de entradas: se a chamada der timeout e a pessoa tentar sentar de novo,
+   * o bot devolve a resposta guardada em vez de cobrar duas vezes.
+   */
+  private async cobra(accountId: string, amount: number): Promise<number> {
+    if (!this.bank) return 0;
+    if (this.settings.currency === 'chips') return this.bank.charge(accountId, amount);
+    if (!this.bank.chargeIn) return 0;
+    const n = (this.buyIns.get(accountId) ?? 0) + 1;
+    const pago = await this.bank.chargeIn(accountId, amount, 'pado', `pokeru:${this.id}:${accountId}:${n}`);
+    // só conta a entrada que deu certo: uma tentativa que falhou repete a mesma chave
+    if (pago > 0) this.buyIns.set(accountId, n);
+    return pago;
+  }
+
+  /**
+   * Cobra fichas do saldo de um membro (devolve quanto saiu; 0 sem conta ou sem saldo).
+   *
+   * Só serve para a moeda do próprio jogo. Numa mesa de padocoin devolve 0 de propósito: a
+   * cobrança lá é ida à rede, e isto roda no meio da mão (no rebuy) — então em padocoin **não há
+   * rebuy automático**, quem zera sai e entra de novo se quiser recomprar.
+   */
   private charge(m: Member, amount: number): number {
     if (!this.paid() || !m.accountId || amount <= 0) return 0;
+    if (this.settings.currency !== 'chips') return 0;
     return this.bank!.charge(m.accountId, amount);
   }
 
   /** Devolve as fichas da mesa ao saldo do jogador e zera a pilha (ele não leva duas vezes). */
   private cashOut(m: Member): void {
     if (!this.paid() || !m.accountId || m.stack <= 0) return;
+    if (this.settings.currency === 'pado') {
+      // padocoin volta para o bot: é rede, então não dá para esperar aqui. O banco registra falha.
+      void this.bank!.creditIn?.(m.accountId, m.stack, 'pado', `pokeru:out:${this.id}:${m.accountId}:${Date.now()}`);
+      m.stack = 0;
+      return;
+    }
     this.bank!.credit(m.accountId, m.stack);
     m.stack = 0;
   }

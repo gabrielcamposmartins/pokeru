@@ -23,6 +23,8 @@
  *   /preview.html?cena=salas           a lista de salas do servidor (uma delas com senha)
  *   /preview.html?cena=menu            o menu principal
  *   /preview.html?cena=menu-sentando   o menu com a Partida Rápida montando a mesa no servidor
+ *   /preview.html?cena=fila            o menu com a fila rápida aberta (fichas e padocoins)
+ *   /preview.html?cena=fila-esperando  a fila procurando mesa
  *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
@@ -399,8 +401,9 @@ if (cena === 'login-erro') useAuth.setState({ remember: true, user: 'marina', er
 if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina', token: 'jwt.exemplo', remember: true });
 // o menu com a Partida Rápida esperando o servidor montar a mesa
 if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'connecting', botsPending: true });
+if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queueing: true });
 // a loja: finge uma conta no servidor, com itens e as duas moedas
-if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta') {
+if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 'fila' || cena === 'fila-esperando') {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
   useSession.setState({
@@ -429,10 +432,11 @@ if (cena === 'salas') {
     status: 'connected',
     serverName: 'Pokeru Oficial',
     rooms: [
-      { id: 'k3f7a', name: 'Mesa da Marina', players: 3, maxPlayers: 6, status: 'waiting', blinds: '10/20', mode: 'cash', variant: 'holdem', buyIn: 0, hasPassword: false },
-      { id: 'q9x2b', name: 'Só entre amigos', players: 2, maxPlayers: 4, status: 'waiting', blinds: '25/50', mode: 'normal', variant: 'draw5', buyIn: 0, hasPassword: true },
-      { id: 'm1p5c', name: 'Torneio da noite', players: 6, maxPlayers: 6, status: 'playing', blinds: '50/100', mode: 'sitgo', variant: 'holdem', buyIn: 2500, hasPassword: false },
-      { id: 'z7t4d', name: 'Mesa livre', players: 1, maxPlayers: 6, status: 'waiting', blinds: '10/20', mode: 'cash', variant: 'holdem', buyIn: 0, hasPassword: false },
+      { id: 'k3f7a', name: 'Fila Rápida', players: 4, maxPlayers: 6, status: 'playing', blinds: '10/20', mode: 'cash', variant: 'holdem', buyIn: 2000, currency: 'chips', bots: 2, hasPassword: false },
+      { id: 'p8d1x', name: 'Fila · Padocoins', players: 3, maxPlayers: 6, status: 'playing', blinds: '2/4', mode: 'cash', variant: 'holdem', buyIn: 200, currency: 'pado', bots: 1, hasPassword: false },
+      { id: 'q9x2b', name: 'Só entre amigos', players: 2, maxPlayers: 4, status: 'waiting', blinds: '25/50', mode: 'normal', variant: 'draw5', buyIn: 0, currency: 'chips', bots: 0, hasPassword: true },
+      { id: 'm1p5c', name: 'Torneio da noite', players: 6, maxPlayers: 6, status: 'playing', blinds: '50/100', mode: 'sitgo', variant: 'holdem', buyIn: 2500, currency: 'chips', bots: 0, hasPassword: false },
+      { id: 'z7t4d', name: 'Mesa livre', players: 1, maxPlayers: 6, status: 'waiting', blinds: '10/20', mode: 'cash', variant: 'holdem', buyIn: 0, currency: 'chips', bots: 0, hasPassword: false },
     ],
     account: { id: 'a1', money: 12_400, inPlay: 0, since: '2026-03-04T12:00:00.000Z', bond: {}, hands: 0, wins: 0 } as never,
   });
@@ -451,8 +455,8 @@ createRoot(document.getElementById('root')!).render(
         <SettingsScreen onBack={() => {}} onCharacters={() => {}} />
       ) : cena === 'salas' ? (
         <OnlineLobby onBack={() => {}} />
-      ) : cena === 'menu' || cena === 'menu-sentando' ? (
-        <MainMenu go={() => {}} />
+      ) : cena === 'menu' || cena === 'menu-sentando' || cena === 'fila' || cena === 'fila-esperando' ? (
+        <MainMenu go={() => {}} openQueue={cena === 'fila'} />
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} />
       ) : cena === 'loja' || cena === 'loja-sem-pado' ? (

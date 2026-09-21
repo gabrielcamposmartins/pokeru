@@ -270,3 +270,46 @@ describe('caminho sem TLS', () => {
     expect(insecureGateway('https://35.209.186.9:3001')).toBe(false);
   });
 });
+
+describe('sessão de duas semanas', () => {
+  it('JWT vencido, mas com a chave de volta do servidor: continua logado', async () => {
+    const { useProfile, SERVER_URL } = await import('./profile');
+    vault.saved = { user: 'gabi', token: fakeJwt({ sub: '3' }, -60) };
+    useProfile.getState().setAccount(SERVER_URL, { id: 'a-1', token: 'chave', until: new Date(Date.now() + 86_400_000).toISOString() });
+    server({ '/health': { body: { auth: 'gbot' } } });
+
+    await useAuth.getState().restore();
+    // a conta volta inteira pelo `hello`; só o token do serviço é que falta
+    expect(useAuth.getState()).toMatchObject({ status: 'logged', user: 'gabi', token: null, remember: true });
+  });
+
+  it('chave de volta vencida: aí sim pede a senha', async () => {
+    const { useProfile, SERVER_URL } = await import('./profile');
+    vault.saved = { user: 'gabi', token: fakeJwt({ sub: '3' }, -60) };
+    useProfile.getState().setAccount(SERVER_URL, { id: 'a-1', token: 'chave', until: new Date(Date.now() - 1000).toISOString() });
+    server({ '/health': { body: { auth: 'gbot' } } });
+
+    await useAuth.getState().restore();
+    expect(useAuth.getState()).toMatchObject({ status: 'anon', user: 'gabi' });
+  });
+
+  it('sem o token do serviço, mexer no vínculo pede a senha — e diz isso', async () => {
+    useAuth.setState({ status: 'logged', user: 'gabi', token: null });
+    expect(await useAuth.getState().discordCode('gabss2')).toMatch(/entre de novo com a sua senha/);
+    expect(await useAuth.getState().discordUnlink()).toMatch(/entre de novo com a sua senha/);
+  });
+
+  it('desmarcar "lembrar" esquece também a chave de volta', async () => {
+    const { useProfile, SERVER_URL } = await import('./profile');
+    useProfile.getState().setAccount(SERVER_URL, { id: 'a-1', token: 'chave' });
+    useAuth.getState().setRemember(false);
+    expect(useProfile.getState().accounts[SERVER_URL]).toBeUndefined();
+  });
+
+  it('sair esquece a chave de volta', async () => {
+    const { useProfile, SERVER_URL } = await import('./profile');
+    useProfile.getState().setAccount(SERVER_URL, { id: 'a-1', token: 'chave' });
+    await useAuth.getState().signOut();
+    expect(useProfile.getState().accounts[SERVER_URL]).toBeUndefined();
+  });
+});

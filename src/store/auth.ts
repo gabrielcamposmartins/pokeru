@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { clearSession, hasSavedSession, loadSession, saveSession } from '../auth/vault';
-import { SERVER_URL } from './profile';
+import { SERVER_URL, useProfile } from './profile';
 
 /**
  * Login do jogador.
@@ -12,8 +12,13 @@ import { SERVER_URL } from './profile';
  * O que fica guardado neste computador: **usuário e token**. A senha nunca — ela serve para pedir
  * o token e é descartada (veja src/auth/vault.ts).
  *
- * Não existe refresh token: o JWT vale uma hora. Quando expira, é entrar de novo. Por isso a
- * sessão restaurada pode voltar como "o usuário está lembrado, mas precisa entrar".
+ * O JWT do serviço vale **uma hora** e não tem refresh. Se a sessão dependesse dele, o jogador
+ * digitaria a senha a cada hora — então quem segura a sessão é a **chave de volta** que o nosso
+ * servidor emite, guardada no perfil e válida por duas semanas. Ao voltar com o JWT vencido, o
+ * jogo entra por ela: a conta é a mesma, com fichas, itens e vínculo.
+ *
+ * O que a chave de volta **não** recupera é o token do serviço de contas. Mexer no vínculo do
+ * Discord age sobre a conta do serviço, então isso pede a senha de novo — e a tela diz.
  */
 
 /** `ws://host:3001` → `http://host:3001`: o gateway mora no mesmo servidor das mesas. */
@@ -71,11 +76,22 @@ function expired(token: string): boolean {
   return typeof exp === 'number' && exp * 1000 <= Date.now();
 }
 
+/** Há chave de volta válida para este servidor? É ela que mantém a sessão de pé por duas semanas. */
+function sessaoDoServidor(): boolean {
+  const acc = useProfile.getState().accounts[SERVER_URL];
+  if (!acc?.token) return false;
+  return !acc.until || Date.parse(acc.until) > Date.now();
+}
+
 export interface AuthState {
   status: AuthStatus;
   /** Usuário logado (ou o lembrado, para o campo vir preenchido). */
   user: string | null;
-  /** Token da sessão — é o que identifica o jogador na conexão com o servidor. */
+  /**
+   * Token do serviço de contas. É o que identifica o jogador na conexão **e** o que autoriza mexer
+   * no vínculo do Discord. `null` quando a sessão voltou pela chave de volta do nosso servidor:
+   * a conta é a mesma, mas o vínculo pede a senha de novo.
+   */
   token: string | null;
   /** Id do Discord vinculado, segundo a sessão (null = sem vínculo). */
   discord: string | null;
@@ -167,8 +183,12 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   setRemember: (remember) => {
     set({ remember });
-    // desmarcar esquece na hora: ninguém espera "lembrar" desligado e dados guardados
-    if (!remember) void clearSession();
+    // desmarcar esquece na hora — inclusive a chave de volta, senão "não lembrar" seria mentira:
+    // o jogo voltaria sozinho para a conta na próxima abertura
+    if (!remember) {
+      void clearSession();
+      useProfile.getState().forgetAccount(SERVER_URL);
+    }
   },
 
   async restore() {
@@ -185,9 +205,11 @@ export const useAuth = create<AuthState>()((set, get) => ({
       set({ status: 'anon', remember: false });
       return;
     }
-    // token vencido: o usuário fica lembrado, mas precisa entrar de novo (não há refresh)
+    // O JWT vence em uma hora. Com a chave de volta do nosso servidor ainda válida, a sessão
+    // continua: a conta volta inteira pelo `hello`, e só o vínculo do Discord pede a senha.
     if (!saved.token || expired(saved.token)) {
-      set({ status: 'anon', user: saved.user, token: null, discord: null, remember: true });
+      const comSessao = sessaoDoServidor();
+      set({ status: comSessao ? 'logged' : 'anon', user: saved.user, token: null, discord: null, remember: true });
       return;
     }
     const claims = readClaims(saved.token);
@@ -206,12 +228,15 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   async signOut() {
     await clearSession();
+    // a chave de volta vai junto: sair tem de sair de verdade
+    useProfile.getState().forgetAccount(SERVER_URL);
     set({ status: 'anon', user: null, token: null, discord: null, remember: false, error: null });
   },
 
   async discordCode(quem) {
     const token = get().token;
-    if (!token) return 'entre na sua conta primeiro';
+    // mexer no vínculo age sobre a conta do serviço, e para isso a chave de volta não serve
+    if (!token) return get().user ? 'para mexer no vínculo do Discord, entre de novo com a sua senha' : 'entre na sua conta primeiro';
     set({ busy: true });
     try {
       await call('/discord/code', { method: 'POST', token, body: JSON.stringify({ discordId: quem }) });
@@ -225,7 +250,8 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   async discordLink(code) {
     const token = get().token;
-    if (!token) return 'entre na sua conta primeiro';
+    // mexer no vínculo age sobre a conta do serviço, e para isso a chave de volta não serve
+    if (!token) return get().user ? 'para mexer no vínculo do Discord, entre de novo com a sua senha' : 'entre na sua conta primeiro';
     set({ busy: true });
     try {
       const r = await call<{ discord: string }>('/discord/link', { method: 'POST', token, body: JSON.stringify({ code }) });
@@ -240,7 +266,8 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   async discordUnlink() {
     const token = get().token;
-    if (!token) return 'entre na sua conta primeiro';
+    // mexer no vínculo age sobre a conta do serviço, e para isso a chave de volta não serve
+    if (!token) return get().user ? 'para mexer no vínculo do Discord, entre de novo com a sua senha' : 'entre na sua conta primeiro';
     set({ busy: true });
     try {
       await call('/discord/unlink', { method: 'POST', token });
