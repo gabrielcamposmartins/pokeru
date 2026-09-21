@@ -26,6 +26,7 @@
  *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
+ *   /preview.html?cena=estudio&aba=ui  o Estúdio (aba= face|back|chip|table|fx|ui)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode } from 'react';
@@ -70,6 +71,7 @@ import { SettingsScreen } from '../screens/Settings';
 import { OnlineLobby } from '../screens/OnlineLobby';
 import { MainMenu } from '../screens/MainMenu';
 import { StoreScreen } from '../screens/Store';
+import { Studio } from '../screens/Studio';
 import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
@@ -451,6 +453,8 @@ createRoot(document.getElementById('root')!).render(
         <OnlineLobby onBack={() => {}} />
       ) : cena === 'menu' || cena === 'menu-sentando' ? (
         <MainMenu go={() => {}} />
+      ) : cena === 'estudio' ? (
+        <Studio onBack={() => {}} />
       ) : cena === 'loja' || cena === 'loja-sem-pado' ? (
         <StoreScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} />
       ) : (

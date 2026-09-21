@@ -930,6 +930,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
 
   // só o que é dele: presets comprados (ou gratuitos) e as criações do próprio Estúdio
   const list = useMyStyles(kind);
+  // quantos presets deste tipo ainda não são do jogador: sem isso a lista curta parece defeito
+  const trancados = PRESETS[kind].length - list.filter((x) => isPreset(kind, x.id)).length;
   const current = (list.find((x) => x.id === selected[kind]) ?? list[0]) as StyleMap[StyleKind];
   const preset = isPreset(kind, current.id);
   const equipped = profile.equipped[kind] === current.id;
@@ -1058,6 +1060,11 @@ export function Studio({ onBack }: { onBack: () => void }) {
                 </span>
               </button>
             ))}
+            {trancados > 0 && (
+              <div className="field-hint style-locked">
+                {trancados === 1 ? 'Mais 1 estilo deste tipo está' : 'Mais ' + trancados + ' estilos deste tipo estão'} na <b>Loja</b>. Aqui aparece o que é seu.
+              </div>
+            )}
           </div>
           <div className="panel preview-area">
             <div className="preview-head">

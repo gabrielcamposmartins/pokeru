@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { owns, ownsItem, type Currency, type ItemKind } from '../../shared/catalog';
 import { PRESETS, SERVER_URL, useProfile, type StyleKind, type StyleMap } from './profile';
 import { useSession } from './session';
@@ -14,11 +15,20 @@ import { useSession } from './session';
  * errada, o servidor corrige na primeira mensagem.
  */
 
+/**
+ * Lista vazia compartilhada.
+ *
+ * Um `?? []` aqui devolveria um array **novo** a cada render, e a referência nova se espalha: ela
+ * entra em dependências de efeito e em seletores, onde o zustand 5 compara por identidade. Uma
+ * constante resolve — e é de graça.
+ */
+const NENHUM: readonly string[] = Object.freeze([]);
+
 /** Os itens da conta (chaves do catálogo). O que é grátis não está na lista, e nem precisa. */
 export function useOwned(): readonly string[] {
   const live = useSession((s) => s.account?.owned);
   const cached = useProfile((s) => s.accounts[SERVER_URL]?.owned);
-  return live ?? cached ?? [];
+  return live ?? cached ?? NENHUM;
 }
 
 export function ownedNow(): readonly string[] {
@@ -63,11 +73,27 @@ export function buyItem(key: string, currency: Currency): void {
  *
  * É o que faz a personalização trabalhar só com o que foi adquirido: o Estúdio lista isto, e uma
  * cópia só pode sair de uma peça que já está aqui.
+ *
+ * A junção é feita **fora** do seletor, de propósito. No zustand 5 o resultado do seletor é o
+ * `getSnapshot` do `useSyncExternalStore`, comparado por identidade: montar a lista lá dentro
+ * devolve um array novo a cada chamada, o React vê um estado sempre diferente e re-renderiza para
+ * sempre — foi assim que o Estúdio passou a abrir com "Maximum update depth exceeded" (#185). Aqui
+ * o seletor devolve a referência que já está na loja, e o `useMemo` cuida da junção.
  */
 export function useMyStyles<K extends StyleKind>(kind: K): StyleMap[K][] {
   const owned = useOwned();
-  return useProfile((s) => [
-    ...(PRESETS[kind] as StyleMap[K][]).filter((p) => ownsItem(owned, kind as ItemKind, p.id)),
-    ...((s.custom[kind] ?? []) as StyleMap[K][]),
-  ]);
+  const custom = useProfile((s) => s.custom[kind]) as StyleMap[K][] | undefined;
+  return useMemo(() => myStyles(kind, owned, custom), [kind, owned, custom]);
+}
+
+/**
+ * A lista de estilos de um tipo: os presets que o jogador tem, na ordem do catálogo, seguidos das
+ * criações dele. Função pura, para poder ser testada sem React.
+ *
+ * Sempre sobra pelo menos um preset — o gratuito de cada tipo nunca sai da lista —, então quem
+ * consome não precisa se defender de lista vazia.
+ */
+export function myStyles<K extends StyleKind>(kind: K, owned: readonly string[] | undefined, custom?: readonly StyleMap[K][]): StyleMap[K][] {
+  const meus = (PRESETS[kind] as StyleMap[K][]).filter((p) => ownsItem(owned, kind as ItemKind, p.id));
+  return custom?.length ? [...meus, ...custom] : meus;
 }
