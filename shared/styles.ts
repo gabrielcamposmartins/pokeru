@@ -77,6 +77,11 @@ export interface CardBackStyle {
   /** Imagem personalizada (data URL). Apenas local — nunca enviada pela rede. */
   image?: string;
   imageOpacity: number;
+  /**
+   * Preset de onde este estilo saiu, quando é criação do Estúdio. É por ele que o servidor sabe
+   * que a pessoa tem direito ao verso personalizado (veja `ownsBack` em shared/catalog.ts).
+   */
+  from?: string;
 }
 
 export const CHIP_VALUES = [1, 5, 25, 100, 500, 1000, 5000, 25000] as const;
@@ -688,6 +693,7 @@ export function sanitizeBack(v: unknown, allowImage = false): CardBackStyle {
   return {
     id: text(o.id, 64, d.id),
     name: text(o.name, 40, d.name),
+    from: typeof o.from === 'string' && o.from ? o.from.slice(0, 64) : undefined,
     base: color(o.base, d.base),
     base2: color(o.base2, d.base2),
     pattern: oneOf(o.pattern, BACK_PATTERNS, d.pattern),

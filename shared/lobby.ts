@@ -1,5 +1,6 @@
 import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
-import type { AccountService } from './accounts';
+import type { AccountProfile, AccountService, AuthIdentity } from './accounts';
+import { clampCosmetics } from './catalog';
 import type { BotDifficulty, ClientMsg, RoomSummary, ServerMsg } from './protocol';
 import {
   BACK_PRESETS,
@@ -16,9 +17,13 @@ import {
  * Lobby: gerencia conexões e salas. É independente de transporte —
  * o servidor Node conecta WebSockets aqui e o modo offline conecta direto no navegador.
  *
- * Com um serviço de contas (`accounts`), o servidor guarda saldo e vínculo de cada jogador: o
- * `hello` entra na conta, as mesas a dinheiro cobram o buy-in e o cliente recebe a foto da conta
+ * Com um serviço de contas (`accounts`), o servidor guarda saldo, itens e vínculo de cada jogador:
+ * o `hello` entra na conta, as mesas a dinheiro cobram o buy-in e o cliente recebe a foto da conta
  * sempre que ela muda. Sem contas, tudo funciona como antes (fichas de brinquedo).
+ *
+ * Com um validador (`auth`), o `hello` pode trazer o **JWT** do serviço de contas: o servidor o
+ * valida por conta própria e é daí que sai a identidade do jogador. Sem validador — o modo offline,
+ * por exemplo — só existe a identidade por token deste aparelho.
  */
 export class Lobby {
   readonly rooms = new Map<string, Room>();
@@ -28,6 +33,11 @@ export class Lobby {
   constructor(
     readonly serverName = 'Pokeru',
     readonly accounts: AccountService | null = null,
+    /**
+     * Valida o JWT do serviço de contas e devolve a identidade (null = token não vale). Só o
+     * servidor Node tem isso: a validação usa criptografia do Node (veja server/jwt.ts).
+     */
+    readonly auth: ((jwt: string) => Promise<AuthIdentity | null>) | null = null,
   ) {
     if (accounts) accounts.onChange = (id) => this.accountChanged(id);
   }
@@ -92,11 +102,19 @@ export class Connection implements ClientHandle {
   accountId?: string;
   name = 'Jogador';
   avatar: AvatarInfo = { color: '#7c5cff', icon: '♠' };
+  /** Cosméticos que a mesa usa: já cortados para o que a conta possui. */
   cosmetics: PlayerCosmetics = { back: BACK_PRESETS[0], character: CHARACTER_PRESETS[0], winFx: DEFAULT_WIN_FX };
+  /** O que o cliente pediu, antes do corte — é o que volta a valer quando ele compra o item. */
+  private wanted: PlayerCosmetics = this.cosmetics;
+  /** Itens da conta (chaves do catálogo). Vazio = só o que é grátis. */
+  private owns: readonly string[] = [];
   room: Room | null = null;
   greeted = false;
+  /** Já recebeu um `hello` (a validação do token pode ainda estar em curso). */
+  private greeting = false;
   private lastChat = 0;
   private closed = false;
+  private buying = false;
 
   constructor(
     private lobby: Lobby,
@@ -114,7 +132,42 @@ export class Connection implements ClientHandle {
   private setProfile(msg: { name: unknown; avatar: unknown; cosmetics: unknown }): void {
     this.name = sanitizeName(msg.name);
     this.avatar = sanitizeAvatar(msg.avatar);
-    this.cosmetics = sanitizeCosmetics(msg.cosmetics);
+    this.wanted = sanitizeCosmetics(msg.cosmetics);
+    this.applyOwned(this.owns);
+  }
+
+  /**
+   * Guarda o que a conta possui e corta os cosméticos de acordo.
+   *
+   * É aqui que "server authoritative" deixa de ser promessa: o que o cliente pediu fica em
+   * `wanted`, mas quem vai para a mesa é o resultado do corte. Cliente modificado, `hello` forjado
+   * à mão, item vendido e depois removido — em todos os casos a mesa mostra o que a pessoa tem.
+   *
+   * Num lobby **sem serviço de contas** não há corte: é o modo offline, onde o jogador joga
+   * sozinho contra bots na própria máquina. Não existe posse para conferir nem ninguém para
+   * proteger, e cortar ali só tiraria da pessoa o que ela já tem no perfil.
+   */
+  private applyOwned(owned: readonly string[]): void {
+    this.owns = owned;
+    this.cosmetics = this.lobby.accounts ? clampCosmetics(this.wanted, owned) : this.wanted;
+  }
+
+  private profile(): AccountProfile {
+    return { name: this.name, avatar: this.avatar, cosmetics: this.cosmetics };
+  }
+
+  /** Fecha a apresentação: manda o `welcome`, a conta (se houver) e a lista de salas. */
+  private finishHello(account: ReturnType<AccountService['login']>): void {
+    if (this.closed) return;
+    this.greeted = true;
+    this.send({ type: 'welcome', playerId: this.id, serverName: this.lobby.serverName });
+    // sem conta (servidor cheio, ou sem serviço), o jogador segue só nas mesas livres
+    if (account) {
+      this.accountId = account.id;
+      this.applyOwned(account.owned);
+      this.send({ type: 'account', account });
+    }
+    this.send({ type: 'rooms', rooms: this.lobby.list() });
   }
 
   handle(raw: unknown): void {
@@ -132,25 +185,82 @@ export class Connection implements ClientHandle {
 
     switch (msg.type) {
       case 'hello': {
+        if (this.greeting) return;
+        this.greeting = true;
         this.setProfile(msg);
-        this.greeted = true;
-        this.send({ type: 'welcome', playerId: this.id, serverName: this.lobby.serverName });
-        // servidor com contas: entra (ou cria) a conta e manda saldo e vínculo
         const accounts = this.lobby.accounts;
-        if (accounts) {
-          const account = accounts.login(msg.account, { name: this.name, avatar: this.avatar, cosmetics: this.cosmetics });
-          // sem conta (servidor cheio), o jogador segue só nas mesas livres
-          if (account) {
-            this.accountId = account.id;
-            this.send({ type: 'account', account });
-          }
+        const jwt = typeof msg.jwt === 'string' ? msg.jwt : '';
+        // com login: a identidade sai do JWT, e validá-lo é ida à rede (o JWKS)
+        if (jwt && accounts && this.lobby.auth) {
+          void this.lobby.auth(jwt).then(
+            async (identity) => {
+              if (this.closed) return;
+              if (!identity) {
+                // token velho ou forjado: entra sem conta em vez de ficar de fora do jogo
+                this.error('sua sessão expirou — entre de novo para usar sua conta');
+                this.finishHello(null);
+                return;
+              }
+              this.finishHello(await accounts.loginAuth(identity, this.profile()));
+            },
+            (err: unknown) => {
+              console.warn('[auth] falha ao validar o token:', err instanceof Error ? err.message : err);
+              if (!this.closed) this.finishHello(null);
+            },
+          );
+          return;
         }
-        this.send({ type: 'rooms', rooms: this.lobby.list() });
+        // sem login: identidade por token deste aparelho (ou nenhuma, sem serviço de contas)
+        this.finishHello(accounts ? accounts.login(msg.account, this.profile()) : null);
         break;
       }
       case 'updateProfile': {
         this.setProfile(msg);
         this.room?.updateProfile(this);
+        break;
+      }
+      case 'buy': {
+        const accounts = this.lobby.accounts;
+        if (!accounts || !this.accountId) {
+          this.error('a loja precisa de uma conta no servidor');
+          return;
+        }
+        // uma compra por vez: duas chamadas juntas na mesma conta só dariam erro depois
+        if (this.buying) {
+          this.error('espere a compra anterior terminar');
+          return;
+        }
+        this.buying = true;
+        const item = String(msg.item ?? '');
+        const currency = msg.currency === 'pado' ? 'pado' : 'chips';
+        void accounts
+          .buy(this.accountId, item, currency)
+          .then((err) => {
+            if (this.closed) return;
+            if (err) {
+              this.error(err);
+              return;
+            }
+            // o item é dele: os cosméticos voltam a valer, e a mesa vê na hora
+            this.applyOwned(accounts.owned(this.accountId!));
+            this.send({ type: 'bought', item, currency });
+            this.room?.updateProfile(this);
+          })
+          .catch((err: unknown) => {
+            console.error('[loja] erro ao comprar', item, err);
+            if (!this.closed) this.error('não foi possível concluir a compra');
+          })
+          .finally(() => {
+            this.buying = false;
+          });
+        break;
+      }
+      case 'refreshAccount': {
+        const accounts = this.lobby.accounts;
+        if (!accounts?.refresh || !this.accountId) return;
+        void accounts.refresh(this.accountId).catch(() => {
+          /* saldo externo fora do ar: a foto atual continua valendo */
+        });
         break;
       }
       case 'listRooms':

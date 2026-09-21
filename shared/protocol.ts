@@ -2,8 +2,9 @@ import type { Card } from './cards';
 import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
 import type { AvatarInfo, CharacterStyle, PlayerCosmetics } from './styles';
 import type { AccountCreds, AccountInfo } from './accounts';
+import type { Currency } from './catalog';
 
-export type { AccountCreds, AccountInfo };
+export type { AccountCreds, AccountInfo, Currency };
 
 export type BotDifficulty = 'easy' | 'normal' | 'hard';
 
@@ -161,7 +162,12 @@ export type TableEvent =
   | { t: 'gameOver'; ranking: { name: string; place: number; seat: number }[] };
 
 export type ClientMsg =
-  | { type: 'hello'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics; account?: AccountCreds }
+  /**
+   * Apresentação. `jwt` é o token do serviço de contas — é ele que diz **quem** o jogador é, e o
+   * servidor o valida por conta própria. `account` é a identidade sem login (só deste aparelho),
+   * usada por quem escolheu jogar sem conta.
+   */
+  | { type: 'hello'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics; account?: AccountCreds; jwt?: string }
   | { type: 'updateProfile'; name: string; avatar: AvatarInfo; cosmetics: PlayerCosmetics }
   | { type: 'listRooms' }
   | { type: 'createRoom'; settings: RoomSettings }
@@ -176,6 +182,10 @@ export type ClientMsg =
   | { type: 'skipHand' }
   | { type: 'chat'; text: string }
   | { type: 'emote'; emote: string }
+  /** Compra um item do catálogo (shared/catalog.ts). Quem cobra e valida é o servidor. */
+  | { type: 'buy'; item: string; currency: Currency }
+  /** Pede uma foto nova da conta (relê o saldo de padocoins, que vive no bot do Discord). */
+  | { type: 'refreshAccount' }
   | { type: 'ping' };
 
 export type ServerMsg =
@@ -189,6 +199,8 @@ export type ServerMsg =
   | { type: 'event'; ev: TableEvent; view: TableView }
   | { type: 'chat'; from: string; seat: number | null; text: string; system?: boolean }
   | { type: 'emote'; seat: number; emote: string }
+  /** Compra concluída (a foto nova da conta chega em seguida, num `account`). */
+  | { type: 'bought'; item: string; currency: Currency }
   | { type: 'error'; message: string }
   | { type: 'pong' };
 

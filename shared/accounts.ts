@@ -1,4 +1,5 @@
 import type { BondEvent, BondStats } from './bond';
+import type { Currency } from './catalog';
 import type { AvatarInfo, PlayerCosmetics } from './styles';
 
 /**
@@ -7,21 +8,47 @@ import type { AvatarInfo, PlayerCosmetics } from './styles';
  * O `shared/` só descreve **o que** a sala e o lobby precisam de uma conta; quem guarda de fato é
  * o servidor (`server/accounts.ts`, em arquivo JSON). Sem serviço de contas — o modo offline, por
  * exemplo — a mesa é livre: as fichas são de brinquedo e o vínculo fica salvo só no cliente.
+ *
+ * Há dois jeitos de entrar:
+ *
+ *   - **com login** (`loginAuth`): o jogador entrou no serviço de contas do GBOT e o servidor
+ *     recebeu um JWT já validado. A conta é a mesma em qualquer computador, e é essa que pode
+ *     ter Discord vinculado (e portanto padocoins).
+ *   - **sem conta** (`login`): identidade só deste aparelho, por um token que o servidor sorteia.
+ *     Serve para jogar na hora, sem cadastro; as compras ficam presas a esse aparelho.
  */
+
+/** O Discord vinculado à conta — é o que dá acesso aos padocoins. */
+export interface DiscordLink {
+  id: string;
+  /** Nome no Discord (não é o usuário da conta do jogo). */
+  username: string;
+  nickname: string | null;
+}
 
 /** O que o cliente vê da própria conta. */
 export interface AccountInfo {
   id: string;
   /**
-   * Chave de volta: chega na criação da conta e o cliente guarda para entrar de novo como ele
-   * mesmo. Só vai para o dono da conta, nunca para os outros jogadores.
+   * Chave de volta da conta **sem login**: chega na criação e o cliente guarda para entrar de
+   * novo como ele mesmo. Só vai para o dono da conta, nunca para os outros jogadores.
    */
   token?: string;
   name: string;
+  /** Usuário no serviço de contas (ausente numa conta sem login). */
+  user?: string;
   /** Fichas guardadas (fora da mesa). */
   money: number;
   /** Fichas na mesa em que está sentado agora. */
   inPlay: number;
+  /**
+   * Padocoins — a moeda da economia do bot do Discord. `null` quando a conta não tem Discord
+   * vinculado, que é um estado normal: aí a segunda moeda simplesmente não aparece no jogo.
+   */
+  pado: number | null;
+  discord: DiscordLink | null;
+  /** Itens comprados (chaves do catálogo). O que já vem com o jogo não entra na lista. */
+  owned: string[];
   /** Vínculo por personagem (id do personagem → ficha). */
   bond: Record<string, BondStats>;
   stats: { hands: number; wins: number; matches: number };
@@ -29,10 +56,22 @@ export interface AccountInfo {
   since: string;
 }
 
-/** Credenciais que o cliente manda no `hello` para voltar à mesma conta. */
+/** Credenciais que o cliente manda no `hello` para voltar à mesma conta sem login. */
 export interface AccountCreds {
   id: string;
   token: string;
+}
+
+/**
+ * Identidade vinda do serviço de contas: as claims de um JWT **já validado** pelo servidor.
+ * `sub` é o id da conta no serviço — nunca o id do Discord.
+ */
+export interface AuthIdentity {
+  sub: string;
+  username: string;
+  /** Id do Discord vinculado; ausente quando a conta não tem vínculo. */
+  discordId?: string;
+  nickname?: string;
 }
 
 /** O perfil que viaja no `hello` (nome e cosméticos ficam salvos na conta). */
@@ -56,15 +95,32 @@ export interface TableBank {
   note(accountId: string, what: 'hand' | 'win' | 'match'): void;
 }
 
-/** A banca mais o login — é o que o lobby recebe do servidor. */
+/** A banca mais o login e a loja — é o que o lobby recebe do servidor. */
 export interface AccountService extends TableBank {
   /**
    * Entra na conta de `creds` (ou cria uma nova quando não houver/não bater). Devolve null quando
    * o servidor não aceita criar mais contas — aí o jogador só entra em mesas livres.
    */
   login(creds: AccountCreds | undefined, profile: AccountProfile): AccountInfo | null;
+  /**
+   * Entra com uma identidade do serviço de contas (JWT já validado). É assíncrono porque busca o
+   * saldo de padocoins quando há Discord vinculado.
+   */
+  loginAuth(identity: AuthIdentity, profile: AccountProfile): Promise<AccountInfo | null>;
   /** Foto atual da conta, sem o token. */
   info(accountId: string): AccountInfo | null;
+  /** O que a conta tem (chaves do catálogo; o que é grátis não está aqui). */
+  owned(accountId: string): readonly string[];
+  /**
+   * Compra um item do catálogo. Devolve a mensagem de erro, ou null quando a compra saiu.
+   * Quem valida preço, saldo e posse é aqui — o cliente só desenha a vitrine.
+   */
+  buy(accountId: string, key: string, currency: Currency): Promise<string | null>;
+  /**
+   * Relê o que vive fora do servidor (o saldo de padocoins, que é do bot do Discord) e avisa se
+   * mudou. Opcional: um serviço que não fala com ninguém de fora não precisa disso.
+   */
+  refresh?(accountId: string): Promise<void>;
   /** Avisado quando algo da conta muda (o lobby manda a foto nova ao cliente). */
   onChange?: (accountId: string) => void;
 }

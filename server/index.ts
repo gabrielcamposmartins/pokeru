@@ -1,7 +1,11 @@
 import { createServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Lobby } from '../shared/lobby';
+import type { AuthIdentity } from '../shared/accounts';
 import { Accounts } from './accounts';
+import { authRoutes } from './auth-http';
+import { Gbot } from './gbot';
+import { JwtVerifier } from './jwt';
 import { dataFile } from './store';
 
 /**
@@ -18,6 +22,16 @@ import { dataFile } from './store';
  *   FAUCET=2000              recarga de cortesia de quem zera (0 desliga)
  *   MAX_ACCOUNTS=1000        teto de contas guardadas (passando disso, só mesas livres)
  *   ADMIN_TOKEN=…            libera /admin (presentes e lista de contas)
+ *
+ * Contas e padocoins pelo bot do Discord (a API do GBOT — veja server/gbot.ts):
+ *
+ *   GBOT_URL=…               base da API, ex. https://gbot.interno. Sem ela, o jogo roda sem
+ *                            login: as contas voltam a ser por token deste aparelho e a segunda
+ *                            moeda não existe.
+ *   GBOT_JWKS=…              URL do JWKS (padrão: GBOT_URL + /.well-known/jwks.json)
+ *   GBOT_ISSUER=gbot         emissor esperado no JWT
+ *   GBOT_AUDIENCE=…          audiência esperada, se a instância do GBOT definir uma
+ *   GBOT_USER / GBOT_PASS    conta de serviço, usada para ler saldo e cobrar padocoins
  */
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -26,16 +40,48 @@ const WITH_ACCOUNTS = process.env.POKERU_ACCOUNTS !== '0';
 const ADMIN = process.env.ADMIN_TOKEN || '';
 const num = (v: string | undefined, d: number) => (v !== undefined && Number.isFinite(Number(v)) ? Number(v) : d);
 
+// o bot do Discord: serviço de contas (login/JWT) e economia dos padocoins
+const GBOT_URL = process.env.GBOT_URL || '';
+const gbot = GBOT_URL
+  ? new Gbot({ base: GBOT_URL, user: process.env.GBOT_USER, pass: process.env.GBOT_PASS })
+  : null;
+
+const jwt = GBOT_URL
+  ? new JwtVerifier({
+      jwksUrl: process.env.GBOT_JWKS || `${GBOT_URL.replace(/\/+$/, '')}/.well-known/jwks.json`,
+      issuer: process.env.GBOT_ISSUER || 'gbot',
+      audience: process.env.GBOT_AUDIENCE || undefined,
+    })
+  : null;
+
 const accounts = WITH_ACCOUNTS
   ? new Accounts({
       file: dataFile('accounts.json'),
       startingMoney: num(process.env.STARTING_MONEY, 10_000),
       faucet: num(process.env.FAUCET, 2000),
       maxAccounts: num(process.env.MAX_ACCOUNTS, 1000),
+      gbot,
     })
   : null;
 
-const lobby = new Lobby(NAME, accounts);
+/**
+ * Valida o JWT que o cliente manda no `hello`. Um token que não passa não derruba ninguém: o
+ * jogador entra sem conta (mesas livres) e recebe o aviso para entrar de novo.
+ */
+const verifyAuth = jwt
+  ? async (token: string): Promise<AuthIdentity | null> => {
+      try {
+        const c = await jwt.verify(token);
+        return { sub: c.sub, username: c.username ?? 'jogador', discordId: c.discord_id, nickname: c.nickname };
+      } catch (err) {
+        console.warn('[auth] token recusado:', err instanceof Error ? err.message : err);
+        return null;
+      }
+    }
+  : null;
+
+const lobby = new Lobby(NAME, accounts, verifyAuth);
+const auth = gbot && jwt ? authRoutes({ gbot, jwt, accounts }) : null;
 
 /** Fichas que uma conta tem em mesa agora (somadas em todas as salas). */
 if (accounts) {
@@ -54,6 +100,9 @@ function status() {
     players: lobby.connectionCount,
     accounts: accounts?.count ?? 0,
     persistence: accounts ? 'json' : 'off',
+    // o cliente usa isto para saber se mostra a tela de login e a loja de padocoins
+    auth: auth ? 'gbot' : 'off',
+    pado: gbot?.canMoveMoney ? 'on' : 'off',
   };
 }
 
@@ -65,6 +114,18 @@ const json = (res: import('node:http').ServerResponse, code: number, body: unkno
 const http = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   if (url.pathname === '/health') return json(res, 200, status());
+
+  // contas: login, cadastro e vínculo do Discord (repassados à API interna do GBOT)
+  if (url.pathname.startsWith('/auth')) {
+    if (!auth) return json(res, 503, { error: 'este servidor está sem serviço de contas (GBOT_URL não configurada)' });
+    try {
+      if (await auth(req, res, url.pathname)) return;
+    } catch (err) {
+      console.error('[auth] erro inesperado', err);
+      if (!res.headersSent) return json(res, 500, { error: 'erro interno' });
+      return;
+    }
+  }
 
   // administração: lista as contas e dá fichas de presente (precisa de ADMIN_TOKEN)
   if (url.pathname.startsWith('/admin')) {
@@ -142,6 +203,12 @@ wss.on('close', () => clearInterval(heartbeat));
 http.listen(PORT, () => {
   console.log(`♠ ${NAME} ouvindo em ws://localhost:${PORT}`);
   console.log(accounts ? `   contas: ${accounts.count} em ${dataFile('accounts.json')}` : '   contas desligadas (mesas livres)');
+  if (auth) {
+    console.log(`   login pelo GBOT: ${GBOT_URL}`);
+    console.log(gbot?.canMoveMoney ? '   padocoins: ligados (conta de serviço configurada)' : '   padocoins: só leitura (sem GBOT_USER/GBOT_PASS)');
+  } else {
+    console.log('   sem GBOT_URL: jogo sem login e sem padocoins');
+  }
 });
 
 /**
