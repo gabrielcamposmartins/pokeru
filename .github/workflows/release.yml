@@ -1,19 +1,23 @@
 # Publica uma versão do cliente desktop.
 #
-# Só a main publica, e só por tag: ao criar `vX.Y.Z` na main, esta action compila o app assinado,
-# cria a release e sobe o instalador, o `.sig` e o `latest.json` — que é o arquivo consultado pelo
-# atualizador automático do jogo.
+# Só a main publica, e só por tag: ao criar `vX.Y.Z` na main, esta action compila o app, cria a
+# release e sobe o instalador — mais o `.sig` e o `latest.json` quando há chave de assinatura, que
+# é o que o atualizador automático do jogo consulta.
 #
 # A develop é de propósito sem action: lá o trabalho corre sem CI, e nada é publicado.
 #
-# Antes da primeira execução, configure os dois segredos do repositório (Settings → Secrets and
-# variables → Actions), com a chave gerada por `tauri signer generate`:
+# A assinatura do atualizador é **opcional** aqui, e a action não barra por causa dela. Com os
+# segredos configurados (Settings → Secrets and variables → Actions), a partir da chave gerada por
+# `tauri signer generate`:
 #
 #   TAURI_SIGNING_PRIVATE_KEY           conteúdo de ~/.tauri/pokeru-updater.key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  a senha da chave (vazio se ela não tiver)
 #
-# Sem eles o pacote sai sem assinatura e o atualizador dos jogadores recusa a versão — por isso o
-# primeiro passo confere que a chave está lá.
+# …a release sai com `.sig` e `latest.json`, e o app se atualiza sozinho. **Sem eles**, a action
+# publica o instalador do mesmo jeito, só sem os artefatos do atualizador — e avisa no resumo. O
+# que isso custa: quem já tem o jogo instalado não recebe esta versão sozinho, porque o atualizador
+# recusa pacote sem assinatura válida (e, sem `latest.json` na release mais nova, nem chega a
+# procurar). Dá para publicar assim e assinar depois, ou assinar na mão como em v0.3.0/v0.4.0.
 
 name: Release
 
@@ -35,14 +39,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: A chave de assinatura está configurada?
+      # Sem chave, o Tauri se recusa a gerar os artefatos do atualizador (a `tauri.conf.json` pede
+      # `createUpdaterArtifacts: true`). Então a gente os desliga por configuração, em vez de deixar
+      # a compilação falhar no meio.
+      - name: Tem chave de assinatura?
+        id: sign
         shell: bash
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          if [ -z "$KEY" ]; then
-            echo "::error::Falta o segredo TAURI_SIGNING_PRIVATE_KEY (veja 'Publicar uma versão' no README)."
-            exit 1
+          if [ -n "$KEY" ]; then
+            echo 'signed=true' >> "$GITHUB_OUTPUT"
+            echo 'args=' >> "$GITHUB_OUTPUT"
+            echo '✓ assinatura ligada: a release sai com .sig e latest.json' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'signed=false' >> "$GITHUB_OUTPUT"
+            echo 'args=--config {"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_OUTPUT"
+            echo "::warning::Sem TAURI_SIGNING_PRIVATE_KEY: a release sai sem assinatura e sem latest.json, então quem já tem o jogo não se atualiza sozinho."
+            {
+              echo '⚠ **Sem `TAURI_SIGNING_PRIVATE_KEY`.** O instalador foi publicado, mas sem'
+              echo '`.sig` nem `latest.json` — a atualização automática não enxerga esta versão.'
+              echo 'Configure os dois segredos do repositório para ligá-la.'
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: A tag está na main?
@@ -75,28 +93,28 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
 
-      - name: Compila, assina e publica
+      - name: Compila e publica
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          args: ${{ steps.sign.outputs.args }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
           releaseName: Pokeru __VERSION__
           releaseBody: |
-            Instalador do cliente desktop (Windows x64). O app **se atualiza sozinho**: quem já está
-            na 0.2.0 ou mais recente recebe esta versão ao abrir o jogo.
+            Instalador do cliente desktop (Windows x64).
+
+            ${{ steps.sign.outputs.signed == 'true' && 'O app **se atualiza sozinho**: quem já está na 0.2.0 ou mais recente recebe esta versão ao abrir o jogo. Os arquivos `latest.json` e `.sig` são o que o atualizador consulta.' || '**Esta versão saiu sem assinatura**, então a atualização automática não a enxerga: quem já tem o jogo instalado precisa baixar o instalador aqui.' }}
 
             Instalação manual: baixe e execute `Pokeru___VERSION___x64-setup.exe` (instala para o
             usuário atual, sem administrador). O instalador não é assinado com certificado de
             código, então o SmartScreen avisa — *Mais informações* → *Executar assim mesmo*.
-
-            Os arquivos `latest.json` e `.sig` são o que o atualizador consulta.
           releaseDraft: false
           prerelease: false
-          # gera e sobe o latest.json (o manifesto lido pelo atualizador)
-          includeUpdaterJson: true
+          # o latest.json só faz sentido assinado: sem chave, não há manifesto para publicar
+          includeUpdaterJson: ${{ steps.sign.outputs.signed == 'true' }}
 
   # Para publicar também macOS e Linux, troque o job acima por uma matriz:
   #

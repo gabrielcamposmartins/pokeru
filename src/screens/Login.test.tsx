@@ -69,6 +69,13 @@ describe('painel de login', () => {
     expect(panel({ serviceReady: true })).not.toContain('sem serviço de contas');
   });
 
+  it('sem TLS, avisa que a senha vai em claro — e só nesse caso', () => {
+    const html = panel({ insecure: true });
+    expect(html).toContain('ainda é sem TLS');
+    expect(html).toContain('senha vai em claro');
+    expect(panel({ insecure: false })).not.toContain('sem TLS');
+  });
+
   it('quando nem o servidor responde, diz o que fazer (certificado)', () => {
     const html = panel({ serviceReady: false, serviceError: 'Não foi possível falar com o servidor. Se ele usa certificado próprio, abra https://x/health uma vez e aceite o certificado.' });
     expect(html).toContain('aceite o certificado');

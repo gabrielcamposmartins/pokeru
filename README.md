@@ -143,12 +143,21 @@ qualquer um que alcance a porta cria uma conta e recebe o saldo inicial. Para um
 deixe o servidor numa rede privada (ou atrás de um proxy com autenticação), use senha nas salas e
 ajuste `MAX_ACCOUNTS`.
 
-### TLS
+### TLS (pendente no servidor oficial)
 
 Duas coisas passam pelo endereço do servidor e pedem TLS: a **senha** do jogador (no
 `/auth/login` e no `/auth/register`) e o **token** da sessão, em toda conexão de mesa. Sem TLS, os
 dois andam em claro na rede — a documentação do GBOT diz para nunca chamar `/login` por HTTP puro,
 e isso vale para o caminho inteiro.
+
+> **Estado de hoje:** o suporte está pronto dos dois lados e **desligado** no servidor oficial, que
+> atende em `ws://35.209.186.9:3001`. A autenticação funciona por HTTP, e a tela de entrada avisa,
+> em letras miúdas, que a senha vai em claro — use uma senha só deste jogo.
+>
+> Ficou pendente porque um certificado autoassinado obriga **cada máquina** a confiar nele uma vez,
+> e no app desktop isso quer dizer instalar o certificado na store do sistema (veja "Aceitar o
+> certificado"). Com um domínio apontando para a VM, um certificado do Let's Encrypt derruba esse
+> atrito: aí é subir o servidor com os dois caminhos e trocar `DEFAULT_SERVER_URL` para `wss://`.
 
 **Gerar o certificado** (uma vez, na máquina que vai hospedar):
 
@@ -239,6 +248,10 @@ usuário `node`, uid 1000 — com 600 ele não conseguiria ler), e o servidor en
 `gbot_default` para alcançar o bot em `http://bot:8090`. O par de chaves **não** está na imagem:
 entra por `-v /etc/pokeru/certs:/certs:ro`.
 
+O certificado e a montagem continuam lá; o que está desligado são as duas linhas `TLS_*` em
+`/etc/pokeru/server.env`. Para religar o TLS: descomente-as, `docker restart pokeru-server` e
+publique um cliente com `VITE_SERVER_URL=wss://35.209.186.9:3001`.
+
 ### Login, Discord e padocoins
 
 A API do GBOT é **interna** (não é exposta à internet) e o jogo roda na máquina do jogador, que não
@@ -283,8 +296,8 @@ existe para aquela conta, em vez de aparecer zerada. As compras em padocoin saem
 `/economy/debit` com `Idempotency-Key` fixa por conta+item, então um reenvio não cobra duas vezes.
 
 > **TLS.** A senha passa pelo gateway (só no login/cadastro, e não é guardada em lugar nenhum).
-> Sem `https`/`wss` ela vai em claro na rede. Veja "TLS", acima: `npm run cert` e os dois caminhos
-> no servidor.
+> Hoje o servidor oficial atende em HTTP, então ela vai em claro na rede — é a pendência descrita
+> em "TLS", acima, e a tela de entrada avisa quem está digitando.
 
 ### Loja
 
@@ -387,8 +400,8 @@ O pacote precisa estar **assinado**, senão o atualizador recusa. A chave públi
 ### Publicar uma versão
 
 A publicação é automática: **criar uma tag `vX.Y.Z` na main** dispara a action
-(`.github/workflows/release.yml`), que compila o app assinado, cria a release e sobe o instalador,
-o `.sig` e o `latest.json`.
+(`.github/workflows/release.yml`), que compila o app, cria a release e sobe o instalador — mais o
+`.sig` e o `latest.json` quando há chave de assinatura configurada.
 
 ```bash
 npm run version:set 0.2.1     # troca a versão nos três arquivos (e nos locks)
@@ -396,18 +409,24 @@ git commit -am "Versao 0.2.1" && git push origin main
 git tag v0.2.1 && git push origin v0.2.1
 ```
 
-Antes da primeira publicação, configure os dois segredos em **Settings → Secrets and variables →
-Actions**:
+A **assinatura é opcional** para a action rodar. Com os dois segredos em **Settings → Secrets and
+variables → Actions**, a release sai completa:
 
 | Segredo | Conteúdo |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY` | o arquivo `~/.tauri/pokeru-updater.key` inteiro |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | a senha da chave (vazio se ela não tiver) |
 
-A action confere, antes de compilar, se a chave está configurada, se a tag aponta para um commit da
-**main** e se os três arquivos de versão batem com a tag — e roda `typecheck` e os testes, para não
-publicar algo quebrado. Ela também aceita ser rodada à mão em *Actions → Release → Run workflow*
-(escolhendo a tag), útil para repetir uma publicação que falhou.
+Sem eles a action **publica o instalador do mesmo jeito**, sem `.sig` nem `latest.json`, e avisa no
+resumo do job. O que isso custa: quem já tem o jogo não recebe a versão sozinho — o atualizador
+recusa pacote sem assinatura válida e, sem `latest.json` na release mais nova, nem chega a procurar.
+Dá para publicar assim e assinar depois (é só subir os dois arquivos na release), ou publicar na mão
+como abaixo.
+
+A action confere se a tag aponta para um commit da **main** e se os três arquivos de versão batem
+com a tag — e roda `typecheck` e os testes, para não publicar algo quebrado. Ela também aceita ser
+rodada à mão em *Actions → Release → Run workflow* (escolhendo a tag), útil para repetir uma
+publicação que falhou.
 
 Hoje ela gera só o instalador de **Windows**; o fim do arquivo explica como transformar o job numa
 matriz com macOS e Linux.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAuth } from '../store/auth';
+import { insecureGateway, useAuth } from '../store/auth';
 import { CharacterStageView, Petals } from './MainMenu';
 import { sfx } from '../audio/sfx';
 
@@ -29,6 +29,7 @@ export function LoginPanel({
   busy,
   serviceReady,
   serviceError,
+  insecure,
   onMode,
   onUser,
   onPassword,
@@ -45,6 +46,8 @@ export function LoginPanel({
   serviceReady: boolean;
   /** Por que o serviço não respondeu (certificado não aceito, servidor fora do ar…). */
   serviceError?: string | null;
+  /** O caminho até o servidor é sem TLS? (a senha vai em claro na rede) */
+  insecure?: boolean;
   onMode: (m: LoginMode) => void;
   onUser: (v: string) => void;
   onPassword: (v: string) => void;
@@ -121,6 +124,13 @@ export function LoginPanel({
         Guarda seu usuário e a sessão (o token) cifrados aqui. <b>A senha não é salva</b> — ela serve só para entrar.
       </p>
 
+      {/* sem TLS a senha atravessa a rede em claro: quem digita merece saber antes */}
+      {insecure && (
+        <p className="field-hint login-plain">
+          A conexão com o servidor <b>ainda é sem TLS</b>: a senha vai em claro na rede. Use uma senha só deste jogo.
+        </p>
+      )}
+
       {error && <div className="login-error">{error}</div>}
 
       <div className="row gap center login-actions">
@@ -144,6 +154,7 @@ export function LoginPanel({
 /** A tela, ligada na loja de login. */
 export function LoginScreen() {
   const { status, user: saved, remember, error, serviceReady, serviceError, setRemember, signIn, register, continueOffline } = useAuth();
+  const insecure = insecureGateway();
   const [mode, setMode] = useState<LoginMode>('in');
   const [user, setUser] = useState(saved ?? '');
   const [password, setPassword] = useState('');
@@ -168,6 +179,7 @@ export function LoginScreen() {
           busy={status === 'signing' || status === 'restoring'}
           serviceReady={serviceReady}
           serviceError={serviceError}
+          insecure={insecure}
           onMode={(m) => {
             sfx.hover();
             setMode(m);

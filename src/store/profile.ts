@@ -107,21 +107,26 @@ interface ProfileState {
 }
 
 /**
- * Servidor oficial do Pokeru: o IP fixo da VM, por **wss://** (TLS).
+ * Servidor oficial do Pokeru: o IP fixo da VM.
  *
- * É `wss` porque a senha do login passa por este endereço (no gateway `/auth/login`) e o token da
- * sessão viaja em toda conexão de mesa. O servidor termina o TLS com um certificado autoassinado
- * (veja `npm run cert` e "TLS" no README); cada máquina precisa aceitá-lo uma vez.
+ * Hoje é **`ws://`**, e isso é uma pendência conhecida, não um descuido: a senha do login (no
+ * gateway `/auth/login`) e o token da sessão viajam por aqui, e sem TLS eles vão em claro na rede.
+ * O suporte a TLS está pronto dos dois lados — é só o servidor subir com `TLS_CERT_PATH` e
+ * `TLS_KEY_PATH` (veja `npm run cert` e "TLS" no README) e trocar este endereço por `wss://`.
+ *
+ * Ficou para depois porque um certificado autoassinado obriga **cada máquina** a confiar nele uma
+ * vez, e no app desktop isso quer dizer instalar o certificado na store do sistema. Com um domínio
+ * e um certificado público (Let's Encrypt), o passo desaparece e a troca é esta linha.
  *
  * O jogador **não escolhe** endereço: o jogo fala sempre com o servidor oficial, e o que ele
  * escolhe é a *sala* (veja a lista de salas no lobby). Quem hospeda um servidor próprio aponta o
  * app na hora de montá-lo, não em tempo de uso:
  *
  *   - `config.js` servido pelo servidor web do cliente (POKERU_SERVER_URL no Docker);
- *   - `VITE_SERVER_URL=ws://localhost:3001` no build (é como se desenvolve contra um servidor
- *     local, sem certificado).
+ *   - `VITE_SERVER_URL=wss://meu-host:3001` no build (é assim que se aponta para um servidor com
+ *     TLS, ou para um local em `ws://localhost:3001`).
  */
-export const DEFAULT_SERVER_URL = 'wss://35.209.186.9:3001';
+export const DEFAULT_SERVER_URL = 'ws://35.209.186.9:3001';
 
 /** O endereço que este app usa — decidido no build/hospedagem, nunca digitado pelo jogador. */
 export const SERVER_URL: string =

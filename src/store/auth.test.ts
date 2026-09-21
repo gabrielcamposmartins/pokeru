@@ -251,3 +251,22 @@ describe('vincular o Discord', () => {
     expect(await useAuth.getState().discordLink('aB3xZ')).toMatch(/entre na sua conta/);
   });
 });
+
+describe('caminho sem TLS', () => {
+  it('http para outro host é sem TLS: a senha atravessa a rede em claro', async () => {
+    const { insecureGateway } = await import('./auth');
+    expect(insecureGateway('http://35.209.186.9:3001')).toBe(true);
+    expect(insecureGateway('http://poker.exemplo.com')).toBe(true);
+  });
+
+  it('localhost não conta: o tráfego não sai da máquina', async () => {
+    const { insecureGateway } = await import('./auth');
+    expect(insecureGateway('http://localhost:3001')).toBe(false);
+    expect(insecureGateway('http://127.0.0.1:3001')).toBe(false);
+  });
+
+  it('https nunca é sem TLS', async () => {
+    const { insecureGateway } = await import('./auth');
+    expect(insecureGateway('https://35.209.186.9:3001')).toBe(false);
+  });
+});

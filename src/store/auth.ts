@@ -24,6 +24,20 @@ export function gatewayFor(serverUrl: string): string {
 /** Endereço do serviço de contas. `VITE_AUTH_URL` sobrepõe (útil para desenvolver). */
 export const AUTH_URL: string = import.meta.env?.VITE_AUTH_URL || gatewayFor(SERVER_URL);
 
+/**
+ * O caminho até o serviço de contas é sem TLS?
+ *
+ * Interessa porque a **senha** passa por ele. Em `localhost` não muda nada (o tráfego não sai da
+ * máquina), mas indo para outro host em `http://` ela vai em claro na rede — e quem digita tem o
+ * direito de saber disso antes de reusar uma senha importante. A tela mostra um aviso curto; a
+ * solução é o servidor subir com TLS (veja "TLS" no README).
+ */
+export function insecureGateway(url = AUTH_URL): boolean {
+  if (!url.startsWith('http://')) return false;
+  const host = url.slice(7).replace(/[:/].*$/, '');
+  return host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]';
+}
+
 export type AuthStatus = 'anon' | 'restoring' | 'signing' | 'logged' | 'offline';
 
 /** As claims que o jogo usa da sessão (lidas do JWT só para mostrar). */
