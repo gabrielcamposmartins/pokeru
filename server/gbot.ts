@@ -51,6 +51,25 @@ export interface GbotMove {
   after: number;
 }
 
+/**
+ * A API embrulha alguns objetos numa chave (`{"user": {…}}`, `{"account": {…}}`) e outros não
+ * (`/login`, `/users`). A documentação mostra a forma solta, o servidor responde embrulhada — e ler
+ * o campo errado não dá erro nenhum: vem `undefined`, atravessa o código e aparece como
+ * "saldo indisponível" três telas depois. Por isso desembrulhar é tolerante nas duas direções.
+ */
+function unwrap<T>(body: unknown, key: string): T {
+  if (body && typeof body === 'object' && !Array.isArray(body) && key in (body as object)) {
+    const inner = (body as Record<string, unknown>)[key];
+    if (inner && typeof inner === 'object') return inner as T;
+  }
+  return body as T;
+}
+
+/** Número que veio da rede, ou null quando não é número — `undefined` silencioso é o inimigo. */
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
 /** Erro da API, com o status HTTP e a mensagem que ela mandou (em português). */
 export class GbotError extends Error {
   constructor(
@@ -138,16 +157,17 @@ export class Gbot {
 
   // ------------------------------------------------------------------ contas
 
-  createAccount(username: string, password: string): Promise<GbotAccount> {
-    return this.call<GbotAccount>('POST', '/accounts', { username, password });
+  async createAccount(username: string, password: string): Promise<GbotAccount> {
+    return unwrap<GbotAccount>(await this.call('POST', '/accounts', { username, password }), 'account');
   }
 
   login(username: string, password: string): Promise<GbotLogin> {
     return this.call<GbotLogin>('POST', '/login', { username, password });
   }
 
-  me(token: string): Promise<GbotAccount & { balance?: number }> {
-    return this.call('GET', '/me', undefined, this.bearer(token));
+  /** A conta de quem está com o token. É por aqui que se confirma um vínculo feito após o login. */
+  async me(token: string): Promise<GbotAccount & { balance?: number }> {
+    return unwrap(await this.call('GET', '/me', undefined, this.bearer(token)), 'account');
   }
 
   /** Pede o código de vínculo: o bot manda 5 caracteres na DM daquele Discord. */
@@ -156,12 +176,12 @@ export class Gbot {
   }
 
   /** Conclui o vínculo, como o jogador (o token dele é quem diz qual conta é). */
-  link(playerToken: string, code: string): Promise<GbotAccount> {
-    return this.call<GbotAccount>('POST', '/accounts/link', { code }, this.bearer(playerToken));
+  async link(playerToken: string, code: string): Promise<GbotAccount> {
+    return unwrap<GbotAccount>(await this.call('POST', '/accounts/link', { code }, this.bearer(playerToken)), 'account');
   }
 
-  unlink(playerToken: string): Promise<GbotAccount> {
-    return this.call<GbotAccount>('POST', '/accounts/unlink', undefined, this.bearer(playerToken));
+  async unlink(playerToken: string): Promise<GbotAccount> {
+    return unwrap<GbotAccount>(await this.call('POST', '/accounts/unlink', undefined, this.bearer(playerToken)), 'account');
   }
 
   changePassword(playerToken: string, current_password: string, new_password: string): Promise<{ ok: boolean }> {
@@ -190,9 +210,28 @@ export class Gbot {
   async user(discordId: string): Promise<GbotUser | null> {
     try {
       const token = this.canMoveMoney ? await this.serviceToken() : null;
-      const user = await this.call<GbotUser>('GET', `/user/${encodeURIComponent(discordId)}`, undefined, token ? this.bearer(token) : {});
+      const body = await this.call('GET', `/user/${encodeURIComponent(discordId)}`, undefined, token ? this.bearer(token) : {});
+      const user = unwrap<GbotUser>(body, 'user');
+      const balance = num(user?.balance);
+      // saldo que não é número é resposta que não entendemos: melhor falhar do que mostrar vazio
+      if (balance === null) throw new GbotError(502, `o serviço respondeu um saldo que não é número para ${discordId}`);
       // puuid é dado pessoal da Riot e não tem uso aqui: fica de fora
-      return { user_id: user.user_id, username: user.username, nickname: user.nickname ?? null, balance: user.balance };
+      return { user_id: user.user_id ?? discordId, username: user.username, nickname: user.nickname ?? null, balance };
+    } catch (err) {
+      if (err instanceof GbotError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** Mesma leitura, pelo nome no Discord. Serve de rede quando o id não acha ninguém. */
+  async userByName(username: string): Promise<GbotUser | null> {
+    try {
+      const token = this.canMoveMoney ? await this.serviceToken() : null;
+      const body = await this.call('GET', `/user/username/${encodeURIComponent(username)}`, undefined, token ? this.bearer(token) : {});
+      const user = unwrap<GbotUser>(body, 'user');
+      const balance = num(user?.balance);
+      if (balance === null) throw new GbotError(502, `o serviço respondeu um saldo que não é número para ${username}`);
+      return { user_id: user.user_id, username: user.username, nickname: user.nickname ?? null, balance };
     } catch (err) {
       if (err instanceof GbotError && err.status === 404) return null;
       throw err;
@@ -204,12 +243,29 @@ export class Gbot {
    * repetida, o GBOT devolve a resposta guardada em vez de debitar duas vezes.
    */
   async debit(discordId: string, quantity: number, reason: string, key: string = randomUUID()): Promise<GbotMove> {
-    const token = await this.serviceToken();
-    return this.call<GbotMove>('POST', '/economy/debit', { id: discordId, quantity, reason }, { ...this.bearer(token), 'Idempotency-Key': key });
+    return this.move('debit', discordId, quantity, reason, key);
   }
 
   async credit(discordId: string, quantity: number, reason: string, key: string = randomUUID()): Promise<GbotMove> {
+    return this.move('credit', discordId, quantity, reason, key);
+  }
+
+  /**
+   * Move padocoins e devolve o saldo depois.
+   *
+   * Se a resposta não trouxer o saldo num formato que a gente entenda, o valor é relido em
+   * `/user/{id}` em vez de virar `undefined` — o movimento já aconteceu, e o que não pode é o jogo
+   * passar a mostrar um saldo inventado por causa do formato da resposta.
+   */
+  private async move(op: 'debit' | 'credit', discordId: string, quantity: number, reason: string, key: string): Promise<GbotMove> {
     const token = await this.serviceToken();
-    return this.call<GbotMove>('POST', '/economy/credit', { id: discordId, quantity, reason }, { ...this.bearer(token), 'Idempotency-Key': key });
+    const body = await this.call('POST', `/economy/${op}`, { id: discordId, quantity, reason }, { ...this.bearer(token), 'Idempotency-Key': key });
+    const move = unwrap<GbotMove>(body, 'user');
+    const after = num(move?.after);
+    if (after !== null) return { ok: true, user_id: move.user_id ?? discordId, before: num(move.before) ?? after + (op === 'debit' ? quantity : -quantity), after };
+    console.warn(`[padocoin] ${op} respondeu num formato inesperado; relendo o saldo de ${discordId}`);
+    const relido = await this.user(discordId);
+    const saldo = relido?.balance ?? 0;
+    return { ok: true, user_id: discordId, before: saldo + (op === 'debit' ? quantity : -quantity), after: saldo };
   }
 }

@@ -262,7 +262,13 @@ export class Accounts implements AccountService {
 
   // -------------------------------------------------------------- padocoins
 
-  /** Relê o saldo de padocoins no GBOT (silencioso: sem Discord ou sem GBOT, não há o que ler). */
+  /**
+   * Relê o saldo de padocoins no GBOT (silencioso: sem Discord ou sem GBOT, não há o que ler).
+   *
+   * A leitura também é de onde vem o **nome no Discord**: o vínculo é confirmado pela API de
+   * contas, que só sabe o nome da conta do jogo (`gabs`), enquanto a economia sabe o do Discord
+   * (`gabss2` / `Mogab`) — que é o nome que a pessoa reconhece.
+   */
   async refreshPado(accountId: string, force = false): Promise<number | null> {
     const acc = this.byId(accountId);
     const gbot = this.opts.gbot;
@@ -270,20 +276,24 @@ export class Accounts implements AccountService {
     const seen = this.pado.get(accountId);
     if (!force && seen && Date.now() - seen.at < PADO_TTL_MS) return seen.value;
     try {
-      const user = await gbot.user(acc.discord.id);
+      // pelo id primeiro; pelo nome como rede, para um id que a economia não indexa
+      const user = (await gbot.user(acc.discord.id)) ?? (acc.discord.username ? await gbot.userByName(acc.discord.username) : null);
       if (!user) {
         // Discord vinculado mas sem linha na economia: ainda não tem padocoin nenhum
+        console.log(`[padocoin] ${acc.name}: ${acc.discord.id} não tem conta na economia do bot (saldo 0)`);
         this.pado.set(accountId, { value: 0, at: Date.now() });
         return 0;
       }
       this.pado.set(accountId, { value: user.balance, at: Date.now() });
-      if (user.nickname && acc.discord.nickname !== user.nickname) {
-        acc.discord = { ...acc.discord, nickname: user.nickname };
+      // o nome de verdade é o do Discord, e vem daqui
+      const nome = user.username || acc.discord.username;
+      if (nome !== acc.discord.username || (user.nickname ?? null) !== acc.discord.nickname) {
+        acc.discord = { ...acc.discord, username: nome, nickname: user.nickname ?? null };
         this.store.touch();
       }
       return user.balance;
     } catch (err) {
-      console.warn('[padocoin] não deu para ler o saldo:', err instanceof Error ? err.message : err);
+      console.warn(`[padocoin] não deu para ler o saldo de ${acc.discord.id}:`, err instanceof Error ? err.message : err);
       return seen?.value ?? null;
     }
   }
