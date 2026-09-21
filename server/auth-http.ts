@@ -178,21 +178,38 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
         // exige sessão: sem isso, qualquer um mandaria DM para qualquer id pelo nosso servidor
         const caller = await who(req, res);
         if (!caller) return true;
-        const id = str(body.discordId ?? body.id, 32);
-        if (!/^\d{5,25}$/.test(id)) {
-          fail(res, 400, 'o id do Discord é só números (ative o modo desenvolvedor e copie o id)');
+        const entrada = str(body.discordId ?? body.id ?? body.username, 40);
+        if (!entrada) {
+          fail(res, 400, 'informe seu usuário do Discord (ou o id)');
           return true;
+        }
+        /**
+         * Aceita o **nome de usuário** (`gabss2`) além do id numérico. O nome é o que a pessoa
+         * sabe de cor; o id exige ligar o modo desenvolvedor e copiar 18 dígitos. A economia do bot
+         * indexa pelos dois, então resolvemos o nome aqui e seguimos pelo id — que é o que o
+         * `POST /auth` e o vínculo usam.
+         */
+        let id = entrada;
+        if (!/^\d{5,25}$/.test(entrada)) {
+          const achado = await gbot.userByName(entrada.replace(/^@/, '')).catch(() => null);
+          if (!achado?.user_id) {
+            console.warn(`[discord] nome "${entrada}" não achado na economia (conta ${caller.sub})`);
+            fail(res, 404, `não encontrei "${entrada}" no servidor do bot. Confira o nome de usuário do Discord (não o apelido) — ou use o id numérico.`);
+            return true;
+          }
+          id = achado.user_id;
+          console.log(`[discord] "${entrada}" resolvido para ${id} (conta ${caller.sub})`);
         }
         try {
           await gbot.requestLinkCode(id);
           console.log(`[discord] código pedido para ${id} (conta ${caller.sub})`);
-          send(res, 200, { ok: true });
+          send(res, 200, { ok: true, discordId: id });
         } catch (err) {
           const status = err instanceof GbotError ? err.status : 0;
           console.warn(`[discord] pedido de código para ${id} (conta ${caller.sub}) falhou: ${status} ${err instanceof Error ? err.message : err}`);
           relay(res, err, 'não foi possível pedir o código', {
-            404: 'o bot não conhece esse id do Discord. Confira o id e se você está no servidor onde o bot está — ele precisa ter visto você para mandar a DM.',
-            400: 'o id do Discord não parece válido: são só números (Configurações → Avançado → Modo desenvolvedor, e "Copiar id do usuário").',
+            404: 'o bot não conhece essa conta do Discord. Confira o nome e se você está no servidor onde o bot está — ele precisa ter visto você para mandar a DM.',
+            400: 'não entendi essa conta do Discord. Tente o nome de usuário (como `gabss2`) ou o id numérico.',
           });
         }
         return true;

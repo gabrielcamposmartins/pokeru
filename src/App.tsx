@@ -26,6 +26,9 @@ export function App() {
   const room = useSession((s) => s.room);
   const mode = useSession((s) => s.mode);
   const botsPending = useSession((s) => s.botsPending);
+  const connStatus = useSession((s) => s.status);
+  const connError = useSession((s) => s.connError);
+  const connectOnline = useSession((s) => s.connectOnline);
   const volume = useProfile((s) => s.settings.volume);
   const muted = useProfile((s) => s.settings.muted);
   const voices = useProfile((s) => s.settings.voices);
@@ -38,6 +41,21 @@ export function App() {
   useEffect(() => {
     void restore();
   }, [restore]);
+
+  /**
+   * Passou da tela de entrada: liga no servidor e deixa a conexão de pé.
+   *
+   * A conta do jogador — fichas, padocoins, itens — só existe enquanto há conexão. Antes disso o
+   * jogo conectava só ao abrir **Salas**, então o menu, a loja e as Configurações apareciam sem
+   * nada disso: quem tinha padocoins lia "saldo indisponível".
+   *
+   * Uma tentativa por sessão: se o servidor não responder, `connError` fica preenchido e quem
+   * insiste é o botão em Salas — não um laço de reconexão no menu.
+   */
+  const passouDoLogin = authStatus === 'logged' || authStatus === 'offline';
+  useEffect(() => {
+    if (passouDoLogin && connStatus === 'idle' && !connError) connectOnline();
+  }, [passouDoLogin, connStatus, connError, connectOnline]);
 
   // tema da interface: o CSS de cada tema vale sob <html data-ui="…">
   useEffect(() => {

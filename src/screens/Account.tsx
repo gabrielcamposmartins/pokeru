@@ -27,6 +27,7 @@ export function AccountSection() {
   const pado = usePado();
 
   const [step, setStep] = useState<'idle' | 'id' | 'code'>('idle');
+  /** O que a pessoa digitou: nome de usuário do Discord ou o id numérico — o servidor resolve. */
   const [id, setId] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -137,10 +138,18 @@ export function AccountSection() {
               setStep('code');
             }}
           >
-            <span className="field-label">Seu id do Discord</span>
+            <span className="field-label">Seu usuário do Discord</span>
             <div className="row gap">
-              <input className="input grow" value={id} maxLength={25} placeholder="343954786300854276" inputMode="numeric" onChange={(e) => setId(e.target.value.replace(/\D/g, ''))} />
-              <button className="btn btn-pink small" disabled={busy || id.trim().length < 5}>
+              <input
+                className="input grow"
+                value={id}
+                maxLength={40}
+                placeholder="gabss2"
+                autoCapitalize="none"
+                spellCheck={false}
+                onChange={(e) => setId(e.target.value.trim())}
+              />
+              <button className="btn btn-pink small" disabled={busy || id.trim().length < 2}>
                 {busy ? 'Enviando…' : 'Enviar código'}
               </button>
               <button type="button" className="btn btn-ghost small" onClick={() => setStep('idle')}>
@@ -148,7 +157,8 @@ export function AccountSection() {
               </button>
             </div>
             <div className="field-hint">
-              No Discord: <b>Configurações → Avançado → Modo desenvolvedor</b>, depois clique no seu nome e em <b>Copiar id do usuário</b>.
+              O <b>nome de usuário</b> do Discord (aquele sem espaços, como <code>gabss2</code>) — não o apelido no servidor. O id numérico
+              também serve, se preferir.
               <br />
               O bot precisa conseguir te mandar DM: esteja no servidor dele e com as mensagens diretas abertas.
             </div>

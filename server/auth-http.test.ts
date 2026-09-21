@@ -93,15 +93,59 @@ describe('gateway: pedir o código do Discord', () => {
   it('id que o bot não conhece: explica, em vez de repetir "Not Found"', async () => {
     const { out } = await call({ '/auth': { status: 404, body: { response: 'Not Found' } } }, 'POST', '/auth/discord/code', { discordId: '000000000000000001' });
     expect(out.status).toBe(404);
-    expect(out.body?.error).toMatch(/não conhece esse id/);
+    expect(out.body?.error).toMatch(/não conhece essa conta do Discord/);
     expect(out.body?.error).toMatch(/servidor onde o bot está/);
     expect(out.body?.error).not.toMatch(/Not Found/);
   });
 
-  it('id que não é número nem chega ao bot', async () => {
-    const { out, calls } = await call({}, 'POST', '/auth/discord/code', { discordId: 'meu-nome#1234' });
+  it('aceita o nome de usuário e resolve para o id — é o que a pessoa sabe de cor', async () => {
+    const economia = { user: { user_id: '295369928049950720', username: 'gabss2', nickname: 'Mogab', balance: 4989.31 } };
+    const { out, calls } = await call(
+      {
+        '/login': { body: { token: 's', token_type: 'Bearer', expires_in: 3600, account: { id: 1, username: 'pokeru', discord_id: null } } },
+        '/user/username/gabss2': { body: economia },
+        '/auth': { body: { ok: true } },
+      },
+      'POST',
+      '/auth/discord/code',
+      { username: 'gabss2' },
+    );
+    expect(out.status).toBe(200);
+    expect(out.body?.discordId).toBe('295369928049950720');
+    // o pedido de código foi pelo id, que é o que o bot usa
+    expect(calls.find((c) => c.path === '/auth')?.body).toEqual({ id: '295369928049950720' });
+  });
+
+  it('o @ na frente do nome não estraga', async () => {
+    const { out } = await call(
+      {
+        '/login': { body: { token: 's', token_type: 'Bearer', expires_in: 3600, account: { id: 1, username: 'pokeru', discord_id: null } } },
+        '/user/username/dokidoki_tt': { body: { user: { user_id: '417163667092668417', username: 'dokidoki_tt', balance: 481 } } },
+        '/auth': { body: { ok: true } },
+      },
+      'POST',
+      '/auth/discord/code',
+      { username: '@dokidoki_tt' },
+    );
+    expect(out.status).toBe(200);
+    expect(out.body?.discordId).toBe('417163667092668417');
+  });
+
+  it('nome que não existe na economia explica o que conferir', async () => {
+    const { out } = await call(
+      { '/login': { body: { token: 's', token_type: 'Bearer', expires_in: 3600, account: { id: 1, username: 'pokeru', discord_id: null } } } },
+      'POST',
+      '/auth/discord/code',
+      { username: 'ninguem-aqui' },
+    );
+    expect(out.status).toBe(404);
+    expect(out.body?.error).toMatch(/não encontrei "ninguem-aqui"/);
+    expect(out.body?.error).toMatch(/não o apelido/);
+  });
+
+  it('campo vazio não chega ao bot', async () => {
+    const { out, calls } = await call({}, 'POST', '/auth/discord/code', { username: '  ' });
     expect(out.status).toBe(400);
-    expect(out.body?.error).toMatch(/só números/);
     expect(calls).toEqual([]);
   });
 

@@ -48,9 +48,14 @@ export function useOwnsKey(key: string): boolean {
 /**
  * Padocoins da conta. `null` quando não há Discord vinculado — e aí a moeda simplesmente não
  * aparece no jogo, em vez de aparecer zerada.
+ *
+ * Sem conexão vale o último valor visto naquele servidor, como acontece com as fichas: a segunda
+ * moeda não deve piscar para fora da tela a cada reconexão.
  */
 export function usePado(): number | null {
-  return useSession((s) => s.account?.pado ?? null);
+  const live = useSession((s) => s.account);
+  const cached = useProfile((s) => s.accounts[SERVER_URL]?.pado ?? null);
+  return live ? live.pado : cached;
 }
 
 /** O Discord vinculado, segundo o servidor. */

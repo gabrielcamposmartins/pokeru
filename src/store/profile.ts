@@ -80,6 +80,8 @@ export interface ServerAccount {
    * trancado enquanto a conexão não veio; quem manda de verdade é sempre o servidor.
    */
   owned?: string[];
+  /** Último saldo de padocoins visto (null = sem Discord vinculado). */
+  pado?: number | null;
 }
 
 interface ProfileState {

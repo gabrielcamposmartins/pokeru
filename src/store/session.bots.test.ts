@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BOT_CONNECT_MS, net, useSession } from './session';
 import { useTable } from './table';
 import { connectLocal, type Transport, type TransportHandlers } from '../net/transport';
-import type { ServerMsg } from '../../shared/protocol';
+import { DEFAULT_SETTINGS, type ServerMsg } from '../../shared/protocol';
 
 /**
  * Partida contra bots: quem manda é o servidor. Só quando ele não dá conta é que a mesma partida
@@ -109,10 +109,11 @@ describe('partida contra bots', () => {
     };
     useSession.getState().startBots(OPTS);
 
-    // antes do prazo, ainda está esperando o servidor (e o menu segue na frente)
+    // antes do prazo, ainda está esperando o servidor (e o menu segue na frente). O modo só vira
+    // 'online' quando a sala nasce: estar conectado, por si, é só estar no lobby.
     await vi.advanceTimersByTimeAsync(BOT_CONNECT_MS - 100);
-    expect(useSession.getState().mode).toBe('online');
     expect(useSession.getState().botsPending).toBe(true);
+    expect(useSession.getState().mode).toBe('none');
 
     await vi.advanceTimersByTimeAsync(3000);
     expect(useSession.getState().mode).toBe('local');
@@ -153,5 +154,64 @@ describe('partida contra bots', () => {
     expect(s.mode).toBe('none');
     expect(s.connError).toBe('Conexão perdida');
     expect(s.offline).toBe(false);
+  });
+});
+
+/**
+ * A conta no menu — o sintoma que apareceu no teste com gente de verdade.
+ *
+ * O jogador vinculava o Discord, o servidor lia os 4.989 padocoins e a tela continuava dizendo
+ * "saldo indisponível": a conta só existe enquanto há conexão, e o jogo conectava **apenas** ao
+ * abrir Salas. No menu, nas Configurações e na loja não havia conexão nenhuma — e portanto nem
+ * fichas, nem padocoins, nem itens.
+ */
+describe('conexão do lobby', () => {
+  it('conectar não põe o jogador "em jogo": o menu continua sendo o menu', async () => {
+    net.ws = (_url, h) => connectLocal(h);
+    useSession.getState().connectOnline();
+    await vi.advanceTimersByTimeAsync(200);
+
+    const s = useSession.getState();
+    expect(s.status).toBe('connected');
+    // é isto que deixa o App mostrar o menu, e não a tela de Salas
+    expect(s.mode).toBe('none');
+    expect(s.room).toBeNull();
+  });
+
+  it('a conta chega sem passar por sala nenhuma', async () => {
+    net.ws = (_url, h) => connectLocal(h);
+    useSession.getState().connectOnline();
+    await vi.advanceTimersByTimeAsync(200);
+
+    // o Lobby local não tem serviço de contas, então aqui a conta é nula de propósito;
+    // o que importa é que o caminho existe e o `hello` já foi trocado
+    expect(useSession.getState().playerId).toBeTruthy();
+    expect(useSession.getState().serverName).toBeTruthy();
+  });
+
+  it('entrar numa sala é o que muda o modo; sair volta ao menu com a conexão de pé', async () => {
+    net.ws = (_url, h) => connectLocal(h);
+    useSession.getState().connectOnline();
+    await vi.advanceTimersByTimeAsync(200);
+
+    useSession.getState().send({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, name: 'Mesa' } });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(useSession.getState().mode).toBe('online');
+    expect(useSession.getState().room).toBeTruthy();
+
+    useSession.getState().leaveRoom();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(useSession.getState().mode).toBe('none');
+    expect(useSession.getState().room).toBeNull();
+    // e segue conectado: a conta não desaparece do menu ao sair da sala
+    expect(useSession.getState().status).toBe('connected');
+  });
+
+  it('a partida offline continua sendo local, mesmo recebendo `room`', async () => {
+    useSession.getState().startLocal(OPTS);
+    await vi.advanceTimersByTimeAsync(2000);
+    // é por este modo que sair da partida fecha a sala e para os bots
+    expect(useSession.getState().mode).toBe('local');
+    expect(useSession.getState().room).toBeTruthy();
   });
 });

@@ -66,7 +66,14 @@ interface SessionState {
   room: RoomInfo | null;
   chat: ChatLine[];
   toasts: Toast[];
-  /** Liga no servidor oficial (o jogador não escolhe endereço: ele escolhe sala). */
+  /**
+   * Liga no servidor oficial (o jogador não escolhe endereço: ele escolhe sala).
+   *
+   * É chamado assim que o jogador passa da tela de entrada, e a conexão fica de pé no menu: a
+   * conta — fichas, padocoins, itens — só existe enquanto há conexão, e antes disso o jogo abria o
+   * menu, a loja e as Configurações sem nada disso, mostrando "saldo indisponível" a quem tinha
+   * saldo. Conectar não muda o `mode`: quem manda na tela é a navegação.
+   */
   connectOnline(): void;
   /** Partida contra bots: no servidor, e no seu computador se ele não responder. */
   startBots(o: LocalOptions): void;
@@ -175,7 +182,9 @@ function handle(m: ServerMsg): void {
         const token = m.account.token ?? known?.token;
         // saldo e itens ficam guardados junto: é o que as telas mostram antes de conectar
         if (token) {
-          useProfile.getState().setAccount(server, { id: m.account.id, token, money: m.account.money, owned: m.account.owned });
+          // o padocoin entra junto (inclusive como null, quando não há Discord vinculado): a barra
+          // não deve perder a segunda moeda a cada reconexão, nem inventá-la para quem desvinculou
+          useProfile.getState().setAccount(server, { id: m.account.id, token, money: m.account.money, owned: m.account.owned, pado: m.account.pado });
         }
       }
       set({ account: { ...m.account, token: undefined } });
@@ -187,8 +196,14 @@ function handle(m: ServerMsg): void {
       set({ rooms: m.rooms });
       break;
     case 'room':
-      // a mesa começou: sai o "sentando à mesa" e entra a mesa
-      set({ room: m.room, ...(m.room.status === 'waiting' ? {} : { botsPending: false }) });
+      // Entrar numa sala é o que põe o jogador "em jogo" — conectado, por si, é só estar no lobby.
+      // A partida offline também recebe `room` (é o mesmo Lobby rodando no navegador), e ali o modo
+      // tem de continuar 'local': é por ele que sair da partida fecha a sala e para os bots.
+      set((s) => ({
+        mode: s.mode === 'local' ? 'local' : 'online',
+        room: m.room,
+        ...(m.room.status === 'waiting' ? {} : { botsPending: false }),
+      }));
       // a sala nasceu: senta os bots e começa. Daqui para frente, quem manda na mesa é o servidor.
       if (botMatch?.step === 'create' && m.room.status === 'waiting') {
         const o = botMatch.o;
@@ -197,7 +212,8 @@ function handle(m: ServerMsg): void {
       }
       break;
     case 'left':
-      set({ room: null, chat: [] });
+      // saiu da sala, mas segue conectado: volta para o menu com a conta ainda viva
+      set({ mode: 'none', room: null, chat: [] });
       director.reset();
       break;
     case 'sync':
@@ -255,7 +271,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     // até o servidor mandar uma conta, o vínculo é do cliente (servidor sem contas continua assim)
     director.serverBond = false;
     useBond.getState().clearServer();
-    set({ mode: 'online', status: 'connecting', serverUrl: SERVER_URL, account: null, connError: null, offline: false });
+    set({ status: 'connecting', serverUrl: SERVER_URL, account: null, connError: null, offline: false });
     const t = net.ws(SERVER_URL, {
       onMessage: handle,
       onOpen: () => t.send(hello(SERVER_URL)),
@@ -266,19 +282,29 @@ export const useSession = create<SessionState>()((set, get) => ({
           fallbackToLocal(reason);
           return;
         }
+        const emJogo = !!get().room;
         transport = null;
         director.reset();
         set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], connError: reason });
-        get().toast(reason, 'error');
+        // cair no meio de uma partida é notícia; não achar o servidor no menu, não — a tela de
+        // Salas mostra o motivo e oferece tentar de novo, e a barra de moedas se marca como velha
+        if (emJogo) get().toast(reason, 'error');
       },
     });
     transport = t;
   },
 
   startBots(o) {
-    get().connectOnline();
-    set({ botsPending: true });
-    botMatch = { o, step: 'connect' };
+    // reaproveita a conexão do lobby quando já existe: reconectar perderia a conta por um instante
+    if (get().status === 'connected' && transport) {
+      set({ botsPending: true, offline: false });
+      botMatch = { o, step: 'create' };
+      transport.send({ type: 'createRoom', settings: { ...botRoomSettings(o, 'Treino contra bots'), listed: false } });
+    } else {
+      get().connectOnline();
+      set({ botsPending: true });
+      botMatch = { o, step: 'connect' };
+    }
     // se o servidor não abrir a mesa nesse tempo, a partida começa aqui mesmo
     botTimer = setTimeout(() => fallbackToLocal('O servidor não respondeu'), BOT_CONNECT_MS);
   },

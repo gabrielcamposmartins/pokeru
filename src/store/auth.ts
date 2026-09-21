@@ -102,8 +102,11 @@ export interface AuthState {
   continueOffline(): void;
   /** Sai: esquece a sessão guardada. */
   signOut(): Promise<void>;
-  /** Pede ao bot o código de vínculo, que chega na DM daquele Discord. */
-  discordCode(discordId: string): Promise<string | null>;
+  /**
+   * Pede ao bot o código de vínculo, que chega na DM daquele Discord. Aceita o **nome de usuário**
+   * (`gabss2`) ou o id numérico — quem resolve o nome é o servidor.
+   */
+  discordCode(quem: string): Promise<string | null>;
   /** Conclui o vínculo com o código da DM. */
   discordLink(code: string): Promise<string | null>;
   discordUnlink(): Promise<string | null>;
@@ -206,12 +209,12 @@ export const useAuth = create<AuthState>()((set, get) => ({
     set({ status: 'anon', user: null, token: null, discord: null, remember: false, error: null });
   },
 
-  async discordCode(discordId) {
+  async discordCode(quem) {
     const token = get().token;
     if (!token) return 'entre na sua conta primeiro';
     set({ busy: true });
     try {
-      await call('/discord/code', { method: 'POST', token, body: JSON.stringify({ discordId }) });
+      await call('/discord/code', { method: 'POST', token, body: JSON.stringify({ discordId: quem }) });
       return null;
     } catch (err) {
       return why(err);

@@ -91,7 +91,7 @@ function ServerLine() {
 }
 
 export function OnlineLobby({ onBack }: { onBack: () => void }) {
-  const { status, rooms, account, connectOnline, disconnect, send } = useSession();
+  const { status, rooms, account, connectOnline, send } = useSession();
   const [code, setCode] = useState('');
   const [name, setName] = useState('Mesa de ' + useProfile.getState().name);
   const [maxPlayers, setMaxPlayers] = useState(6);
@@ -114,13 +114,8 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
     <div className="screen">
       <div className="menu-bg" />
       <Petals />
-      <ScreenHeader
-        title="Salas"
-        onBack={() => {
-          disconnect();
-          onBack();
-        }}
-      />
+      {/* voltar é navegar: a conexão fica de pé, senão a conta desaparece do menu */}
+      <ScreenHeader title="Salas" onBack={onBack} />
       <div className="lobby-grid">
         <div className="panel pad">
           <div className="row between">
