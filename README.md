@@ -417,11 +417,12 @@ variables → Actions**, a release sai completa:
 | `TAURI_SIGNING_PRIVATE_KEY` | o arquivo `~/.tauri/pokeru-updater.key` inteiro |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | a senha da chave (vazio se ela não tiver) |
 
-Sem eles a action **publica o instalador do mesmo jeito**, sem `.sig` nem `latest.json`, e avisa no
-resumo do job. O que isso custa: quem já tem o jogo não recebe a versão sozinho — o atualizador
-recusa pacote sem assinatura válida e, sem `latest.json` na release mais nova, nem chega a procurar.
-Dá para publicar assim e assinar depois (é só subir os dois arquivos na release), ou publicar na mão
-como abaixo.
+Sem eles a action compila de todo jeito, mas **não publica**: o instalador fica como **artefato do
+job** (aba *Summary* → *Artifacts*), para baixar e anexar à release na mão, e o resumo diz isso.
+
+Ela não publica de propósito. Um pacote sem assinatura substituiria, numa release feita à mão, o
+instalador assinado — e aí o `.sig` não bateria mais com o arquivo e o atualizador recusaria a
+versão. Melhor entregar o binário e deixar a decisão com quem tem a chave.
 
 A action confere se a tag aponta para um commit da **main** e se os três arquivos de versão batem
 com a tag — e roda `typecheck` e os testes, para não publicar algo quebrado. Ela também aceita ser
