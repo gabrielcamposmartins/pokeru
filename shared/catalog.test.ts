@@ -12,14 +12,31 @@ import {
   padoPrice,
   priceOf,
 } from './catalog';
+import { GALERIA, GIFTS, VENDIDOS, isSold } from './catalog';
 import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, WIN_FX_IDS } from './styles';
 
 describe('catálogo da loja', () => {
   it('cobre tudo que existe no jogo, uma vez cada', () => {
     const esperado =
-      CHARACTER_PRESETS.length + WIN_FX_IDS.length + FACE_PRESETS.length + BACK_PRESETS.length + CHIP_PRESETS.length + TABLE_PRESETS.length + 2;
+      CHARACTER_PRESETS.length +
+      WIN_FX_IDS.length +
+      FACE_PRESETS.length +
+      BACK_PRESETS.length +
+      CHIP_PRESETS.length +
+      TABLE_PRESETS.length +
+      GIFTS.length +
+      2;
     expect(CATALOG).toHaveLength(esperado);
     expect(new Set(CATALOG.map((i) => i.key)).size).toBe(CATALOG.length);
+  });
+
+  it('só presentes e interface estão à venda; o resto é galeria', () => {
+    expect(VENDIDOS).toEqual(['gift', 'ui']);
+    for (const kind of GALERIA) expect(isSold(kind), kind).toBe(false);
+    for (const kind of VENDIDOS) expect(isSold(kind), kind).toBe(true);
+    // e as duas listas não se cruzam nem deixam tipo de fora
+    const todos = new Set(CATALOG.map((i) => i.kind));
+    expect([...todos].sort()).toEqual([...VENDIDOS, ...GALERIA].sort());
   });
 
   it('o jogador começa com Marina, Tobi e um jogo completo de mesa', () => {
@@ -50,8 +67,8 @@ describe('catálogo da loja', () => {
 
   it('padocoin custa o dobro da ficha: é dinheiro de verdade, não o caminho barato', () => {
     expect(padoPrice(15_000)).toBe(15_000 * PADO_POR_FICHA);
-    expect(priceOf('character:ren', 'pado')).toBe(30_000);
-    expect(priceOf('character:ren', 'chips')).toBe(15_000);
+    expect(priceOf('ui:victorian', 'pado')).toBe(24_000);
+    expect(priceOf('ui:victorian', 'chips')).toBe(12_000);
     // e sempre mais caro que em fichas, item a item
     for (const item of CATALOG.filter((i) => i.chips > 0)) {
       expect(priceOf(item.key, 'pado')!, item.key).toBeGreaterThan(priceOf(item.key, 'chips')!);

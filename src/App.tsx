@@ -13,6 +13,7 @@ import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
 import { CharactersScreen } from './screens/Characters';
 import { StoreScreen } from './screens/Store';
+import { GalleryScreen } from './screens/Gallery';
 import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
@@ -21,7 +22,7 @@ import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
 
-export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters' | 'store';
+export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters' | 'store' | 'gallery';
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('menu');
@@ -98,6 +99,7 @@ export function App() {
   else if (screen === 'settings') content = <SettingsScreen onBack={() => setScreen('menu')} onCharacters={() => setScreen('characters')} />;
   else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} onStore={() => setScreen('store')} />;
   else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'gallery') content = <GalleryScreen onBack={() => setScreen('menu')} />;
   else content = <MainMenu go={setScreen} />;
 
   return (

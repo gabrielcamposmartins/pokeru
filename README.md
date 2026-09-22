@@ -304,10 +304,19 @@ existe para aquela conta, em vez de aparecer zerada. As compras em padocoin saem
 O catálogo é **compartilhado** (`shared/catalog.ts`): a vitrine desenha com ele e o servidor cobra
 com ele, então não há como o preço na tela ser um e a cobrança ser outra.
 
+O que a loja **vende** e o que ela só **mostra**:
+
+| Categoria | Como se consegue |
+|---|---|
+| **Presentes** | comprados; são contáveis e o vínculo os consome |
+| **Roletas** | compra-se o ticket, que gira e vira prêmio |
+| **Aparência da interface** | comprada, como sempre |
+| **Galeria** (personagens, cartas, fichas, mesas, efeitos) | **só de roleta** — a loja mostra o que é seu, o que falta e cada peça de perto |
+
 - O jogador começa com **Marina e Tobi** e um jogo completo de mesa (carta, verso, ficha, mesa,
-  efeito e aparência). O resto é da loja.
-- Tudo tem preço nas duas moedas; o de **padocoin só aparece — e só é aceito — com Discord
-  vinculado**. Padocoin = fichas ÷ 50.
+  efeito e aparência).
+- Tudo que se vende tem preço nas duas moedas; o de **padocoin só aparece — e só é aceito — com
+  Discord vinculado**. Padocoin = o dobro do preço em fichas (`PADO_POR_FICHA`).
 - **Quem valida é o servidor.** A compra confere catálogo, posse e saldo antes de mexer em nada;
   ao entrar, `clampCosmetics` troca pelo gratuito o que o jogador pediu e não tem. Pedir Yukina sem
   tê-la põe Marina na mesa — e comprar faz valer na hora, sem reconectar.
@@ -316,6 +325,22 @@ com ele, então não há como o preço na tela ser um e a cobrança ser outra.
   no servidor pelo preset de origem.
 - No **modo offline** (sem contas) não há corte: o jogador joga sozinho contra bots na própria
   máquina, não há posse para conferir nem ninguém para proteger.
+
+### Roletas
+
+Duas roletas (`shared/roulette.ts`), cada uma com o seu ticket. As duas dão prêmio de **todas** as
+categorias; o que muda é a fatia de personagens — a **Roleta das Flores** sorteia só personagens
+femininas e a **do Dragão** só masculinos.
+
+- A tabela de prêmios é **derivada do catálogo**: o peso é do *tipo* (presente 46, frente 12, verso
+  12, ficha 10, mesa 8, efeito 8, personagem 4) e se reparte entre os itens dele. Entrar com uma
+  mesa nova não encolhe as outras categorias, só reparte a fatia das mesas.
+- A loja anuncia a **chance de cada prêmio** lida dessa mesma tabela — a vitrine não tem como dizer
+  4% e o sorteio usar 1%.
+- **O sorteio é do servidor**, com `crypto`: o cliente manda qual roleta e em que moeda, recebe o
+  prêmio pronto (`spun`) e só então anima. Nada do que ele manda influencia o resultado.
+- **Repetido vira fichas** (30% do preço de catálogo): o ticket nunca sai vazio. Presente não
+  repete — dois ramos de sakura são dois ramos.
 
 ### Imagem no Artifact Registry (GCP)
 
@@ -789,6 +814,16 @@ corações**; a cada coração completo o personagem entrega uma **recompensa** 
 Ganhar rende mais, mas **perder também conta**: quem senta e joga junto acumula. Os corações custam
 `60 · 140 · 260 · 440 · 700` pontos (`HEART_COST`), o que dá cerca de uma dúzia de partidas para o
 vínculo completo. Sair da mesa fecha a partida e entrega o bônus dela.
+
+**Jogar não basta: cada coração tem uma tranca.** A barra enche até a borda do coração e para ali;
+o que abre é uma **combinação de presentes**, diferente para cada personagem e cada coração
+(`BOND_RECIPES`) — quem gosta de flores não se contenta com um livro. Enquanto o coração está
+trancado, os pontos que continuariam entrando não entram: a barra não desperdiça o que você jogou,
+ela espera. As missões continuam contando do mesmo jeito.
+
+Quem confere a receita e desconta o estoque é o **servidor** (`offerGifts`), com o mesmo teto
+aplicado na pontuação (`bondCap`). Sem conta no servidor não há presentes nem loja: aí a escada
+antiga vale como sempre valeu.
 
 Quem guarda o progresso depende de onde se joga: **offline** fica na máquina (`pokeru-bond`, como
 o perfil); num **servidor com contas** quem manda é o servidor. As regras ficam em `shared/`

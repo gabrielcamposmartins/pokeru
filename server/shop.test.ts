@@ -15,6 +15,8 @@ import {
   findCharacter,
 } from '../shared/styles';
 import { priceOf } from '../shared/catalog';
+import { ROULETTES, dropsOf, findRoulette, refundOf, ticketPrice } from '../shared/roulette';
+import { bondCap } from '../shared/bond';
 import { Accounts } from './accounts';
 import { Gbot, GbotError, type GbotMove, type GbotUser } from './gbot';
 
@@ -95,6 +97,25 @@ function fakeGbot(saldo = 1000) {
   };
 }
 
+/**
+ * O número de sorteio que cai exatamente neste prêmio.
+ *
+ * A tabela da roleta é pública e determinística (shared/roulette.ts), então dá para apontar o meio
+ * da fatia de um prêmio e exigir que o servidor entregue aquele. É o que torna o sorteio
+ * conferível em teste sem abrir mão de `crypto` em produção.
+ */
+function rndPara(roleta: string, key: string): number {
+  const r = findRoulette(roleta)!;
+  const drops = dropsOf(r);
+  const total = drops.reduce((t, d) => t + d.weight, 0);
+  let antes = 0;
+  for (const d of drops) {
+    if (d.key === key) return (antes + d.weight / 2) / total;
+    antes += d.weight;
+  }
+  throw new Error(`${key} não está na ${roleta}`);
+}
+
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
@@ -103,12 +124,12 @@ describe('loja: comprar com fichas', () => {
   it('desconta o preço e entrega o item', async () => {
     const acc = new Accounts({ file: newFile(), startingMoney: 20_000 });
     const a = acc.login(undefined, profile())!;
-    const preco = priceOf('character:ren', 'chips')!;
+    const preco = priceOf('ui:victorian', 'chips')!;
 
-    expect(await acc.buy(a.id, 'character:ren', 'chips')).toBeNull();
+    expect(await acc.buy(a.id, 'ui:victorian', 'chips')).toBeNull();
     const depois = acc.info(a.id)!;
     expect(depois.money).toBe(20_000 - preco);
-    expect(depois.owned).toContain('character:ren');
+    expect(depois.owned).toContain('ui:victorian');
     acc.close();
   });
 
@@ -116,7 +137,7 @@ describe('loja: comprar com fichas', () => {
     const acc = new Accounts({ file: newFile(), startingMoney: 100 });
     const a = acc.login(undefined, profile())!;
 
-    expect(await acc.buy(a.id, 'character:ren', 'chips')).toMatch(/faltam/);
+    expect(await acc.buy(a.id, 'ui:victorian', 'chips')).toMatch(/faltam/);
     expect(acc.info(a.id)!.money).toBe(100);
     expect(acc.info(a.id)!.owned).toEqual([]);
     acc.close();
@@ -126,12 +147,45 @@ describe('loja: comprar com fichas', () => {
     const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
     const a = acc.login(undefined, profile())!;
 
-    expect(await acc.buy(a.id, 'character:ren', 'chips')).toBeNull();
-    expect(await acc.buy(a.id, 'character:ren', 'chips')).toMatch(/já tem/);
+    expect(await acc.buy(a.id, 'ui:victorian', 'chips')).toBeNull();
+    expect(await acc.buy(a.id, 'ui:victorian', 'chips')).toMatch(/já tem/);
     expect(await acc.buy(a.id, 'character:marina', 'chips')).toMatch(/já vem com o jogo/);
     expect(await acc.buy(a.id, 'character:inventado', 'chips')).toMatch(/não existe/);
     // uma cobrança só, a da compra que valeu
-    expect(acc.info(a.id)!.money).toBe(999_999 - priceOf('character:ren', 'chips')!);
+    expect(acc.info(a.id)!.money).toBe(999_999 - priceOf('ui:victorian', 'chips')!);
+    acc.close();
+  });
+
+  /**
+   * A regra nova da loja: cosmético não se compra.
+   *
+   * Personagem, carta, ficha, mesa e efeito saem de roleta. Quem recusa é o servidor — é o que
+   * impede um cliente modificado de comprar um personagem por fora da sorte.
+   */
+  it('a galeria não está à venda: cosmético sai de roleta', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
+    const a = acc.login(undefined, profile())!;
+
+    for (const key of ['character:yukina', 'back:back-royal', 'chip:chip-neon', 'table:table-wine', 'winfx:fire', 'face:face-jade']) {
+      expect(await acc.buy(a.id, key, 'chips'), key).toMatch(/sai de roleta/);
+    }
+    expect(acc.info(a.id)!.money).toBe(999_999);
+    expect(acc.info(a.id)!.owned).toEqual([]);
+    acc.close();
+  });
+
+  it('presente é contável: comprar de novo aumenta o estoque', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
+    const a = acc.login(undefined, profile())!;
+    const preco = priceOf('gift:flor', 'chips')!;
+
+    expect(await acc.buy(a.id, 'gift:flor', 'chips')).toBeNull();
+    expect(await acc.buy(a.id, 'gift:flor', 'chips')).toBeNull();
+    const depois = acc.info(a.id)!;
+    expect(depois.gifts.flor).toBe(2);
+    expect(depois.money).toBe(999_999 - preco * 2);
+    // e presente não entra na lista de posse: quem conta é o estoque
+    expect(depois.owned).toEqual([]);
     acc.close();
   });
 });
@@ -144,7 +198,7 @@ describe('loja: comprar com padocoins', () => {
 
     expect(a.pado).toBeNull();
     expect(a.discord).toBeNull();
-    expect(await acc.buy(a.id, 'character:ren', 'pado')).toMatch(/vincule o Discord/);
+    expect(await acc.buy(a.id, 'ui:victorian', 'pado')).toMatch(/vincule o Discord/);
     acc.close();
   });
 
@@ -157,16 +211,16 @@ describe('loja: comprar com padocoins', () => {
     expect(a.discord?.id).toBe(identity.discordId);
     expect(a.pado).toBe(saldo);
 
-    const preco = priceOf('character:ren', 'pado')!;
-    expect(await acc.buy(a.id, 'character:ren', 'pado')).toBeNull();
+    const preco = priceOf('ui:victorian', 'pado')!;
+    expect(await acc.buy(a.id, 'ui:victorian', 'pado')).toBeNull();
 
     expect(fake.debits).toHaveLength(1);
     expect(fake.debits[0]).toMatchObject({ id: identity.discordId, quantity: preco });
     // idempotência: a chave é fixa por conta+item, então um reenvio não cobra de novo
-    expect(fake.debits[0].key).toBe(`pokeru:${a.id}:character:ren`);
+    expect(fake.debits[0].key).toBe(`pokeru:${a.id}:ui:victorian`);
 
     const depois = acc.info(a.id)!;
-    expect(depois.owned).toContain('character:ren');
+    expect(depois.owned).toContain('ui:victorian');
     expect(depois.pado).toBe(saldo - preco);
     // fichas não foram tocadas: quem pagou foi a outra moeda
     expect(depois.money).toBe(0);
@@ -178,7 +232,7 @@ describe('loja: comprar com padocoins', () => {
     const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
     const a = (await acc.loginAuth(identity, profile()))!;
 
-    expect(await acc.buy(a.id, 'character:ren', 'pado')).toMatch(/insuficientes/);
+    expect(await acc.buy(a.id, 'ui:victorian', 'pado')).toMatch(/insuficientes/);
     expect(acc.info(a.id)!.owned).toEqual([]);
     acc.close();
   });
@@ -188,7 +242,7 @@ describe('loja: comprar com padocoins', () => {
     const acc = new Accounts({ file: newFile(), gbot: semServico });
     const a = (await acc.loginAuth(identity, profile()))!;
 
-    expect(await acc.buy(a.id, 'character:ren', 'pado')).toMatch(/não está ligado/);
+    expect(await acc.buy(a.id, 'ui:victorian', 'pado')).toMatch(/não está ligado/);
     acc.close();
   });
 
@@ -214,11 +268,11 @@ describe('conta com login (JWT)', () => {
   it('a mesma identidade volta para a mesma conta, em qualquer aparelho', async () => {
     const acc = new Accounts({ file: newFile(), startingMoney: 20_000 });
     const primeira = (await acc.loginAuth({ sub: '7', username: 'gabi' }, profile()))!;
-    await acc.buy(primeira.id, 'character:ren', 'chips');
+    await acc.buy(primeira.id, 'ui:victorian', 'chips');
 
     const segunda = (await acc.loginAuth({ sub: '7', username: 'gabi' }, profile()))!;
     expect(segunda.id).toBe(primeira.id);
-    expect(segunda.owned).toContain('character:ren');
+    expect(segunda.owned).toContain('ui:victorian');
     // e não vira a conta de outra pessoa
     const outra = (await acc.loginAuth({ sub: '8', username: 'outro' }, profile()))!;
     expect(outra.id).not.toBe(primeira.id);
@@ -279,17 +333,19 @@ describe('server authoritative: ninguém senta com o que não tem', () => {
     acc.close();
   });
 
-  it('depois de comprar, o mesmo personagem vale — sem reconectar', async () => {
-    const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
+  it('depois de ganhar na roleta, o mesmo personagem vale — sem reconectar', async () => {
+    // a roleta cai em Yukina: o prêmio é do servidor, e o teste fixa o número do sorteio
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999, rnd: () => rndPara('flores', 'character:yukina') });
     const lobby = new Lobby('Teste', acc);
     const c = client(lobby, { character: { id: 'yukina' }, back: BACK_PRESETS[1], winFx: 'gold' });
     c.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
     expect(c.last('room')!.room.members[0].character.id).toBe('marina');
 
-    c.conn.handle({ type: 'buy', item: 'character:yukina', currency: 'chips' });
-    // a compra é assíncrona (pode ser ida à rede, no caso dos padocoins)
-    await vi.waitFor(() => expect(c.last('bought')).toBeTruthy());
+    c.conn.handle({ type: 'spin', roulette: 'flores', currency: 'chips' });
+    // o giro é assíncrono (pode ser ida à rede, no caso dos padocoins)
+    await vi.waitFor(() => expect(c.last('spun')).toBeTruthy());
 
+    expect(c.last('spun')!.prize).toBe('character:yukina');
     expect(c.last('room')!.room.members[0].character.id).toBe('yukina');
     acc.close();
   });
@@ -297,12 +353,13 @@ describe('server authoritative: ninguém senta com o que não tem', () => {
   it('a loja recusa quem não tem conta no servidor', () => {
     const lobby = new Lobby('Teste', null);
     const c = client(lobby, { character: { id: 'marina' } });
-    c.conn.handle({ type: 'buy', item: 'character:ren', currency: 'chips' });
+    c.conn.handle({ type: 'buy', item: 'ui:victorian', currency: 'chips' });
     expect(c.last('error')!.message).toMatch(/precisa de uma conta/);
   });
 
   it('um verso do Estúdio vale pela peça de onde saiu', async () => {
-    const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
+    // a peça de origem sai de roleta: o sorteio é fixado para cair nela
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999, rnd: () => rndPara('flores', 'back:back-crimson') });
     const lobby = new Lobby('Teste', acc);
     // um verso personalizado feito a partir de um preset que o jogador NÃO tem
     const pirata = { ...BACK_PRESETS[2], id: 'back-meu', from: 'back-crimson' };
@@ -310,9 +367,23 @@ describe('server authoritative: ninguém senta com o que não tem', () => {
     c.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
     expect(c.last('room')!.room.members[0].character.id).toBe('marina');
 
-    // compra a peça de origem e o verso personalizado passa a valer
-    c.conn.handle({ type: 'buy', item: 'back:back-crimson', currency: 'chips' });
-    await vi.waitFor(() => expect(c.last('bought')).toBeTruthy());
+    // ganha a peça de origem e o verso personalizado passa a valer
+    c.conn.handle({ type: 'spin', roulette: 'flores', currency: 'chips' });
+    await vi.waitFor(() => expect(c.last('spun')).toBeTruthy());
+    expect(c.last('spun')!.prize).toBe('back:back-crimson');
+    acc.close();
+  });
+
+  it('o cliente pede presentes pelo lobby e recebe o coração novo', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const lobby = new Lobby('Teste', acc);
+    const c = client(lobby, { character: { id: 'yukina' } });
+    const id = c.last('account')!.account.id;
+    for (let i = 0; i < 40; i++) acc.bond(id, 'yukina', 'matchWin');
+    await acc.buy(id, 'gift:flor', 'chips');
+
+    c.conn.handle({ type: 'offerGifts', character: 'yukina' });
+    expect(c.last('bondUp')).toEqual({ type: 'bondUp', character: 'yukina', heart: 1 });
     acc.close();
   });
 
@@ -417,13 +488,13 @@ describe('sessão guardada no aparelho', () => {
     const fake = fakeGbot(2785);
     const acc = new Accounts({ file: newFile(), startingMoney: 20_000, gbot: fake.gbot });
     const entrada = (await acc.loginAuth(identity, profile()))!;
-    await acc.buy(entrada.id, 'character:ren', 'chips');
+    await acc.buy(entrada.id, 'ui:victorian', 'chips');
 
     // uma hora depois: o JWT venceu e o cliente manda só a chave de volta
     const volta = acc.login({ id: entrada.id, token: entrada.token! }, profile())!;
     expect(volta.id).toBe(entrada.id);
     expect(volta.user).toBe(identity.username);
-    expect(volta.owned).toContain('character:ren');
+    expect(volta.owned).toContain('ui:victorian');
     // e o vínculo do Discord continua lá, com o saldo
     expect(volta.discord?.id).toBe(identity.discordId);
     expect(volta.pado).toBe(2785);
@@ -556,5 +627,124 @@ describe('títulos: quem valida é o servidor', () => {
     const c = client(lobby);
     c.conn.handle({ type: 'setTitle', title: 'Tubarão' });
     expect(c.last('error')!.message).toMatch(/precisam de uma conta/);
+  });
+});
+
+/**
+ * As roletas.
+ *
+ * O que importa provar: o ticket sai do saldo, o prêmio é do servidor, o repetido vira fichas e o
+ * presente sorteado entra no estoque em vez de virar posse.
+ */
+describe('roleta', () => {
+  it('cobra o ticket e entrega o prêmio', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 10_000, rnd: () => rndPara('flores', 'character:yukina') });
+    const a = acc.login(undefined, profile())!;
+    const preco = ticketPrice(findRoulette('flores')!, 'chips');
+
+    const res = await acc.spin(a.id, 'flores', 'chips');
+    expect(res).toEqual({ key: 'character:yukina', dup: false, refund: 0 });
+    const depois = acc.info(a.id)!;
+    expect(depois.money).toBe(10_000 - preco);
+    expect(depois.owned).toContain('character:yukina');
+    acc.close();
+  });
+
+  it('prêmio repetido vira fichas', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 10_000, rnd: () => rndPara('flores', 'character:yukina') });
+    const a = acc.login(undefined, profile())!;
+    const preco = ticketPrice(findRoulette('flores')!, 'chips');
+
+    await acc.spin(a.id, 'flores', 'chips');
+    const res = (await acc.spin(a.id, 'flores', 'chips')) as { key: string; dup: boolean; refund: number };
+    expect(res.dup).toBe(true);
+    expect(res.refund).toBe(refundOf('character:yukina'));
+    // duas cobranças, uma devolução: o ticket nunca sai vazio
+    expect(acc.info(a.id)!.money).toBe(10_000 - preco * 2 + res.refund);
+    acc.close();
+  });
+
+  it('presente sorteado entra no estoque, e repete sem virar fichas', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000, rnd: () => rndPara('flores', 'gift:flor') });
+    const a = acc.login(undefined, profile())!;
+
+    await acc.spin(a.id, 'flores', 'chips');
+    const res = (await acc.spin(a.id, 'flores', 'chips')) as { key: string; dup: boolean };
+    expect(res.dup).toBe(false);
+    expect(acc.info(a.id)!.gifts.flor).toBe(2);
+    acc.close();
+  });
+
+  it('sem fichas não gira, e roleta inventada não existe', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 10 });
+    const a = acc.login(undefined, profile())!;
+
+    expect(await acc.spin(a.id, 'flores', 'chips')).toMatch(/faltam/);
+    expect(await acc.spin(a.id, 'inventada', 'chips')).toMatch(/não existe/);
+    expect(acc.info(a.id)!.money).toBe(10);
+    acc.close();
+  });
+
+  it('cada roleta sorteia só personagens do gênero dela', () => {
+    const femininas = dropsOf(findRoulette('flores')!).filter((d) => d.kind === 'character');
+    const masculinos = dropsOf(findRoulette('dragao')!).filter((d) => d.kind === 'character');
+    expect(femininas.map((d) => d.key)).toEqual(['character:yukina']);
+    expect(masculinos.map((d) => d.key)).toEqual(['character:ren']);
+    // e as chances somam 1 nas duas, senão a porcentagem anunciada seria mentira
+    for (const r of ROULETTES) {
+      const soma = dropsOf(r).reduce((t, d) => t + d.chance, 0);
+      expect(soma, r.id).toBeCloseTo(1, 6);
+    }
+  });
+});
+
+/**
+ * A tranca do vínculo.
+ *
+ * Jogar enche o coração e para; presente abre. Os dois lados são do servidor: o teto dos pontos em
+ * `bond` e a conferência da receita em `offerGifts`.
+ */
+describe('vínculo com presentes', () => {
+  it('os pontos param na borda do coração trancado, mas as missões continuam contando', () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = acc.login(undefined, profile())!;
+
+    for (let i = 0; i < 40; i++) acc.bond(a.id, 'yukina', 'matchWin');
+    const st = acc.info(a.id)!.bond.yukina;
+    expect(st.points).toBe(bondCap(0));
+    expect(st.matches).toBe(40);
+    expect(acc.info(a.id)!.bondUnlocked.yukina ?? 0).toBe(0);
+    acc.close();
+  });
+
+  it('a receita certa destranca o coração, e o teto sobe', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const a = acc.login(undefined, profile())!;
+    for (let i = 0; i < 40; i++) acc.bond(a.id, 'yukina', 'matchWin');
+
+    // o 1º coração da Yukina pede um ramo de sakura
+    expect(acc.offerGifts(a.id, 'yukina')).toMatch(/faltam presentes/);
+    await acc.buy(a.id, 'gift:flor', 'chips');
+    expect(acc.offerGifts(a.id, 'yukina')).toBeNull();
+
+    const depois = acc.info(a.id)!;
+    expect(depois.bondUnlocked.yukina).toBe(1);
+    expect(depois.gifts.flor ?? 0).toBe(0);
+    // com o coração aberto, o teto sobe e os pontos voltam a andar
+    acc.bond(a.id, 'yukina', 'win');
+    expect(acc.info(a.id)!.bond.yukina.points).toBeGreaterThan(bondCap(0));
+    acc.close();
+  });
+
+  it('não destranca coração que ainda não está cheio', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const a = acc.login(undefined, profile())!;
+    await acc.buy(a.id, 'gift:flor', 'chips');
+
+    acc.bond(a.id, 'yukina', 'win');
+    expect(acc.offerGifts(a.id, 'yukina')).toMatch(/ainda não está cheio/);
+    // e o presente continua no estoque
+    expect(acc.info(a.id)!.gifts.flor).toBe(1);
+    acc.close();
   });
 });

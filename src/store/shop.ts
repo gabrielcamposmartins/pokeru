@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { owns, ownsItem, type Currency, type ItemKind } from '../../shared/catalog';
+import { useRoleta } from './roleta';
 import { PRESETS, SERVER_URL, useProfile, type StyleKind, type StyleMap } from './profile';
 import { useSession } from './session';
 
@@ -23,6 +24,8 @@ import { useSession } from './session';
  * constante resolve — e é de graça.
  */
 const NENHUM: readonly string[] = Object.freeze([]);
+/** Estoque vazio de presentes, pelo mesmo motivo de NENHUM. */
+const SEM_PRESENTES: Readonly<Record<string, number>> = Object.freeze({});
 
 /** Os itens da conta (chaves do catálogo). O que é grátis não está na lista, e nem precisa. */
 export function useOwned(): readonly string[] {
@@ -51,6 +54,31 @@ export function pedeSaldo(force = false): void {
 
 export function ownedNow(): readonly string[] {
   return useSession.getState().account?.owned ?? useProfile.getState().accounts[SERVER_URL]?.owned ?? [];
+}
+
+/**
+ * Os presentes em estoque (id → quantidade).
+ *
+ * Contáveis, ao contrário dos itens: é o que o vínculo consome. Sem conta no servidor o estoque é
+ * vazio — presentes moram na conta, como as fichas.
+ */
+export function useGifts(): Readonly<Record<string, number>> {
+  return useSession((s) => s.account?.gifts) ?? SEM_PRESENTES;
+}
+
+/** Corações de vínculo já destrancados com presentes, neste personagem. */
+export function useBondUnlocked(character: string): number {
+  return useSession((s) => s.account?.bondUnlocked?.[character] ?? 0);
+}
+
+/** Manda girar a roleta (o prêmio vem do servidor; a cena é de src/store/roleta.ts). */
+export function spinRoulette(roulette: string, currency: Currency): void {
+  useRoleta.getState().girar(roulette, currency);
+}
+
+/** Oferece os presentes que destrancam o próximo coração do personagem. */
+export function offerGifts(character: string): void {
+  useSession.getState().send({ type: 'offerGifts', character });
 }
 
 /** O jogador tem este item? */

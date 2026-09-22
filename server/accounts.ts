@@ -6,12 +6,17 @@ import {
   type PlayerStats,
   type StatEvent,
 } from '../shared/achievements';
-import { EMPTY_BOND, addBond, type BondEvent, type BondStats } from '../shared/bond';
-import { findItem, isFree, priceOf, type Currency } from '../shared/catalog';
+import { EMPTY_BOND, HEARTS, addBond, bondCap, bondBlocked, hasGifts, nextRecipe, payGifts, type BondEvent, type BondStats } from '../shared/bond';
+import { findItem, isFree, isSold, priceOf, type Currency } from '../shared/catalog';
+import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
+import type { SpinResult } from '../shared/accounts';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, AuthIdentity, DiscordLink } from '../shared/accounts';
 import { sanitizeName } from '../shared/styles';
 import { GbotError, type Gbot } from './gbot';
 import { JsonStore } from './store';
+
+/** Nome da moeda nos logs. */
+const moeda = (c: Currency): string => (c === 'pado' ? 'padocoins' : 'fichas');
 
 /** Uma conta como fica guardada no arquivo. */
 interface Stored {
@@ -33,6 +38,10 @@ interface Stored {
   /** Itens comprados (chaves do catálogo). O que já vem com o jogo não entra aqui. */
   owned: string[];
   bond: Record<string, BondStats>;
+  /** Presentes em estoque, por id (contáveis, ao contrário de `owned`). */
+  gifts?: Record<string, number>;
+  /** Corações de vínculo já destrancados com presentes, por personagem. */
+  bondUnlocked?: Record<string, number>;
   stats: PlayerStats;
   /** Titulo de conquista escolhido (null/ausente = nenhum). */
   title?: string | null;
@@ -62,6 +71,14 @@ export interface AccountsOptions {
    * nessa moeda. Sem ele, o jogo funciona só com fichas.
    */
   gbot?: Gbot | null;
+  /**
+   * De onde vem o número aleatório das roletas, em [0, 1).
+   *
+   * O padrão é `crypto`: prêmio previsível é prêmio fraudável. Existe como opção para o **teste**
+   * poder fixar o resultado — um sorteio que não se consegue conferir também não se consegue
+   * confiar.
+   */
+  rnd?: () => number;
 }
 
 /** O token é aleatório e longo: um SHA-256 basta (não é senha digitada por gente). */
@@ -119,7 +136,12 @@ export class Accounts implements AccountService {
   constructor(private readonly opts: AccountsOptions = {}) {
     this.store = new JsonStore<File>(opts.file ?? './data/accounts.json', { version: 1, accounts: {} });
     // contas antigas (de antes da loja) não tinham lista de itens
-    for (const acc of Object.values(this.store.get().accounts)) acc.owned ??= [];
+    for (const acc of Object.values(this.store.get().accounts)) {
+      acc.owned ??= [];
+      // de antes dos presentes: estoque vazio e nenhum coração destrancado
+      acc.gifts ??= {};
+      acc.bondUnlocked ??= {};
+    }
   }
 
   get count(): number {
@@ -175,6 +197,8 @@ export class Accounts implements AccountService {
       money: Math.max(0, Math.round(this.opts.startingMoney ?? 10_000)),
       owned: [],
       bond: {},
+      gifts: {},
+      bondUnlocked: {},
       stats: { ...EMPTY_STATS },
       title: null,
       since: new Date().toISOString(),
@@ -303,6 +327,8 @@ export class Accounts implements AccountService {
       discord: acc.discord ? { ...acc.discord } : null,
       owned: [...acc.owned],
       bond: { ...acc.bond },
+      gifts: { ...(acc.gifts ?? {}) },
+      bondUnlocked: { ...(acc.bondUnlocked ?? {}) },
       stats: sanitizeStats(acc.stats),
       title: sanitizeTitle(acc.title, sanitizeStats(acc.stats)),
       since: acc.since,
@@ -374,34 +400,59 @@ export class Accounts implements AccountService {
 
   // -------------------------------------------------------------------- loja
 
+  /**
+   * Compra um item da loja.
+   *
+   * Duas famílias passam por aqui: **presentes**, que são contáveis (comprar de novo aumenta o
+   * estoque), e **aparência da interface**, que é posse. O resto do catálogo virou galeria e só sai
+   * de roleta — quem recusa é este método, não a tela.
+   */
   async buy(accountId: string, key: string, currency: Currency): Promise<string | null> {
     const acc = this.byId(accountId);
     if (!acc) return 'conta não encontrada';
     const item = findItem(key);
     if (!item) return 'esse item não existe';
     if (isFree(key)) return 'esse item já vem com o jogo';
-    if (acc.owned.includes(key)) return 'você já tem esse item';
+    if (!isSold(item.kind)) return 'esse item não está à venda: ele sai de roleta';
+    const contavel = isCountable(key);
+    if (!contavel && acc.owned.includes(key)) return 'você já tem esse item';
     const price = priceOf(key, currency);
     if (!price) return 'esse item não está à venda';
 
+    const erro = await this.cobrar(acc, price, currency, item.name, `pokeru:${acc.id}:${key}`);
+    if (erro) return erro;
+
+    if (contavel) {
+      const id = key.slice('gift:'.length);
+      acc.gifts = { ...(acc.gifts ?? {}), [id]: (acc.gifts?.[id] ?? 0) + 1 };
+    } else {
+      acc.owned.push(key);
+    }
+    // o que foi pago é para não se perder numa queda: grava na hora
+    this.store.flush();
+    this.changed(acc.id);
+    console.log(`[loja] ${acc.name} comprou ${item.name} por ${price} ${moeda(currency)}`);
+    return null;
+  }
+
+  /**
+   * Tira `price` da moeda pedida. Devolve a mensagem de erro, ou null quando o dinheiro saiu.
+   *
+   * Está separado porque a compra e o giro de roleta cobram igual: fichas são daqui, padocoins são
+   * do GBOT e a cobrança é ida à rede. `idem` é a chave de idempotência do bot — fixa por
+   * conta+item numa compra (repetir não cobra duas vezes), única por giro (cada giro é outro).
+   */
+  private async cobrar(acc: Stored, price: number, currency: Currency, label: string, idem: string): Promise<string | null> {
     if (currency === 'chips') {
       if (acc.money < price) return `faltam ${price - acc.money} fichas`;
       acc.money -= price;
-      acc.owned.push(key);
-      // item pago é para não se perder numa queda: grava na hora
-      this.store.flush();
-      this.changed(acc.id);
-      console.log(`[loja] ${acc.name} comprou ${item.name} por ${price} fichas`);
       return null;
     }
-
-    // padocoins: o dono do saldo é o GBOT, então a cobrança é uma chamada de rede
     if (!acc.discord) return 'vincule o Discord para pagar com padocoins';
     const gbot = this.opts.gbot;
     if (!gbot?.canMoveMoney) return 'este servidor não está ligado ao serviço de padocoins';
     try {
-      // a chave de idempotência é fixa por conta+item: se a chamada repetir, não cobra duas vezes
-      const move = await gbot.debit(acc.discord.id, price, `pokeru: ${item.name}`, `pokeru:${acc.id}:${key}`);
+      const move = await gbot.debit(acc.discord.id, price, `pokeru: ${label}`, idem);
       this.pado.set(acc.id, { value: move.after, at: Date.now() });
     } catch (err) {
       if (err instanceof GbotError) {
@@ -411,11 +462,74 @@ export class Accounts implements AccountService {
       }
       return 'não foi possível falar com o serviço de padocoins';
     }
-    // pagou: o item é dele, e isso vai para o disco antes de qualquer outra coisa
-    acc.owned.push(key);
+    return null;
+  }
+
+  /**
+   * Gira uma roleta: cobra o ticket, sorteia e entrega.
+   *
+   * **O sorteio é aqui, e só aqui.** O cliente pede, anima e mostra o que voltou; ele não escolhe o
+   * prêmio nem poderia — nada do que ele manda influencia o resultado. O número aleatório vem de
+   * `crypto`, não de `Math.random`, porque prêmio previsível é prêmio fraudável.
+   *
+   * Prêmio repetido vira fichas (`refundOf`): o ticket nunca sai vazio.
+   */
+  async spin(accountId: string, roulette: string, currency: Currency): Promise<SpinResult | string> {
+    const acc = this.byId(accountId);
+    if (!acc) return 'conta não encontrada';
+    const r = findRoulette(roulette);
+    if (!r) return 'essa roleta não existe';
+    const price = ticketPrice(r, currency);
+
+    const idem = `pokeru:${acc.id}:spin:${randomBytes(6).toString('hex')}`;
+    const erro = await this.cobrar(acc, price, currency, `ticket da ${r.name}`, idem);
+    if (erro) return erro;
+
+    const sorteio = this.opts.rnd ?? (() => randomBytes(4).readUInt32BE(0) / 2 ** 32);
+    const prize = draw(r, sorteio());
+    const gift = giftOfKey(prize.key);
+    let dup = false;
+    let refund = 0;
+    if (gift) {
+      acc.gifts = { ...(acc.gifts ?? {}), [gift.id]: (acc.gifts?.[gift.id] ?? 0) + 1 };
+    } else if (acc.owned.includes(prize.key)) {
+      dup = true;
+      refund = refundOf(prize.key);
+      acc.money += refund;
+    } else {
+      acc.owned.push(prize.key);
+    }
     this.store.flush();
     this.changed(acc.id);
-    console.log(`[loja] ${acc.name} comprou ${item.name} por ${price} padocoins`);
+    const sobra = dup ? ` (repetido: +${refund} fichas)` : '';
+    console.log(`[roleta] ${acc.name} girou a ${r.name} por ${price} ${moeda(currency)} e tirou ${prize.name}${sobra}`);
+    return { key: prize.key, dup, refund };
+  }
+
+  /**
+   * Entrega os presentes que destrancam o próximo coração do personagem.
+   *
+   * Confere aqui: o coração tem de estar cheio, a receita tem de existir e o estoque tem de dar.
+   * Destrancado, o teto de pontos sobe sozinho (veja `bond`) e a recompensa daquele coração passa
+   * a valer.
+   */
+  offerGifts(accountId: string, character: string): string | null {
+    const acc = this.byId(accountId);
+    if (!acc) return 'conta não encontrada';
+    const id = character || acc.character || 'marina';
+    const unlocked = acc.bondUnlocked?.[id] ?? 0;
+    if (unlocked >= HEARTS) return 'esse vínculo já está completo';
+    const stats = acc.bond[id] ?? EMPTY_BOND;
+    if (!bondBlocked(stats.points, unlocked)) return 'este coração ainda não está cheio';
+    const need = nextRecipe(id, unlocked);
+    if (!need) return 'esse personagem não tem presentes para este coração';
+    if (!hasGifts(acc.gifts, need)) return 'faltam presentes para este coração';
+
+    acc.gifts = payGifts(acc.gifts ?? {}, need);
+    acc.bondUnlocked = { ...(acc.bondUnlocked ?? {}), [id]: unlocked + 1 };
+    this.store.flush();
+    this.changed(acc.id);
+    console.log(`[vínculo] ${acc.name} destrancou o coração ${unlocked + 1} de ${id}`);
     return null;
   }
 
@@ -494,11 +608,19 @@ export class Accounts implements AccountService {
     this.changed(acc.id);
   }
 
+  /**
+   * Soma um momento de vínculo, respeitando a tranca do coração.
+   *
+   * O teto vem de quantos corações a pessoa já destrancou com presentes: os contadores das missões
+   * sobem sempre, mas os pontos param na borda do coração trancado. É aqui que a regra vale de
+   * verdade — o cliente só desenha.
+   */
   bond(accountId: string, character: string, ev: BondEvent): void {
     const acc = this.byId(accountId);
     if (!acc) return;
     const id = character || acc.character || 'marina';
-    acc.bond[id] = addBond(acc.bond[id] ?? EMPTY_BOND, ev);
+    const cap = bondCap(acc.bondUnlocked?.[id] ?? 0);
+    acc.bond[id] = addBond(acc.bond[id] ?? EMPTY_BOND, ev, cap);
     this.changed(acc.id);
   }
 

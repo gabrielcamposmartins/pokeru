@@ -15,6 +15,8 @@ import { connectLocal, connectWs, type Transport } from '../net/transport';
 import { SERVER_URL, findStyle, myCosmetics, useProfile } from './profile';
 import { useAuth } from './auth';
 import { findItem } from '../../shared/catalog';
+import { findCharacter } from '../../shared/styles';
+import { useRoleta } from './roleta';
 import { useBond } from './bond';
 import { useTable } from './table';
 import { director } from '../game/director';
@@ -273,6 +275,16 @@ function handle(m: ServerMsg): void {
       useTable.getState().addEmote(m.seat, m.emote);
       sfx.pop();
       break;
+    case 'spun':
+      // o servidor já cobrou e já entregou: aqui só a cena revela o que ele mandou
+      useRoleta.getState().chegou({ key: m.prize, dup: m.dup, refund: m.refund });
+      break;
+    case 'bondUp': {
+      const c = findCharacter(m.character);
+      sfx.win();
+      useSession.getState().toast(`${c.name} abriu o ${m.heart}º coração!`);
+      break;
+    }
     case 'bought': {
       // o item já é dele: o `account` com a lista nova chega logo atrás
       const item = findItem(m.item);
@@ -281,6 +293,8 @@ function handle(m: ServerMsg): void {
       break;
     }
     case 'error':
+      // um giro recusado (sem saldo, roleta inválida) não pode deixar a cena girando para sempre
+      if (useRoleta.getState().status === 'girando') useRoleta.getState().fechar();
       // a fila recusou (sem saldo, mesa cheia): para de esperar e mostra o motivo
       if (useSession.getState().queueing) {
         set({ queueing: false });

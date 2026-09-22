@@ -331,6 +331,61 @@ export class Connection implements ClientHandle {
           });
         break;
       }
+      /**
+       * Gira uma roleta. A trava `buying` é a mesma da compra: um giro por vez, porque os dois
+       * mexem em dinheiro da mesma conta.
+       */
+      case 'spin': {
+        const accounts = this.lobby.accounts;
+        if (!accounts || !this.accountId) {
+          this.error('a roleta precisa de uma conta no servidor');
+          return;
+        }
+        if (this.buying) {
+          this.error('espere o giro anterior terminar');
+          return;
+        }
+        this.buying = true;
+        const roulette = String(msg.roulette ?? '');
+        const currency = msg.currency === 'pado' ? 'pado' : 'chips';
+        void accounts
+          .spin(this.accountId, roulette, currency)
+          .then((res) => {
+            if (this.closed) return;
+            if (typeof res === 'string') {
+              this.error(res);
+              return;
+            }
+            // o prêmio é dele: os cosméticos voltam a valer, e a mesa vê na hora
+            this.applyOwned(accounts.owned(this.accountId!));
+            this.send({ type: 'spun', roulette, prize: res.key, dup: res.dup, refund: res.refund });
+            this.room?.updateProfile(this);
+          })
+          .catch((err: unknown) => {
+            console.error('[roleta] erro ao girar', roulette, err);
+            if (!this.closed) this.error('não foi possível girar a roleta');
+          })
+          .finally(() => {
+            this.buying = false;
+          });
+        break;
+      }
+      case 'offerGifts': {
+        const accounts = this.lobby.accounts;
+        if (!accounts || !this.accountId) {
+          this.error('o vínculo com presentes precisa de uma conta no servidor');
+          return;
+        }
+        const character = String(msg.character ?? '');
+        const err = accounts.offerGifts(this.accountId, character);
+        if (err) {
+          this.error(err);
+          return;
+        }
+        const info = accounts.info(this.accountId);
+        this.send({ type: 'bondUp', character, heart: info?.bondUnlocked?.[character] ?? 0 });
+        break;
+      }
       case 'refreshAccount': {
         const accounts = this.lobby.accounts;
         if (!accounts?.refresh || !this.accountId) return;

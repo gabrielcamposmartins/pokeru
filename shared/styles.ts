@@ -790,6 +790,14 @@ export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
 export interface CharacterStyle {
   id: string;
   name: string;
+  /**
+   * Feminino ou masculino.
+   *
+   * Existe por causa das roletas: uma sorteia só personagens femininas e a outra só masculinos,
+   * então a divisão precisa de um dado, não de uma lista paralela que alguém esqueceria de
+   * atualizar ao criar um personagem novo.
+   */
+  gender: 'f' | 'm';
   /** Cores do fundo do retrato e do cut-in. */
   bg: string;
   bg2: string;
@@ -804,6 +812,7 @@ export interface CharacterStyle {
 export const CHARACTER_PRESETS: CharacterStyle[] = [
   {
     id: 'marina',
+    gender: 'f',
     name: 'Marina',
     bg: '#ff8a5c',
     bg2: '#8e1b2b',
@@ -813,6 +822,7 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   },
   {
     id: 'ren',
+    gender: 'm',
     name: 'Ren',
     bg: '#48b487',
     bg2: '#0f2a22',
@@ -822,6 +832,7 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   },
   {
     id: 'tobi',
+    gender: 'm',
     name: 'Tobi',
     bg: '#ffd35c',
     bg2: '#2b3f9e',
@@ -831,6 +842,7 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   },
   {
     id: 'yukina',
+    gender: 'f',
     name: 'Yukina',
     bg: '#bcd3ff',
     bg2: '#2d3f8f',

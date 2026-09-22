@@ -17,6 +17,7 @@
  *   /preview.html?cena=draw5           mesa do poker de 5 cartas na hora da troca (mão marcada)
  *   /preview.html?cena=bond            a página de vínculo (missões e recompensas com as falas)
  *   /preview.html?cena=bond-aviso      o cartão do coração completo e a barra curta
+ *   /preview.html?cena=bond-tranca     o coração cheio e trancado, pedindo a combinação de presentes
  *   /preview.html?cena=personagens     a tela de personagens inteira (ocupa a janela, sem palco)
  *   /preview.html?cena=login           a tela de entrada (usuário, senha e "lembrar-me")
  *   /preview.html?cena=login-erro      a mesma tela com "lembrar" marcado e um erro do serviço
@@ -28,6 +29,10 @@
  *   /preview.html?cena=fila            o menu com a fila rápida aberta (fichas e padocoins)
  *   /preview.html?cena=fila-esperando  a fila procurando mesa
  *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
+ *   /preview.html?cena=loja&aba=gift   os presentes à venda (a aba que abre por padrão)
+ *   /preview.html?cena=loja&aba=roleta&ver=flores  a roleta com a tabela de prêmios e as chances
+ *   /preview.html?cena=giro            a cena do giro revelando um prêmio (&premio=, &dup=1)
+ *   /preview.html?cena=girando         o ticket girando, antes da resposta do servidor
  *   /preview.html?cena=loja&ver=chip:chip-neon  a loja com o item já aberto em tamanho grande
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
@@ -60,7 +65,7 @@ import '@fontsource/playfair-display/900-italic.css';
 import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
-import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS } from '../../shared/styles';
+import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, findCharacter } from '../../shared/styles';
 import type { Opening, SeatView } from '../../shared/protocol';
 import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
@@ -80,8 +85,10 @@ import { OnlineLobby } from '../screens/OnlineLobby';
 import { MainMenu } from '../screens/MainMenu';
 import { OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
+import { GalleryScreen } from '../screens/Gallery';
 import { Studio } from '../screens/Studio';
 import { useProfile } from '../store/profile';
+import { useRoleta } from '../store/roleta';
 import { useUiTheme } from '../ui/themes';
 import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
@@ -427,6 +434,26 @@ function Vinculo() {
   return <BondPageView char={CHARACTER_PRESETS[0]} st={bondStats} onClose={() => {}} />;
 }
 
+/**
+ * A página com o coração cheio e trancado.
+ *
+ * Yukina, primeiro coração no limite: a barra não anda mais, e o que abre é um ramo de sakura. O
+ * estoque tem um dos dois presentes de propósito, para a foto mostrar o que falta.
+ */
+function VinculoTranca() {
+  const yukina = findCharacter('yukina');
+  return (
+    <BondPageView
+      char={yukina}
+      st={{ ...EMPTY_BOND, points: HEART_COST[0], wins: 9, losses: 6, folds: 11, hands: 26, matches: 3 }}
+      unlocked={0}
+      gifts={{ cha: 2 }}
+      onOffer={() => {}}
+      onClose={() => {}}
+    />
+  );
+}
+
 /** O aviso do coração completo e a barra curta da placa do personagem. */
 function VinculoAviso() {
   const char = CHARACTER_PRESETS[0];
@@ -476,8 +503,23 @@ if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina
 // o menu com a Partida Rápida esperando o servidor montar a mesa
 if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'connecting', botsPending: true });
 if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queueing: true });
+/**
+ * A cena do giro, parada para a foto.
+ *
+ * No jogo quem põe a cena nesse estado é a resposta do servidor; aqui o endereço faz o papel dela,
+ * porque tirar foto de uma animação exige poder pausá-la em cada momento.
+ */
+if (cena === 'girando') useRoleta.setState({ status: 'girando', roulette: q.get('roleta') ?? 'flores', premio: null });
+if (cena === 'giro') {
+  useRoleta.setState({
+    status: 'revelado',
+    roulette: q.get('roleta') ?? 'flores',
+    premio: { key: q.get('premio') ?? 'character:yukina', dup: q.has('dup'), refund: q.has('dup') ? 4500 : 0 },
+  });
+}
+
 // a loja: finge uma conta no servidor, com itens e as duas moedas
-if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 'titulos' || cena === 'fila' || cena === 'fila-esperando') {
+if (cena === 'loja' || cena === 'galeria' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' || cena === 'conta' || cena === 'titulos' || cena === 'fila' || cena === 'fila-esperando') {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
   useSession.setState({
@@ -491,6 +533,9 @@ if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 
       money: 18_400,
       inPlay: 0,
       pado: comPado ? 2785 : null,
+      // presentes no estoque e um coração já destrancado: é o que as telas novas precisam mostrar
+      gifts: { flor: 3, cha: 1, leque: 1, fone: 2, bolo: 2, joia: 1 },
+      bondUnlocked: { yukina: 1 },
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
       owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
       bond: {},
@@ -557,7 +602,9 @@ createRoot(document.getElementById('root')!).render(
         <MainMenu go={() => {}} openQueue={cena === 'fila'} />
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} />
-      ) : cena === 'loja' || cena === 'loja-sem-pado' ? (
+      ) : cena === 'galeria' ? (
+        <GalleryScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} verInicial={q.get('ver') ?? undefined} />
+      ) : cena === 'loja' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' ? (
         <StoreScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} verInicial={q.get('ver') ?? undefined} />
       ) : (
       <div className="game-screen">
@@ -573,6 +620,8 @@ createRoot(document.getElementById('root')!).render(
               <Draw5 />
             ) : cena === 'bond' ? (
               <Vinculo />
+            ) : cena === 'bond-tranca' ? (
+              <VinculoTranca />
             ) : cena === 'bond-aviso' ? (
               <VinculoAviso />
             ) : cena === 'solids' ? (

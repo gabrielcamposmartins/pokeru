@@ -277,6 +277,13 @@ export type ClientMsg =
   /** Compra um item do catálogo (shared/catalog.ts). Quem cobra e valida é o servidor. */
   | { type: 'buy'; item: string; currency: Currency }
   /**
+   * Gira uma roleta. O cliente diz qual e em que moeda; **o prêmio vem do servidor** (`spun`).
+   * Não há campo de prêmio aqui de propósito: o que o cliente manda não escolhe o que ele ganha.
+   */
+  | { type: 'spin'; roulette: string; currency: Currency }
+  /** Oferece os presentes que destrancam o próximo coração do vínculo com o personagem. */
+  | { type: 'offerGifts'; character: string }
+  /**
    * Fila rápida: entra numa mesa da fila que já exista, ou abre uma com três bots.
    * O servidor escolhe — o jogador não configura nada.
    */
@@ -300,6 +307,10 @@ export type ServerMsg =
   | { type: 'emote'; seat: number; emote: string }
   /** Compra concluída (a foto nova da conta chega em seguida, num `account`). */
   | { type: 'bought'; item: string; currency: Currency }
+  /** O resultado do giro: a chave do prêmio, e se ele repetiu (aí virou fichas). */
+  | { type: 'spun'; roulette: string; prize: string; dup: boolean; refund: number }
+  /** Um coração de vínculo foi destrancado com presentes. */
+  | { type: 'bondUp'; character: string; heart: number }
   | { type: 'error'; message: string }
   | { type: 'pong' };
 

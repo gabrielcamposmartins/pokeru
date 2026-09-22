@@ -27,7 +27,7 @@ import {
  * Discord vinculado à conta.
  */
 
-export type ItemKind = 'character' | 'face' | 'back' | 'chip' | 'table' | 'winfx' | 'ui';
+export type ItemKind = 'character' | 'face' | 'back' | 'chip' | 'table' | 'winfx' | 'ui' | 'gift';
 
 export const KIND_LABELS: Record<ItemKind, string> = {
   character: 'Personagens',
@@ -37,7 +37,101 @@ export const KIND_LABELS: Record<ItemKind, string> = {
   table: 'Mesas',
   winfx: 'Efeitos de vitória',
   ui: 'Aparência da interface',
+  gift: 'Presentes',
 };
+
+/**
+ * O que a loja **vende** e o que ela só **mostra**.
+ *
+ * Cosmético não se compra mais: personagens, cartas, fichas, mesas e efeitos saem de roleta, e na
+ * loja existem como galeria — a pessoa vê o que tem, o que falta e como é cada peça de perto. A
+ * aparência da interface é a exceção que continua à venda, porque é a única que muda a cara do
+ * jogo inteiro e não faria sentido depender de sorte.
+ *
+ * Quem decide isto é o servidor: `buy` recusa chave de tipo que não esteja em VENDIDOS.
+ */
+export const VENDIDOS: readonly ItemKind[] = ['gift', 'ui'];
+export const GALERIA: readonly ItemKind[] = ['character', 'winfx', 'back', 'face', 'chip', 'table'];
+
+export const isSold = (kind: ItemKind): boolean => VENDIDOS.includes(kind);
+
+/**
+ * Raridade — o degrau de cada peça.
+ *
+ * É **declarada item por item**, não deduzida do preço: quem decide que o brasão vitoriano é raro
+ * e o feltro verde é comum é o desenho do jogo, não a tabela de preços. A escada aparece na Galeria
+ * (carimbo na peça) e organiza a lista de prêmios das roletas.
+ */
+export type Raridade = 'lendario' | 'epico' | 'raro' | 'incomum' | 'comum';
+
+/** Da melhor para a mais comum — é esta a ordem em que tudo lista raridade. */
+export const RARIDADES: { id: Raridade; label: string }[] = [
+  { id: 'lendario', label: 'Lendário' },
+  { id: 'epico', label: 'Épico' },
+  { id: 'raro', label: 'Raro' },
+  { id: 'incomum', label: 'Incomum' },
+  { id: 'comum', label: 'Comum' },
+];
+
+/**
+ * O degrau de cada peça. O que não está aqui é **comum** — o padrão é o chão da escada, então
+ * acrescentar um item novo ao jogo não exige tocar nesta lista para nada funcionar.
+ *
+ * A distribuição é de propósito uma pirâmide: um punhado de lendários, poucos épicos e raros, uma
+ * dúzia de incomuns e o resto comum. É ela que faz as fatias das roletas ficarem em ordem —
+ * comum > incomum > raro > épico > lendário (veja PESOS em shared/roulette.ts).
+ */
+const RARIDADE_DE: Record<string, Raridade> = {
+  /*
+   * Lendário: os personagens e a aparência que muda o jogo inteiro.
+   *
+   * Marina e Tobi entram aqui mesmo vindo de graça — raridade é o que a peça **é**, não como ela
+   * chegou. O que vem com o jogo nunca cai em roleta (veja `cabe`), então isto não mexe nas
+   * chances; mexe no carimbo que a Galeria mostra.
+   */
+  'character:marina': 'lendario',
+  'character:ren': 'lendario',
+  'character:tobi': 'lendario',
+  'character:yukina': 'lendario',
+  'ui:victorian': 'lendario',
+  // épico: os efeitos de vitória com cena própria
+  'winfx:prism': 'epico',
+  'winfx:lightning': 'epico',
+  'winfx:fire': 'epico',
+  'winfx:ice': 'epico',
+  'winfx:holy': 'epico',
+  'winfx:void': 'epico',
+  // raro: o conjunto vitoriano, o mais trabalhado de cada tipo
+  'table:table-victorian': 'raro',
+  'table:table-victorian-wine': 'raro',
+  'back:back-victorian': 'raro',
+  'back:back-victorian-green': 'raro',
+  'face:face-victorian': 'raro',
+  'chip:chip-victorian': 'raro',
+  // incomum: os brilhos de uma cor e as peças de acabamento mais rico
+  'winfx:azure': 'incomum',
+  'winfx:rose': 'incomum',
+  'winfx:emerald': 'incomum',
+  'winfx:violet': 'incomum',
+  'table:table-royal': 'incomum',
+  'table:table-wine': 'incomum',
+  'table:table-night': 'incomum',
+  'back:back-royal': 'incomum',
+  'back:back-gold': 'incomum',
+  'back:back-midnight': 'incomum',
+  'face:face-gold': 'incomum',
+  'face:face-jade': 'incomum',
+};
+
+export function rarityOf(key: string): Raridade {
+  return RARIDADE_DE[key] ?? 'comum';
+}
+
+/** Posição na escada (0 = a melhor). Serve para ordenar. */
+export const rarityRank = (r: Raridade): number => RARIDADES.findIndex((x) => x.id === r);
+
+/** O rótulo que se lê ("Lendário"). */
+export const rarityLabel = (r: Raridade): string => RARIDADES.find((x) => x.id === r)?.label ?? '';
 
 /** As duas moedas. `pado` só vale para quem tem Discord vinculado. */
 export type Currency = 'chips' | 'pado';
@@ -76,6 +170,8 @@ export const PRICES = {
   face: 2500,
   back: 2500,
   chip: 2000,
+  /** Presente sem preço próprio (todos têm o seu em GIFTS; isto é só o piso do tipo). */
+  gift: 500,
 } as const;
 
 /** Efeitos com animação própria (fogo, relâmpago…) valem mais que um brilho de cor. */
@@ -98,15 +194,43 @@ export const FREE_KEYS: readonly string[] = [
 
 const free = new Set(FREE_KEYS);
 
+/**
+ * Presentes.
+ *
+ * São a moeda do vínculo: cada coração de cada personagem pede uma combinação (shared/bond.ts).
+ * São genéricos de propósito — um ramo de sakura serve para quem gosta de flores, seja quem for —
+ * para o catálogo não multiplicar por personagem a cada um que entra no jogo.
+ */
+export interface GiftSpec {
+  id: string;
+  name: string;
+  /** Símbolo curto, para a lista e para os prêmios da roleta. */
+  icon: string;
+  chips: number;
+}
+
+export const GIFTS: GiftSpec[] = [
+  { id: 'flor', name: 'Ramo de sakura', icon: '✿', chips: 400 },
+  { id: 'bolo', name: 'Bolo de morango', icon: '🍰', chips: 500 },
+  { id: 'cha', name: 'Chá de jasmim', icon: '🍵', chips: 450 },
+  { id: 'livro', name: 'Livro de poemas', icon: '📖', chips: 700 },
+  { id: 'leque', name: 'Leque pintado', icon: '🪭', chips: 800 },
+  { id: 'fone', name: 'Fones dourados', icon: '🎧', chips: 900 },
+  { id: 'incenso', name: 'Incenso de cedro', icon: '🕯', chips: 600 },
+  { id: 'joia', name: 'Broche de jade', icon: '💎', chips: 1500 },
+];
+
+export const findGift = (id: string): GiftSpec | undefined => GIFTS.find((g) => g.id === id);
+
 /** Temas de interface (o catálogo vive em src/ui/themes.ts; aqui só o id e o nome). */
 const UI_THEMES: { id: string; name: string }[] = [
   { id: 'default', name: 'Sakura' },
   { id: 'victorian', name: 'Vitoriano' },
 ];
 
-function entry(kind: ItemKind, id: string, name: string): CatalogItem {
+function entry(kind: ItemKind, id: string, name: string, chips?: number): CatalogItem {
   const key = itemKey(kind, id);
-  const price = kind === 'winfx' && SPECIAL_FX.has(id) ? PRICES.winfxSpecial : PRICES[kind];
+  const price = chips ?? (kind === 'winfx' && SPECIAL_FX.has(id) ? PRICES.winfxSpecial : PRICES[kind]);
   return { key, kind, id, name, chips: free.has(key) ? 0 : price };
 }
 
@@ -119,6 +243,7 @@ export const CATALOG: CatalogItem[] = [
   ...CHIP_PRESETS.map((s) => entry('chip', s.id, s.name)),
   ...TABLE_PRESETS.map((s) => entry('table', s.id, s.name)),
   ...UI_THEMES.map((t) => entry('ui', t.id, t.name)),
+  ...GIFTS.map((g) => entry('gift', g.id, g.name, g.chips)),
 ];
 
 const byKey = new Map(CATALOG.map((i) => [i.key, i]));

@@ -906,13 +906,13 @@ button.avatar {
   padding: 18px 28px 28px;
 }
 /*
- * O fundo do modal cobre a tela inteira: ele é fixo, nunca um item do fluxo da página.
+ * O que cobre a tela inteira — o fundo do modal, a cena do giro — é fixo, nunca item do fluxo.
  *
  * A exceção entra num `:where()` de propósito: ele não soma especificidade, e esta regra empata
  * com as que posicionam filhos diretos da tela (como o personagem do login) — quem ganha é a de
  * baixo, no arquivo. Um `:not()` a mais aqui desempata em silêncio e desloca essas telas.
  */
-.screen > *:not(.menu-bg):not(.petals):where(:not(.modal-back)) {
+.screen > *:not(.menu-bg):not(.petals):where(:not(.modal-back, .giro-cena)) {
   position: relative;
   z-index: 2;
 }
@@ -4774,6 +4774,27 @@ button.avatar {
 .shop-card.owned {
   border-color: rgba(107, 242, 193, 0.4);
 }
+/*
+ * O cartão que é um botão.
+ *
+ * Herda a tipografia e o cursor em vez de parecer um controle do sistema, e a área toda responde —
+ * é onde a pessoa clica. O realce no hover é o que diz que ela acertou o alvo.
+ */
+.shop-card.clicavel {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.shop-card.clicavel:hover {
+  border-color: var(--line);
+  background: linear-gradient(180deg, rgba(64, 48, 124, 0.92), rgba(28, 20, 60, 0.94));
+}
+.shop-card.clicavel:focus-visible {
+  outline: 2px solid var(--gold-2);
+  outline-offset: 2px;
+}
 /* a miniatura tem altura fixa: a grade não pode dançar de um tipo para o outro */
 .shop-art {
   height: 112px;
@@ -4827,6 +4848,23 @@ button.avatar {
   justify-content: center;
   gap: 6px;
   font-family: var(--num);
+}
+/* no palco a compra é uma decisão só: dois botões grandes, lado a lado, no meio */
+.shop-buy.grande {
+  flex-direction: row;
+  justify-content: center;
+  gap: 14px;
+  width: auto;
+}
+/*
+ * O cartão de presente guarda a altura dos botões que não tem.
+ *
+ * A compra saiu da prateleira (é no palco, grande), mas o tamanho do cartão fica: oito cartões que
+ * encolhessem mudariam a grade de lugar a cada aba.
+ */
+.shop-card.k-gift {
+  min-height: 268px;
+  justify-content: center;
 }
 .shop-short {
   font-size: 11px;
@@ -5647,4 +5685,634 @@ button.avatar {
   background: rgba(10, 6, 24, 0.45);
   font-size: 12px;
   color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ presentes, roletas e galeria */
+
+/* o presente como etiqueta de papel: símbolo grande sobre papel com a trama do washi */
+.gift-art {
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--washi), linear-gradient(180deg, rgba(255, 238, 205, 0.16), rgba(20, 12, 40, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(255, 238, 200, 0.28);
+  line-height: 1;
+}
+.shop-estoque {
+  font-family: var(--num);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--gold-2);
+}
+.shop-estoque.zero {
+  color: var(--muted);
+}
+/* falta na galeria: o nome fica apagado, para o que é seu saltar */
+.shop-card.galeria.falta .shop-name {
+  color: var(--muted);
+}
+.shop-card.galeria.falta .shop-art {
+  filter: saturate(0.35) brightness(0.7);
+}
+.shop-falta {
+  font-size: 13px;
+  color: var(--muted);
+}
+/* o título da seção na navegação (a galeria começa aqui) */
+.shop-tabs-sec {
+  margin: 10px 4px 2px;
+  font-family: var(--title);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0.8;
+}
+
+/* o ticket: uma tira de papel com o glifo da roleta */
+.ticket-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 92px;
+  height: 66px;
+  border-radius: 8px;
+  background: var(--washi), linear-gradient(160deg, #ffe7a0, #d9962a 60%, #8a5a12);
+  box-shadow:
+    inset 0 0 0 2px rgba(60, 30, 0, 0.35),
+    inset 0 0 0 3px rgba(255, 245, 210, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.45);
+  color: #3a2300;
+}
+.ticket-art.grande {
+  width: 200px;
+  height: 140px;
+  border-radius: 12px;
+}
+.ticket-glifo {
+  font-size: 26px;
+  line-height: 1;
+}
+.ticket-art.grande .ticket-glifo {
+  font-size: 58px;
+}
+.ticket-linha {
+  font-family: var(--title);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  opacity: 0.75;
+}
+.ticket-art.grande .ticket-linha {
+  font-size: 14px;
+}
+.roleta-card .muted {
+  text-align: center;
+  line-height: 1.35;
+}
+
+/* o palco da roleta: o ticket em cima, a tabela de prêmios embaixo */
+.roleta-stage {
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  /* a tabela cresce até o fim do painel: o espaço que sobra é dela, não do vazio */
+  justify-content: flex-start;
+}
+.premios {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border-radius: var(--radius);
+  background: rgba(10, 6, 24, 0.45);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.premios-cab {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 800;
+  font-size: 13px;
+}
+.premios-rolo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.premios-grupo-cab {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 12px 3px;
+  font-family: var(--title);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.premios-grupo-cab b {
+  font-family: var(--num);
+  color: var(--gold-2);
+}
+.premios ul {
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+}
+.premios li {
+  display: grid;
+  grid-template-columns: 34px 1fr 46px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 12px;
+  font-size: 13px;
+}
+.premios li + li {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+.premios li {
+  grid-template-columns: 34px 1fr auto 46px;
+}
+.premios li b {
+  font-family: var(--num);
+  text-align: right;
+  color: var(--gold-2);
+}
+
+/*
+ * Cor por raridade.
+ *
+ * A cor mora no grupo e desce para o cabeçalho, a chance e a borda das linhas: um degrau da escada
+ * inteiro na mesma cor lê mais rápido que cada linha pintada por conta.
+ */
+/* a cor de cada degrau, em classe própria: serve à tabela de prêmios e ao carimbo da Galeria */
+.r-lendario {
+  --raro-cor: #ffd76a;
+}
+.r-epico {
+  --raro-cor: #c79bff;
+}
+.r-raro {
+  --raro-cor: #ff7d7d;
+}
+.r-incomum {
+  --raro-cor: #7fc4ff;
+}
+.r-comum {
+  --raro-cor: #8ee27a;
+}
+/*
+ * O padrão fica no pai, não no grupo: no grupo ele empataria com `.r-lendario` & cia. — que estão
+ * no mesmo elemento — e, por vir depois no arquivo, apagaria a cor de todos os degraus.
+ */
+.premios {
+  --raro-cor: var(--muted);
+}
+.premios-grupo {
+  border-left: 3px solid var(--raro-cor);
+}
+.premios-grupo .premios-grupo-cab,
+.premios-grupo .premios-grupo-cab b,
+.premios-grupo li b {
+  color: var(--raro-cor);
+}
+.premios-grupo .premios-grupo-cab {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--raro-cor) 14%, transparent), transparent 70%);
+}
+/* a miniatura do prêmio: a mesma arte do cartão, encolhida para caber na linha */
+.premio-mini {
+  display: block;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+}
+.premio-mini .shop-art {
+  transform: scale(0.42);
+  transform-origin: top left;
+  width: 81px;
+  height: 81px;
+}
+.premio-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* de onde vem a peça da galeria */
+.shop-vem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.shop-vem-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(100%, 320px);
+  padding: 5px 12px;
+  border-radius: 10px;
+  background: rgba(10, 6, 24, 0.45);
+  font-size: 13px;
+}
+.shop-vem-linha b {
+  font-family: var(--num);
+  color: var(--gold-2);
+}
+
+/* ------------------------------------------------------------------ a cena do giro */
+
+/*
+ * O giro cobre a tela inteira: a loja se esconde e fica só o ticket.
+ *
+ * É `position: fixed` com z-index acima de tudo, e o fundo é opaco de propósito — o pedido era que
+ * a interface desaparecesse, não que ficasse atrás de um véu.
+ */
+.giro-cena {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+}
+/* opaco de verdade: o pedido era que a loja desaparecesse, não que ficasse atrás de um véu */
+.giro-fundo {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(74, 46, 130, 0.95), rgba(6, 3, 16, 1) 72%),
+    #06030f;
+}
+.giro-meio {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.giro-meio h2 {
+  margin: 0;
+}
+.giro-linha {
+  font-size: 15px;
+  color: var(--muted);
+}
+.giro-linha b {
+  font-family: var(--num);
+  color: var(--gold-2);
+}
+.giro-premio {
+  display: grid;
+  place-items: center;
+  width: min(80vw, 420px);
+  height: min(52vh, 420px);
+}
+.ticket-art.girando {
+  box-shadow:
+    inset 0 0 0 2px rgba(60, 30, 0, 0.35),
+    inset 0 0 0 3px rgba(255, 245, 210, 0.45),
+    0 0 40px rgba(255, 214, 130, 0.45);
+}
+
+/* ------------------------------------------------------------------ a tranca do vínculo */
+
+/*
+ * O coração cheio esperando presentes.
+ *
+ * Fica entre a barra e as colunas da página, porque é o que o jogador precisa ler antes de
+ * procurar missão: jogar mais não abre este coração.
+ */
+.bond-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 140, 180, 0.12), rgba(10, 6, 24, 0.5));
+}
+.bond-gate-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.bond-gate-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bond-gate-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.5);
+  font-size: 13px;
+}
+.bond-gate-item i {
+  font-style: normal;
+  font-size: 17px;
+  line-height: 1;
+}
+.bond-gate-item b {
+  font-family: var(--num);
+}
+/* quem já está completo fica verde; o que falta, apagado e com a conta à vista */
+.bond-gate-item.ok {
+  border-color: rgba(107, 242, 193, 0.45);
+}
+.bond-gate-item.ok b {
+  color: var(--mint);
+}
+.bond-gate-item.falta {
+  color: var(--muted);
+}
+.bond-gate-item.falta b {
+  color: var(--gold);
+}
+.bond-gate-pe {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------------ a loja: abas em cima e carrossel */
+
+/*
+ * As abas da loja.
+ *
+ * São três, e ficam em cima porque a largura da tela é da vitrine — diferente da Galeria, que tem
+ * sete tipos e por isso mantém a coluna da esquerda.
+ */
+.shop-abas {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.shop-aba {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  border-radius: 0;
+  border: none;
+  background: var(--washi), rgba(10, 6, 24, 0.5);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  clip-path: polygon(9px 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%, 0 9px);
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 15px;
+  cursor: pointer;
+}
+.shop-aba:hover {
+  color: var(--text);
+}
+.shop-aba.on {
+  background: var(--washi), linear-gradient(180deg, rgba(255, 210, 120, 0.28), rgba(255, 170, 60, 0.1));
+  box-shadow: inset 0 0 0 1px var(--gold);
+  color: var(--text);
+}
+
+/* a aba de presentes é prateleira (grade + palco); as outras são vitrine (carrossel + palco) */
+.shop-body.prateleira,
+.shop-body.vitrine {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* ------------------------------------------------------------------ carrossel */
+
+/*
+ * O carrossel ocupa a altura toda do corpo, menos uma margem embaixo das abas.
+ *
+ * O cartaz é a peça da decisão: quanto maior, melhor se vê o que se está comprando. A margem de
+ * cima existe para ele não encostar na aba escolhida.
+ */
+.carrossel {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: stretch;
+  gap: 6px;
+  padding: 12px 0 28px;
+  min-height: 0;
+}
+.carrossel-palco {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  min-height: 0;
+}
+.carrossel-seta {
+  /* as setas ficam no meio da altura, não no topo da coluna que se esticou */
+  align-self: center;
+  height: 72px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.5);
+  color: var(--gold-2);
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+}
+.carrossel-seta:hover {
+  border-color: var(--gold);
+  background: rgba(255, 226, 180, 0.12);
+}
+.carrossel-pontos {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.carrossel-ponto {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+.carrossel-ponto.on {
+  background: var(--gold);
+  border-color: var(--gold-2);
+}
+
+/* o cartaz: a peça grande do carrossel */
+.cartaz {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 470px);
+  height: 100%;
+  padding: 20px 18px 22px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--line);
+  background: linear-gradient(180deg, rgba(48, 36, 96, 0.55), rgba(12, 8, 28, 0.75));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+.cartaz h3 {
+  margin: 0;
+  font-size: 22px;
+}
+.cartaz .shop-sobre {
+  max-width: 34ch;
+}
+/* a arte cresce com o cartaz: é ela que come a altura que o cartão ganhou */
+.cartaz-art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.ticket-art.grandao {
+  width: min(100%, 380px);
+  height: min(100%, 268px);
+  border-radius: 16px;
+}
+.ticket-art.grandao .ticket-glifo {
+  font-size: 116px;
+}
+.ticket-art.grandao .ticket-linha {
+  font-size: 18px;
+}
+/* a aparência como cartaz: o fundo e o painel do tema, em tamanho de pôster */
+.tema-cartaz {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+/* o painel cresce com o pôster: num cartaz alto, uma amostra miúda fica perdida no meio */
+.tema-cartaz-painel {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 30px 48px;
+  border: 1px solid;
+  border-radius: 14px;
+}
+.tema-cartaz-painel b {
+  font-size: 52px;
+}
+.tema-cartaz-painel i {
+  font-style: normal;
+  font-size: 46px;
+}
+
+/* ------------------------------------------------------------------ carimbo de raridade */
+
+/*
+ * O selo diagonal da Galeria.
+ *
+ * Tinta sobre a peça: linha dupla de borracha, fundo escuro translúcido e a cor do degrau. Cada
+ * raridade tem letra e estilo próprios — decorativa, itálica, gravada — para o degrau se
+ * reconhecer pela forma antes da leitura.
+ */
+.carimbo {
+  position: absolute;
+  /*
+   * No cartãozinho o carimbo cai à esquerda — é o lado onde a arte tem mais folga, e o nome e o
+   * estado ficam livres. No palco ele vai para a direita (veja `.grande`). A inclinação é a mesma
+   * nos dois: carimbo torto é carimbo batido à mão.
+   */
+  top: 12px;
+  left: 4px;
+  transform: rotate(-16deg);
+  padding: 2px 9px 3px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px currentColor;
+  background: rgba(6, 3, 16, 0.42);
+  color: var(--raro-cor);
+  opacity: 0.92;
+  line-height: 1.15;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+.carimbo.grande {
+  top: 22px;
+  left: auto;
+  right: 10px;
+  padding: 5px 18px 6px;
+  border-width: 3px;
+  transform: rotate(-14deg);
+}
+
+/* lendário: capitular decorativa, larga e em caixa alta — é o selo mais gritado da escada */
+.carimbo.r-lendario {
+  font-family: 'Cinzel Decorative', 'Cinzel', serif;
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.carimbo.r-lendario.grande {
+  font-size: 22px;
+}
+/* épico: itálico grosso de revista, com pouca folga entre letras */
+.carimbo.r-epico {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.carimbo.r-epico.grande {
+  font-size: 24px;
+}
+/* raro: romana gravada, caixa alta */
+.carimbo.r-raro {
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.carimbo.r-raro.grande {
+  font-size: 21px;
+}
+/* incomum: itálico fino de texto, em caixa baixa — um selo discreto */
+.carimbo.r-incomum {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.carimbo.r-incomum.grande {
+  font-size: 26px;
+}
+/* comum: a letra do próprio jogo, pequena e sem pompa */
+.carimbo.r-comum {
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.carimbo.r-comum.grande {
+  font-size: 15px;
+}
+
+/* o cartão e o palco da Galeria são o papel onde o carimbo cai */
+.shop-card.galeria,
+.shop-stage-art {
+  position: relative;
 }

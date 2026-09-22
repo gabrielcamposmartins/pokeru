@@ -333,6 +333,7 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
   const icons: { key: Screen; icon: string; label: string }[] = [
     { key: 'characters', icon: menu.icons.characters, label: 'Personagens' },
     { key: 'store', icon: '🛍', label: 'Loja' },
+    { key: 'gallery', icon: '🖼', label: 'Galeria' },
     { key: 'studio', icon: menu.icons.studio, label: 'Estúdio' },
     { key: 'settings', icon: menu.icons.settings, label: 'Ajustes' },
   ];

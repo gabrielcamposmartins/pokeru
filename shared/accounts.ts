@@ -59,6 +59,20 @@ export interface AccountInfo {
   owned: string[];
   /** Vínculo por personagem (id do personagem → ficha). */
   bond: Record<string, BondStats>;
+  /**
+   * Presentes em estoque, por id (shared/catalog.ts → GIFTS).
+   *
+   * São **contáveis**, ao contrário de `owned`: quem tem três ramos de sakura tem `{ flor: 3 }`.
+   * É o que o vínculo consome para destrancar cada coração.
+   */
+  gifts: Record<string, number>;
+  /**
+   * Corações de vínculo já destrancados com presentes, por personagem.
+   *
+   * A barra pode estar cheia e o coração ainda trancado: jogar enche, presente destranca. Sem este
+   * número o cliente não sabe distinguir os dois estados.
+   */
+  bondUnlocked: Record<string, number>;
   /** Contadores das conquistas (shared/achievements.ts). */
   stats: PlayerStats;
   /**
@@ -68,6 +82,16 @@ export interface AccountInfo {
   title: string | null;
   /** Quando a conta foi criada (ISO). */
   since: string;
+}
+
+/** O que saiu de um giro de roleta. */
+export interface SpinResult {
+  /** Chave do prêmio no catálogo (`character:yukina`, `gift:flor`…). */
+  key: string;
+  /** O jogador já tinha esse item: virou fichas. */
+  dup: boolean;
+  /** Fichas creditadas quando repetiu (0 quando não). */
+  refund: number;
 }
 
 /** Credenciais que o cliente manda no `hello` para voltar à mesma conta sem login. */
@@ -151,6 +175,18 @@ export interface AccountService extends TableBank {
    * Quem valida preço, saldo e posse é aqui — o cliente só desenha a vitrine.
    */
   buy(accountId: string, key: string, currency: Currency): Promise<string | null>;
+  /**
+   * Gira uma roleta: cobra o ticket, sorteia e entrega. Devolve o prêmio, ou a mensagem de erro.
+   *
+   * **O sorteio é do servidor.** O cliente manda qual roleta e em que moeda; o resultado vem daqui
+   * e é a única versão que existe — não há nada que o cliente possa mandar para influenciá-lo.
+   */
+  spin(accountId: string, roulette: string, currency: Currency): Promise<SpinResult | string>;
+  /**
+   * Entrega os presentes que destrancam o próximo coração do personagem. Devolve a mensagem de
+   * erro, ou null quando destrancou.
+   */
+  offerGifts(accountId: string, character: string): string | null;
   /**
    * Relê o que vive fora do servidor (o saldo de padocoins, que é do bot do Discord) e avisa se
    * mudou. Opcional: um serviço que não fala com ninguém de fora não precisa disso.
