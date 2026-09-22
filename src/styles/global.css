@@ -3136,9 +3136,14 @@ button.avatar {
   inset: 0;
   background: linear-gradient(180deg, rgba(8, 4, 16, 0.55), rgba(8, 4, 16, 0.35) 45%, rgba(8, 4, 16, 0.6));
 }
+/* Quanto o personagem entra na tela nas telas de resultado. Ele ficava colado na borda (e cortado);
+   isto o traz para dentro, e a placa de nome anda junto para não descolar dele. */
+:root {
+  --rr-char-x: 8%;
+}
 .rr-char {
   position: absolute;
-  left: -10px;
+  left: var(--rr-char-x);
   bottom: -14px;
   filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.75));
 }
@@ -3147,7 +3152,7 @@ button.avatar {
 }
 .rr-plate {
   position: absolute;
-  left: 24px;
+  left: calc(var(--rr-char-x) + 34px);
   bottom: 96px;
   display: flex;
   flex-direction: column;
@@ -3328,7 +3333,7 @@ button.avatar {
   font-family: var(--font);
 }
 .me-char {
-  left: 6px;
+  left: var(--rr-char-x);
   bottom: -14px;
 }
 .me-title {
