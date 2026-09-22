@@ -25,6 +25,8 @@
     --muted: #bfa98a;
     --danger: #c8463c;
     --radius: 4px;
+    /* a tinta do carimbo aqui é verde-garrafa, não o verde elétrico do sakura */
+    --stamp-ink: #7f9c6a;
 
     --oxblood: #7a1a26;
     --oxblood-2: #4a0e17;

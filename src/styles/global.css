@@ -21,6 +21,8 @@
   --muted: #b3a9d6;
   --danger: #ff5d73;
   --radius: 14px;
+  /* tinta do carimbo de "pronto" na abertura (cada tema tem a sua) */
+  --stamp-ink: #63c97f;
   --font: 'M PLUS Rounded 1c', 'Segoe UI', system-ui, sans-serif;
   --title: 'Cinzel', Georgia, serif;
   color-scheme: dark;
@@ -4940,49 +4942,76 @@ button.avatar {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  background: radial-gradient(ellipse at 50% 30%, #241033 0%, #0c0611 70%);
-}
-.pm-head {
-  text-align: center;
-}
-.pm-head h1 {
-  margin: 0 0 4px;
-  font-size: 34px;
-  /* o texto muda de "Preparando a mesa" para "...mesa..." sem empurrar o resto */
-  min-width: 420px;
+  gap: 12px;
+  /* o fundo é o do tema: é em relação a ele que o card clareia */
+  background: radial-gradient(ellipse at 50% 30%, var(--bg1) 0%, var(--bg0) 70%);
 }
 .pm-rows {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: clamp(28px, 4.4vh, 56px);
+  /* nem as fileiras nem a barra podem encolher: numa janela baixa o flex espremia a barra até
+     sumir (4px viravam 0) em vez de simplesmente ficar apertado */
+  flex: none;
 }
 .pm-row {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 14px;
+  gap: clamp(52px, 6.4vw, 112px);
   /* a quebra em duas linhas é feita no componente, não pelo wrap: assim a de cima é sempre a de
      cima, mesmo quando a janela é estreita */
   max-width: min(1500px, 96vw);
   min-height: 1px;
 }
-.pm-card {
-  position: relative;
-  width: 178px;
-  height: 300px;
-  /* sem fundo: o personagem é o card */
+.pm-slot {
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  /* a largura é do conjunto, não do card: sem isto um título comprido esticaria a coluna e
+     passaria das bordas do card */
+  width: clamp(140px, 21vh, 268px);
   transition: filter 0.3s ease;
 }
 /* quem ainda não confirmou fica apagado — dá para ver de longe quem a mesa espera */
-.pm-card:not(.ready) {
+.pm-slot:not(.ready) {
   filter: grayscale(0.75) brightness(0.65);
 }
-.pm-card.me .pm-name {
-  color: #ffd86b;
+/* o seu card se distingue pelo nome, e só por ele: o card de trás é igual para todo mundo */
+.pm-slot.me .pm-name {
+  color: var(--gold-2);
+}
+.pm-card {
+  position: relative;
+  /* a largura vem da coluna (que acompanha a altura da janela: são duas linhas de cards, e elas
+     têm de caber na tela) e a altura vem da proporção */
+  width: 100%;
+  aspect-ratio: 62 / 100;
+  /* fundo bem mais claro que o da tela, com um degradê leve: claro em cima, escuro embaixo. O véu
+     branco por cima de uma base do tema clareia o fundo de qualquer tema em vez de brigar com ele —
+     e a base precisa ser opaca, senão a cor do card de trás vaza por ela. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.04)),
+    var(--bg1);
+  /* o arredondamento é o do tema: 14px no sakura, 4px no vitoriano */
+  border-radius: var(--radius);
+  /* o card NÃO corta: é o par de cartas que passa da borda de propósito. Quem corta é a arte,
+     na caixa dela, senão o personagem vazaria pelos cantos arredondados. */
+}
+/**
+ * O card de trás: um segundo card um pouco maior, num tom escuro do tema (não o do fundo da tela,
+ * senão ele sumiria). Faz o papel que a borda fazia, com cara de carta empilhada.
+ */
+.pm-card::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: calc(var(--radius) + 5px);
+  background: var(--panel-b);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  /* atrás do card, que não cria contexto de empilhamento próprio */
+  z-index: -1;
 }
 /* a decoração de fundo de cada card entra aqui (PENDENTE) */
 .pm-deco {
@@ -4991,40 +5020,140 @@ button.avatar {
   pointer-events: none;
 }
 .pm-art {
+  /* ocupa o card inteiro: é contra esta caixa que a altura em % da arte se resolve */
   position: absolute;
-  bottom: 34px;
-  left: 50%;
-  transform: translateX(-50%);
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: inherit;
   pointer-events: none;
 }
 .pm-art .char-full img {
   filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
 }
-.pm-title {
-  position: absolute;
-  top: 8px;
-  right: 2px;
-  /* estreito de propósito: o canto de cima à esquerda é da faixa de pronto, e os dois não podem
-     se cruzar. Título comprido quebra em duas linhas e o resto sai com "…" */
-  max-width: 84px;
-  text-align: right;
-  font-size: 10px;
-  line-height: 1.2;
-  color: #f2c14e;
+
+/* ------------------------------------------------------- nome acima, título abaixo */
+.pm-name {
+  max-width: 100%;
+  font-size: clamp(13px, 1.8vh, 17px);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-shadow: 0 1px 3px #000;
+}
+.pm-foot {
+  /* as duas linhas existem mesmo sem título: sem elas, cards com e sem título ficariam
+     desalinhados na fileira. O respiro em cima é para o par de cartas, que passa da borda. */
+  display: block;
+  margin-top: 8px;
+  min-height: 2.5em;
+  max-width: 100%;
+  text-align: center;
+  font-size: clamp(12px, 1.6vh, 15px);
+}
+.ttl {
+  position: relative;
   display: -webkit-box;
+  max-width: 100%;
+  /* fonte do título é a de display, diferente da do nome de propósito — e no peso mais cheio */
+  font-family: var(--title);
+  font-weight: 900;
+  font-size: 1em;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+  /* título comprido quebra em duas linhas em vez de virar reticências: o nome dele é o prêmio */
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.pm-pair {
+
+/* ------------------------------------------------------- nível, no alto à direita do card */
+.pm-level {
   position: absolute;
-  left: 2px;
-  bottom: 40px;
-  width: 58px;
-  height: 52px;
+  top: 6px;
+  right: 8px;
+  line-height: 1;
+}
+.pm-bot {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line-soft);
+  color: var(--muted);
+}
+.lvl {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  line-height: 1;
+}
+.lvl-cap {
+  font-size: 0.36em;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  text-transform: uppercase;
+}
+.lvl-num {
+  font-family: var(--title);
+  font-weight: 900;
+  font-size: 1em;
+}
+
+/* ------------------------------------------------------- partículas (reaproveitáveis) */
+.sparks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
   pointer-events: none;
 }
+.spark {
+  position: absolute;
+  bottom: 0;
+  border-radius: 50%;
+  background: currentColor;
+  /* o brilho é o que faz um ponto de 4px existir por cima da arte */
+  box-shadow: 0 0 6px currentColor;
+  opacity: 0;
+  animation-name: spark-up;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+@keyframes spark-up {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.5);
+  }
+  20% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--spark-rise, 26px))) scale(0.2);
+  }
+}
+
+/* ------------------------------------------------------- o par de cartas, embaixo à esquerda */
+.pm-pair {
+  /* passa da borda do card de propósito, como cartas apoiadas na beirada. O quanto sai é medido:
+     mais que isto e elas caem em cima do título do card vizinho. */
+  position: absolute;
+  left: -18px;
+  bottom: -16px;
+  width: 68px;
+  height: 60px;
+  pointer-events: none;
+}
+/* a inclinação é do invólucro: a carta é um motion.div e tem transform próprio, inline */
 .pm-pair-back,
 .pm-pair-face {
   position: absolute;
@@ -5033,70 +5162,44 @@ button.avatar {
 }
 .pm-pair-back {
   left: 0;
-  transform: rotate(-12deg);
+  transform: rotate(-32deg);
 }
+/* a de frente fica reta, como uma carta pousada */
 .pm-pair-face {
-  left: 18px;
-  transform: rotate(8deg);
+  left: 22px;
 }
-.pm-plate {
+
+/* ------------------------------------------------------- carimbo de pronto */
+.pm-stamp {
   position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(20, 10, 30, 0.85), rgba(8, 4, 14, 0.9));
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-.pm-level {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 5px;
-  background: linear-gradient(180deg, #ffd86b, #b8801d);
-  color: #2b1a04;
-  white-space: nowrap;
-}
-.pm-name {
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* a faixa de pronto: diagonal no canto de cima, à esquerda */
-.pm-ribbon {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 84px;
-  height: 84px;
-  overflow: hidden;
+  top: 22px;
+  left: 7px;
+  transform: rotate(-22deg);
+  transform-origin: left center;
   pointer-events: none;
 }
-.pm-ribbon span {
-  position: absolute;
-  top: 19px;
-  left: -30px;
-  width: 124px;
-  padding: 2px 0;
-  transform: rotate(-38deg);
-  text-align: center;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: #0e2b12;
-  background: linear-gradient(180deg, #8ff2a0, #2e9b4a);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+.pm-stamp span {
+  display: block;
+  padding: 2px 6px 3px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  /* tinta de carimbo: verde um pouco gasto, sem brilho — brilho faria disto um letreiro de neon.
+     A linha dupla (borda + sombra interna) é o que dá a cara de borracha, e a transparência deixa
+     a arte aparecer por baixo, como tinta em cima do papel. */
+  color: var(--stamp-ink);
+  border: 2px solid var(--stamp-ink);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px currentColor;
+  opacity: 0.86;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
 }
 .pm-loading {
   position: absolute;
-  top: 16px;
-  left: 12px;
+  top: 20px;
+  left: 10px;
   display: flex;
   gap: 4px;
 }
@@ -5104,7 +5207,7 @@ button.avatar {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #cbb7ff;
+  background: var(--muted);
   animation: pm-dot 1s ease-in-out infinite;
 }
 .pm-loading i:nth-child(2) {
@@ -5125,17 +5228,18 @@ button.avatar {
   }
 }
 .pm-bar {
+  flex: none;
   width: min(560px, 70vw);
   height: 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--line-soft);
   overflow: hidden;
 }
 .pm-bar-fill {
   height: 100%;
   width: 100%;
   transform-origin: left center;
-  background: linear-gradient(90deg, #7c5cff, #ffd86b);
+  background: linear-gradient(90deg, var(--gold-3), var(--gold));
   animation: pm-bar linear forwards;
 }
 @keyframes pm-bar {

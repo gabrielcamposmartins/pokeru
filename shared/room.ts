@@ -123,6 +123,14 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
  */
 /** Quanto a abertura espera, no máximo, pelas confirmações. */
 const OPENING_MAX_MS = 12_000;
+/**
+ * Quanto a abertura fica no ar, no mínimo.
+ *
+ * Ela não existe só para esperar: é onde cada um aparece com o que montou, e uma tela que some em
+ * meio segundo não mostra nada. Numa mesa de bots todos confirmam quase juntos, então sem este
+ * piso a tela piscaria.
+ */
+const OPENING_MIN_MS = 5_000;
 /** Pausa depois da última confirmação, para a mesa aparecer em vez de piscar. */
 const OPENING_HOLD_MS = 1_400;
 
@@ -165,7 +173,7 @@ export class Room {
    * `ready` guarda quem já confirmou; `began` fecha a porta para o começo acontecer duas vezes
    * (o tempo limite e a última confirmação podem cair quase juntos).
    */
-  private opening: { ready: Set<string>; began: boolean } | null = null;
+  private opening: { ready: Set<string>; began: boolean; at: number } | null = null;
 
   constructor(id: string, settings: RoomSettings, host: ClientHandle) {
     this.id = id;
@@ -526,7 +534,7 @@ export class Room {
    * mesa inteira parada. Passado o limite, a mesa começa sem quem não respondeu.
    */
   private openUp(): void {
-    this.opening = { ready: new Set(), began: false };
+    this.opening = { ready: new Set(), began: false, at: Date.now() };
     this.broadcastOpening();
     this.later(() => this.beginPlay(), OPENING_MAX_MS);
   }
@@ -541,21 +549,27 @@ export class Room {
     this.checkOpening();
   }
 
-  /** Todos confirmaram? Então começa — com uma pausa curta, para dar tempo de ver a mesa. */
+  /** Todos confirmaram? Então começa — respeitando a pausa curta e o tempo mínimo da tela. */
   private checkOpening(): void {
     const o = this.opening;
     if (!o || o.began) return;
     const gente = this.humans().filter((m) => !m.leaving);
     if (gente.length > 0 && !gente.every((m) => o.ready.has(m.id))) return;
-    this.later(() => this.beginPlay(), OPENING_HOLD_MS);
+    this.later(() => this.beginPlay(), Math.max(OPENING_HOLD_MS, OPENING_MIN_MS - (Date.now() - o.at)));
   }
 
   private beginPlay(): void {
     const o = this.opening;
     if (!o || o.began) return;
+    // o piso vale para qualquer caminho que chegue aqui, não só para o das confirmações
+    const falta = OPENING_MIN_MS - (Date.now() - o.at);
+    if (falta > 0) {
+      this.later(() => this.beginPlay(), falta);
+      return;
+    }
     o.began = true;
     this.opening = null;
-    this.sendAll({ type: 'opening', opening: { players: [], waitMs: 0 } });
+    this.sendAll({ type: 'opening', opening: { players: [], waitMs: 0, minMs: 0 } });
     this.system('A partida começou! Boa sorte.');
     this.startHand();
   }
@@ -581,7 +595,7 @@ export class Room {
 
   private broadcastOpening(): void {
     if (!this.opening) return;
-    const opening: Opening = { players: this.openingRoster(), waitMs: OPENING_MAX_MS };
+    const opening: Opening = { players: this.openingRoster(), waitMs: OPENING_MAX_MS, minMs: OPENING_MIN_MS };
     this.sendAll({ type: 'opening', opening });
   }
 

@@ -117,9 +117,28 @@ describe('abertura da partida', () => {
     // o bot não tem conta: nível 0, e a tela mostra "BOT" em vez de um número inventado
     expect(abertura.players.find((p) => p.isBot)!.level).toBe(0);
 
-    // só falta o humano
+    // só falta o humano — e mesmo com ele pronto, a tela tem um piso de 5s
     a.conn.handle({ type: 'ready' });
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(comecou(a)).toBe(true);
+    acc.close();
+  });
+
+  it('a tela fica no ar pelo menos 5 segundos, mesmo com todos prontos na hora', async () => {
+    // numa mesa de bots o humano confirma quase na hora; sem piso, a abertura piscaria
+    const acc = new Accounts({ file: newFile(), startingMoney: 20_000 });
+    const lobby = new Lobby('Teste', acc);
+    const a = player(lobby, 'Gabi');
+    a.conn.handle({ type: 'createRoom', settings: mesa });
+    a.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    await vi.advanceTimersByTimeAsync(20);
+
+    a.conn.handle({ type: 'startGame' });
+    a.conn.handle({ type: 'ready' });
+
+    await vi.advanceTimersByTimeAsync(4_500);
+    expect(comecou(a)).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(comecou(a)).toBe(true);
     acc.close();
   });

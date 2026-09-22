@@ -245,6 +245,8 @@ export interface Opening {
   players: OpeningPlayer[];
   /** Quanto a mesa espera, no máximo, antes de começar de todo jeito. */
   waitMs: number;
+  /** Quanto a tela fica no ar no mínimo, mesmo com todos prontos na hora. */
+  minMs: number;
 }
 
 export type ClientMsg =

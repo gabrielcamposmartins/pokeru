@@ -485,6 +485,7 @@ if (cena === 'loja' || cena === 'loja-sem-pado' || cena === 'conta' || cena === 
 // a abertura: cinco na mesa (um bot e um que ainda nao confirmou), com titulo, nivel e o par de cartas
 const ABERTURA: Opening = {
   waitMs: 12_000,
+  minMs: 5_000,
   players: [
     { seat: 0, name: 'Você', isBot: false, title: 'Colecionador de Potes', level: 7, ready: true },
     { seat: 1, name: 'Marina', isBot: false, title: 'Lenda do Showdown', level: 23, ready: true },
@@ -523,7 +524,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
       {cena === 'abertura' ? (
-        <OpeningView opening={ABERTURA} mySeat={0} mesa="Fila Rápida · blinds 10/20" />
+        <OpeningView opening={ABERTURA} mySeat={0} />
       ) : cena === 'personagens' ? (
         <CharactersScreen onBack={() => {}} />
       ) : cena === 'login' || cena === 'login-erro' ? (

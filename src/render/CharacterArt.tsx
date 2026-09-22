@@ -22,7 +22,12 @@ export function CharacterPortrait({ st, size, className, style }: { st: Characte
 
 export type CharView = 'full' | 'bust';
 
-/** Corpo inteiro, ou só o busto (parte de cima da ilustração, usada no cut-in). */
+/**
+ * Corpo inteiro, ou só o busto (parte de cima da ilustração, usada no cut-in).
+ *
+ * `height` aceita número (px) ou medida CSS — '88%' deixa a arte acompanhar um pai que muda de
+ * tamanho com a janela, em vez de ficar presa a um número.
+ */
 export function CharacterFull({
   st,
   height,
@@ -33,7 +38,7 @@ export function CharacterFull({
   onClick,
 }: {
   st: CharacterStyle;
-  height: number;
+  height: number | string;
   view?: CharView;
   animate?: boolean;
   className?: string;
@@ -42,7 +47,7 @@ export function CharacterFull({
 }) {
   if (view === 'bust') {
     return (
-      <div className={`char-bust ${className ?? ''}`} style={{ height, width: height * 0.9, ...style }} onClick={onClick}>
+      <div className={`char-bust ${className ?? ''}`} style={{ height, width: typeof height === 'number' ? height * 0.9 : height, ...style }} onClick={onClick}>
         <img src={st.full} alt={st.name} draggable={false} />
       </div>
     );

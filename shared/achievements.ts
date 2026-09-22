@@ -67,6 +67,14 @@ export interface Achievement {
   of: StatEvent;
   /** Meta. */
   need: number;
+  /**
+   * Quão difícil é de conseguir, de 1 (comum) a 5 (lendário).
+   *
+   * É juízo, não conta: 100 mãos jogadas e 100 desistências pedem o mesmo número, mas não o mesmo
+   * tanto de jogo. Por isso o grau está escrito aqui, item por item, em vez de sair de uma fórmula
+   * sobre `need` — que acertaria numas trilhas e erraria em outras. É o grau que pinta o título.
+   */
+  tier: 1 | 2 | 3 | 4 | 5;
 }
 
 /**
@@ -75,31 +83,31 @@ export interface Achievement {
  */
 export const ACHIEVEMENTS: readonly Achievement[] = [
   // presença
-  { id: 'first-hand', name: 'Primeira mão', hint: 'Jogue uma mão até o fim.', title: 'Novato da Mesa', of: 'hands', need: 1 },
-  { id: 'regular', name: 'Presença', hint: 'Jogue 100 mãos.', title: 'Frequentador', of: 'hands', need: 100 },
-  { id: 'veteran', name: 'Veterania', hint: 'Jogue 1.000 mãos.', title: 'Veterano do Feltro', of: 'hands', need: 1000 },
+  { id: 'first-hand', name: 'Primeira mão', hint: 'Jogue uma mão até o fim.', title: 'Novato da Mesa', of: 'hands', need: 1, tier: 1 },
+  { id: 'regular', name: 'Presença', hint: 'Jogue 100 mãos.', title: 'Frequentador', of: 'hands', need: 100, tier: 2 },
+  { id: 'veteran', name: 'Veterania', hint: 'Jogue 1.000 mãos.', title: 'Veterano do Feltro', of: 'hands', need: 1000, tier: 4 },
 
   // potes
-  { id: 'first-pot', name: 'Primeiro pote', hint: 'Ganhe uma mão.', title: 'Primeiro Pote', of: 'wins', need: 1 },
-  { id: 'pot-collector', name: 'Colecionador', hint: 'Ganhe 50 mãos.', title: 'Colecionador de Potes', of: 'wins', need: 50 },
-  { id: 'shark', name: 'Tubarão', hint: 'Ganhe 500 mãos.', title: 'Tubarão', of: 'wins', need: 500 },
+  { id: 'first-pot', name: 'Primeiro pote', hint: 'Ganhe uma mão.', title: 'Primeiro Pote', of: 'wins', need: 1, tier: 1 },
+  { id: 'pot-collector', name: 'Colecionador', hint: 'Ganhe 50 mãos.', title: 'Colecionador de Potes', of: 'wins', need: 50, tier: 3 },
+  { id: 'shark', name: 'Tubarão', hint: 'Ganhe 500 mãos.', title: 'Tubarão', of: 'wins', need: 500, tier: 5 },
 
   // mãos grandes
-  { id: 'golden-hand', name: 'Mão de ouro', hint: 'Ganhe com trinca ou melhor.', title: 'Mão de Ouro', of: 'bigWins', need: 1 },
-  { id: 'showdown-legend', name: 'Lenda', hint: 'Ganhe 25 vezes com mão grande.', title: 'Lenda do Showdown', of: 'bigWins', need: 25 },
+  { id: 'golden-hand', name: 'Mão de ouro', hint: 'Ganhe com trinca ou melhor.', title: 'Mão de Ouro', of: 'bigWins', need: 1, tier: 2 },
+  { id: 'showdown-legend', name: 'Lenda', hint: 'Ganhe 25 vezes com mão grande.', title: 'Lenda do Showdown', of: 'bigWins', need: 25, tier: 4 },
 
   // coragem
-  { id: 'fearless', name: 'Sem medo', hint: 'Vá de all-in uma vez.', title: 'Sem Medo', of: 'allIns', need: 1 },
-  { id: 'all-or-nothing', name: 'Tudo ou nada', hint: 'Vá de all-in 50 vezes.', title: 'Tudo ou Nada', of: 'allIns', need: 50 },
+  { id: 'fearless', name: 'Sem medo', hint: 'Vá de all-in uma vez.', title: 'Sem Medo', of: 'allIns', need: 1, tier: 1 },
+  { id: 'all-or-nothing', name: 'Tudo ou nada', hint: 'Vá de all-in 50 vezes.', title: 'Tudo ou Nada', of: 'allIns', need: 50, tier: 3 },
 
   // leitura
-  { id: 'stone-patience', name: 'Paciência', hint: 'Desista de 100 mãos — saber sair também é jogar.', title: 'Paciência de Pedra', of: 'folds', need: 100 },
-  { id: 'face-to-face', name: 'Cara a cara', hint: 'Chegue ao showdown 50 vezes.', title: 'Cara a Cara', of: 'showdowns', need: 50 },
+  { id: 'stone-patience', name: 'Paciência', hint: 'Desista de 100 mãos — saber sair também é jogar.', title: 'Paciência de Pedra', of: 'folds', need: 100, tier: 3 },
+  { id: 'face-to-face', name: 'Cara a cara', hint: 'Chegue ao showdown 50 vezes.', title: 'Cara a Cara', of: 'showdowns', need: 50, tier: 3 },
 
   // partidas
-  { id: 'marathon', name: 'Maratona', hint: 'Termine 10 partidas.', title: 'Maratonista', of: 'matches', need: 10 },
-  { id: 'champion', name: 'Campeão', hint: 'Ganhe uma partida.', title: 'Campeão', of: 'matchWins', need: 1 },
-  { id: 'unbeaten', name: 'Invicto', hint: 'Ganhe 25 partidas.', title: 'Imbatível', of: 'matchWins', need: 25 },
+  { id: 'marathon', name: 'Maratona', hint: 'Termine 10 partidas.', title: 'Maratonista', of: 'matches', need: 10, tier: 2 },
+  { id: 'champion', name: 'Campeão', hint: 'Ganhe uma partida.', title: 'Campeão', of: 'matchWins', need: 1, tier: 2 },
+  { id: 'unbeaten', name: 'Invicto', hint: 'Ganhe 25 partidas.', title: 'Imbatível', of: 'matchWins', need: 25, tier: 5 },
 ];
 
 /**
@@ -128,6 +136,16 @@ export function playerLevel(stats: PlayerStats): number {
 
 export function findAchievement(id: string): Achievement | undefined {
   return ACHIEVEMENTS.find((a) => a.id === id);
+}
+
+/** A conquista que dá aquele título (os títulos são únicos na lista). */
+export function achievementOfTitle(title: string): Achievement | undefined {
+  return ACHIEVEMENTS.find((a) => a.title === title);
+}
+
+/** Grau de dificuldade do título, de 1 a 5. Título que não existe mais na lista vale 1. */
+export function titleTier(title: string | null | undefined): 1 | 2 | 3 | 4 | 5 {
+  return title ? (achievementOfTitle(title)?.tier ?? 1) : 1;
 }
 
 /** Quanto do caminho já andou, de 0 a 1. */

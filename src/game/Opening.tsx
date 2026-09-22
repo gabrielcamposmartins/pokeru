@@ -1,5 +1,5 @@
 /**
- * Abertura da partida — a tela que o jogador lê como "preparando a mesa".
+ * Abertura da partida — a tela de carregamento antes da primeira mão.
  *
  * O carregamento é verdadeiro: enquanto ela está no ar, o servidor **não reparte cartas**. A mesa
  * já está montada (assentos, buy-in cobrado, botão sorteado) e espera a confirmação de cada
@@ -14,11 +14,14 @@
  * `OpeningScreen` é ela ligada na sessão, que é quem sabe quem sou eu e manda o "pronto".
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { Opening, OpeningPlayer } from '../../shared/protocol';
 import { CardView } from '../render/CardArt';
 import { CharacterFull } from '../render/CharacterArt';
+import { LevelNumber } from '../render/Level';
+import { TitleGlow } from '../render/Title';
+import { Petals } from '../screens/MainMenu';
 import { useSession } from '../store/session';
 import { useTable } from '../store/table';
 
@@ -41,65 +44,59 @@ function carrega(url: string, ms: number): Promise<void> {
 }
 
 function PlayerCard({ p, isMe, delay }: { p: OpeningPlayer; isMe: boolean; delay: number }) {
-  const cls = ['pm-card', p.ready && 'ready', isMe && 'me'].filter(Boolean).join(' ');
+  const cls = ['pm-slot', p.ready && 'ready', isMe && 'me'].filter(Boolean).join(' ');
   return (
     <motion.div className={cls} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay, duration: 0.35 }}>
-      {/* decoração de fundo do card: PENDENTE — entra atrás do personagem, por trás de tudo aqui */}
-      <div className="pm-deco" aria-hidden />
+      {/* nome e título ficam fora do card: dentro dele é lugar do personagem */}
+      <b className="pm-name">{p.name}</b>
 
-      <div className="pm-art">
-        <CharacterFull st={p.character} height={250} animate={p.ready} />
-      </div>
+      <div className="pm-card">
+        {/* decoração de fundo do card: PENDENTE — entra atrás do personagem, por trás de tudo aqui */}
+        <div className="pm-deco" aria-hidden />
 
-      {p.title && <div className="pm-title">{p.title}</div>}
-
-      <div className="pm-pair" aria-hidden>
-        <CardView card={null} faceUp={false} width={34} back={p.back} className="pm-pair-back" />
-        <CardView card={MOSTRA} width={34} face={p.face} className="pm-pair-face" />
-      </div>
-
-      <div className="pm-plate">
-        <span className="pm-level">{p.isBot ? 'BOT' : `Nv. ${p.level}`}</span>
-        <b className="pm-name">{p.name}</b>
-      </div>
-
-      {p.ready ? (
-        <div className="pm-ribbon" aria-label="pronto">
-          <span>PRONTO</span>
+        <div className="pm-art">
+          <CharacterFull st={p.character} height="92%" animate={p.ready} />
         </div>
-      ) : (
-        <div className="pm-loading" aria-label="carregando">
-          <i />
-          <i />
-          <i />
+
+        <span className="pm-level">{p.isBot ? <span className="pm-bot">BOT</span> : <LevelNumber level={p.level} size="clamp(20px, 2.9vh, 32px)" />}</span>
+
+        {/* a inclinação vai no invólucro: a carta em si é um motion.div, e o framer-motion
+            escreve o transform dela inline — o do CSS seria ignorado */}
+        <div className="pm-pair" aria-hidden>
+          <span className="pm-pair-back">
+            <CardView card={null} faceUp={false} width={40} back={p.back} />
+          </span>
+          <span className="pm-pair-face">
+            <CardView card={MOSTRA} width={40} face={p.face} />
+          </span>
         </div>
-      )}
+
+        {p.ready ? (
+          <div className="pm-stamp" aria-label="pronto">
+            <span>PRONTO</span>
+          </div>
+        ) : (
+          <div className="pm-loading" aria-label="carregando">
+            <i />
+            <i />
+            <i />
+          </div>
+        )}
+      </div>
+
+      <span className="pm-foot">{p.title && <TitleGlow title={p.title} />}</span>
     </motion.div>
   );
 }
 
-export function OpeningView({ opening, mySeat = null, mesa }: { opening: Opening; mySeat?: number | null; mesa?: string }) {
-  const [passo, setPasso] = useState(0);
-
-  // os três pontinhos do "preparando a mesa"
-  useEffect(() => {
-    const t = setInterval(() => setPasso((n) => (n + 1) % 4), 420);
-    return () => clearInterval(t);
-  }, []);
-
-  const faltam = opening.players.filter((p) => !p.ready).length;
+export function OpeningView({ opening, mySeat = null }: { opening: Opening; mySeat?: number | null }) {
   const meio = Math.ceil(opening.players.length / 2);
   const linhas = [opening.players.slice(0, meio), opening.players.slice(meio)];
 
   return (
     <div className="screen pm-screen">
-      <div className="pm-head">
-        <h1 className="title-deco">Preparando a mesa{'.'.repeat(passo)}</h1>
-        <p className="muted">
-          {mesa ?? 'Mesa do servidor'}
-          {faltam > 0 ? ` · esperando ${faltam} ${faltam === 1 ? 'jogador' : 'jogadores'}` : ' · todos prontos!'}
-        </p>
-      </div>
+      {/* o que cai na tela é do tema: pétalas no sakura, ornamentos no vitoriano */}
+      <Petals />
 
       {/* sempre duas linhas: a mesa fica com a mesma cara com dois ou com seis, e ninguém precisa
           caçar o próprio card numa fileira que muda de tamanho. Sobrando um, ele fica em cima. */}
@@ -113,9 +110,10 @@ export function OpeningView({ opening, mySeat = null, mesa }: { opening: Opening
         ))}
       </div>
 
-      {/* a barra corre até o tempo limite do servidor: passado ele, a partida começa de todo jeito */}
+      {/* a barra corre pelo tempo mínimo da tela, que é o que acontece quando ninguém trava; se
+          alguém demorar, ela fica cheia esperando — quem conta a espera são os cards */}
       <div className="pm-bar">
-        <div className="pm-bar-fill" style={{ animationDuration: `${opening.waitMs}ms` }} />
+        <div className="pm-bar-fill" style={{ animationDuration: `${opening.minMs || opening.waitMs}ms` }} />
       </div>
     </div>
   );
@@ -128,18 +126,22 @@ export function OpeningScreen() {
   const send = useSession((s) => s.send);
   const avisou = useRef(false);
 
-  // carrega a arte de quem está na mesa e só então diz que estamos prontos
+  /**
+   * Carrega a arte de quem está na mesa e só então diz que estamos prontos.
+   *
+   * O guarda é **no envio**, não no começo do carregamento: em StrictMode o React monta, desmonta e
+   * monta de novo, e marcar na entrada fazia a segunda montagem desistir enquanto a primeira já
+   * tinha sido cancelada — resultado, o `ready` não saía e a mesa só começava no tempo limite.
+   * Mandar duas vezes não é problema (o servidor ignora repetição); não mandar, é.
+   */
   useEffect(() => {
-    if (avisou.current || !opening) return;
-    avisou.current = true;
-    let vivo = true;
+    if (!opening) return;
     const urls = [...new Set(opening.players.flatMap((p) => [p.character.full, p.character.portrait]))].filter(Boolean);
     void Promise.all(urls.map((u) => carrega(u, 5_000))).then(() => {
-      if (vivo) send({ type: 'ready' });
+      if (avisou.current) return;
+      avisou.current = true;
+      send({ type: 'ready' });
     });
-    return () => {
-      vivo = false;
-    };
     // de propósito só na montagem: a lista muda a cada confirmação, e recarregar não faria sentido
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -147,6 +149,5 @@ export function OpeningScreen() {
   if (!opening) return null;
 
   const mySeat = room?.members.find((m) => m.id === playerId)?.seat ?? null;
-  const mesa = room ? `${room.settings.name} · blinds ${room.settings.smallBlind}/${room.settings.bigBlind}` : undefined;
-  return <OpeningView opening={opening} mySeat={mySeat} mesa={mesa} />;
+  return <OpeningView opening={opening} mySeat={mySeat} />;
 }
