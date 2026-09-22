@@ -95,7 +95,9 @@ export function OpeningView({ opening, mySeat = null }: { opening: Opening; mySe
 
   return (
     <div className="screen pm-screen">
-      {/* o que cai na tela é do tema: pétalas no sakura, ornamentos no vitoriano */}
+      {/* mesmo fundo da tela inicial (e o que cai nela é do tema: pétalas no sakura,
+          ornamentos no vitoriano) */}
+      <div className="menu-bg" />
       <Petals />
 
       {/* sempre duas linhas: a mesa fica com a mesma cara com dois ou com seis, e ninguém precisa

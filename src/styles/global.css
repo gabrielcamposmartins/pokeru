@@ -4943,8 +4943,7 @@ button.avatar {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  /* o fundo é o do tema: é em relação a ele que o card clareia */
-  background: radial-gradient(ellipse at 50% 30%, var(--bg1) 0%, var(--bg0) 70%);
+  /* o fundo vem do .menu-bg, o mesmo da tela inicial */
 }
 .pm-rows {
   display: flex;
