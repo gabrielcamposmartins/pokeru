@@ -149,12 +149,13 @@ describe('loja: comprar com padocoins', () => {
   });
 
   it('com Discord vinculado, cobra no bot e entrega o item', async () => {
-    const fake = fakeGbot(1000);
+    const saldo = 50_000; // padocoin é dinheiro de verdade: o preço é alto, o saldo do teste também
+    const fake = fakeGbot(saldo);
     const acc = new Accounts({ file: newFile(), startingMoney: 0, gbot: fake.gbot });
     const a = (await acc.loginAuth(identity, profile()))!;
 
     expect(a.discord?.id).toBe(identity.discordId);
-    expect(a.pado).toBe(1000);
+    expect(a.pado).toBe(saldo);
 
     const preco = priceOf('character:ren', 'pado')!;
     expect(await acc.buy(a.id, 'character:ren', 'pado')).toBeNull();
@@ -166,7 +167,7 @@ describe('loja: comprar com padocoins', () => {
 
     const depois = acc.info(a.id)!;
     expect(depois.owned).toContain('character:ren');
-    expect(depois.pado).toBe(1000 - preco);
+    expect(depois.pado).toBe(saldo - preco);
     // fichas não foram tocadas: quem pagou foi a outra moeda
     expect(depois.money).toBe(0);
     acc.close();

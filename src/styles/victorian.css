@@ -183,6 +183,25 @@
       inset 0 1px 0 rgba(255, 240, 200, 0.45),
       inset 0 0 0 2px rgba(255, 230, 170, 0.12);
   }
+  /*
+   * A placa de laca com cantos cortados é do tema Sakura: aqui a placa é de latão, retangular, e
+   * a profundidade volta a ser sombra de caixa. Desligar o recorte e os pseudos devolve o botão
+   * ao desenho vitoriano definido acima.
+   */
+  .btn,
+  .act-btn {
+    clip-path: none;
+    filter: none;
+  }
+  .btn::after,
+  .btn::before,
+  .act-btn::before {
+    display: none;
+  }
+  .btn:hover:not(:disabled),
+  .act-btn:hover {
+    filter: brightness(1.08);
+  }
   .btn.small {
     font-size: 12px;
     border-radius: 2px;
@@ -350,6 +369,10 @@
       radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(5, 1, 0, 0.8) 100%),
       var(--damask) center top / 132px 184px,
       linear-gradient(180deg, #4a1119 0%, #33090f 60%, #1c0508 100%);
+  }
+  /* o painel de shoji é do tema Sakura; aqui quem fecha a parede é o lambri, no ::after */
+  .menu-bg::before {
+    display: none;
   }
   /* lambri de madeira com friso de latão */
   .menu-bg::after {

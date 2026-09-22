@@ -28,13 +28,14 @@
  *   /preview.html?cena=fila            o menu com a fila rápida aberta (fichas e padocoins)
  *   /preview.html?cena=fila-esperando  a fila procurando mesa
  *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
+ *   /preview.html?cena=loja&ver=chip:chip-neon  a loja com o item já aberto em tamanho grande
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
  *   /preview.html?cena=titulos         as configurações com os títulos e o progresso das conquistas
  *   /preview.html?cena=estudio&aba=ui  o Estúdio (aba= face|back|chip|table|fx|ui)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'framer-motion';
 import '@fontsource/m-plus-rounded-1c/400.css';
@@ -80,13 +81,31 @@ import { MainMenu } from '../screens/MainMenu';
 import { OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
 import { Studio } from '../screens/Studio';
+import { useProfile } from '../store/profile';
+import { useUiTheme } from '../ui/themes';
 import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
 
 const q = new URLSearchParams(location.search);
-document.documentElement.dataset.ui = q.get('ui') ?? 'default';
+const uiInicial = q.get('ui') ?? 'default';
+document.documentElement.dataset.ui = uiInicial;
+useProfile.setState((s) => ({ settings: { ...s.settings, uiTheme: uiInicial } }));
+
+/**
+ * Segue a aparência escolhida, como o App faz.
+ *
+ * Sem isto, a pré-visualização de tema da Loja (que muda a tela inteira) não apareceria aqui:
+ * o `?ui=` do endereço só pinta a primeira vez.
+ */
+function TemaVivo() {
+  const theme = useUiTheme();
+  useEffect(() => {
+    document.documentElement.dataset.ui = theme.id;
+  }, [theme]);
+  return null;
+}
 
 const hole = [
   { r: 14, s: 's' as const },
@@ -523,6 +542,7 @@ const scene = SCENES[cena] ?? base;
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
+      <TemaVivo />
       {cena === 'abertura' ? (
         <OpeningView opening={ABERTURA} mySeat={0} />
       ) : cena === 'personagens' ? (
@@ -538,7 +558,7 @@ createRoot(document.getElementById('root')!).render(
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} />
       ) : cena === 'loja' || cena === 'loja-sem-pado' ? (
-        <StoreScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} />
+        <StoreScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} verInicial={q.get('ver') ?? undefined} />
       ) : (
       <div className="game-screen">
         <div className="stage-wrap">

@@ -25,6 +25,17 @@
   --stamp-ink: #63c97f;
   --font: 'M PLUS Rounded 1c', 'Segoe UI', system-ui, sans-serif;
   --title: 'Cinzel', Georgia, serif;
+  /*
+   * Estampas do tema Sakura.
+   *
+   * `--sakura-pat` são as flores de cerejeira do feltro, agora no papel de parede — a mesma
+   * flor de render/suits.tsx, para a tela e a mesa falarem a mesma língua. `--washi` é a trama
+   * do papel japonês: dois fios cruzados, quase invisíveis, que tiram o plástico dos botões.
+   */
+  --sakura-pat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%23ffc7dd' fill-opacity='.055'%3E%3Cg transform='translate(30 34)'%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(72)'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(144)'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(216)'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(288)'/%3E%3Ccircle r='3.08'/%3E%3C/g%3E%3Cg transform='translate(90 92) rotate(25)'%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(72)'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(144)'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(216)'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(288)'/%3E%3Ccircle r='1.98'/%3E%3C/g%3E%3Cg transform='translate(66 8) rotate(-18)'%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(72)'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(144)'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(216)'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(288)'/%3E%3Ccircle r='1.32'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --washi:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.075) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.04) 0 1px, transparent 1px 6px);
   color-scheme: dark;
 }
 
@@ -166,76 +177,151 @@ code {
 
 /* ------------------------------------------------------------------ botões */
 
+/*
+ * Botões: placa de laca com aro de ouro.
+ *
+ * Os cantos são cortados em diagonal — kado-kiri, o corte das caixas, placas e ex-votos japoneses.
+ * Não é retângulo arredondado como em qualquer outro lugar, e é o que dá nome ao botão.
+ *
+ * Como é montado: o elemento é o **aro** de ouro; a **face** é o `::before`, dois pixels para
+ * dentro e com o mesmo corte, trazendo a trama do washi e o degradê da variante em `--face`; o
+ * `::after` é o brilho que atravessa no hover. A profundidade vem de `drop-shadow` e não de
+ * `box-shadow`, porque só o filtro acompanha o recorte — uma sombra de caixa vazaria nos cantos.
+ *
+ * Cada variante muda só `--face` (e a cor do texto). Quem quiser um botão novo não precisa saber
+ * nada do aro nem do corte.
+ */
 .btn {
+  /* o corte do canto: fino o bastante para ser chanfro, não octógono */
+  --canto: 7px;
+  --face: linear-gradient(180deg, #6b6480, #4c455e);
+  --aro: linear-gradient(180deg, #ffeeb4, #e0b459 45%, #8a6320);
+  --sombra: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 7px 12px rgba(0, 0, 0, 0.38));
   position: relative;
+  isolation: isolate;
   border: none;
-  border-radius: 12px;
-  padding: 10px 20px;
+  border-radius: 0;
+  padding: 11px 22px;
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.3px;
+  white-space: nowrap;
+  background: var(--aro);
+  clip-path: polygon(
+    var(--canto) 0,
+    calc(100% - var(--canto)) 0,
+    100% var(--canto),
+    100% calc(100% - var(--canto)),
+    calc(100% - var(--canto)) 100%,
+    var(--canto) 100%,
+    0 calc(100% - var(--canto)),
+    0 var(--canto)
+  );
+  filter: var(--sombra);
   transition:
     transform 0.12s,
-    filter 0.15s,
-    box-shadow 0.15s;
+    filter 0.15s;
+}
+/* a face, por dentro do aro. z-index negativo: fica atrás do texto e à frente do aro */
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  z-index: -1;
+  clip-path: inherit;
+  background: var(--washi), var(--face);
   box-shadow:
-    0 4px 0 rgba(0, 0, 0, 0.35),
-    0 6px 16px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  white-space: nowrap;
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -7px 14px rgba(0, 0, 0, 0.16);
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.38) 50%, transparent 62%);
+  transform: translateX(-130%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* a transição mora no hover: ao sair, o brilho volta na hora em vez de atravessar de volta */
+.btn:hover:not(:disabled)::after {
+  transform: translateX(130%);
+  opacity: 1;
+  transition:
+    transform 0.55s ease,
+    opacity 0.2s;
+}
+/*
+ * Foco pelo teclado: aro aceso e um halo em volta.
+ *
+ * Um `outline` não serve aqui — o recorte dos cantos corta tudo que passa da borda, inclusive o
+ * contorno. O halo é `drop-shadow`, que acompanha a forma da placa.
+ */
+.btn:focus-visible {
+  outline: none;
+  --aro: linear-gradient(180deg, #fff8dd, #ffe7a0 45%, #d9a83e);
+  filter: var(--sombra) drop-shadow(0 0 5px rgba(255, 231, 160, 0.95));
 }
 .btn:hover:not(:disabled) {
-  filter: brightness(1.1);
+  filter: brightness(1.08) var(--sombra);
   transform: translateY(-1px);
 }
 .btn:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45));
 }
+/* travado é placa sem relevo: sem sombra, não se oferece para ser apertada */
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
+  filter: none;
   cursor: not-allowed;
 }
 .btn.small {
-  padding: 6px 12px;
+  --canto: 5px;
+  padding: 7px 14px;
   font-size: 13px;
-  border-radius: 10px;
 }
 .btn.big {
-  padding: 14px 30px;
+  --canto: 10px;
+  padding: 15px 32px;
   font-size: 18px;
 }
 .btn.wide {
   width: 100%;
 }
 .btn-gold {
-  background: linear-gradient(180deg, #fff1b8, #f2c14e 50%, #d9962a);
+  --face: linear-gradient(180deg, #fff1b8, #f2c14e 50%, #d9962a);
+  /* o aro do dourado é bronze: ouro sobre ouro não faria moldura nenhuma */
+  --aro: linear-gradient(180deg, #f6dda0, #b9863a 45%, #63410f);
   color: #3a2300;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .btn-pink {
-  background: linear-gradient(180deg, #ffa6c2, #ff6b9a 50%, #d93f72);
+  --face: linear-gradient(180deg, #ffa6c2, #ff6b9a 50%, #d93f72);
+  --aro: linear-gradient(180deg, #ffe2ee, #e79ab8 45%, #8c3055);
   color: #fff;
   text-shadow: 0 1px 1px rgba(90, 0, 30, 0.6);
 }
 .btn-blue {
-  background: linear-gradient(180deg, #9fd8ff, #4b8dff 50%, #2f5fd0);
+  --face: linear-gradient(180deg, #9fd8ff, #4b8dff 50%, #2f5fd0);
+  --aro: linear-gradient(180deg, #e2f2ff, #8fb6e8 45%, #2a4a86);
   color: #fff;
 }
 .btn-danger {
-  background: linear-gradient(180deg, #ff9aa8, #ff5d73 50%, #c7304a);
+  --face: linear-gradient(180deg, #ff9aa8, #ff5d73 50%, #c7304a);
+  --aro: linear-gradient(180deg, #ffe0e4, #e59aa4 45%, #8c2634);
   color: #fff;
 }
+/* o de fundo é papel, não laca: aro de um fio só e face quase vazia */
 .btn-ghost {
-  background: rgba(255, 255, 255, 0.08);
+  --face: rgba(12, 7, 30, 0.72);
+  --aro: linear-gradient(180deg, rgba(255, 232, 190, 0.34), rgba(255, 232, 190, 0.1));
+  --sombra: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.3));
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: none;
 }
 .btn-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
+  --face: rgba(255, 226, 180, 0.16);
+  --aro: linear-gradient(180deg, rgba(255, 232, 190, 0.6), rgba(255, 232, 190, 0.2));
 }
 
 /* ------------------------------------------------------------------ campos */
@@ -541,6 +627,13 @@ button.avatar {
 
 /* ------------------------------------------------------------------ fundo e pétalas */
 
+/*
+ * O fundo do tema Sakura.
+ *
+ * Antes era só degradê: cor bonita e superfície nenhuma. Agora tem estampa — flores de cerejeira
+ * miúdas e uma treliça diagonal de kumiko —, e embaixo um painel de shoji com a luz do outro lado
+ * atravessando o papel. É o correspondente do papel de parede adamascado e do lambri do Vitoriano.
+ */
 .menu-bg {
   position: fixed;
   inset: 0;
@@ -548,8 +641,26 @@ button.avatar {
     radial-gradient(ellipse at 18% 20%, rgba(255, 107, 154, 0.35), transparent 50%),
     radial-gradient(ellipse at 85% 75%, rgba(124, 92, 255, 0.4), transparent 55%),
     radial-gradient(ellipse at 60% 10%, rgba(53, 196, 255, 0.18), transparent 45%),
+    var(--sakura-pat) 0 0 / 120px 120px,
+    repeating-linear-gradient(30deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(-30deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 24px),
     linear-gradient(160deg, #22164a 0%, #120b2a 55%, #0a0618 100%);
   z-index: 0;
+}
+/* shoji: montantes e travessas de madeira clara sobre papel aceso por trás */
+.menu-bg::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 15vh;
+  background:
+    linear-gradient(180deg, rgba(255, 214, 170, 0.14), transparent 34%),
+    repeating-linear-gradient(90deg, rgba(255, 236, 206, 0.12) 0 2px, transparent 2px 12.5vw),
+    repeating-linear-gradient(0deg, rgba(255, 236, 206, 0.09) 0 2px, transparent 2px 46px),
+    linear-gradient(180deg, rgba(74, 52, 112, 0.3), rgba(16, 10, 34, 0.7));
+  border-top: 2px solid rgba(255, 226, 180, 0.2);
+  box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.4);
+  mask-image: linear-gradient(180deg, transparent, #000 40%);
 }
 .menu-bg::after {
   content: '';
@@ -794,7 +905,14 @@ button.avatar {
   overflow: auto;
   padding: 18px 28px 28px;
 }
-.screen > *:not(.menu-bg):not(.petals) {
+/*
+ * O fundo do modal cobre a tela inteira: ele é fixo, nunca um item do fluxo da página.
+ *
+ * A exceção entra num `:where()` de propósito: ele não soma especificidade, e esta regra empata
+ * com as que posicionam filhos diretos da tela (como o personagem do login) — quem ganha é a de
+ * baixo, no arquivo. Um `:not()` a mais aqui desempata em silêncio e desloca essas telas.
+ */
+.screen > *:not(.menu-bg):not(.petals):where(:not(.modal-back)) {
   position: relative;
   z-index: 2;
 }
@@ -1455,28 +1573,53 @@ button.avatar {
   display: flex;
   gap: 12px;
 }
+/* os botões da vez são a mesma placa dos outros, no tamanho da mesa */
 .act-btn {
+  --canto: 11px;
+  --face: linear-gradient(180deg, #9d93b8, #6b6480 55%, #4c455e);
+  --aro: linear-gradient(180deg, #fff3c9, #d7a94d 45%, #6f4f18);
+  --sombra: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.4)) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.45));
   position: relative;
+  isolation: isolate;
   min-width: 150px;
   height: 60px;
   padding: 0 22px;
-  border-radius: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border: none;
+  border-radius: 0;
   font-size: 19px;
   font-weight: 800;
   color: #fff;
   text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
-  box-shadow:
-    0 5px 0 rgba(0, 0, 0, 0.35),
-    0 10px 22px rgba(0, 0, 0, 0.45),
-    inset 0 2px 0 rgba(255, 255, 255, 0.45);
+  background: var(--aro);
+  clip-path: polygon(
+    var(--canto) 0,
+    calc(100% - var(--canto)) 0,
+    100% var(--canto),
+    100% calc(100% - var(--canto)),
+    calc(100% - var(--canto)) 100%,
+    var(--canto) 100%,
+    0 calc(100% - var(--canto)),
+    0 var(--canto)
+  );
+  filter: var(--sombra);
   transition:
     transform 0.1s,
     filter 0.15s;
   animation: actIn 0.3s cubic-bezier(0.3, 1.5, 0.5, 1);
 }
+.act-btn::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  z-index: -1;
+  clip-path: inherit;
+  background: var(--washi), var(--face);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -8px 16px rgba(0, 0, 0, 0.16);
+}
 .act-btn:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.1) var(--sombra);
   transform: translateY(-2px);
 }
 .act-btn:active {
@@ -1495,20 +1638,25 @@ button.avatar {
     opacity: 0;
   }
 }
+/* desistir: placa de madrepérola fria, a mais apagada das três */
 .act-btn.fold {
-  background: linear-gradient(180deg, #9d93b8, #6b6480 55%, #4c455e);
+  --face: linear-gradient(180deg, #9d93b8, #6b6480 55%, #4c455e);
+  --aro: linear-gradient(180deg, #e8e4f2, #9a92b4 45%, #494256);
 }
 .act-btn.check,
 .act-btn.call {
-  background: linear-gradient(180deg, #8fd3ff, #3a8dde 55%, #235aa8);
+  --face: linear-gradient(180deg, #8fd3ff, #3a8dde 55%, #235aa8);
+  --aro: linear-gradient(180deg, #e7f4ff, #8cb4e4 45%, #23406f);
 }
 .act-btn.raise {
-  background: linear-gradient(180deg, #fff1b8, #f2c14e 50%, #d9962a);
+  --face: linear-gradient(180deg, #fff1b8, #f2c14e 50%, #d9962a);
+  --aro: linear-gradient(180deg, #f6dda0, #b9863a 45%, #63410f);
   color: #3a2300;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .act-btn.raise.allin {
-  background: linear-gradient(180deg, #ffa6c2, #ff5d73 50%, #c7304a);
+  --face: linear-gradient(180deg, #ffa6c2, #ff5d73 50%, #c7304a);
+  --aro: linear-gradient(180deg, #ffe0e4, #e0919c 45%, #85212f);
   color: #fff;
   text-shadow: 0 2px 2px rgba(0, 0, 0, 0.35);
 }
@@ -4425,7 +4573,8 @@ button.avatar {
 }
 .screen.login-screen > .login-char {
   position: absolute;
-  left: 6vw;
+  /* mesmo raciocínio das telas de resultado: colado na borda ele aparece cortado */
+  left: 14vw;
   bottom: 0;
 }
 .login-side {
@@ -4530,7 +4679,8 @@ button.avatar {
 
 /* botão de pagar com padocoin: latão, para não se confundir com o dourado das fichas */
 .btn-pado {
-  background: linear-gradient(180deg, #ffe9a8, #e8b850 50%, #a9762a);
+  --face: linear-gradient(180deg, #ffe9a8, #e8b850 50%, #a9762a);
+  --aro: linear-gradient(180deg, #eed7ab, #a57d3c 45%, #513611);
   color: #3a2300;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
 }
@@ -4539,16 +4689,8 @@ button.avatar {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-.shop-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.shop-wallet {
-  display: flex;
-  gap: 10px;
+  /* a tela não rola: quem rola é a prateleira, para o palco ficar sempre à vista */
+  overflow: hidden;
 }
 .shop-coin {
   display: flex;
@@ -4576,20 +4718,32 @@ button.avatar {
   background: rgba(120, 70, 20, 0.28);
 }
 
+/* a navegação por tipo: uma coluna à esquerda, não uma fila em cima */
 .shop-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
 }
 .shop-tab {
-  padding: 8px 16px;
-  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
   border: 1.5px solid var(--line-soft);
   background: rgba(10, 6, 24, 0.5);
   color: var(--muted);
   font-weight: 700;
   font-size: 14px;
+  text-align: left;
   cursor: pointer;
+}
+.shop-tab-conta {
+  font-family: var(--num);
+  font-size: 12px;
+  opacity: 0.75;
 }
 .shop-tab:hover {
   color: var(--text);
@@ -5253,4 +5407,244 @@ button.avatar {
   to {
     transform: scaleX(1);
   }
+}
+
+/* ---------------------------------------------------------------- preview grande da loja */
+/* a arte do cartão vira botão: mesma aparência, mas com foco e cursor de clique */
+/* a metade da esquerda é a prateleira; a da direita, o item escolhido em tamanho grande */
+.shop-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1280px) {
+  .shop-body {
+    grid-template-columns: 170px minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.shop-body > .shop-grid {
+  align-content: start;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.shop-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+}
+.shop-stage h2 {
+  margin: 0;
+}
+.shop-stage-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  /* em janela baixa o que não couber rola aqui, em vez de aparecer cortado */
+  overflow: auto;
+}
+/*
+ * A mesa de verdade, no tamanho que cabe nesta coluna.
+ *
+ * O plano do jogo tem 1600px fixos e só existe escalado; como CSS não divide comprimento por
+ * comprimento, a escala vem por faixa de janela — a conta é a largura da coluna (metade do que
+ * sobra depois da navegação) dividida por 1600.
+ */
+.shop-stage .preview-table,
+.shop-stage .preview-table-inner {
+  --k: 0.34;
+}
+.shop-stage .preview-table {
+  width: calc(1600px * var(--k));
+  height: calc(900px * var(--k));
+}
+@media (max-width: 1400px) {
+  .shop-stage .preview-table,
+  .shop-stage .preview-table-inner {
+    --k: 0.28;
+  }
+}
+@media (min-width: 1700px) {
+  .shop-stage .preview-table,
+  .shop-stage .preview-table-inner {
+    --k: 0.42;
+  }
+}
+@media (min-width: 2000px) {
+  .shop-stage .preview-table,
+  .shop-stage .preview-table-inner {
+    --k: 0.5;
+  }
+}
+
+/* a arte do cartão leva o item ao palco (comprar continua só nos botões de preço) */
+.shop-ver {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.shop-card.on {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 10px 22px rgba(0, 0, 0, 0.45);
+}
+.shop-card.nua {
+  background: none;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* o quadro do palco: o mesmo fundo escuro e discreto para qualquer item, sem cor própria */
+.shop-big,
+.shop-grande {
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(10, 7, 24, 0.5), rgba(4, 2, 12, 0.78));
+}
+.shop-big {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.shop-big-char {
+  /* um retrato, não uma faixa: sem limite de largura sobrava fundo dos dois lados do personagem */
+  width: min(100%, 460px);
+  align-items: flex-end;
+  overflow: hidden;
+}
+.shop-big-char .char-full {
+  /* a arte cresce com a caixa, e a caixa é toda a altura que a tela deixa */
+  max-width: 100%;
+}
+/* o efeito estoura para fora da carta: sem folga, o brilho sairia cortado */
+.shop-big-fx {
+  padding: 30px 0;
+}
+
+/* as peças com que se joga: a pessoa mexe nelas antes de comprar */
+.shop-grande {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* centrado, mas sem cortar o começo quando o conteúdo é mais alto que a caixa */
+  justify-content: safe center;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+}
+.shop-escolha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.4);
+}
+.shop-escolha-ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shop-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+/* os treze valores em duas fileiras certas, em vez de quebrarem onde a largura deixar */
+.shop-linha.valores {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.shop-mini {
+  min-width: 26px;
+  padding: 4px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.5);
+  color: var(--muted);
+  font-family: var(--num);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+.shop-mini.naipe {
+  font-size: 18px;
+  line-height: 1;
+}
+.shop-mini:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+.shop-mini.on {
+  border-color: var(--gold);
+  background: rgba(255, 200, 100, 0.18);
+  color: var(--text);
+}
+/* as oito fichas em duas fileiras de quatro: enfileiradas, a última caía sozinha */
+.shop-grande .chip-row {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  justify-content: center;
+  gap: 14px;
+}
+.shop-ficha {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+.shop-aposta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 140px;
+}
+.shop-aposta-pilha {
+  display: flex;
+  align-items: flex-end;
+  min-height: 90px;
+}
+.shop-sobre {
+  margin: 0;
+  max-width: 44ch;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+/* a etiqueta "Aumentou" sobe para fora da placa: sem esta folga ela encosta no título */
+.shop-stage .theme-sample {
+  margin-top: 12px;
+}
+.shop-tema-lista {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.shop-tema-lista li {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.45);
+  font-size: 12px;
+  color: var(--muted);
 }

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import type { Card } from '../../shared/cards';
 import {
   BACK_PATTERNS,
@@ -16,21 +15,18 @@ import {
   type TableStyle,
   type WinFxId,
 } from '../../shared/styles';
-import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
+import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useProfile, type StyleKind, type StyleMap } from '../store/profile';
 import { useMyStyles, useOwns } from '../store/shop';
 import { itemKey, padoPrice, priceOf } from '../../shared/catalog';
 import { useSession } from '../store/session';
 import { CardBackSvg, CardFaceSvg, CardView, FONT_FAMILY, FONT_LABEL } from '../render/CardArt';
-import { ChipStack, ChipSvg } from '../render/Chip';
-import { CharacterPortrait } from '../render/CharacterArt';
-import { TableFelt } from '../render/TableFelt';
-import { CARD_H, CARD_W, boardSlot, planeStyle, project } from '../game/layout';
+import { ChipSvg } from '../render/Chip';
+import { BackPreview, ChipPreview, FacePreview, TablePreview, ThemeSample } from '../render/StylePreview';
 import { ColorField, ScreenHeader, Section, Segmented, Slider, Toggle } from '../ui/controls';
 import { rgbToHex } from '../util/color';
 import { parseJsonc } from '../../shared/jsonc';
 import { sfx, type FxSound } from '../audio/sfx';
 import { CardWinFx, WIN_FX, findWinFx, type FxFrame } from '../render/cardfx';
-import { fmt } from '../util/format';
 import { UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
 
 // ------------------------------------------------------------------ util
@@ -163,113 +159,6 @@ function Thumb({ kind, st }: { kind: StyleKind; st: StyleMap[StyleKind] }) {
       );
     }
   }
-}
-
-// ------------------------------------------------------------------ pré-visualizações
-
-const FACE_SAMPLES: Card[] = [
-  { r: 14, s: 's' },
-  { r: 13, s: 'h' },
-  { r: 12, s: 'd' },
-  { r: 11, s: 'c' },
-  { r: 10, s: 'h' },
-  { r: 7, s: 's' },
-  { r: 5, s: 'd' },
-  { r: 3, s: 'c' },
-];
-
-function FacePreview({ st }: { st: CardFaceStyle }) {
-  return (
-    <div className="preview-cards">
-      {FACE_SAMPLES.map((c, i) => (
-        <motion.div key={i} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.04 }} whileHover={{ y: -14, rotate: -2 }}>
-          <CardFaceSvg card={c} style={st} width={128} />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-function BackPreview({ st }: { st: CardBackStyle }) {
-  return (
-    <div className="preview-backs">
-      <motion.div whileHover={{ rotateY: 15, rotateX: 8 }} style={{ transformPerspective: 800 }}>
-        <CardBackSvg style={st} width={230} />
-      </motion.div>
-      <div className="mini-fan">
-        {[-14, 0, 14].map((a, i) => (
-          <div key={i} style={{ transform: `rotate(${a}deg)` }}>
-            <CardBackSvg style={st} width={110} />
-          </div>
-        ))}
-      </div>
-      <div className="flip-demo">
-        <span className="muted small">Passe o mouse para virar</span>
-        <FlipDemo back={st} />
-      </div>
-    </div>
-  );
-}
-
-function FlipDemo({ back }: { back: CardBackStyle }) {
-  const [up, setUp] = useState(false);
-  return (
-    <div onMouseEnter={() => setUp(true)} onMouseLeave={() => setUp(false)}>
-      <CardView card={{ r: 14, s: 's' }} faceUp={up} width={110} back={back} />
-    </div>
-  );
-}
-
-function ChipPreview({ st }: { st: ChipStyle }) {
-  return (
-    <div className="preview-chips">
-      <div className="chip-row">
-        {CHIP_VALUES.map((v, i) => (
-          <motion.div key={v} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: i * 0.04, type: 'spring' }} whileHover={{ y: -8, rotate: 25 }}>
-            <ChipSvg value={v} size={84} style={st} />
-          </motion.div>
-        ))}
-      </div>
-      <div className="row gap center" style={{ gap: 60, marginTop: 30 }}>
-        <ChipStack amount={12860} size={64} style={st} />
-        <ChipStack amount={2535} size={64} style={st} />
-        <ChipStack amount={31250} size={64} style={st} />
-      </div>
-    </div>
-  );
-}
-
-const PREVIEW_PLANE = planeStyle();
-
-function TablePreview({ st }: { st: TableStyle }) {
-  const cards: Card[] = [
-    { r: 14, s: 'h' },
-    { r: 13, s: 'h' },
-    { r: 7, s: 'c' },
-  ];
-  const chips = project({ x: 800, y: 780 });
-  return (
-    <div className="preview-table" style={{ background: `radial-gradient(ellipse at 50% 40%, ${st.bgTop}, ${st.bgBottom} 80%)` }}>
-      <div className="preview-table-inner">
-        <div style={PREVIEW_PLANE}>
-          <TableFelt st={st} />
-          {cards.map((c, i) => {
-            const p = boardSlot(i);
-            return (
-              <div key={i} style={{ position: 'absolute', left: p.x - CARD_W / 2, top: p.y - CARD_H / 2 }}>
-                <CardView card={c} width={CARD_W} />
-              </div>
-            );
-          })}
-        </div>
-        <div className="seat-bet" style={{ left: chips.x, top: chips.y, transform: `scale(${chips.s})` }}>
-          <div className="seat-bet-inner">
-            <ChipStack amount={3450} size={36} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // ------------------------------------------------------------------ editores
@@ -580,51 +469,6 @@ function ThemeThumb({ t }: { t: UiTheme }) {
       </span>
       <span className="theme-thumb-glyph">{w.glyph}</span>
     </span>
-  );
-}
-
-/** Amostra de componentes da mesa, desenhada com o tema ativo (o da pré-visualização). */
-function ThemeSample() {
-  const character = useCharacter();
-  const name = useProfile((s) => s.name);
-  return (
-    <div className="theme-sample">
-      <div className="theme-sample-row">
-        <div className="plate seat-card is-me theme-sample-plate">
-          <div className="seat-portrait" style={{ background: `linear-gradient(160deg, ${character.bg}, ${character.bg2})`, width: 76, height: 76 }}>
-            <CharacterPortrait st={character} size={76} />
-            <div className="seat-frame" />
-            <div className="plate-pos pos-D">D</div>
-          </div>
-          <div className="seat-info">
-            <div className="seat-name">{name}</div>
-            <div className="seat-stack">
-              <ChipSvg value={100} size={16} />
-              {fmt(2480)}
-            </div>
-          </div>
-          <div className="plate-action act-raise">Aumentou</div>
-        </div>
-        <div className="callout callout-raise">Aumento!</div>
-      </div>
-      <div className="theme-sample-row">
-        <CardView card={{ r: 14, s: 's' }} width={74} />
-        <CardView card={{ r: 13, s: 'h' }} width={74} />
-        <CardView card={null} faceUp={false} width={74} />
-        <ChipStack amount={1250} size={30} maxCols={3} />
-      </div>
-      <div className="act-row">
-        <button className="act-btn fold" onClick={() => sfx.click()}>
-          Desistir
-        </button>
-        <button className="act-btn call" onClick={() => sfx.click()}>
-          Pagar {fmt(40)}
-        </button>
-        <button className="act-btn raise" onClick={() => sfx.click()}>
-          Aumentar {fmt(120)}
-        </button>
-      </div>
-    </div>
   );
 }
 

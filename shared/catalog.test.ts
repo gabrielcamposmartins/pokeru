@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CATALOG,
   FREE_KEYS,
-  PADO_PER_CHIP,
+  PADO_POR_FICHA,
   findItem,
   freeIdOf,
   isFree,
@@ -48,10 +48,14 @@ describe('catálogo da loja', () => {
     }
   });
 
-  it('padocoin é a moeda cara: o preço fica na casa das centenas', () => {
-    expect(padoPrice(15_000)).toBe(15_000 / PADO_PER_CHIP);
-    expect(priceOf('character:ren', 'pado')).toBe(300);
+  it('padocoin custa o dobro da ficha: é dinheiro de verdade, não o caminho barato', () => {
+    expect(padoPrice(15_000)).toBe(15_000 * PADO_POR_FICHA);
+    expect(priceOf('character:ren', 'pado')).toBe(30_000);
     expect(priceOf('character:ren', 'chips')).toBe(15_000);
+    // e sempre mais caro que em fichas, item a item
+    for (const item of CATALOG.filter((i) => i.chips > 0)) {
+      expect(priceOf(item.key, 'pado')!, item.key).toBeGreaterThan(priceOf(item.key, 'chips')!);
+    }
   });
 
   it('efeito com cena própria custa mais que um brilho de cor', () => {

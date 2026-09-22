@@ -840,6 +840,15 @@ export const CHARACTER_PRESETS: CharacterStyle[] = [
   },
 ];
 
+/**
+ * Com quem o jogador começa.
+ *
+ * Os dois gratuitos são Tobi e Marina; este é o que vem escolhido num perfil novo. Fica aqui, e não
+ * no `CHARACTER_PRESETS[0]`, para trocar o padrão não depender da ordem da lista — que é ordem de
+ * exibição na loja e nas telas.
+ */
+export const PERSONAGEM_PADRAO = 'tobi';
+
 export function findCharacter(id: string): CharacterStyle {
   return CHARACTER_PRESETS.find((c) => c.id === id) ?? CHARACTER_PRESETS[0];
 }

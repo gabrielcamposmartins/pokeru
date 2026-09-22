@@ -56,11 +56,14 @@ export interface CatalogItem {
 export const itemKey = (kind: ItemKind, id: string): string => `${kind}:${id}`;
 
 /**
- * Padocoin é caro: a economia do Discord trabalha em centenas, não em milhares. A conversão fixa
- * mantém os dois preços na mesma ordem sem precisar de uma tabela paralela para manter em dia.
+ * Quanto custa em padocoin, em relação ao preço em fichas.
+ *
+ * Ficha é dinheiro de brinquedo, que o jogo dá e a mesa devolve; padocoin é dinheiro de verdade da
+ * economia do bot, que a pessoa ganhou lá fora. Por isso o padocoin **não** é o caminho barato: o
+ * mesmo item custa o dobro. Um único fator mantém as duas tabelas em dia sem uma lista paralela.
  */
-export const PADO_PER_CHIP = 50;
-export const padoPrice = (chips: number): number => Math.ceil(chips / PADO_PER_CHIP);
+export const PADO_POR_FICHA = 2;
+export const padoPrice = (chips: number): number => Math.ceil(chips * PADO_POR_FICHA);
 
 /** Tabela de preços por tipo (em fichas). */
 export const PRICES = {

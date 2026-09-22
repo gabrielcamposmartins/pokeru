@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { migrateStorageKey } from '../util/storage';
 import {
   BACK_PRESETS,
-  CHARACTER_PRESETS,
+  PERSONAGEM_PADRAO,
   CHIP_PRESETS,
   DEFAULT_WIN_FX,
   FACE_PRESETS,
@@ -143,7 +143,8 @@ export const SERVER_URL: string =
 const initial = {
   name: 'Jogador',
   avatar: { color: '#ff6b9a', icon: '♠' },
-  character: CHARACTER_PRESETS[0].id,
+  // o padrão é o Tobi (veja PERSONAGEM_PADRAO, em shared/styles.ts)
+  character: PERSONAGEM_PADRAO,
   winFx: DEFAULT_WIN_FX,
   custom: { face: [], back: [], chip: [], table: [] },
   accounts: {} as Record<string, ServerAccount>,
