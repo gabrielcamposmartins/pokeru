@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { useMyTitle } from '../store/titles';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useMyStats, useMyTitle } from '../store/titles';
+import { levelInfo } from '../../shared/achievements';
+import { LevelNumber, levelColor } from '../render/Level';
+import { Sparks } from '../render/Sparks';
+import { TitleGlow } from '../render/Title';
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
 import type { BotDifficulty, GameMode, GameVariant } from '../../shared/protocol';
 import { useCharacter, useEquipped, useProfile } from '../store/profile';
@@ -7,12 +11,12 @@ import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
-import { Segmented } from '../ui/controls';
+import { BlindPicker, Segmented } from '../ui/controls';
 import { WalletBar, useChips } from '../ui/Wallet';
 import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
 import { sfx } from '../audio/sfx';
 import { APP_VERSION } from '../util/version';
-import { QUEUE_STAKES } from '../../shared/protocol';
+import { NORMAL_BLINDS, NORMAL_STACK, QUEUE_STAKES, blindStep } from '../../shared/protocol';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { ChipSvg } from '../render/Chip';
 import { usePado } from '../store/shop';
@@ -97,19 +101,33 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
   const pending = useSession((s) => s.botsPending);
   const [bots, setBots] = useState(5);
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
-  const [mode, setMode] = useState<GameMode>('cash');
+  // normal é o formato padrão: partida com começo, meio e fim, e mesa igual para todos
+  const [mode, setMode] = useState<GameMode>('normal');
   const [variant, setVariant] = useState<GameVariant>('holdem');
   const [rounds, setRounds] = useState(8);
-  const [stack, setStack] = useState(2000);
-  const [blinds, setBlinds] = useState(20);
+  const [stack, setStack] = useState(1000);
+  const [blinds, setBlinds] = useState(100);
   const [turnTime, setTurnTime] = useState(25);
   const [pace, setPace] = useState(1);
+  const chips = useChips();
+  // sem conta no servidor não há saldo para cobrar: a mesa é de treino, e o botão não trava
+  const temConta = useSession((s) => !!s.account);
+  /*
+   * Partida normal tem mesa fixa: mil fichas e 50/100.
+   *
+   * O que muda de mesa para mesa é o que se decide numa cash ou numa sit & go; a normal é a
+   * partida do jogo, e ela vale o mesmo para todo mundo.
+   */
+  const fixa = mode === 'normal';
+  const pilha = fixa ? NORMAL_STACK : stack;
+  const bb = fixa ? NORMAL_BLINDS.bb : blinds;
   return (
     <div className="modal-back" onClick={onClose}>
       <motion.div className="modal panel quick-modal" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()}>
-        <h2 className="title-deco">Partida Rápida</h2>
+        <h2 className="title-deco">Contra Bots</h2>
         <p className="muted">
-          Contra bots <b>no servidor</b> — as fichas e o vínculo contam. Se ele não responder, a partida começa no seu computador.
+          Contra bots <b>no servidor</b> — vale fichas de verdade: o buy-in sai do seu saldo e o que sobrar na mesa volta para ele.
+          Se o servidor não responder, a partida começa no seu computador, sem valer nada.
         </p>
         <div className="form-stack">
           <Segmented label="Oponentes" value={bots} onChange={setBots} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}` }))} />
@@ -137,16 +155,41 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
             value={mode}
             onChange={setMode}
             options={[
+              { value: 'normal', label: 'Normal' },
               { value: 'cash', label: MODE_LABEL.cash },
               { value: 'sitgo', label: MODE_LABEL.sitgo },
-              { value: 'normal', label: 'Normal' },
             ]}
           />
-          {mode === 'normal' && (
-            <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
+          {fixa ? (
+            <>
+              <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
+              <div className="mesa-fixa">
+                <span>
+                  Mesa da partida normal: <b>{NORMAL_STACK.toLocaleString('pt-BR')}</b> fichas e blinds{' '}
+                  <b>
+                    {NORMAL_BLINDS.sb}/{NORMAL_BLINDS.bb}
+                  </b>
+                  .
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* só o que o saldo paga: a mesa cobra o buy-in da conta */}
+              <Segmented
+                label="Fichas iniciais"
+                value={stack}
+                onChange={setStack}
+                options={[1000, 2000, 5000, 10000].map((v) => ({
+                  value: v,
+                  label: v.toLocaleString('pt-BR'),
+                  disabled: chips < v,
+                  title: chips < v ? `Faltam ${fmt(v - chips)} fichas` : undefined,
+                }))}
+              />
+              <BlindPicker value={blinds} onChange={setBlinds} />
+            </>
           )}
-          <Segmented label="Fichas iniciais" value={stack} onChange={setStack} options={[1000, 2000, 5000, 10000].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))} />
-          <Segmented label="Big blind" value={blinds} onChange={setBlinds} options={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v / 2}/${v}` }))} />
           <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[10, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
           <Segmented
             label="Ritmo da mesa"
@@ -162,13 +205,13 @@ function QuickPlayModal({ onClose }: { onClose: () => void }) {
         <div className="row gap center" style={{ marginTop: 18 }}>
           <button
             className="btn btn-gold big"
-            disabled={pending}
+            disabled={pending || (temConta && chips < pilha)}
             onClick={() => {
               sfx.click();
-              startBots({ bots, difficulty, mode, variant, rounds, startingStack: stack, smallBlind: blinds / 2, bigBlind: blinds, turnTime, pace });
+              startBots({ bots, difficulty, mode, variant, rounds, startingStack: pilha, smallBlind: blindStep(bb).sb, bigBlind: bb, turnTime, pace });
             }}
           >
-            {pending ? 'Sentando à mesa…' : '♠ Sentar à mesa'}
+            {pending ? 'Sentando à mesa…' : temConta && chips < pilha ? `Faltam ${fmt(pilha - chips)} fichas` : temConta ? `♠ Sentar por ${fmt(pilha)}` : '♠ Sentar à mesa'}
           </button>
           <button className="btn btn-ghost" disabled={pending} onClick={onClose}>
             Cancelar
@@ -202,7 +245,7 @@ function QueueModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-back" onClick={queueing ? undefined : onClose}>
       <motion.div className="modal panel queue-modal" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()}>
-        <h2 className="title-deco">Fila Rápida</h2>
+        <h2 className="title-deco">PvP Queue</h2>
         <p className="muted">
           O servidor acha uma mesa com gente — ou abre uma com bots, que saem conforme jogadores chegam. Cash, com rebuy: você joga com o que é seu
           até zerar.
@@ -265,20 +308,41 @@ function QueueModal({ onClose }: { onClose: () => void }) {
 
 function TopBar({ go }: { go: (s: Screen) => void }) {
   const name = useProfile((s) => s.name);
-  const setName = useProfile((s) => s.setName);
   const muted = useProfile((s) => s.settings.muted);
   const updateSettings = useProfile((s) => s.updateSettings);
   const st = useCharacter();
+  const stats = useMyStats();
+  const title = useMyTitle();
+  const temConta = useSession((s) => !!s.account);
+  const lv = levelInfo(stats);
   return (
     <div className="top-bar">
-      <div className="player-chip">
+      {/*
+        * A pílula do jogador **é** a barra de experiência: ela começa transparente e vai enchendo
+        * da esquerda para a direita, como líquido numa garrafa deitada. Por isso a porcentagem é
+        * uma variável de CSS aqui — o preenchimento é o fundo dela, não um risco embaixo do nome.
+        *
+        * O nome não se edita daqui: quem troca é Configurações → Perfil. Um campo de texto no meio
+        * do menu convidava a apagar o nome sem querer, e dava um cursor piscando onde devia haver
+        * uma etiqueta.
+        */}
+      <div
+        className="player-chip"
+        style={{ '--xp': `${Math.round(lv.progress * 100)}%`, '--xp-cor': levelColor(lv.level) } as CSSProperties}
+        title={`${lv.into} / ${lv.need} de experiência para o nível ${lv.level + 1}`}
+      >
         <button className="player-portrait" style={{ background: `linear-gradient(160deg, ${st.bg}, ${st.bg2})` }} onClick={() => go('characters')} title="Trocar personagem">
           <CharacterPortrait st={st} size={54} />
         </button>
+        {/* as bolhas sobem dentro do líquido: o recorte para no nível, como numa bebida gaseificada */}
+        <span className="player-bolhas" aria-hidden>
+          <Sparks color={levelColor(lv.level)} count={14} size={6} rise={42} spread={300} speed={4.2} />
+        </span>
         <div className="player-meta">
-          <input className="player-name" value={name} maxLength={16} onChange={(e) => setName(e.target.value)} aria-label="Seu nome" />
-          <span className="player-sub">♠ Pokeru · clique no personagem para conversar</span>
+          <span className="player-name">{name}</span>
+          {title ? <TitleGlow title={title} className="player-title" /> : <i className="player-sem-titulo">{temConta ? 'sem título' : 'sem conta'}</i>}
         </div>
+        <LevelNumber level={lv.level} size={22} className="player-nivel" />
       </div>
       <WalletBar />
       <div className="top-actions">
@@ -360,9 +424,9 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
       </motion.div>
       <div className="mode-area">
         <div className="mode-cards">
-          <ModeCard title="Fila Rápida" sub="Mesa com gente, na hora" glyph="⚡" cls="gold" onClick={() => setQueue(true)} delay={0.12} />
-          <ModeCard title="Partida Rápida" sub="Contra bots, no servidor" glyph="♠" cls="blue" onClick={() => setQuick(true)} delay={0.2} />
-          <ModeCard title="Salas" sub="Escolher a mesa" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.28} />
+          <ModeCard title="PvP Queue" sub="Mesa com gente, na hora" glyph="⚡" cls="gold" onClick={() => setQueue(true)} delay={0.12} />
+          <ModeCard title="Contra Bots" sub="No servidor, valendo fichas" glyph="♠" cls="blue" onClick={() => setQuick(true)} delay={0.2} />
+          <ModeCard title="Custom" sub="Escolher ou criar a mesa" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.28} />
         </div>
         <div className="bottom-icons">
           {icons.map((it, i) => (

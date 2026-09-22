@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_SETTINGS, type GameMode, type GameVariant, type RoomSummary } from '../../shared/protocol';
+import { DEFAULT_SETTINGS, NORMAL_BLINDS, NORMAL_STACK, blindStep, type GameMode, type GameVariant, type RoomSummary } from '../../shared/protocol';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
-import { Field, ScreenHeader, Segmented } from '../ui/controls';
+import { BlindPicker, Field, ScreenHeader, Segmented } from '../ui/controls';
 import { ChipSvg } from '../render/Chip';
+import { useChips } from '../ui/Wallet';
 import { MODE_LABEL, MODE_SHORT, VARIANT_LABEL, VARIANT_SHORT, fmt } from '../util/format';
 import { Petals } from './MainMenu';
 import { sfx } from '../audio/sfx';
@@ -97,14 +98,17 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('Mesa de ' + useProfile.getState().name);
   const [maxPlayers, setMaxPlayers] = useState(6);
-  const [mode, setMode] = useState<GameMode>('cash');
+  // normal é o formato padrão, com mesa fixa (mil fichas, 50/100)
+  const [mode, setMode] = useState<GameMode>('normal');
   const [variant, setVariant] = useState<GameVariant>('holdem');
   const [rounds, setRounds] = useState(8);
-  const [buyIn, setBuyIn] = useState(0);
-  const [stack, setStack] = useState(2000);
-  const [bb, setBb] = useState(20);
+  const [stack, setStack] = useState(1000);
+  const [bb, setBb] = useState(NORMAL_BLINDS.bb);
   const [turnTime, setTurnTime] = useState(25);
   const [password, setPassword] = useState('');
+  const chips = useChips();
+  const fixa = mode === 'normal';
+  const pilha = fixa ? NORMAL_STACK : stack;
 
   // entrar nesta tela já é pedir a lista: conecta sozinho
   useEffect(() => {
@@ -117,7 +121,8 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
       <div className="menu-bg" />
       <Petals />
       {/* voltar é navegar: a conexão fica de pé, senão a conta desaparece do menu */}
-      <ScreenHeader title="Salas" onBack={onBack} />
+      {/* o menu chama esta tela de "Custom": é onde se escolhe ou se monta a mesa à mão */}
+      <ScreenHeader title="Custom" onBack={onBack} />
       <div className="lobby-grid">
         <div className="panel pad">
           <div className="row between">
@@ -180,35 +185,49 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
               value={mode}
               onChange={setMode}
               options={[
+                { value: 'normal', label: 'Normal' },
                 { value: 'cash', label: MODE_LABEL.cash },
                 { value: 'sitgo', label: MODE_LABEL.sitgo },
-                { value: 'normal', label: 'Normal' },
               ]}
             />
-            {mode === 'normal' && (
-              <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
+            {fixa ? (
+              <>
+                <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
+                <div className="mesa-fixa">
+                  <span>
+                    Mesa da partida normal: <b>{NORMAL_STACK.toLocaleString('pt-BR')}</b> fichas e blinds{' '}
+                    <b>
+                      {NORMAL_BLINDS.sb}/{NORMAL_BLINDS.bb}
+                    </b>
+                    .
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* só o que o saldo paga: a mesa cobra o buy-in da conta de quem senta */}
+                <Segmented
+                  label="Fichas iniciais"
+                  value={stack}
+                  onChange={setStack}
+                  options={[1000, 2000, 5000, 10000].map((v) => ({
+                    value: v,
+                    label: v.toLocaleString('pt-BR'),
+                    disabled: !!account && chips < v,
+                    title: account && chips < v ? `Faltam ${fmt(v - chips)} fichas` : undefined,
+                  }))}
+                />
+                <BlindPicker value={bb} onChange={setBb} />
+              </>
             )}
-            <Segmented label="Fichas iniciais" value={stack} onChange={setStack} options={[1000, 2000, 5000, 10000].map((v) => ({ value: v, label: v.toLocaleString('pt-BR') }))} />
-            <Segmented label="Blinds" value={bb} onChange={setBb} options={[10, 20, 50, 100].map((v) => ({ value: v, label: `${v / 2}/${v}` }))} />
             <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[15, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
-            {account && (
-              <Segmented
-                label="Buy-in (do seu saldo)"
-                value={buyIn}
-                onChange={setBuyIn}
-                options={[
-                  { value: 0, label: 'Livre' },
-                  ...[500, 1000, 2500, 5000].map((v) => ({ value: v, label: fmt(v) })),
-                ]}
-              />
-            )}
             <Field label="Senha (opcional)" hint="Com senha, a sala aparece com 🔒 e só entra quem souber.">
               <input className="input" type="password" value={password} maxLength={32} onChange={(e) => setPassword(e.target.value)} />
             </Field>
           </div>
           <button
             className="btn btn-gold big wide"
-            disabled={!connected}
+            disabled={!connected || (!!account && chips < pilha)}
             onClick={() =>
               send({
                 type: 'createRoom',
@@ -219,18 +238,24 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                   mode,
                   variant,
                   rounds,
-                  // mesa a dinheiro: as fichas são o próprio buy-in
-                  buyIn,
-                  startingStack: buyIn > 0 ? buyIn : stack,
-                  smallBlind: bb / 2,
-                  bigBlind: bb,
+                  /*
+                   * A mesa vale fichas: o buy-in é a própria pilha.
+                   *
+                   * Era uma escolha à parte ("Livre" ou um valor), e dava para criar mesa de dez mil
+                   * fichas sem tirar nada da conta. Agora quem senta paga o que leva para a mesa, e
+                   * recebe de volta o que sobrar ao sair.
+                   */
+                  buyIn: pilha,
+                  startingStack: pilha,
+                  smallBlind: fixa ? NORMAL_BLINDS.sb : blindStep(bb).sb,
+                  bigBlind: fixa ? NORMAL_BLINDS.bb : bb,
                   turnTime,
                   password: password || undefined,
                 },
               })
             }
           >
-            Criar e sentar
+            {account && chips < pilha ? `Faltam ${fmt(pilha - chips)} fichas` : `Criar e sentar por ${fmt(pilha)}`}
           </button>
         </div>
       </div>

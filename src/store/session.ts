@@ -136,11 +136,19 @@ function clearQueue(): void {
 }
 
 /** A sala de uma partida contra bots: do tamanho da mesa pedida. */
-function botRoomSettings(o: LocalOptions, name: string) {
+/**
+ * A mesa contra bots.
+ *
+ * `paga` liga o buy-in: no servidor a partida vale **fichas de verdade** — o buy-in sai da conta e
+ * o que sobra na mesa volta para ela ao sair. Na mesa local não há conta para cobrar (nem para
+ * pagar), então lá ela vai sem buy-in; é a diferença entre treinar e jogar.
+ */
+function botRoomSettings(o: LocalOptions, name: string, paga = false) {
   return {
     ...DEFAULT_SETTINGS,
     name,
     maxPlayers: Math.min(6, o.bots + 1),
+    buyIn: paga ? o.startingStack : 0,
     startingStack: o.startingStack,
     smallBlind: o.smallBlind,
     bigBlind: o.bigBlind,
@@ -199,7 +207,7 @@ function handle(m: ServerMsg): void {
       // partida contra bots: a sala é pedida assim que o servidor cumprimenta
       if (botMatch?.step === 'connect') {
         botMatch.step = 'create';
-        transport?.send({ type: 'createRoom', settings: { ...botRoomSettings(botMatch.o, 'Treino contra bots'), listed: false } });
+        transport?.send({ type: 'createRoom', settings: { ...botRoomSettings(botMatch.o, 'Contra bots', !!useSession.getState().account), listed: false } });
       }
       break;
     case 'account': {
@@ -379,7 +387,8 @@ export const useSession = create<SessionState>()((set, get) => ({
     if (get().status === 'connected' && transport) {
       set({ botsPending: true, offline: false });
       botMatch = { o, step: 'create' };
-      transport.send({ type: 'createRoom', settings: { ...botRoomSettings(o, 'Treino contra bots'), listed: false } });
+      // a mesa só cobra se houver conta para cobrar: servidor sem serviço de contas segue de graça
+      transport.send({ type: 'createRoom', settings: { ...botRoomSettings(o, 'Contra bots', !!get().account), listed: false } });
     } else {
       get().connectOnline();
       set({ botsPending: true });

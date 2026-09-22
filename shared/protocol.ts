@@ -81,6 +81,38 @@ export const DEFAULT_SETTINGS: RoomSettings = {
 };
 
 /**
+ * A escada de blinds que as mesas usam.
+ *
+ * São degraus, não um número livre: blind é a escala da mesa, e uma mesa de 37/74 não diz nada a
+ * ninguém. O formulário anda por esta lista (veja o seletor de blinds em src/ui/controls.tsx), e
+ * ela cresce como as mesas de verdade crescem — dobrando e depois multiplicando por cinco.
+ */
+export const BLIND_STEPS: { sb: number; bb: number }[] = [
+  { sb: 5, bb: 10 },
+  { sb: 10, bb: 20 },
+  { sb: 25, bb: 50 },
+  { sb: 50, bb: 100 },
+  { sb: 250, bb: 500 },
+  { sb: 500, bb: 1000 },
+  { sb: 1000, bb: 2000 },
+  { sb: 5000, bb: 10_000 },
+];
+
+/** O degrau de um big blind (o mais próximo, para um valor que não esteja na escada). */
+export function blindStep(bb: number): { sb: number; bb: number } {
+  return BLIND_STEPS.reduce((melhor, d) => (Math.abs(d.bb - bb) < Math.abs(melhor.bb - bb) ? d : melhor), BLIND_STEPS[0]);
+}
+
+/**
+ * A mesa de **partida normal**: fichas e blinds fixos.
+ *
+ * Normal é o formato padrão do jogo — começo, meio e fim, mesma banca para todos. Por isso não se
+ * escolhe pilha nem blind: mil fichas e 50/100 para todo mundo, e a partida se decide jogando.
+ */
+export const NORMAL_STACK = 1000;
+export const NORMAL_BLINDS = { sb: 50, bb: 100 };
+
+/**
  * As mesas da fila rápida: cash (com rebuy), seis lugares, e o jogador joga com o que é dele até
  * zerar. Os valores são fixos de propósito — fila é para entrar sem escolher nada.
  *

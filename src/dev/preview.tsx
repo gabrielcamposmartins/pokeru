@@ -25,19 +25,22 @@
  *   /preview.html?cena=config-logado   as configurações com uma conta logada
  *   /preview.html?cena=salas           a lista de salas do servidor (uma delas com senha)
  *   /preview.html?cena=menu            o menu principal
- *   /preview.html?cena=menu-sentando   o menu com a Partida Rápida montando a mesa no servidor
+ *   /preview.html?cena=menu-sentando   o menu com Contra Bots montando a mesa no servidor
  *   /preview.html?cena=fila            o menu com a fila rápida aberta (fichas e padocoins)
  *   /preview.html?cena=fila-esperando  a fila procurando mesa
  *   /preview.html?cena=loja&aba=winfx  a loja (com conta, saldo nas duas moedas); aba= o tipo mostrado
  *   /preview.html?cena=loja&aba=gift   os presentes à venda (a aba que abre por padrão)
- *   /preview.html?cena=loja&aba=roleta&ver=flores  a roleta com a tabela de prêmios e as chances
+ *   /preview.html?cena=loja&aba=ticket&ver=flores  a aba de tickets (carrossel, prêmios e chances)
+ *   /preview.html?cena=loja&aba=ui     a aba de aparências (carrossel e a amostra do tema)
+ *   /preview.html?cena=galeria&aba=back  a Galeria: a coleção, com o carimbo de raridade
  *   /preview.html?cena=giro            a cena do giro revelando um prêmio (&premio=, &dup=1)
  *   /preview.html?cena=girando         o ticket girando, antes da resposta do servidor
- *   /preview.html?cena=loja&ver=chip:chip-neon  a loja com o item já aberto em tamanho grande
+ *   /preview.html?cena=galeria&ver=character:yukina  a Galeria com a peça já aberta no palco
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
  *   /preview.html?cena=titulos         as configurações com os títulos e o progresso das conquistas
  *   /preview.html?cena=estudio&aba=ui  o Estúdio (aba= face|back|chip|table|fx|ui)
+ *   &nivel=45                          o nível do jogador no menu (muda a cor da barra de xp)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  */
 import { StrictMode, useEffect } from 'react';
@@ -87,6 +90,7 @@ import { OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
 import { GalleryScreen } from '../screens/Gallery';
 import { Studio } from '../screens/Studio';
+import { xpForLevel } from '../../shared/achievements';
 import { useProfile } from '../store/profile';
 import { useRoleta } from '../store/roleta';
 import { useUiTheme } from '../ui/themes';
@@ -518,8 +522,24 @@ if (cena === 'giro') {
   });
 }
 
+/**
+ * Contadores que dão exatamente o nível pedido, com a barra pela metade.
+ *
+ * O nível sai da experiência, e a experiência sai dos contadores — então para ver a barra de xp em
+ * outra cor (ela muda a cada dezena) basta inflar as mãos jogadas, que valem 1 de xp cada. É o que
+ * `?nivel=` faz: 23 é ciano, 45 é lilás, 88 é ouro.
+ */
+function statsDoNivel(nivel: number) {
+  const n = Math.max(1, Math.min(100, Math.round(nivel)));
+  const alvo = Math.round(xpForLevel(n) + (xpForLevel(n + 1) - xpForLevel(n)) * 0.45);
+  // os outros contadores são fixos (e valem xp também); as mãos completam o que falta para o alvo
+  const outros = { wins: 62, matches: 11, matchWins: 2 };
+  const gastos = outros.wins * 3 + outros.matches * 10 + outros.matchWins * 25;
+  return { ...outros, hands: Math.max(0, alvo - gastos), folds: 74, allIns: 9, bigWins: 3, showdowns: 41 };
+}
+
 // a loja: finge uma conta no servidor, com itens e as duas moedas
-if (cena === 'loja' || cena === 'galeria' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' || cena === 'conta' || cena === 'titulos' || cena === 'fila' || cena === 'fila-esperando') {
+if (cena === 'loja' || cena === 'galeria' || cena === 'menu' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' || cena === 'conta' || cena === 'titulos' || cena === 'fila' || cena === 'fila-esperando') {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
   useSession.setState({
@@ -540,7 +560,7 @@ if (cena === 'loja' || cena === 'galeria' || cena === 'loja-sem-pado' || cena ==
       owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
       bond: {},
       // contadores de verdade: sem eles a lista de conquistas fica toda em zero e a tela não dá para conferir
-      stats: { hands: 137, wins: 62, matches: 11, folds: 74, allIns: 9, bigWins: 3, showdowns: 41, matchWins: 2 },
+      stats: statsDoNivel(Number(q.get('nivel') ?? 23)),
       title: 'Colecionador de Potes',
       since: '2026-03-04T12:00:00.000Z',
     },

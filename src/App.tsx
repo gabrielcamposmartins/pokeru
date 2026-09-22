@@ -24,6 +24,16 @@ import { useUiTheme } from './ui/themes';
 
 export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters' | 'store' | 'gallery';
 
+/** Telas que vivem por conta própria: sair de uma partida não tira o jogador delas. */
+const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
+  online: true,
+  studio: true,
+  settings: true,
+  characters: true,
+  store: true,
+  gallery: true,
+};
+
 export function App() {
   const [screen, setScreen] = useState<Screen>('menu');
   const room = useSession((s) => s.room);
@@ -78,9 +88,16 @@ export function App() {
     return () => window.removeEventListener('pointerdown', unlock);
   }, []);
 
-  // volta ao menu certo ao sair de uma partida
+  /**
+   * Volta ao menu ao sair de uma partida — menos quando o jogador está numa tela que vive por
+   * conta própria.
+   *
+   * A lista é um `Record` de todas as telas menos o menu: acrescentar uma tela nova sem dizer aqui
+   * o que ela é **não compila**. Era uma cadeia de `!==` e a Galeria, que entrou depois, não estava
+   * nela — clicar no botão abria a tela e este efeito mandava de volta ao menu no mesmo instante.
+   */
   useEffect(() => {
-    if (mode === 'none' && screen !== 'online' && screen !== 'studio' && screen !== 'settings' && screen !== 'characters' && screen !== 'store') setScreen('menu');
+    if (mode === 'none' && screen !== 'menu' && !TELAS_PROPRIAS[screen]) setScreen('menu');
   }, [mode, screen]);
 
   let content;

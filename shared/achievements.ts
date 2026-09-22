@@ -134,6 +134,39 @@ export function playerLevel(stats: PlayerStats): number {
   return 1 + Math.floor(Math.sqrt(xpOf(stats) / 40));
 }
 
+/**
+ * Experiência que um nível exige — o inverso da curva de `playerLevel`.
+ *
+ * Nível 1 começa em 0, o 2 pede 40, o 3 pede 160, o 4 pede 360. É esta conta que transforma o
+ * nível num **progresso**: sem ela a barra do menu não saberia onde o nível começa nem acaba.
+ */
+export function xpForLevel(level: number): number {
+  const n = Math.max(1, Math.floor(level));
+  return 40 * (n - 1) ** 2;
+}
+
+/** Onde o nível está: o total, o que já andou dentro do nível e o que ele pede. */
+export interface LevelInfo {
+  level: number;
+  /** Experiência acumulada da conta. */
+  xp: number;
+  /** Experiência dentro do nível atual. */
+  into: number;
+  /** Experiência que o nível atual pede por inteiro. */
+  need: number;
+  /** Quanto do nível já andou, de 0 a 1. */
+  progress: number;
+}
+
+export function levelInfo(stats: PlayerStats): LevelInfo {
+  const xp = xpOf(stats);
+  const level = playerLevel(stats);
+  const base = xpForLevel(level);
+  const need = xpForLevel(level + 1) - base;
+  const into = xp - base;
+  return { level, xp, into, need, progress: need > 0 ? into / need : 1 };
+}
+
 export function findAchievement(id: string): Achievement | undefined {
   return ACHIEVEMENTS.find((a) => a.id === id);
 }

@@ -33,6 +33,8 @@
    * do papel japonês: dois fios cruzados, quase invisíveis, que tiram o plástico dos botões.
    */
   --sakura-pat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cg fill='%23ffc7dd' fill-opacity='.055'%3E%3Cg transform='translate(30 34)'%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(72)'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(144)'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(216)'/%3E%3Cellipse rx='4.76' ry='7.7' cy='-7.7' transform='rotate(288)'/%3E%3Ccircle r='3.08'/%3E%3C/g%3E%3Cg transform='translate(90 92) rotate(25)'%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(72)'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(144)'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(216)'/%3E%3Cellipse rx='3.06' ry='4.95' cy='-4.95' transform='rotate(288)'/%3E%3Ccircle r='1.98'/%3E%3C/g%3E%3Cg transform='translate(66 8) rotate(-18)'%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(72)'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(144)'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(216)'/%3E%3Cellipse rx='2.04' ry='3.3' cy='-3.3' transform='rotate(288)'/%3E%3Ccircle r='1.32'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  /* a onda do menisco da barra de xp (máscara, então a cor vem de fora) */
+  --onda: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='60' viewBox='0 0 8 60' preserveAspectRatio='none'%3E%3Cpath d='M4 0 C1 7.5 7 22.5 4 30 C1 37.5 7 52.5 4 60' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
   --washi:
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.075) 0 1px, transparent 1px 6px),
     repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.04) 0 1px, transparent 1px 6px);
@@ -379,35 +381,133 @@ textarea.input {
   flex-direction: column;
   gap: 6px;
 }
+/*
+ * O segmentado, na mesma língua dos botões.
+ *
+ * A opção escolhida é uma placa de laca em miniatura — cantos cortados, trama do washi e aro de
+ * ouro —, e as outras são o papel por baixo. O que não dá para escolher (fichas que o saldo não
+ * paga) fica apagado e diz o motivo no título.
+ */
 .seg {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 4px;
+  gap: 5px;
+  background: rgba(6, 3, 16, 0.4);
+  padding: 5px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line-soft);
 }
 .seg button {
+  position: relative;
   flex: 1 0 auto;
   border: none;
+  border-radius: 0;
   background: transparent;
-  padding: 7px 10px;
-  border-radius: 9px;
+  padding: 8px 12px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--muted);
-  transition: all 0.15s;
-  min-width: 44px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+  min-width: 46px;
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
 }
-.seg button:hover {
+.seg button:hover:not(:disabled) {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
 }
 .seg button.on {
-  background: linear-gradient(180deg, #ffe7a0, #f2c14e);
+  background: var(--washi), linear-gradient(180deg, #fff1b8, #f2c14e 50%, #d9962a);
+  box-shadow: inset 0 0 0 1px rgba(99, 66, 12, 0.5);
   color: #3a2300;
-  box-shadow: 0 2px 8px rgba(242, 193, 78, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+.seg button:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------ seletor de degrau (blinds) */
+
+.degrau {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(6, 3, 16, 0.4);
+  cursor: ns-resize;
+}
+.degrau:focus-visible {
+  outline: 2px solid var(--gold-2);
+  outline-offset: 2px;
+}
+.degrau-seta {
+  width: 40px;
+  height: 36px;
+  border: none;
+  border-radius: 0;
+  background: var(--washi), rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px);
+  color: var(--gold-2);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.degrau-seta:hover:not(:disabled) {
+  background: var(--washi), rgba(255, 226, 180, 0.16);
+}
+.degrau-seta:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.degrau-val {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-family: var(--num);
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text);
+}
+.degrau-val i {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 15px;
+}
+/* a escada em pontinhos: dá para ver onde a mesa está entre as outras */
+.degrau-escala {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+.degrau-escala i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.degrau-escala i.on {
+  background: var(--gold);
+}
+
+/* a mesa que não se escolhe: a linha que explica a partida normal */
+.mesa-fixa {
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--line-soft);
+  background: rgba(10, 6, 24, 0.35);
+  font-size: 13px;
+  color: var(--muted);
+}
+.mesa-fixa b {
+  font-family: var(--num);
+  color: var(--gold-2);
 }
 
 .slider-field {
@@ -2488,15 +2588,176 @@ button.avatar {
   z-index: 6;
   background: linear-gradient(180deg, rgba(10, 6, 24, 0.8), transparent);
 }
+/*
+ * A pílula do jogador é a barra de experiência.
+ *
+ * O fundo é um degrau duro em `--xp`: da esquerda até ali é a cor do nível, dali em diante é o
+ * vidro escuro. Como encher uma garrafa deitada — e a transição faz o líquido subir quando a
+ * partida termina, em vez de pular.
+ */
 .player-chip {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 5px 18px 5px 5px;
+  padding: 5px 16px 5px 5px;
   border-radius: 40px;
-  background: rgba(20, 14, 44, 0.85);
-  border: 1.5px solid rgba(242, 193, 78, 0.6);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  /*
+   * Vidro: o fundo é transparente e o que existe é reflexo — uma faixa clara em cima, uma sombra
+   * por dentro embaixo e um fio de luz na borda. O que preenche é o líquido (o ::before), então a
+   * pílula vazia mostra o menu por trás, como uma garrafa vazia mostra a parede.
+   */
+  background:
+    /* a lasca de luz que todo vidro curvo tem perto da borda de cima */
+    radial-gradient(120% 60% at 22% -18%, rgba(255, 255, 255, 0.3), transparent 60%),
+    /* o brilho comprido da parede da frente */
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04) 34%, transparent 52%),
+    /* e a luz que volta do fundo do copo */
+    linear-gradient(0deg, rgba(255, 255, 255, 0.07), transparent 22%);
+  border: 1.5px solid rgba(242, 193, 78, 0.55);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -9px 16px rgba(0, 0, 0, 0.22);
+}
+/*
+ * O líquido.
+ *
+ * Fica num pseudo-elemento arredondado como a pílula — e não no fundo dela — para a pílula não
+ * precisar de `overflow: hidden`, que cortaria as fagulhas que sobem do número do nível. A borda
+ * do líquido tem uma faixa de transição de 4%: água tem menisco, não corte de faca.
+ */
+.player-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /*
+   * O líquido é **recortado** na altura do nível, não desenhado com um degrau horizontal: assim
+   * ele pode ter densidade própria — mais carregado embaixo, mais claro na superfície, como
+   * qualquer coisa servida num copo.
+   */
+  clip-path: inset(0 calc(100% - var(--xp, 0%)) 0 0);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--xp-cor, var(--gold)) 26%, transparent),
+    color-mix(in srgb, var(--xp-cor, var(--gold)) 44%, transparent) 55%,
+    color-mix(in srgb, var(--xp-cor, var(--gold)) 62%, transparent)
+  );
+  pointer-events: none;
+  transition: clip-path 0.5s ease;
+}
+/*
+ * As bolhas.
+ *
+ * A mesma partícula que sobe do número do nível, agora dentro do líquido — efervescência. O
+ * recorte é o pulo do gato: as partículas nascem em toda a largura da pílula e o `clip-path` corta
+ * no nível, então bolha nunca aparece acima da linha do líquido.
+ */
+.player-bolhas {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  clip-path: inset(0 calc(100% - var(--xp, 0%)) 0 0);
+  pointer-events: none;
+  z-index: 0;
+  transition: clip-path 0.5s ease;
+}
+/*
+ * Bolha, não fagulha.
+ *
+ * A fagulha do nível é um ponto de cor; dentro do líquido ela sumia — cor sobre a mesma cor. A
+ * bolha é branca com halo da cor do nível, e um pouco maior: é o contraste que a faz existir.
+ */
+/*
+ * Bolha é **anel**, não ponto.
+ *
+ * Um disco branco sobre líquido claro vira um borrão; o contorno com miolo quase vazio se lê
+ * contra qualquer cor de nível — é assim que bolha aparece num copo de verdade.
+ */
+.player-bolhas .spark {
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.95),
+    /* um fio escuro por fora separa a bolha do líquido, que é claro */ 0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 0 8px rgba(255, 255, 255, 0.5);
+  animation-name: bolha-up;
+  animation-timing-function: ease-in;
+}
+/*
+ * A subida da bolha é diferente da fagulha: ela **cresce** enquanto sobe e fica visível quase o
+ * caminho todo. A fagulha do nível faz o contrário — acende, encolhe e some —, e era por isso que
+ * dentro do líquido ela aparecia por um piscar e sumia.
+ */
+@keyframes bolha-up {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.5);
+  }
+  16% {
+    opacity: 0.95;
+  }
+  80% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--spark-rise, 26px))) scale(1.1);
+  }
+}
+/*
+ * O menisco: a superfície do líquido, ondulada.
+ *
+ * Era um risco reto de 2px. Agora é uma onda em SVG usada como **máscara** — a forma vem do
+ * desenho e a cor vem do nível —, e ela balança devagar, como a superfície de um copo que alguém
+ * acabou de pôr na mesa.
+ */
+.player-chip::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: calc(var(--xp, 0%) - 4px);
+  width: 8px;
+  background: var(--xp-cor, var(--gold));
+  -webkit-mask-image: var(--onda);
+  mask-image: var(--onda);
+  /*
+   * A onda **corre**: a máscara é um ladrilho de 60px que se repete, e a animação desliza a
+   * máscara exatamente um ladrilho. Antes eu movia o elemento inteiro dois pixels — a onda ia
+   * junto, e uma onda que não muda de forma é um risco torto, não uma superfície.
+   */
+  -webkit-mask-size: 100% 60px;
+  mask-size: 100% 60px;
+  -webkit-mask-repeat: repeat-y;
+  mask-repeat: repeat-y;
+  opacity: 0.85;
+  pointer-events: none;
+  transition: left 0.5s ease;
+  animation: menisco 3s linear infinite;
+}
+@keyframes menisco {
+  from {
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+  to {
+    -webkit-mask-position: 0 -60px;
+    mask-position: 0 -60px;
+  }
+}
+/*
+ * O conteúdo da pílula fica acima do líquido.
+ *
+ * As bolhas ficam de fora da regra: elas são a camada absoluta que cobre o copo, e um
+ * `position: relative` aqui achatava o contêiner delas para zero por zero — as bolhas existiam,
+ * animavam e caíam fora da tela. O `:where` mantém a especificidade, para a próxima regra que
+ * chegar não desempatar em silêncio.
+ */
+.player-chip > *:where(:not(.player-bolhas)) {
+  position: relative;
+  z-index: 1;
 }
 .player-portrait {
   width: 58px;
@@ -6315,4 +6576,56 @@ button.avatar {
 .shop-card.galeria,
 .shop-stage-art {
   position: relative;
+}
+
+/* ------------------------------------------------------------------ título, nível e xp no menu */
+
+/* dentro da pílula: o nome em cima, o título embaixo, e o nível à direita */
+.player-meta {
+  min-width: 150px;
+}
+/* sobre vidro o texto precisa de sombra: metade dele fica em cima do menu, não do líquido */
+.player-name,
+.player-title,
+.player-sem-titulo {
+  text-shadow: 0 1px 3px rgba(4, 2, 12, 0.85);
+}
+.player-title {
+  display: block;
+  font-family: var(--title);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.player-sem-titulo {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+/* o número do nível é o mesmo da tela de carregamento: cor por dezena e fagulhas subindo */
+.player-nivel {
+  margin-left: 2px;
+}
+
+/* o rodapé das configurações: versão, servidor e o botão de restaurar, numa linha só */
+.settings-pe {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+/* o sub-título de um bloco dentro de uma seção (o som, dentro de Jogo) */
+.settings-sub {
+  margin: 14px 0 2px;
+  font-family: var(--title);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  opacity: 0.85;
 }

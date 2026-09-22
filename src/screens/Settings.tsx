@@ -70,28 +70,15 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
           <Section title="Conta">
             <AccountSection />
           </Section>
-          <Section title="Áudio">
-            <Slider label="Volume" value={s.volume} min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.updateSettings({ volume: v })} />
-            <Toggle label="Silenciar tudo" value={s.muted} onChange={(v) => p.updateSettings({ muted: v })} />
-            <button className="btn btn-ghost small" onClick={() => sfx.win()}>
-              ♪ Testar som
-            </button>
-            <Toggle label="Vozes dos personagens" value={s.voices} onChange={(v) => p.updateSettings({ voices: v })} />
-            <Slider
-              label="Volume das vozes"
-              value={s.voiceVolume}
-              min={0}
-              max={1}
-              step={0.05}
-              format={(v) => `${Math.round(v * 100)}%`}
-              onChange={(v) => p.updateSettings({ voiceVolume: v })}
-            />
-            <button className="btn btn-ghost small" disabled={!s.voices || s.muted} onClick={() => sayLine(character.id, FALA_SLOTS[Math.floor(Math.random() * FALA_SLOTS.length)])}>
-              ♪ Testar voz ({character.name})
-            </button>
-          </Section>
         </div>
         <div className="panel pad">
+          {/*
+            * Jogo e som numa seção só.
+            *
+            * Eram duas listas curtas em colunas diferentes, e "Rede" e "Dados" ocupavam metade da
+            * tela para dizer um endereço que ninguém digita e um botão que quase ninguém aperta. O
+            * endereço do servidor virou a linha de rodapé, junto da versão.
+            */}
           <Section title="Jogo">
             <Slider
               label="Velocidade das animações"
@@ -104,22 +91,41 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
             />
             <Toggle label="Mostrar dica da minha mão" value={s.handHint} onChange={(v) => p.updateSettings({ handHint: v })} />
             <Toggle label="Atualizar o app sozinho ao abrir" value={s.autoUpdate} onChange={(v) => p.updateSettings({ autoUpdate: v })} />
-          </Section>
-          <Section title="Rede">
-            <div className="field-label">Servidor</div>
-            <div className="server-info">
-              <code>{SERVER_URL}</code>
-              <div className="field-hint">
-                O jogo fala sempre com o servidor oficial — o que você escolhe é a <b>sala</b>, em Salas. Quem hospeda o próprio
-                servidor aponta o app na hora de montá-lo (<code>VITE_SERVER_URL</code> ou <code>POKERU_SERVER_URL</code>).
-              </div>
+
+            <div className="settings-sub">Som</div>
+            <Slider label="Volume" value={s.volume} min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => p.updateSettings({ volume: v })} />
+            <Toggle label="Silenciar tudo" value={s.muted} onChange={(v) => p.updateSettings({ muted: v })} />
+            <Toggle label="Vozes dos personagens" value={s.voices} onChange={(v) => p.updateSettings({ voices: v })} />
+            <Slider
+              label="Volume das vozes"
+              value={s.voiceVolume}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onChange={(v) => p.updateSettings({ voiceVolume: v })}
+            />
+            <div className="row gap">
+              <button className="btn btn-ghost small" onClick={() => sfx.win()}>
+                ♪ Testar som
+              </button>
+              <button
+                className="btn btn-ghost small"
+                disabled={!s.voices || s.muted}
+                onClick={() => sayLine(character.id, FALA_SLOTS[Math.floor(Math.random() * FALA_SLOTS.length)])}
+              >
+                ♪ Testar voz ({character.name})
+              </button>
             </div>
           </Section>
-          <Section title="Dados">
+          <div className="settings-pe">
+            <div className="muted small">
+              {info} · servidor <code>{SERVER_URL}</code>
+            </div>
             {confirmReset ? (
               <div className="row gap">
                 <button
-                  className="btn btn-danger"
+                  className="btn btn-danger small"
                   onClick={() => {
                     p.resetAll();
                     setConfirmReset(false);
@@ -128,18 +134,15 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
                 >
                   Confirmar: apagar tudo
                 </button>
-                <button className="btn btn-ghost" onClick={() => setConfirmReset(false)}>
+                <button className="btn btn-ghost small" onClick={() => setConfirmReset(false)}>
                   Cancelar
                 </button>
               </div>
             ) : (
-              <button className="btn btn-ghost" onClick={() => setConfirmReset(true)}>
+              <button className="btn btn-ghost small" onClick={() => setConfirmReset(true)}>
                 Restaurar padrões (apaga estilos personalizados)
               </button>
             )}
-          </Section>
-          <div className="muted small" style={{ marginTop: 18 }}>
-            {info}
           </div>
         </div>
       </div>
