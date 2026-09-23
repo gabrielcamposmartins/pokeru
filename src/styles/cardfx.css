@@ -119,6 +119,30 @@
     transform: scale(1.06, 1.16) translateX(1px) skewX(-3deg);
   }
 }
+/*
+ * A labareda grande.
+ *
+ * Ela não pisca: ela **queima**. O movimento é lento e amplo — estica, entorta para um lado,
+ * encolhe, entorta para o outro —, e os três corpos correm em tempos diferentes, o que faz a
+ * silhueta mudar de forma o tempo todo em vez de inflar e desinflar junto.
+ */
+.fx-labareda {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: fx-labareda 2.4s ease-in-out infinite alternate;
+}
+@keyframes fx-labareda {
+  0% {
+    transform: scale(0.88, 0.82) skewX(6deg) translateX(-2px);
+  }
+  50% {
+    transform: scale(1.04, 1.06) skewX(-2deg) translateX(1px);
+  }
+  100% {
+    transform: scale(0.96, 1.14) skewX(-7deg) translateX(2px);
+  }
+}
+
 /* as das laterais tombam para fora em vez de esticar: elas lambem a carta */
 .fx-flame-lado {
   transform-origin: 50% 100%;

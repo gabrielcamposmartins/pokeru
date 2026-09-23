@@ -86,43 +86,57 @@ function Sparks({ seed, n = 7, color }: { seed: number; n?: number; color: strin
 }
 
 /**
- * Uma língua de fogo: sobe de `y0` até `h`, com a barriga em `w` e a ponta torta para `tilt`.
+ * Uma labareda: sobe de `y0` até `h`, com meia-largura `w` na base e a ponta pendendo para `tilt`.
  *
- * A assimetria é o ponto. Chama simétrica parece folha; o que faz o olho ler "fogo" é a ponta
- * pendendo para um lado e a barriga inflando para o outro.
+ * A assimetria é o ponto. Chama simétrica parece folha, e uma labareda grande e lisa parece balão;
+ * o que faz o olho ler "fogo" é a silhueta ondulada — infla, estrangula, volta a inflar — e a
+ * ponta caindo para um lado. Os dois lados usam controles diferentes de propósito.
  */
-function lingua(x: number, y0: number, h: number, w: number, tilt: number): string {
+function labareda(cx: number, y0: number, h: number, w: number, tilt: number): string {
   const n = (v: number) => v.toFixed(1);
+  const x = (f: number) => n(cx + w * f);
+  const xt = (f: number, t: number) => n(cx + w * f + tilt * t);
+  const y = (f: number) => n(y0 - h * f);
+  /*
+   * A barriga fica na **altura do meio**, não na base.
+   *
+   * Uma chama mais larga embaixo some atrás da carta: o que aparece é só um rodapé aceso. Com o
+   * ponto mais largo lá em cima — e passando da carta nos dois lados —, a labareda abraça a carta
+   * na altura em que o olho está olhando.
+   */
   return (
-    `M${n(x - w)} ${n(y0)}` +
-    ` C${n(x - w * 0.95)} ${n(y0 - h * 0.42)} ${n(x - w * 0.42 + tilt * 0.5)} ${n(y0 - h * 0.72)} ${n(x + tilt)} ${n(y0 - h)}` +
-    ` C${n(x + w * 0.5 + tilt * 0.5)} ${n(y0 - h * 0.68)} ${n(x + w * 0.98)} ${n(y0 - h * 0.4)} ${n(x + w)} ${n(y0)} Z`
+    `M${x(-0.72)} ${n(y0)}` +
+    // sobe pela esquerda: infla até a barriga e estrangula no ombro
+    ` C${x(-1.02)} ${y(0.2)} ${x(-1.06)} ${y(0.42)} ${xt(-0.55, 0.3)} ${y(0.62)}` +
+    // o segundo inchaço e a ponta
+    ` C${xt(-0.62, 0.6)} ${y(0.78)} ${xt(-0.14, 1)} ${y(0.9)} ${xt(0, 1)} ${y(1)}` +
+    // desce pela direita, com outra onda
+    ` C${xt(0.3, 1)} ${y(0.88)} ${xt(0.7, 0.5)} ${y(0.72)} ${x(0.5)} ${y(0.56)}` +
+    ` C${x(1.05)} ${y(0.4)} ${x(1)} ${y(0.2)} ${x(0.72)} ${n(y0)} Z`
   );
 }
 
 /**
- * A fogueira: fica **atrás** da carta.
+ * A labareda: **uma só**, grande e larga, queimando atrás da carta.
  *
- * Fogo de verdade não é uma cor, é uma pilha de temperaturas. São três camadas de línguas — a
- * base vermelha, larga e lenta; o miolo laranja; e o núcleo quase branco, estreito e rápido —,
- * cada uma com o seu desfoque e a sua velocidade.
+ * Fogo de verdade não é uma cor, é uma pilha de temperaturas — então a labareda é feita de três
+ * corpos encaixados: o vermelho, que é o mais largo, mais alto e mais lento; o laranja no meio; e
+ * o núcleo quase branco, estreito e rápido. Três **corpos**, uma chama.
  *
- * O corpo do fogo é **mais largo e mais alto que a carta**, e é isso que faz a coisa funcionar de
- * trás: o que se vê é o fogo saindo em volta da silhueta e passando por cima da borda de cima. Com
- * as chamas na frente, elas comiam metade da carta e a mão ficava ilegível; atrás, a carta parece
- * estar **dentro** do fogo, e continua sendo uma carta.
+ * Ela é mais larga e mais alta que a carta, e é isso que faz a coisa funcionar de trás: o que se
+ * vê é a chama saindo em volta da silhueta e lambendo por cima da borda de cima. Antes eram sete
+ * línguas em fila, o que lia como fogueira de acampamento; uma labareda só lê como a carta
+ * **queimando**.
  */
 function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }) {
   const r = rnd(seed);
   const uid = cleanId(useId());
   /** As três temperaturas, da mais fria (fora) para a mais quente (dentro). */
   const camadas = [
-    { cor: '#b81c06', op: 0.42, blur: 3, alt: 0.95, larg: 1.3, dur: 1.05, lados: 1 },
-    { cor: colors[0], op: 0.7, blur: 1.8, alt: 0.72, larg: 0.95, dur: 0.78, lados: 0.8 },
-    { cor: colors[1], op: 0.85, blur: 0.9, alt: 0.42, larg: 0.55, dur: 0.56, lados: 0 },
+    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 196, larg: 88, dur: 2.6 },
+    { cor: colors[0], op: 0.78, blur: 2.6, alt: 158, larg: 64, dur: 2.1 },
+    { cor: colors[1], op: 0.9, blur: 1.3, alt: 112, larg: 38, dur: 1.6 },
   ];
-  // as bocas passam da carta nos dois lados: é de lá que o fogo aparece
-  const bocas = [-12, 2, 16, 30, 44, 58, 72, 86, 100, 112];
   return (
       <g className="fx-hot">
         <defs>
@@ -141,31 +155,21 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
           */}
         <ellipse className="fx-brasa" cx={50} cy={140} rx={48} ry={22} fill={`url(#brasa${uid})`} />
 
-        {camadas.map((c) => (
-          <g key={c.cor} style={{ filter: `blur(${c.blur}px)`, opacity: c.op }}>
-            {bocas.map((x) => {
-              /*
-               * Altura sorteada, e as das pontas mais altas.
-               *
-               * As línguas do meio ficam escondidas atrás da carta quase inteiras; quem desenha o
-               * contorno do fogo são as das bordas. Sem esse empurrão elas ficavam do tamanho das
-               * outras e o fogo sumia atrás da carta.
-               */
-              const borda = x < 10 || x > 90 ? 1.5 : 1;
-              const h = (58 + r() * 52) * c.alt * borda;
-              const w = (7 + r() * 5) * c.larg;
-              const tilt = (r() - 0.5) * 12;
-              return (
-                <path
-                  key={x}
-                  className="fx-flame"
-                  style={{ animationDelay: `${(r() * 0.8).toFixed(2)}s`, animationDuration: `${(c.dur + r() * 0.2).toFixed(2)}s` }}
-                  fill={c.cor}
-                  d={lingua(x + (r() - 0.5) * 6, 152, h, w, tilt)}
-                />
-              );
-            })}
-          </g>
+        {camadas.map((c, i) => (
+          <path
+            key={c.cor}
+            className="fx-labareda"
+            style={{
+              filter: `blur(${c.blur}px)`,
+              opacity: c.op,
+              // cada corpo no seu tempo: juntos, eles pulsariam como uma coisa só, que é o que
+              // faz uma chama grande parecer um balão inflando
+              animationDuration: `${c.dur.toFixed(2)}s`,
+              animationDelay: `-${(i * 0.7).toFixed(2)}s`,
+            }}
+            fill={c.cor}
+            d={labareda(50 + (r() - 0.5) * 6, 152, c.alt, c.larg, (r() - 0.5) * 18)}
+          />
         ))}
       </g>
   );
