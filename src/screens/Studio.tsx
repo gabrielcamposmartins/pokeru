@@ -3,6 +3,7 @@ import type { Card } from '../../shared/cards';
 import {
   BACK_PATTERNS,
   CHIP_VALUES,
+  DEFAULT_WIN_FX,
   EMBLEMS,
   FONT_KEYS,
   TABLE_PATTERNS,
@@ -641,16 +642,29 @@ function WinFxStudio() {
   const chosen = useProfile((s) => s.winFx);
   const setWinFx = useProfile((s) => s.setWinFx);
   const toast = useSession((s) => s.toast);
-  const [sel, setSel] = useState<WinFxId>(chosen);
-  const fx = findWinFx(sel);
-  const equipped = fx.id === chosen;
   // `useOwns` é hook e não pode ser chamado dentro do map: a lista pergunta à posse já lida
   const owned = useOwned();
   const meu = (id: string) => ownsItem(owned, 'winfx', id);
+  /*
+   * Só os efeitos que são dele.
+   *
+   * Antes a lista mostrava todos com um cadeado "🔒 Roleta", e isso estava errado por dois
+   * motivos: o Estúdio é onde se mexe no que é seu (as outras abas já listam só o que é seu), e
+   * uma vitrine de coisas trancadas no meio da oficina é propaganda no lugar da ferramenta. O que
+   * existe para ganhar está na Loja → Tickets, onde tem preço e chance.
+   *
+   * O "Ouro" vem com o jogo (FREE_KEYS), então a lista nunca fica vazia.
+   */
+  const meus = WIN_FX.filter((f) => meu(f.id));
+  const trancados = WIN_FX.length - meus.length;
+  // conta antiga com um efeito equipado que ela não tem: cai no primeiro que é dela
+  const [sel, setSel] = useState<WinFxId>(meu(chosen) ? chosen : (meus[0]?.id ?? DEFAULT_WIN_FX));
+  const fx = findWinFx(sel);
+  const equipped = fx.id === chosen;
   return (
     <div className="studio-body">
       <div className="panel style-list">
-        {WIN_FX.map((f) => (
+        {meus.map((f) => (
           <button
             key={f.id}
             className={`style-item ${f.id === fx.id ? 'on' : ''}`}
@@ -667,13 +681,17 @@ function WinFxStudio() {
             </span>
             <span className="style-name">
               {f.name}
-              <span className="badges">
-                {f.id === chosen && meu(f.id) && <span className="badge eq">Equipado</span>}
-                {!meu(f.id) && <span className="badge locked">🔒 Roleta</span>}
-              </span>
+              <span className="badges">{f.id === chosen && <span className="badge eq">Equipado</span>}</span>
             </span>
           </button>
         ))}
+        {/* a lista curta não é defeito: é o que ele tem. O resto sai de ticket, e isso se diz. */}
+        {trancados > 0 && (
+          <div className="field-hint style-locked">
+            {trancados === 1 ? 'Mais 1 efeito sai' : `Mais ${trancados} efeitos saem`} das roletas (<b>Loja → Tickets</b>). Aqui aparece o
+            que é seu.
+          </div>
+        )}
       </div>
       <div className="panel preview-area">
         <div className="preview-head">
@@ -684,14 +702,14 @@ function WinFxStudio() {
             </button>
             <button
               className={`btn ${equipped ? 'btn-ghost' : 'btn-gold'} small`}
-              disabled={equipped || !meu(fx.id)}
+              disabled={equipped}
               onClick={() => {
                 setWinFx(fx.id);
                 sfx.pop();
                 toast(`Efeito de vitória: “${fx.name}” equipado!`);
               }}
             >
-              {equipped ? '✓ Equipado' : meu(fx.id) ? 'Equipar' : '🔒 Sai de roleta'}
+              {equipped ? '✓ Equipado' : 'Equipar'}
             </button>
           </div>
         </div>
@@ -702,11 +720,7 @@ function WinFxStudio() {
             <CardView card={null} faceUp={false} width={140} winFx={fx} />
           </div>
         </div>
-        <div className="preset-note">
-          {meu(fx.id)
-            ? 'As cartas vencedoras (as suas e as da mesa) ficam assim quando você ganha no showdown.'
-            : 'Pré-visualização: este efeito ainda não é seu. Ele sai das roletas, na Loja → Tickets.'}
-        </div>
+        <div className="preset-note">As cartas vencedoras (as suas e as da mesa) ficam assim quando você ganha no showdown.</div>
       </div>
       <div className="panel editor">
         <Section title="Sobre">

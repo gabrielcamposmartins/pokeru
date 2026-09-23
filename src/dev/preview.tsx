@@ -641,7 +641,9 @@ if (
   cena === 'personalidade' ||
   cena === 'perfil' ||
   cena === 'amigos' ||
-  cena === 'amigos-vazio'
+  cena === 'amigos-vazio' ||
+  // o Estúdio com conta: é onde se confere que a lista mostra o que é do jogador, e só isso
+  cena === 'estudio'
 ) {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
