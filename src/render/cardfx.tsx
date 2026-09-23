@@ -96,14 +96,26 @@ const PONTOS = 26;
  */
 const PE = 142;
 
+/** A altura em que a labareda é mais larga. */
+const BARRIGA = 0.36;
+
 /**
  * A meia-largura da labareda na altura `t` (0 no pé, 1 na ponta).
  *
- * Engorda do pé até a barriga, a pouco mais de um terço da altura, e afina até fechar num bico.
+ * Do pé até a barriga o contorno é um **arco**: a largura abre depressa em cima do pé e chega à
+ * barriga já plana, que é o que dá o lado redondo. Reta — e era —, a barriga lia como um triângulo
+ * com o canto lixado.
+ *
+ * Da barriga para cima ela cai com expoente maior que 1: segura a largura pelo meio do corpo e
+ * afina de vez só perto do fim. É de propósito que a ponta **não** acompanhe a barriga: fosse ela
+ * redonda também, a labareda viraria uma gota, e o que faz o olho ler fogo é o bico.
  */
 function meiaLargura(t: number, w: number): number {
-  const perfil = t < 0.32 ? 0.72 + 0.34 * (t / 0.32) : 1.06 * Math.pow(1 - (t - 0.32) / 0.68, 0.85);
-  return perfil * w;
+  if (t <= BARRIGA) {
+    const u = (BARRIGA - t) / BARRIGA;
+    return (0.76 + 0.3 * Math.sqrt(1 - u * u)) * w;
+  }
+  return 1.06 * Math.pow(1 - (t - BARRIGA) / (1 - BARRIGA), 1.35) * w;
 }
 
 /**
@@ -114,9 +126,9 @@ function meiaLargura(t: number, w: number): number {
  * é o que desenha o S; e a amplitude cresce com a altura (`t^1.7`), então o pé fica plantado no
  * chão e quem viaja é a ponta.
  *
- * `fase` é o instante da onda. Rodando a fase de 0 a 2π, a mesma crista sobe pelo corpo e a ponta
- * é jogada para a direita, para a esquerda e de volta — que é o movimento de uma chama parada
- * queimando, e não o de uma chama sendo entortada por inteiro.
+ * `fase` é o instante da onda. Rodando a fase, a mesma crista percorre o corpo e a ponta é jogada
+ * para a direita, para a esquerda e de volta — que é o movimento de uma chama parada queimando, e
+ * não o de uma chama sendo entortada por inteiro. Quem escolhe o sentido é `ondaDe`.
  */
 function labareda(cx: number, y0: number, h: number, w: number, amp: number, fase: number): string {
   const n = (v: number) => v.toFixed(1);
@@ -143,9 +155,14 @@ function labareda(cx: number, y0: number, h: number, w: number, amp: number, fas
 /** Quantos instantes da onda entram na volta. Oito já interpola liso, e a volta fecha no primeiro. */
 const QUADROS = 8;
 
-/** Os desenhos de uma volta inteira da onda, para o `<animate>` percorrer. */
+/**
+ * Os desenhos de uma volta inteira da onda, para o `<animate>` percorrer.
+ *
+ * A fase anda **para trás**, e é isso que faz a crista subir do pé para a ponta. Descendo, a chama
+ * parecia escorrer; subindo, ela parece ser empurrada pelo calor, que é para onde o fogo vai.
+ */
 function ondaDe(cx: number, y0: number, h: number, w: number, amp: number, faseInicial: number): string {
-  return Array.from({ length: QUADROS + 1 }, (_, i) => labareda(cx, y0, h, w, amp, faseInicial + (i / QUADROS) * Math.PI * 2)).join(';');
+  return Array.from({ length: QUADROS + 1 }, (_, i) => labareda(cx, y0, h, w, amp, faseInicial - (i / QUADROS) * Math.PI * 2)).join(';');
 }
 
 /**
@@ -166,13 +183,14 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
   /**
    * As três temperaturas, da mais fria (fora) para a mais quente (dentro).
    *
-   * `amp` é o quanto a ponta daquele corpo viaja para os lados. O núcleo viaja menos que a casca:
-   * é o que faz os três se descolarem no meio do caminho, em vez de ondularem grudados.
+   * `amp` é o quanto a ponta daquele corpo viaja para os lados, e ele é proporcional à altura: os
+   * três descrevem a **mesma** onda, cada um no seu tamanho, e por isso ficam encaixados o tempo
+   * todo em vez de se descolarem no meio do caminho.
    */
   const camadas = [
-    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 235, larg: 106, amp: 36, dur: 2.2 },
-    { cor: colors[0], op: 0.78, blur: 2.6, alt: 190, larg: 77, amp: 28, dur: 1.8 },
-    { cor: colors[1], op: 0.9, blur: 1.3, alt: 134, larg: 46, amp: 20, dur: 1.4 },
+    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 235, larg: 106, amp: 36 },
+    { cor: colors[0], op: 0.78, blur: 2.6, alt: 190, larg: 77, amp: 29 },
+    { cor: colors[1], op: 0.9, blur: 1.3, alt: 134, larg: 46, amp: 21 },
   ];
   /*
    * A dança é de cada carta.
@@ -183,6 +201,17 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
    */
   const compasso = 0.78 + r() * 0.5;
   const partida = r() * 4;
+  /*
+   * A labareda é **uma só**: um eixo, um instante da onda e um tempo para os três corpos.
+   *
+   * Cada camada tinha o seu eixo, a sua fase e a sua duração, e o resultado era que eles andavam
+   * separados — o núcleo pendendo para um lado enquanto a casca pendia para o outro, três chamas
+   * brigando dentro da mesma silhueta. Compartilhados, os três sobem e voltam juntos e lêem como
+   * as temperaturas de uma chama só.
+   */
+  const eixo = 50 + (r() - 0.5) * 6;
+  const fase = r() * Math.PI * 2;
+  const tempo = (2 * compasso).toFixed(2);
   return (
       <g className="fx-hot">
         <defs>
@@ -191,8 +220,8 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
             *
             * `feTurbulence` faz a mancha de ruído e `feDisplacementMap` empurra cada ponto da chama
             * segundo ela — é isso que enruga a silhueta em vez de só entortá-la. O `feOffset` faz o
-            * ruído **descer** com o tempo, e é daí que vem a onda de cima para baixo: a mesma ruga
-            * aparece no alto e vai escorrendo até o pé.
+            * ruído **subir** com o tempo, no mesmo sentido da onda do contorno: a mesma ruga nasce
+            * no pé e vai subindo até a ponta.
             *
             * Ela é discreta de propósito: quem faz a onda é o contorno, redesenhado quadro a quadro
             * (veja `labareda`). O ruído aqui só tira o acabamento liso demais das bordas — forte, ele
@@ -208,7 +237,7 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
           <filter id={`onda${uid}`} x="-60%" y="-25%" width="220%" height="160%" colorInterpolationFilters="sRGB">
             <feTurbulence type="fractalNoise" baseFrequency="0.02 0.04" numOctaves={2} seed={seed} stitchTiles="stitch" result="ruido" />
             <feOffset in="ruido" result="descendo">
-              <animate attributeName="dy" from="-25" to="0" dur={`${(1.7 * compasso).toFixed(2)}s`} repeatCount="indefinite" />
+              <animate attributeName="dy" from="0" to="-25" dur={`${(1.7 * compasso).toFixed(2)}s`} repeatCount="indefinite" />
             </feOffset>
             <feDisplacementMap in="SourceGraphic" in2="descendo" scale={6} xChannelSelector="R" yChannelSelector="G" />
           </filter>
@@ -228,9 +257,8 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
         <ellipse className="fx-brasa" cx={50} cy={131} rx={48} ry={20} fill={`url(#brasa${uid})`} />
 
         <g filter={`url(#onda${uid})`}>
-        {camadas.map((c, i) => {
-          const cx = 50 + (r() - 0.5) * 6;
-          const quadros = ondaDe(cx, PE, c.alt, c.larg, c.amp, r() * Math.PI * 2);
+        {camadas.map((c) => {
+          const quadros = ondaDe(eixo, PE, c.alt, c.larg, c.amp, fase);
           return (
             <path
               key={c.cor}
@@ -238,9 +266,9 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
               style={{
                 filter: `blur(${c.blur}px)`,
                 opacity: c.op,
-                // a respiração é da camada; o serpenteio é do contorno, logo abaixo
-                animationDuration: `${(c.dur * compasso * 0.7).toFixed(2)}s`,
-                animationDelay: `-${(partida + i * 0.7 + r() * 0.6).toFixed(2)}s`,
+                // a respiração é da carta, não da camada: os três inflam no mesmo compasso
+                animationDuration: `${(2 * compasso * 0.7).toFixed(2)}s`,
+                animationDelay: `-${partida.toFixed(2)}s`,
               }}
               fill={c.cor}
               d={quadros.slice(0, quadros.indexOf(';'))}
@@ -255,7 +283,7 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
               <animate
                 attributeName="d"
                 values={quadros}
-                dur={`${(c.dur * compasso).toFixed(2)}s`}
+                dur={`${tempo}s`}
                 calcMode="linear"
                 repeatCount="indefinite"
               />
