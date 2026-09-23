@@ -78,32 +78,135 @@ function Sparks({ seed, n = 7, color }: { seed: number; n?: number; color: strin
   );
 }
 
-/** Chamas lambendo a carta de baixo para cima, com brasas subindo. */
+/**
+ * Uma língua de fogo: sobe de `y0` até `h`, com a barriga em `w` e a ponta torta para `tilt`.
+ *
+ * A assimetria é o ponto. Chama simétrica parece folha; o que faz o olho ler "fogo" é a ponta
+ * pendendo para um lado e a barriga inflando para o outro.
+ */
+function lingua(x: number, y0: number, h: number, w: number, tilt: number): string {
+  const n = (v: number) => v.toFixed(1);
+  return (
+    `M${n(x - w)} ${n(y0)}` +
+    ` C${n(x - w * 0.95)} ${n(y0 - h * 0.42)} ${n(x - w * 0.42 + tilt * 0.5)} ${n(y0 - h * 0.72)} ${n(x + tilt)} ${n(y0 - h)}` +
+    ` C${n(x + w * 0.5 + tilt * 0.5)} ${n(y0 - h * 0.68)} ${n(x + w * 0.98)} ${n(y0 - h * 0.4)} ${n(x + w)} ${n(y0)} Z`
+  );
+}
+
+/**
+ * A carta pegando fogo.
+ *
+ * Fogo de verdade não é uma cor: é uma pilha de temperaturas. São três camadas de línguas — a
+ * base vermelha, larga e lenta; o miolo laranja; e o núcleo quase branco, estreito e rápido —
+ * cada uma com o seu desfoque e a sua velocidade. Sobrepostas, as três dão a profundidade que uma
+ * chama de uma cor só não tem.
+ *
+ * Em cima disso: o brilho no rodapé (a carta iluminada **de baixo**, que é de onde vem o fogo),
+ * duas línguas subindo pelas laterais para o fogo lamber a carta em vez de só ficar embaixo,
+ * brasas que sobem tortas — cada uma com a sua deriva — e fumaça saindo por cima da carta, no
+ * espaço que o efeito tem para transbordar.
+ */
 function Flames({ seed, colors }: { seed: number; colors: [string, string] }) {
   const r = rnd(seed);
+  const uid = cleanId(useId());
+  /** As três temperaturas, da mais fria (fora) para a mais quente (dentro). */
+  const camadas = [
+    { cor: '#b81c06', op: 0.42, blur: 3, alt: 0.95, larg: 1.3, dur: 1.05, lados: 1 },
+    { cor: colors[0], op: 0.7, blur: 1.8, alt: 0.72, larg: 0.95, dur: 0.78, lados: 0.8 },
+    { cor: colors[1], op: 0.85, blur: 0.9, alt: 0.42, larg: 0.55, dur: 0.56, lados: 0 },
+  ];
+  const bocas = [8, 22, 36, 50, 64, 78, 92];
   return (
-    <g className="fx-hot">
-      {[10, 30, 50, 70, 90].map((x, i) => (
-        <path
-          key={x}
-          className="fx-flame"
-          style={{ animationDelay: `${(i * 0.13).toFixed(2)}s` }}
-          fill={i % 2 ? colors[1] : colors[0]}
-          d={`M${x} 148 C${x - 11} 128 ${x - 5} 116 ${x} 92 C${x + 6} 116 ${x + 11} 130 ${x} 148 Z`}
-        />
-      ))}
-      {Array.from({ length: 7 }, (_, i) => (
-        <circle
-          key={i}
-          className="fx-ember"
-          style={{ animationDelay: `${(r() * 1.8).toFixed(2)}s` }}
-          cx={(6 + r() * 88).toFixed(1)}
-          cy={(110 + r() * 34).toFixed(1)}
-          r={(0.8 + r() * 1.4).toFixed(2)}
-          fill={colors[1]}
-        />
-      ))}
-    </g>
+    <>
+      {/* a fumaça sai por cima da carta, e por isso não entra no grupo que clareia (screen) */}
+      <g className="fx-fumaca">
+        {Array.from({ length: 3 }, (_, i) => {
+          const x = 24 + i * 26 + r() * 8;
+          return (
+            <ellipse
+              key={i}
+              cx={x.toFixed(1)}
+              cy={-4}
+              rx={(7 + r() * 5).toFixed(1)}
+              ry={(9 + r() * 6).toFixed(1)}
+              fill="#2b1608"
+              style={{ animationDelay: `${(i * 0.9 + r()).toFixed(2)}s`, ['--dx' as string]: `${(r() * 14 - 7).toFixed(1)}px` }}
+            />
+          );
+        })}
+      </g>
+
+      <g className="fx-hot">
+        <defs>
+          <radialGradient id={`brasa${uid}`} cx="50%" cy="100%" r="70%">
+            <stop offset="0" stopColor={colors[1]} stopOpacity="0.6" />
+            <stop offset="0.4" stopColor={colors[0]} stopOpacity="0.28" />
+            <stop offset="1" stopColor={colors[0]} stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/*
+          * A carta iluminada de baixo: sem isto as chamas parecem coladas na frente dela.
+          *
+          * Fica rente ao rodapé e discreta. Grande e opaca, virava uma nuvem acesa debaixo da
+          * carta — mais parecido com uma lanterna do que com fogo.
+          */}
+        <ellipse className="fx-brasa" cx={50} cy={140} rx={48} ry={22} fill={`url(#brasa${uid})`} />
+
+        {camadas.map((c) => (
+          <g key={c.cor} style={{ filter: `blur(${c.blur}px)`, opacity: c.op }}>
+            {bocas.map((x) => {
+              // altura e inclinação sorteadas: sete línguas iguais viram uma serra
+              const h = (19 + r() * 21) * c.alt;
+              const w = (5 + r() * 4) * c.larg;
+              const tilt = (r() - 0.5) * 9;
+              return (
+                <path
+                  key={x}
+                  className="fx-flame"
+                  style={{ animationDelay: `${(r() * 0.8).toFixed(2)}s`, animationDuration: `${(c.dur + r() * 0.2).toFixed(2)}s` }}
+                  fill={c.cor}
+                  d={lingua(x + (r() - 0.5) * 5, 150, h, w, tilt)}
+                />
+              );
+            })}
+            {/*
+              * As laterais: o fogo lambe a carta em vez de ficar só no rodapé.
+              *
+              * São finas e só nas camadas de fora — o núcleo fica no pé. Grossas, elas comiam a
+              * margem da carta e o naipe do canto sumia atrás do fogo.
+              */}
+            {c.lados > 0 &&
+              [1, 99].map((x, i) => (
+                <path
+                  key={x}
+                  className="fx-flame fx-flame-lado"
+                  style={{ animationDelay: `${(0.2 + i * 0.35).toFixed(2)}s`, animationDuration: `${(c.dur * 1.35).toFixed(2)}s` }}
+                  fill={c.cor}
+                  d={lingua(x, 146, (34 + r() * 26) * c.lados, (2.6 + r() * 2) * c.larg, (x < 50 ? 1 : -1) * (4 + r() * 5))}
+                />
+              ))}
+          </g>
+        ))}
+
+        {/* brasas: cada uma com a sua deriva, para não subirem em coluna */}
+        {Array.from({ length: 14 }, (_, i) => (
+          <circle
+            key={i}
+            className="fx-ember"
+            style={{
+              animationDelay: `${(r() * 2.2).toFixed(2)}s`,
+              animationDuration: `${(1.7 + r() * 1.3).toFixed(2)}s`,
+              ['--dx' as string]: `${(r() * 26 - 13).toFixed(1)}px`,
+            }}
+            cx={(4 + r() * 92).toFixed(1)}
+            cy={(118 + r() * 30).toFixed(1)}
+            r={(0.6 + r() * 1.6).toFixed(2)}
+            fill={r() > 0.4 ? colors[1] : colors[0]}
+          />
+        ))}
+      </g>
+    </>
   );
 }
 
@@ -240,7 +343,7 @@ export const WIN_FX: WinFx[] = [
   {
     id: 'fire',
     name: 'Fogo',
-    description: 'Chamas lambem a carta e brasas sobem.',
+    description: 'Três camadas de chama lambem a carta, com brasas subindo e fumaça saindo por cima.',
     colors: ['#ff8a3d', '#ffd166'],
     frame: 'pulse',
     sound: 'flame',

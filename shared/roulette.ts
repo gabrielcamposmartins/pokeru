@@ -73,9 +73,11 @@ export function ticketPrice(r: Roulette, currency: Currency): number {
  * degrau, o peso se reparte entre as peças dele, então acrescentar uma mesa nova encolhe as outras
  * mesas do mesmo degrau e não mexe nos degraus de cima.
  *
- * Um detalhe honesto: cada roleta tem **um** personagem (o filtro de gênero), então a fatia
- * lendária é também a chance daquela peça — 2,5%. É o único degrau em que a linha do grupo e a do
- * item coincidem.
+ * Um detalhe honesto: a fatia de um degrau é **fixa** e se reparte entre as peças dele, então cada
+ * lendário novo dilui os outros. Hoje o degrau lendário de cada roleta tem quatro peças — o
+ * personagem do gênero dela, o kimono e as duas frentes de material —, o que dá pouco mais de
+ * 0,6% para cada uma. Para o personagem valer mais que uma frente, o caminho é dar fatia própria a
+ * ele, e não mexer nesta tabela.
  */
 const PESOS: Record<Raridade, number> = {
   lendario: 2.5,

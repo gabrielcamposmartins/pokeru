@@ -144,6 +144,7 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
   }
 
   const inset = bw + 9;
+  const corpo = { x: bw / 2, y: bw / 2, width: 250 - bw, height: 350 - bw, rx: st.radius };
   return (
     <g>
       <defs>
@@ -151,8 +152,78 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
           <stop offset="0" stopColor={st.bg} />
           <stop offset="1" stopColor={st.bgGradient} />
         </linearGradient>
+        {st.special && (
+          <clipPath id={`cp${uid}`}>
+            <rect {...corpo} />
+          </clipPath>
+        )}
+        {st.special === 'rainbow' && (
+          <linearGradient id={`rb${uid}`} x1="0" y1="0" x2="1" y2="0">
+            {/*
+              * Seis matizes e a volta ao primeiro.
+              *
+              * A faixa é desenhada com o dobro da largura da carta e corre para o lado; repetir a
+              * cor inicial no fim é o que faz a emenda passar sem costura visível.
+              */}
+            {['#ff5d5d', '#ffb547', '#ffe66d', '#6bff9e', '#5ad2ff', '#b07bff', '#ff5d5d'].map((c, i) => (
+              <stop key={c + i} offset={i / 6} stopColor={c} />
+            ))}
+          </linearGradient>
+        )}
       </defs>
-      <rect x={bw / 2} y={bw / 2} width={250 - bw} height={350 - bw} rx={st.radius} fill={`url(#fg${uid})`} stroke={st.border} strokeWidth={bw} />
+
+      {/*
+        * O corpo.
+        *
+        * No vidro ele é translúcido: quem estiver atrás da carta — o feltro, outra carta — aparece
+        * por baixo. Nas outras é o degradê opaco de sempre.
+        */}
+      <rect
+        {...corpo}
+        fill={`url(#fg${uid})`}
+        fillOpacity={st.special === 'glass' ? 0.3 : 1}
+        stroke={st.border}
+        strokeWidth={bw}
+        strokeOpacity={st.special === 'glass' ? 0.8 : 1}
+      />
+      {st.special === 'rainbow' && (
+        <g clipPath={`url(#cp${uid})`}>
+          {/*
+            * A faixa que corre: é o movimento que faz a cor parecer material, e não pintura.
+            *
+            * O atraso negativo começa a animação no meio, e cada valor de carta começa num ponto
+            * diferente da volta — assim uma mão de cinco cartas mostra cinco cores, em vez de cinco
+            * cópias do mesmo instante do arco-íris.
+            */}
+          <rect
+            className="face-rainbow"
+            style={{ animationDelay: `-${(((card.r * 3 + 'shdc'.indexOf(card.s)) % 7) * 1).toFixed(2)}s` }}
+            x={-250}
+            y={-40}
+            width={500}
+            height={430}
+            fill={`url(#rb${uid})`}
+          />
+          {/* verniz por cima da cor, para a carta não virar um cartaz chapado */}
+          <rect {...corpo} fill={`url(#fg${uid})`} opacity={0.1} />
+          <path d="M0 0 L250 0 L250 60 L0 150 Z" fill="#ffffff" opacity={0.16} />
+        </g>
+      )}
+      {st.special === 'glass' && (
+        <g clipPath={`url(#cp${uid})`}>
+          {/*
+            * O vidro: dois brilhos especulares em diagonal e um bisel claro por dentro da borda.
+            *
+            * É o reflexo que faz o olho ler "vidro" em vez de "carta desbotada" — sem ele, uma
+            * carta translúcida parece só um erro de opacidade.
+            */}
+          <path d="M-10 250 L120 -10 L190 -10 L20 330 Z" fill="#ffffff" opacity={0.3} />
+          <path d="M150 360 L250 150 L250 250 L205 360 Z" fill="#ffffff" opacity={0.18} />
+          <rect x={bw + 3} y={bw + 3} width={250 - (bw + 3) * 2} height={350 - (bw + 3) * 2} rx={Math.max(4, st.radius - 3)} fill="none" stroke="#ffffff" strokeWidth={2} opacity={0.55} />
+          {/* a nuvem fosca no miolo: é o que sustenta a tinta sobre qualquer mesa */}
+          <ellipse cx={125} cy={175} rx={92} ry={132} fill="#ffffff" opacity={0.1} />
+        </g>
+      )}
       {st.frame !== 'none' && (
         <rect
           x={inset}
@@ -417,6 +488,8 @@ export function CardView({ card, faceUp = true, width, face, back, flipIn, flipD
   // espessura e brilho da carta (o resto está em .cardv, em global.css).
   // a lateral é o papel visto de lado: a cor do miolo (frente) ou da margem (verso).
   const paper = shown && card ? f : b;
+  // a espessura só é de vidro com a frente para cima: de costas, a carta é o verso (papel)
+  const vidro = shown && !!card && f.special === 'glass';
   const solid: React.CSSProperties = {
     ['--cr' as string]: `${(paper.radius * width) / 250}px`,
     ['--ct' as string]: `${Math.max(2, width * 0.03)}px`,
@@ -428,7 +501,7 @@ export function CardView({ card, faceUp = true, width, face, back, flipIn, flipD
   }, [up, shown, phase]);
   return (
     <motion.div
-      className={`cardv ${highlight ? 'card-hl' : ''} ${dim ? 'card-dim' : ''} ${className ?? ''}`}
+      className={`cardv ${vidro ? 'card-glass' : ''} ${highlight ? 'card-hl' : ''} ${dim ? 'card-dim' : ''} ${className ?? ''}`}
       style={{ width, height: width * 1.4, ...solid, ...style }}
       initial={false}
       animate={phase === 'out' ? { scaleX: 0, y: -width * 0.1 } : { scaleX: 1, y: 0 }}

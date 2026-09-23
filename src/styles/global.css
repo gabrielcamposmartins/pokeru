@@ -7710,3 +7710,40 @@ button.avatar {
   letter-spacing: 0.08em;
   color: var(--gold-2);
 }
+
+/* ------------------------------------------------------------------ frentes especiais */
+
+/*
+ * Arco-Íris: a faixa de cor corre para o lado, dentro do recorte da carta.
+ *
+ * Meia largura por ciclo (a faixa tem o dobro da carta e repete a primeira cor no fim), então o
+ * laço fecha sem emenda visível. Linear e devagar: cor que pulsa vira alarme.
+ */
+.face-rainbow {
+  animation: face-rainbow 7s linear infinite;
+}
+@keyframes face-rainbow {
+  to {
+    transform: translateX(250px);
+  }
+}
+
+/*
+ * Cristal: a espessura da carta também é de vidro.
+ *
+ * O `::before` do .cardv é o papel visto de lado. Opaco, ele aparecia por trás do corpo
+ * translúcido e matava o efeito — dava para ver uma laje branca no lugar da mesa.
+ */
+.cardv.card-glass::before {
+  /*
+   * Quase invisível, e o "quase" é o que importa.
+   *
+   * Este pseudo-elemento é uma cópia da carta inteira atrás dela, não só uma faixa na lateral.
+   * Opaco, ele tapava o feltro e a carta de vidro não via nada — a mesa ficava atrás de uma laje
+   * clara. Sobra o fio de luz embaixo, que é o que dá espessura ao vidro.
+   */
+  background: rgba(226, 244, 255, 0.1);
+  box-shadow:
+    inset 0 -1.5px 0 rgba(255, 255, 255, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+}

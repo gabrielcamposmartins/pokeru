@@ -101,6 +101,14 @@ const RARIDADE_DE: Record<string, Raridade> = {
    * peça aqui esse coração não teria com o que ser alimentado.
    */
   'gift:kimono': 'lendario',
+  /*
+   * As duas frentes que não são de papel.
+   *
+   * Lendárias porque são de material, não de cor: o Cristal deixa ver a mesa através da carta e o
+   * Arco-Íris tem cor que se mexe. Nenhuma das duas sai de uma combinação de campos do Estúdio.
+   */
+  'face:face-glass': 'lendario',
+  'face:face-rainbow': 'lendario',
   // épico: o presente que se guarda
   'gift:joia': 'epico',
   // épico: os efeitos de vitória com cena própria
@@ -182,6 +190,8 @@ export const PRICES = {
   winfx: 3000,
   winfxSpecial: 8000,
   face: 2500,
+  /** Frentes de material (vidro, arco-íris): não saem de uma combinação de campos, e valem mais. */
+  faceSpecial: 9000,
   back: 2500,
   chip: 2000,
   /** Presente sem preço próprio (todos têm o seu em GIFTS; isto é só o piso do tipo). */
@@ -253,7 +263,7 @@ function entry(kind: ItemKind, id: string, name: string, chips?: number): Catalo
 export const CATALOG: CatalogItem[] = [
   ...CHARACTER_PRESETS.map((c) => entry('character', c.id, c.name)),
   ...WIN_FX_IDS.map((id) => entry('winfx', id, id)),
-  ...FACE_PRESETS.map((s) => entry('face', s.id, s.name)),
+  ...FACE_PRESETS.map((s) => entry('face', s.id, s.name, s.special ? PRICES.faceSpecial : undefined)),
   ...BACK_PRESETS.map((s) => entry('back', s.id, s.name)),
   ...CHIP_PRESETS.map((s) => entry('chip', s.id, s.name)),
   ...TABLE_PRESETS.map((s) => entry('table', s.id, s.name)),

@@ -89,34 +89,91 @@
 }
 
 /* fogo */
+/*
+ * Fogo.
+ *
+ * A língua estica e encolhe a partir da base (`transform-origin` no pé), e cada camada tem a sua
+ * duração — o núcleo bate mais rápido que a base, que é o que faz a chama parecer viva em vez de
+ * pulsar inteira. O desfoque de cada camada vem no `style` do grupo, no componente.
+ */
 .fx-flame {
   transform-box: fill-box;
   transform-origin: 50% 100%;
   animation: fx-flame 0.7s ease-in-out infinite alternate;
-  filter: blur(1.6px);
-  opacity: 0.85;
 }
 @keyframes fx-flame {
   from {
-    transform: scale(0.82, 0.68) translateX(-1px);
+    transform: scale(0.84, 0.7) translateX(-1px) skewX(2deg);
   }
   to {
-    transform: scale(1.05, 1.12) translateX(1px);
+    transform: scale(1.06, 1.16) translateX(1px) skewX(-3deg);
   }
 }
+/* as das laterais tombam para fora em vez de esticar: elas lambem a carta */
+.fx-flame-lado {
+  transform-origin: 50% 100%;
+  animation-name: fx-flame-lado;
+}
+@keyframes fx-flame-lado {
+  from {
+    transform: scale(0.9, 0.78) rotate(-4deg);
+  }
+  to {
+    transform: scale(1.04, 1.1) rotate(5deg);
+  }
+}
+/* o brilho no rodapé respira junto do fogo */
+.fx-brasa {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: fx-brasa 1.3s ease-in-out infinite alternate;
+}
+@keyframes fx-brasa {
+  from {
+    transform: scale(0.92, 0.86);
+    opacity: 0.75;
+  }
+  to {
+    transform: scale(1.06, 1.08);
+    opacity: 1;
+  }
+}
+/* brasa: sobe torta (a deriva é de cada uma, em --dx) e apaga no caminho */
 .fx-ember {
   animation: fx-ember 1.9s ease-out infinite;
 }
 @keyframes fx-ember {
   0% {
-    transform: translateY(6px);
+    transform: translateY(8px) scale(0.6);
     opacity: 0;
   }
-  25% {
-    opacity: 0.95;
+  20% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.7;
   }
   100% {
-    transform: translateY(-58px) translateX(6px);
+    transform: translateY(-86px) translateX(var(--dx, 6px)) scale(0.3);
+    opacity: 0;
+  }
+}
+/* fumaça: escura, por isso fora do grupo que clareia, e só acima da carta */
+.fx-fumaca ellipse {
+  opacity: 0;
+  filter: blur(4px);
+  animation: fx-fumaca 3.4s ease-out infinite;
+}
+@keyframes fx-fumaca {
+  0% {
+    transform: translateY(14px) scale(0.5);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.34;
+  }
+  100% {
+    transform: translateY(-26px) translateX(var(--dx, 0)) scale(1.5);
     opacity: 0;
   }
 }

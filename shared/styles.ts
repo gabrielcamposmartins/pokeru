@@ -26,6 +26,15 @@ export interface CardFaceStyle {
   court: 'letter' | 'crest';
   courtColor: string;
   courtAccent: string;
+  /**
+   * Material da carta, quando ela não é papel.
+   *
+   * As frentes comuns são feitas de cor, moldura e fonte — o que este arquivo descreve. Duas não
+   * cabem nisso: o **vidro**, que precisa deixar ver a mesa através dela, e o **arco-íris**, que
+   * precisa de um degradê que se mexe. São casos do desenho (src/render/CardArt.tsx), não campos
+   * novos para cada efeito: quem inventa um estilo no Estúdio continua mexendo em cor e moldura.
+   */
+  special?: 'glass' | 'rainbow';
 }
 
 export type BackPattern =
@@ -262,6 +271,59 @@ export const FACE_PRESETS: CardFaceStyle[] = [
     court: 'crest',
     courtColor: '#1f5a3c',
     courtAccent: '#c9a13b',
+  },
+  {
+    /*
+     * Cristal: a carta de vidro.
+     *
+     * O corpo é translúcido de verdade — dá para ver a mesa e o que está atrás dela. Não é
+     * transparente por completo, e isso é escolha: com o fundo aberto demais, o naipe escuro
+     * desaparecia sobre o feltro e a carta ficava ilegível. Vidro fosco lê como vidro e mantém a
+     * tinta de pé.
+     */
+    id: 'face-glass',
+    name: 'Cristal',
+    bg: '#eaf6ff',
+    bgGradient: '#bcd9ee',
+    border: '#d9f0ff',
+    borderWidth: 3,
+    radius: 20,
+    frame: 'line',
+    frameColor: '#ffffff',
+    suitColors: { s: '#14202e', h: '#b3182f', d: '#b3182f', c: '#14202e' },
+    font: 'serif',
+    indexScale: 1,
+    center: 'pips',
+    court: 'crest',
+    courtColor: '#14202e',
+    courtAccent: '#7fc4ff',
+    special: 'glass',
+  },
+  {
+    /*
+     * Arco-Íris: a carta multicromática.
+     *
+     * O degradê corre por dentro do recorte da carta, e é o movimento que faz a cor parecer
+     * material em vez de pintura. A tinta é preta com halo claro porque ela passa por cima de seis
+     * matizes: qualquer cor fixa brigaria com dois deles.
+     */
+    id: 'face-rainbow',
+    name: 'Arco-Íris',
+    bg: '#fff7fb',
+    bgGradient: '#ffe9f6',
+    border: '#ffffff',
+    borderWidth: 3,
+    radius: 20,
+    frame: 'double',
+    frameColor: '#ffffff',
+    suitColors: { s: '#151022', h: '#151022', d: '#151022', c: '#151022' },
+    font: 'rounded',
+    indexScale: 1.1,
+    center: 'big',
+    court: 'letter',
+    courtColor: '#151022',
+    courtAccent: '#ffffff',
+    special: 'rainbow',
   },
   {
     id: 'face-victorian',
@@ -686,6 +748,14 @@ export function sanitizeFace(v: unknown): CardFaceStyle {
     court: oneOf(o.court, ['letter', 'crest'] as const, d.court),
     courtColor: color(o.courtColor, d.courtColor),
     courtAccent: color(o.courtAccent, d.courtAccent),
+    /*
+     * O material só passa se for um dos dois conhecidos.
+     *
+     * Ele vem de fora — do estilo importado no Estúdio, do `hello` de um cliente qualquer —, e
+     * um valor inventado aqui viraria uma carta que o desenho não sabe desenhar. `undefined` é o
+     * caso normal: papel.
+     */
+    ...(o.special === 'glass' || o.special === 'rainbow' ? { special: o.special } : {}),
   };
 }
 

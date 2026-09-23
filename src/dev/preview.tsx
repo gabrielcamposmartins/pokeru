@@ -692,6 +692,18 @@ const ABERTURA: Opening = {
   })),
 };
 
+/*
+ * `?face=` e `?back=` equipam um estilo em qualquer cena.
+ *
+ * Serve para olhar uma frente nova onde ela vai viver de verdade — na mesa, sobre o feltro, com
+ * carta atrás de carta. O Estúdio mostra a carta sobre um fundo neutro, e é justamente o fundo que
+ * decide se uma carta de vidro funciona.
+ */
+for (const kind of ['face', 'back'] as const) {
+  const id = q.get(kind);
+  if (id) useProfile.getState().equip(kind, id);
+}
+
 // a lista de salas: finge um servidor conectado, para a tela não tentar ligar de verdade
 if (cena === 'salas') {
   useSession.setState({
