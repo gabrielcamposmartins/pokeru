@@ -605,6 +605,9 @@ function statsDoNivel(nivel: number) {
  * `amigos` mostra a tela cheia (com grupo montado e convite no ar); `amigos-vazio`, a tela de quem
  * ainda não tem ninguém — que é o primeiro estado que todo jogador vê.
  */
+// o menu com pedido esperando: é onde se confere a bolinha vermelha do botão de Amigos
+if (cena === 'menu') useFriends.setState(AMIGOS_DE_EXEMPLO);
+
 if (cena === 'amigos') {
   useFriends.setState({
     ...AMIGOS_DE_EXEMPLO,
