@@ -6840,9 +6840,9 @@ button.avatar {
 /*
  * O gráfico do jeito de jogar.
  *
- * Uma flor de seis pétalas, uma por traço: contorno grosso e escuro, cor cheia, ponta
- * arredondada. O desenho é cartunesco de propósito — um radar fino e cinzento parece relatório, e
- * ninguém volta a um relatório. A grade fica fraca: ela dá escala, não é para ser vista.
+ * O radar de seis eixos, repartido em fatias de cor — uma por traço. As linhas são grossas de
+ * propósito: traço fino de planilha some no fundo laqueado do jogo, e o desenho tem de aguentar
+ * ser visto de longe. A grade fica fraca: ela dá escala, não é para ser vista.
  */
 .personalidade {
   display: flex;
@@ -6864,59 +6864,46 @@ button.avatar {
 }
 .radar-grade path {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.14);
+  stroke: rgba(255, 255, 255, 0.12);
   stroke-width: 2;
   stroke-linejoin: round;
-  stroke-dasharray: 5 7;
-}
-/* o anél de fora é o 100: com ele visível, a flor pequena se lê como pequena, e não como distante */
-.radar-grade path:last-of-type {
-  stroke: rgba(255, 255, 255, 0.26);
-  stroke-dasharray: none;
 }
 .radar-grade line {
   stroke: rgba(255, 255, 255, 0.1);
   stroke-width: 2;
 }
-
-/* a mancha inteira ganha sombra de uma vez: sombra por pedaço sujaria as emendas */
-.radar-mancha {
-  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.5));
-}
-.radar-area {
-  fill: url(#radar-tinta);
-  stroke: #150b28;
-  stroke-width: 5;
-  stroke-linejoin: round;
-  transform-origin: 50% 50%;
-}
-.radar.vivo .radar-area {
-  animation: radar-abre 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-/* a área de mira é maior que a bolinha: ninguém acerta um alvo de sete pixels sem querer */
-.radar-alvo {
-  fill: transparent;
+.radar-petala {
+  fill-opacity: 0.34;
+  stroke: none;
   cursor: help;
-}
-.radar-ponto {
-  stroke: #150b28;
-  stroke-width: 3;
-  pointer-events: none;
   transform-origin: 50% 50%;
-  transition: r 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: fill-opacity 0.15s;
 }
-.radar-ponta.on .radar-ponto {
-  r: 10;
+.radar-petala.on {
+  fill-opacity: 0.6;
 }
-.radar.vivo .radar-ponto {
-  animation: radar-abre 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+/* as fatias abrem em sequência, de dentro para fora */
+.radar.vivo .radar-petala {
+  animation: radar-abre 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--atraso, 0s);
 }
 @keyframes radar-abre {
   from {
-    transform: scale(0.25);
-    opacity: 0;
+    transform: scale(0.2);
+    fill-opacity: 0;
   }
+}
+.radar-linha {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.radar-ponto {
+  stroke: rgba(10, 6, 24, 0.85);
+  stroke-width: 2.5;
+  pointer-events: none;
 }
 .radar-label {
   font-size: 14px;
@@ -6925,11 +6912,6 @@ button.avatar {
   dominant-baseline: middle;
   letter-spacing: 0.02em;
   cursor: help;
-  /* o contorno escuro por baixo da letra solta o rótulo do fundo, qualquer que seja o tema */
-  paint-order: stroke;
-  stroke: #150b28;
-  stroke-width: 3.5;
-  stroke-linejoin: round;
   transition: font-size 0.15s;
 }
 .radar-label.on {
@@ -6937,9 +6919,9 @@ button.avatar {
 }
 .radar-num {
   font-family: var(--num);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
-  opacity: 0.85;
+  opacity: 0.8;
 }
 
 /* a explicação do traço, presa à ponta */

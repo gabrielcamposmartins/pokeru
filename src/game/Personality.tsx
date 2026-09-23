@@ -16,12 +16,12 @@ import { useSession } from '../store/session';
 /**
  * O jeito de jogar, desenhado.
  *
- * Um radar de seis eixos, como manda a convenção: quem já viu um destes sabe ler este sem
- * explicação, e a mancha torta se compara de relance com a de outra pessoa.
+ * Seis eixos, um por traço, e cada um com a sua cor: o polígono de sempre, mas repartido em
+ * fatias, e a fatia que mais avança é o traço que mais aparece na mesa. Dá para ler a pessoa de
+ * longe, sem encostar em número nenhum — que é como se lê alguém numa mesa de verdade.
  *
- * O **traço** é que é de desenho animado: canto arredondado, contorno grosso escuro, ponta
- * gorda na cor do eixo. Um radar fino e cinzento parece relatório, e ninguém volta a um
- * relatório. A leitura não perde nada — a distância do centro continua sendo o número.
+ * O traço é grosso de propósito: linha fina de gráfico de planilha some no fundo laqueado, e o
+ * desenho tem de aguentar ser visto de longe.
  *
  * A medida vem de shared/personality.ts, das últimas dez partidas, e é feita no servidor. Aqui só
  * se desenha.
@@ -40,33 +40,13 @@ function ponto(i: number, v: number, raio = R): [number, number] {
 }
 
 const n1 = (v: number) => v.toFixed(1);
-/**
- * O polígono do radar, com os cantos arredondados.
- *
- * É o radar de sempre — um ponto por eixo, ligados —, mas o canto vivo é o que faz um gráfico
- * parecer planilha. Cada vértice vira uma curva curta, e o contorno grosso por cima arremata: a
- * leitura não muda em nada, o desenho muda inteiro.
- */
-function poligonoMole(pts: [number, number][], raio = 13): string {
-  const n = pts.length;
-  const entre = (a: [number, number], b: [number, number], d: number): [number, number] => {
-    const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
-    const len = Math.hypot(dx, dy) || 1;
-    const t = Math.min(d, len / 2) / len;
-    return [a[0] + dx * t, a[1] + dy * t];
-  };
-  let d = '';
-  for (let i = 0; i < n; i++) {
-    const v = pts[i];
-    const a = entre(v, pts[(i - 1 + n) % n], raio);
-    const b = entre(v, pts[(i + 1) % n], raio);
-    d += `${i ? 'L' : 'M'}${n1(a[0])} ${n1(a[1])} Q${n1(v[0])} ${n1(v[1])} ${n1(b[0])} ${n1(b[1])} `;
-  }
-  return d + 'Z';
-}
+const caminho = (pts: [number, number][]): string => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${n1(x)} ${n1(y)}`).join(' ') + 'Z';
 
-/** Onde os rótulos ficam, em raios. Perto o bastante para a flor não parecer pequena no meio deles. */
-const R_LABEL = 1.2;
+/** O hexágono de uma das linhas de fundo. */
+const anel = (v: number): string => caminho(TRACOS.map((_, i) => ponto(i, v)));
+
+/** Onde os rótulos ficam, em raios. */
+const R_LABEL = 1.28;
 
 /** O que a tooltip mostra: o traço, o número e a explicação. */
 interface Alvo {
@@ -89,8 +69,7 @@ export function RadarPersonalidade({
   dicas?: boolean;
 }) {
   const [alvo, setAlvo] = useState<Alvo | null>(null);
-  // o piso deixa o polígono com forma mesmo quando todos os traços são baixos
-  const valor = (id: Traco) => Math.max(0.12, Math.min(1, p[id]));
+  const valor = (id: Traco) => Math.max(0.04, Math.min(1, p[id]));
   const vertices = TRACOS.map((t, i) => ponto(i, valor(t.id)));
 
   const mirar = (t: TracoSpec, i: number) => {
@@ -109,10 +88,10 @@ export function RadarPersonalidade({
         role="img"
         aria-label="Gráfico da personalidade"
       >
-        {/* o fundo: os anéis e os raios, apagados o bastante para não disputar com a mancha */}
+        {/* o fundo: os anéis e os raios, apagados o bastante para não disputar com as fátias */}
         <g className="radar-grade">
-          {[0.34, 0.67, 1].map((v) => (
-            <path key={v} d={poligonoMole(TRACOS.map((_, i) => ponto(i, v)))} />
+          {[0.25, 0.5, 0.75, 1].map((v) => (
+            <path key={v} d={anel(v)} />
           ))}
           {TRACOS.map((t, i) => {
             const [x, y] = ponto(i, 1);
@@ -121,36 +100,37 @@ export function RadarPersonalidade({
         </g>
 
         {/*
-         * A mancha.
+         * As fatias.
          *
-         * Um polígono só, como manda o radar, mas de desenho animado: canto arredondado, contorno
-         * grosso escuro e preenchimento cheio. A cor de cada traço volta nos vértices e nos
-         * rótulos, que é onde ela informa alguma coisa — no meio da mancha ela só faria sujeira.
+         * Cada traço ocupa a sua e cresce com o próprio número. Somadas, elas são o polígono de
+         * sempre; separadas, cada uma tem dono e cor — é o que faz o gráfico ser lido como "essa
+         * pessoa blefa" em vez de "essa pessoa tem uma área de 0,43".
          */}
-        <g className="radar-mancha">
-          <defs>
-            <radialGradient id="radar-tinta" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#ffe9a8" stopOpacity="0.62" />
-              <stop offset="60%" stopColor="#ff9ecb" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#a87bff" stopOpacity="0.44" />
-            </radialGradient>
-          </defs>
-          <path className="radar-area" d={poligonoMole(vertices)} />
-        </g>
-
-        {/* as pontas: a cor do traço, e a área de mira do mouse */}
         {TRACOS.map((t, i) => {
-          const [x, y] = vertices[i];
+          const v = valor(t.id);
+          // meio eixo para cada lado: a fatia ocupa o pedaço do traço e encosta na do vizinho
+          const a = ponto(i - 0.5, v);
+          const b = ponto(i + 0.5, v);
           const aceso = alvo?.t.id === t.id;
           return (
-            <g key={t.id} className={`radar-ponta ${aceso ? 'on' : ''}`} onMouseEnter={() => mirar(t, i)}>
-              <circle className="radar-alvo" cx={x} cy={y} r={18} />
-              <circle className="radar-ponto" cx={x} cy={y} r={7} style={{ fill: t.cor, ['--atraso' as string]: `${i * 0.07}s` }} />
-            </g>
+            <path
+              key={t.id}
+              className={`radar-petala ${aceso ? 'on' : ''}`}
+              d={caminho([[C, C], a, ponto(i, v * 1.06), b])}
+              style={{ fill: t.cor, ['--atraso' as string]: `${i * 0.07}s` }}
+              onMouseEnter={() => mirar(t, i)}
+            />
           );
         })}
 
-        {/* os rótulos, na cor do traço e com contorno para se soltarem do fundo */}
+        {/* o contorno clássico por cima: é ele que deixa comparar dois gráficos de relance */}
+        <path className="radar-linha" d={caminho(vertices)} />
+        {TRACOS.map((t, i) => {
+          const [x, y] = vertices[i];
+          return <circle key={t.id} className="radar-ponto" cx={x} cy={y} r={5} style={{ fill: t.cor }} />;
+        })}
+
+        {/* os rótulos, na cor do traço */}
         {TRACOS.map((t, i) => {
           const [x, y] = ponto(i, R_LABEL);
           const aceso = alvo?.t.id === t.id;
@@ -163,10 +143,10 @@ export function RadarPersonalidade({
               style={{ fill: t.cor }}
               onMouseEnter={() => mirar(t, i)}
             >
-              <tspan x={x} dy={-2}>
+              <tspan x={x} dy={0}>
                 {t.label}
               </tspan>
-              <tspan className="radar-num" x={x} dy={17}>
+              <tspan className="radar-num" x={x} dy={15}>
                 {Math.round(p[t.id] * 100)}
               </tspan>
             </text>
@@ -174,9 +154,9 @@ export function RadarPersonalidade({
         })}
       </svg>
 
-      {/* a explicação do traço, ancorada na ponta */}
+      {/* a explicação do traço, ancorada na fatia */}
       {alvo && (
-        /* a dica foge do rótulo: nas pontas de cima ela desce, nas de baixo ela sobe */
+        /* a dica foge do rótulo: nas fatias de cima ela desce, nas de baixo ela sobe */
         <div
           className={`radar-dica ${alvo.y < 50 ? 'desce' : ''}`}
           style={{ left: `${alvo.x}%`, top: `${alvo.y}%`, ['--cor' as string]: alvo.t.cor }}
