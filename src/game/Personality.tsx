@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import {
   PARTIDAS_LEMBRADAS,
   TRACOS,
@@ -69,6 +69,9 @@ export function RadarPersonalidade({
   dicas?: boolean;
 }) {
   const [alvo, setAlvo] = useState<Alvo | null>(null);
+  // os degradês são por instância: dois gráficos na mesma tela têm vértices diferentes, e um id
+  // repetido faria o segundo pintar as linhas com as coordenadas do primeiro
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const valor = (id: Traco) => Math.max(0.04, Math.min(1, p[id]));
   const vertices = TRACOS.map((t, i) => ponto(i, valor(t.id)));
 
@@ -88,14 +91,36 @@ export function RadarPersonalidade({
         role="img"
         aria-label="Gráfico da personalidade"
       >
-        {/* o fundo: os anéis e os raios, apagados o bastante para não disputar com as fátias */}
+        {/*
+         * Cada linha na cor de quem ela liga.
+         *
+         * O contorno não é um caminho só: são seis pedaços, cada um pintado com um degradê que sai
+         * da cor de um traço e chega na do vizinho. Assim a volta inteira é uma só e mesmo assim
+         * cada trecho pertence a alguém — uma linha branca por cima de fatias coloridas apagava
+         * justamente a informação que as fatias dão.
+         */}
+        <defs>
+          {TRACOS.map((t, i) => {
+            const [x1, y1] = vertices[i];
+            const [x2, y2] = vertices[(i + 1) % TRACOS.length];
+            return (
+              <linearGradient key={t.id} id={`rl-${uid}-${i}`} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={x2} y2={y2}>
+                <stop offset="0%" stopColor={t.cor} />
+                <stop offset="100%" stopColor={TRACOS[(i + 1) % TRACOS.length].cor} />
+              </linearGradient>
+            );
+          })}
+        </defs>
+
+        {/* o fundo: os anéis e os raios, apagados o bastante para não disputar com as fatias */}
         <g className="radar-grade">
           {[0.25, 0.5, 0.75, 1].map((v) => (
             <path key={v} d={anel(v)} />
           ))}
           {TRACOS.map((t, i) => {
             const [x, y] = ponto(i, 1);
-            return <line key={t.id} x1={C} y1={C} x2={x} y2={y} />;
+            // o raio também é do traço: fraco, mas da cor certa
+            return <line key={t.id} x1={C} y1={C} x2={x} y2={y} style={{ stroke: t.cor }} />;
           })}
         </g>
 
@@ -124,7 +149,11 @@ export function RadarPersonalidade({
         })}
 
         {/* o contorno clássico por cima: é ele que deixa comparar dois gráficos de relance */}
-        <path className="radar-linha" d={caminho(vertices)} />
+        {TRACOS.map((t, i) => {
+          const [x1, y1] = vertices[i];
+          const [x2, y2] = vertices[(i + 1) % TRACOS.length];
+          return <path key={t.id} className="radar-linha" d={`M${n1(x1)} ${n1(y1)} L${n1(x2)} ${n1(y2)}`} stroke={`url(#rl-${uid}-${i})`} />;
+        })}
         {TRACOS.map((t, i) => {
           const [x, y] = vertices[i];
           return <circle key={t.id} className="radar-ponto" cx={x} cy={y} r={5} style={{ fill: t.cor }} />;
