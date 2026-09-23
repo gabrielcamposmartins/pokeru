@@ -122,10 +122,16 @@ describe('a janela das últimas partidas', () => {
     expect(personalidadeDasPartidas(baralhada)).toEqual(personalidadeDasPartidas(muitas));
   });
 
-  it('somar partidas soma campo a campo, e guarda a data mais nova', () => {
-    const t = somarResumos([partida({ maos: 3 }, '2026-01-01T00:00:00.000Z'), partida({ maos: 4 }, '2026-05-05T00:00:00.000Z')]);
+  it('somar partidas soma campo a campo', () => {
+    const t = somarResumos([partida({ maos: 3, blefes: 1 }), partida({ maos: 4, blefes: 2 })]);
     expect(t.maos).toBe(7);
-    expect(t.at).toBe('2026-05-05T00:00:00.000Z');
+    expect(t.blefes).toBe(3);
+  });
+
+  it('o que não é contador fica de fora da soma: somar dois segundos lugares não dá lugar nenhum', () => {
+    const t = somarResumos([partida({ maos: 1, lugar: 2 }), partida({ maos: 1, lugar: 2 })]) as unknown as Record<string, unknown>;
+    expect(t.lugar).toBeUndefined();
+    expect(t.personagem).toBeUndefined();
   });
 
   it('o jeito de jogar muda quando a pessoa muda', () => {

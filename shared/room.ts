@@ -69,6 +69,13 @@ interface Member {
   level: number;
   seat: number;
   stack: number;
+  /**
+   * Tudo o que entrou nesta mesa: o buy-in e os rebuys.
+   *
+   * Sem isto o histórico do perfil diria que quem recomprou duas vezes e saiu no zero teve saldo
+   * zero — o que é o oposto do que aconteceu.
+   */
+  investido: number;
   client: ClientHandle | null;
   connected: boolean;
   /** Saiu durante uma mão: o assento é liberado quando a mão acaba. */
@@ -415,6 +422,7 @@ export class Room {
       level: client.level,
       seat,
       stack,
+      investido: stack,
       client,
       connected: true,
       leaving: false,
@@ -520,6 +528,7 @@ export class Room {
       },
       seat,
       stack: this.settings.startingStack,
+      investido: this.settings.startingStack,
       client: null,
       connected: true,
       leaving: false,
@@ -829,6 +838,7 @@ export class Room {
       const rebuy = !this.closedGame() && (!this.paid() || m.isBot || this.charge(m, this.settings.buyIn) > 0);
       if (rebuy) {
         m.stack = this.paid() ? this.settings.buyIn : this.settings.startingStack;
+        m.investido += m.stack;
         this.emit({ t: 'rebuy', seat: m.seat, amount: m.stack });
         this.system(`${m.name} fez rebuy de ${m.stack}.`);
       } else {
@@ -894,7 +904,7 @@ export class Room {
       }
     }
     for (const m of this.members()) {
-      this.guardarResumo(m);
+      this.guardarResumo(m, { lugar: ranking.find((r) => r.seat === m.seat)?.place ?? 0, jogadores: ranking.length });
       this.cashOut(m);
     }
     this.broadcastRoom();
@@ -1212,12 +1222,17 @@ export class Room {
    * Apaga ao mandar, então chamar duas vezes não conta a partida duas vezes — e é chamado dos dois
    * fins possíveis: o da partida e o de levantar da mesa.
    */
-  private guardarResumo(m: Member): void {
+  private guardarResumo(m: Member, ficha?: { lugar: number; jogadores: number }): void {
     const r = this.resumos.get(m.id);
     if (!r) return;
     this.resumos.delete(m.id);
     if (!m.accountId || m.isBot || !contaComoPartida(r)) return;
     r.at = new Date().toISOString();
+    r.lugar = ficha?.lugar ?? 0;
+    r.jogadores = ficha?.jogadores ?? this.members().length;
+    // o que sobrou na mesa menos tudo o que entrou nela (rebuy incluso)
+    r.saldo = m.stack - m.investido;
+    r.personagem = m.matchCharacter ?? m.handCharacter ?? m.cosmetics.character.id;
     this.bank?.play?.(m.accountId, r);
   }
 

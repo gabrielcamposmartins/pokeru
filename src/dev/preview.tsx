@@ -559,10 +559,10 @@ if (cena === 'giro') {
  * se as pétalas estão na cor certa.
  */
 const PARTIDAS_DE_EXEMPLO: ResumoDaPartida[] = [
-  { at: '2026-09-18T20:10:00.000Z', maos: 22, entradas: 20, agressoes: 31, pagadas: 6, passadas: 4, desistencias: 5, blefes: 24, apostasGrandes: 22, showdowns: 8, showdownsGanhos: 5, ultimasRuas: 7, pagouAteOFim: 2 },
-  { at: '2026-09-19T21:02:00.000Z', maos: 18, entradas: 16, agressoes: 24, pagadas: 5, passadas: 3, desistencias: 4, blefes: 18, apostasGrandes: 17, showdowns: 6, showdownsGanhos: 4, ultimasRuas: 6, pagouAteOFim: 1 },
-  { at: '2026-09-20T19:40:00.000Z', maos: 25, entradas: 23, agressoes: 33, pagadas: 7, passadas: 5, desistencias: 6, blefes: 26, apostasGrandes: 24, showdowns: 9, showdownsGanhos: 6, ultimasRuas: 8, pagouAteOFim: 3 },
-  { at: '2026-09-21T22:15:00.000Z', maos: 20, entradas: 18, agressoes: 26, pagadas: 6, passadas: 4, desistencias: 5, blefes: 20, apostasGrandes: 18, showdowns: 7, showdownsGanhos: 4, ultimasRuas: 6, pagouAteOFim: 2 },
+  { at: '2026-09-18T20:10:00.000Z', maos: 22, entradas: 20, agressoes: 31, pagadas: 6, passadas: 4, desistencias: 5, blefes: 24, apostasGrandes: 22, showdowns: 8, showdownsGanhos: 5, ultimasRuas: 7, pagouAteOFim: 2, lugar: 1, jogadores: 4, saldo: 1850, personagem: 'marina' },
+  { at: '2026-09-19T21:02:00.000Z', maos: 18, entradas: 16, agressoes: 24, pagadas: 5, passadas: 3, desistencias: 4, blefes: 18, apostasGrandes: 17, showdowns: 6, showdownsGanhos: 4, ultimasRuas: 6, pagouAteOFim: 1, lugar: 3, jogadores: 4, saldo: -1000, personagem: 'marina' },
+  { at: '2026-09-20T19:40:00.000Z', maos: 25, entradas: 23, agressoes: 33, pagadas: 7, passadas: 5, desistencias: 6, blefes: 26, apostasGrandes: 24, showdowns: 9, showdownsGanhos: 6, ultimasRuas: 8, pagouAteOFim: 3, lugar: 2, jogadores: 6, saldo: 620, personagem: 'yukina' },
+  { at: '2026-09-21T22:15:00.000Z', maos: 20, entradas: 18, agressoes: 26, pagadas: 6, passadas: 4, desistencias: 5, blefes: 20, apostasGrandes: 18, showdowns: 7, showdownsGanhos: 4, ultimasRuas: 6, pagouAteOFim: 2, lugar: 4, jogadores: 4, saldo: -1000, personagem: 'marina' },
 ];
 
 /**

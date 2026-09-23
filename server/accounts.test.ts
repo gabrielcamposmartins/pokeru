@@ -269,6 +269,15 @@ describe('mesa a dinheiro', () => {
     expect(r.agressoes).toBe(0);
     expect(r.blefes).toBe(0);
     expect(personalidadeDe(r).agressao).toBeLessThan(0.5);
+    // a ficha da partida, que é o que o histórico do perfil mostra
+    expect(r.jogadores).toBe(3);
+    expect(r.lugar).toBeGreaterThanOrEqual(1);
+    expect(r.lugar).toBeLessThanOrEqual(3);
+    expect(r.personagem).toBe('marina');
+    // o saldo é o que sobrou em cima da pilha inicial: perde no máximo os 1.000 que levou,
+    // e ganha no máximo os 2.000 dos outros dois
+    expect(r.saldo).toBeGreaterThanOrEqual(-1000);
+    expect(r.saldo).toBeLessThanOrEqual(2000);
     // e o bot da mesa não entra em conta nenhuma: a personalidade dele já está escrita
     expect(accounts.count).toBe(1);
     accounts.close();

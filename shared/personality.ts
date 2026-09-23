@@ -65,10 +65,12 @@ export const NEUTRA: Personalidade = { blefe: 0.5, agressao: 0.5, cautela: 0.5, 
  * São contadores, não médias: somar duas partidas é somar campo a campo, e é assim que as dez
  * últimas viram uma personalidade só. Quem preenche é o servidor, ação por ação
  * (`Room.notePlay`), porque o jeito de jogar é observação — não é algo que o cliente declare.
+ *
+ * Só o que **se soma** mora aqui. O lugar em que a pessoa terminou e o que ela levou são da
+ * partida, não do jeito de jogar, e somar dois lugares não dá lugar nenhum — por isso ficam em
+ * `ResumoDaPartida`, um degrau acima.
  */
-export interface ResumoDaPartida {
-  /** Quando a partida acabou (ISO). Serve para ordenar e descartar as antigas. */
-  at: string;
+export interface ContagemDaPartida {
   /** Mãos recebidas. */
   maos: number;
   /** Mãos em que pôs ficha por vontade própria (blind não conta). */
@@ -95,10 +97,39 @@ export interface ResumoDaPartida {
   pagouAteOFim: number;
 }
 
+/**
+ * Uma partida guardada: a contagem, mais o que a partida foi.
+ *
+ * Os campos de fora da contagem existem para o histórico do perfil — "2º de 4, +450 fichas, com a
+ * Marina" é o que a pessoa reconhece; "23 agressões" é o que o gráfico usa. As duas leituras saem
+ * do mesmo registro para não poderem discordar uma da outra.
+ */
+export interface ResumoDaPartida extends ContagemDaPartida {
+  /** Quando a partida acabou (ISO). Serve para ordenar e descartar as antigas. */
+  at: string;
+  /** Onde terminou: 1 é vitória, 0 é "levantou antes do fim". */
+  lugar: number;
+  /** Quantos estavam na mesa. */
+  jogadores: number;
+  /** Fichas ganhas ou perdidas na mesa (0 onde não havia dinheiro). */
+  saldo: number;
+  /** Personagem com que jogou. */
+  personagem: string;
+}
+
 /** Quantas partidas a personalidade enxerga. O jeito de jogar de hoje, não o do mês passado. */
 export const PARTIDAS_LEMBRADAS = 10;
 
-export const RESUMO_VAZIO: Omit<ResumoDaPartida, 'at'> = {
+/**
+ * Quantas aparecem no histórico do perfil.
+ *
+ * Menos que as que o gráfico usa, de propósito: a lista é para lembrar da noite, e dez linhas já
+ * são um extrato. O gráfico continua olhando as dez.
+ */
+export const PARTIDAS_NO_HISTORICO = 5;
+
+/** A contagem zerada. É esta lista que `somarResumos` percorre — o que não está aqui não se soma. */
+export const RESUMO_VAZIO: ContagemDaPartida = {
   maos: 0,
   entradas: 0,
   agressoes: 0,
@@ -113,16 +144,23 @@ export const RESUMO_VAZIO: Omit<ResumoDaPartida, 'at'> = {
   pagouAteOFim: 0,
 };
 
-export const resumoVazio = (at = new Date().toISOString()): ResumoDaPartida => ({ ...RESUMO_VAZIO, at });
+export const resumoVazio = (at = new Date().toISOString()): ResumoDaPartida => ({
+  ...RESUMO_VAZIO,
+  at,
+  lugar: 0,
+  jogadores: 0,
+  saldo: 0,
+  personagem: '',
+});
 
 /** A partida valeu a pena guardar? Uma mesa da qual se levantou na primeira mão não diz nada. */
-export const contaComoPartida = (r: ResumoDaPartida): boolean => r.maos > 0;
+export const contaComoPartida = (r: ContagemDaPartida): boolean => r.maos > 0;
 
-/** Soma campo a campo. A data que fica é a da partida mais recente. */
-export function somarResumos(lista: readonly ResumoDaPartida[]): ResumoDaPartida {
-  const total = resumoVazio(lista.reduce((a, r) => (r.at > a ? r.at : a), ''));
+/** Soma campo a campo — só os contadores, que são os únicos que a soma faz sentido. */
+export function somarResumos(lista: readonly ContagemDaPartida[]): ContagemDaPartida {
+  const total = { ...RESUMO_VAZIO };
   for (const r of lista) {
-    for (const k of Object.keys(RESUMO_VAZIO) as (keyof typeof RESUMO_VAZIO)[]) total[k] += r[k] ?? 0;
+    for (const k of Object.keys(RESUMO_VAZIO) as (keyof ContagemDaPartida)[]) total[k] += r[k] ?? 0;
   }
   return total;
 }
@@ -160,7 +198,7 @@ export function taxa(parte: number, total: number, duvida = PESO_DA_DUVIDA): num
  * agressão sobre ações voluntárias, blefe é blefe sobre agressões. Dividir tudo pelo número de
  * mãos faria quem desiste muito parecer manso em todos os eixos, quando ele é só seletivo.
  */
-export function personalidadeDe(r: ResumoDaPartida): Personalidade {
+export function personalidadeDe(r: ContagemDaPartida): Personalidade {
   const voluntarias = r.agressoes + r.pagadas + r.passadas;
   return {
     blefe: taxa(r.blefes, r.agressoes),
