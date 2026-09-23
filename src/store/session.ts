@@ -340,10 +340,16 @@ function handle(m: ServerMsg): void {
         set({ queueing: false });
         clearQueue();
       }
-      // erro antes da mesa começar derruba a partida contra bots para o local
+      /*
+       * O servidor recusou a partida contra bots: mostra o motivo, e nada de mesa local.
+       *
+       * A queda para local existe para quando o servidor **não responde**. Uma recusa é resposta:
+       * o motivo costuma ser uma regra ("o degrau Difícil abre no nível 20", "saldo insuficiente"),
+       * e abrir a mesma mesa de graça aqui entregaria exatamente o que a regra acabou de negar.
+       */
       if (botMatch) {
-        fallbackToLocal(`O servidor recusou a mesa (${m.message})`);
-        break;
+        clearBotMatch();
+        set({ botsPending: false });
       }
       useSession.getState().toast(m.message, 'error');
       break;

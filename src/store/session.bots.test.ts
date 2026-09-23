@@ -143,19 +143,21 @@ describe('partida contra bots', () => {
     expect(useTable.getState().display?.handNo).toBeGreaterThan(0);
   });
 
-  it('servidor que recusa a mesa também cai para local', async () => {
+  it('servidor que recusa mostra o motivo, e não abre mesa local', async () => {
     net.ws = fakeServer((msg, say) => {
       if (msg.type === 'hello') say({ type: 'welcome', playerId: 'p1', serverName: 'Teste' });
-      if (msg.type === 'botMatch') say({ type: 'error', message: 'Servidor cheio' });
+      if (msg.type === 'botMatch') say({ type: 'error', message: 'O degrau Difícil abre no nível 20' });
     });
     pedir();
     await vi.advanceTimersByTimeAsync(3000);
 
     const s = useSession.getState();
-    expect(s.mode).toBe('local');
-    expect(s.offline).toBe(true);
-    expect(s.toasts.some((t) => t.text.includes('Servidor cheio'))).toBe(true);
-    expect(useTable.getState().display?.handNo).toBeGreaterThan(0);
+    // a recusa é uma regra: abrir a mesma mesa de graça aqui entregaria o que ela negou
+    expect(s.mode).not.toBe('local');
+    expect(s.offline).toBe(false);
+    expect(s.botsPending).toBe(false);
+    expect(s.toasts.some((t) => t.text.includes('nível 20'))).toBe(true);
+    expect(useTable.getState().display?.handNo).toBeFalsy();
   });
 
   it('queda depois da mesa começar não vira partida local (a partida acabou ali)', async () => {
