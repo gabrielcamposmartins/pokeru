@@ -137,7 +137,7 @@
 .fx-labareda {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: fx-labareda 2.4s ease-in-out infinite alternate;
+  animation: fx-labareda 1.5s ease-in-out infinite alternate;
 }
 @keyframes fx-labareda {
   from {

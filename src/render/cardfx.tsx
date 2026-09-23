@@ -89,6 +89,14 @@ function Sparks({ seed, n = 7, color }: { seed: number; n?: number; color: strin
 const PONTOS = 26;
 
 /**
+ * Onde o pé da labareda assenta (a carta vai de 0 a 140).
+ *
+ * Rente à borda de baixo da carta. Mais embaixo — e estava — a chama parecia sair do pano da mesa
+ * e passar por trás da carta de carona; daqui, ela sai da carta.
+ */
+const PE = 142;
+
+/**
  * A meia-largura da labareda na altura `t` (0 no pé, 1 na ponta).
  *
  * Engorda do pé até a barriga, a pouco mais de um terço da altura, e afina até fechar num bico.
@@ -162,9 +170,9 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
    * é o que faz os três se descolarem no meio do caminho, em vez de ondularem grudados.
    */
   const camadas = [
-    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 294, larg: 132, amp: 44, dur: 3.4 },
-    { cor: colors[0], op: 0.78, blur: 2.6, alt: 237, larg: 96, amp: 34, dur: 2.8 },
-    { cor: colors[1], op: 0.9, blur: 1.3, alt: 168, larg: 57, amp: 24, dur: 2.2 },
+    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 235, larg: 106, amp: 36, dur: 2.2 },
+    { cor: colors[0], op: 0.78, blur: 2.6, alt: 190, larg: 77, amp: 28, dur: 1.8 },
+    { cor: colors[1], op: 0.9, blur: 1.3, alt: 134, larg: 46, amp: 20, dur: 1.4 },
   ];
   /*
    * A dança é de cada carta.
@@ -200,7 +208,7 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
           <filter id={`onda${uid}`} x="-60%" y="-25%" width="220%" height="160%" colorInterpolationFilters="sRGB">
             <feTurbulence type="fractalNoise" baseFrequency="0.02 0.04" numOctaves={2} seed={seed} stitchTiles="stitch" result="ruido" />
             <feOffset in="ruido" result="descendo">
-              <animate attributeName="dy" from="-25" to="0" dur={`${(2.6 * compasso).toFixed(2)}s`} repeatCount="indefinite" />
+              <animate attributeName="dy" from="-25" to="0" dur={`${(1.7 * compasso).toFixed(2)}s`} repeatCount="indefinite" />
             </feOffset>
             <feDisplacementMap in="SourceGraphic" in2="descendo" scale={6} xChannelSelector="R" yChannelSelector="G" />
           </filter>
@@ -217,12 +225,12 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
           * Fica rente ao rodapé e discreta. Grande e opaca, virava uma nuvem acesa debaixo da
           * carta — mais parecido com uma lanterna do que com fogo.
           */}
-        <ellipse className="fx-brasa" cx={50} cy={140} rx={48} ry={22} fill={`url(#brasa${uid})`} />
+        <ellipse className="fx-brasa" cx={50} cy={131} rx={48} ry={20} fill={`url(#brasa${uid})`} />
 
         <g filter={`url(#onda${uid})`}>
         {camadas.map((c, i) => {
           const cx = 50 + (r() - 0.5) * 6;
-          const quadros = ondaDe(cx, 152, c.alt, c.larg, c.amp, r() * Math.PI * 2);
+          const quadros = ondaDe(cx, PE, c.alt, c.larg, c.amp, r() * Math.PI * 2);
           return (
             <path
               key={c.cor}
