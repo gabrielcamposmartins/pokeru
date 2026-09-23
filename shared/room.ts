@@ -1,9 +1,15 @@
-import { randomInt } from './cards';
+import { randomInt, type Card } from './cards';
 import type { TableBank } from './accounts';
 import type { BondEvent } from './bond';
 import { HandCategory, evaluateHand } from './evaluator';
-import { Hand, type HandEvent, type PlayerAction } from './engine';
-import { botDecide, botDraw, botThinkTimeMs } from './bot';
+import { Hand, isFirstStreet, type GameVariant, type HandEvent, type PlayerAction } from './engine';
+import { botDecide, botDraw, botThinkTimeMs, estimateEquity, estimateEquity5 } from './bot';
+import {
+  contaComoPartida,
+  personalidadeDoPersonagem,
+  resumoVazio,
+  type ResumoDaPartida,
+} from './personality';
 import {
   EMOTES,
   type BotDifficulty,
@@ -70,6 +76,28 @@ interface Member {
   busted: boolean;
 }
 
+/**
+ * A foto de uma vez, tirada **antes** da ação.
+ *
+ * Depois que a mão aplica a jogada já não dá para saber o que a pessoa enfrentava: a aposta virou
+ * pote, a pilha encolheu, o "pagar" virou zero. O que a personalidade mede é a **escolha**, e a
+ * escolha só existe contra o que havia na mesa naquele instante.
+ */
+interface PreJogada {
+  id: string;
+  hole: Card[];
+  board: Card[];
+  variant: GameVariant;
+  /** Fichas já apostadas na rodada. */
+  bet: number;
+  stack: number;
+  pot: number;
+  toCall: number;
+  oponentes: number;
+  primeira: boolean;
+  ultima: boolean;
+}
+
 interface QueueItem {
   ev: TableEvent;
   views: Map<string, TableView>;
@@ -85,6 +113,18 @@ export function makeId(len = 8): string {
 
 /** Mãos que contam como "mão grande" no vínculo (as mesmas do cliente). */
 const BIG_HANDS = new Set([HandCategory.Straight, HandCategory.Flush, HandCategory.FullHouse, HandCategory.Quads, HandCategory.StraightFlush]);
+
+/**
+ * Força abaixo da qual uma aposta é blefe.
+ *
+ * A força é a equidade normalizada pela parte justa do pote: 0 é a mão média da mesa, 1 é a
+ * não-perde. Um terço abaixo da média e apostando: ou é blefe, ou é distração — e as duas coisas
+ * o oponente lê igual.
+ */
+const LIMIAR_BLEFE = 0.3;
+
+/** Simulações para medir a força de uma jogada. Poucas: isto é leitura, não decisão. */
+const ITERS_LEITURA = 80;
 
 const AVATAR_COLORS = ['#ff6b9a', '#7c5cff', '#35c4ff', '#3ddc97', '#ffb547', '#ff5d5d', '#b07bff', '#4fd1c5'];
 
@@ -167,6 +207,16 @@ export class Room {
   /** Correndo a mão atual até o fim (pedido de "pular" numa partida contra bots). */
   private rushing = false;
   private eliminated: { name: string; seat: number; place: number }[] = [];
+  /**
+   * O que cada conta fez nesta partida (shared/personality.ts), por id de membro.
+   *
+   * Só humanos com conta entram: o bot já tem personalidade escrita, e medir a nossa própria letra
+   * não ensina nada. A contagem vai para a conta quando a partida acaba — ou quando a pessoa
+   * levanta da mesa, que numa mesa a dinheiro é o único fim que existe.
+   */
+  private resumos = new Map<string, ResumoDaPartida>();
+  /** Quem pôs ficha por vontade própria na mão atual (o blind não conta). */
+  private entrou = new Set<string>();
   /**
    * A abertura: a mesa está montada e esperando cada jogador confirmar que carregou.
    *
@@ -421,6 +471,8 @@ export class Room {
 
   private removeOrMark(m: Member): void {
     const hp = this.hand && !this.hand.finished ? this.hand.players.find((p) => p.id === m.id) : undefined;
+    // numa mesa a dinheiro não há "fim de partida": levantar é o fim, e é aqui que o resumo fecha
+    if (!hp) this.guardarResumo(m);
     if (!hp) this.cashOut(m);
     if (hp && !hp.folded) {
       m.leaving = true;
@@ -788,6 +840,7 @@ export class Room {
       }
     });
     this.awardBond(h);
+    this.notePlayHand(h);
     this.emit({ t: 'handEnd' });
     if (this.closedGame() && alive() <= 1) this.finishGame();
     else if (this.roundsOver()) this.finishGame();
@@ -840,7 +893,10 @@ export class Room {
         if (place === 1) this.bank.note(m.accountId, 'matchWins');
       }
     }
-    for (const m of this.members()) this.cashOut(m);
+    for (const m of this.members()) {
+      this.guardarResumo(m);
+      this.cashOut(m);
+    }
     this.broadcastRoom();
   }
 
@@ -1027,6 +1083,8 @@ export class Room {
         street: h.street,
         variant: h.variant,
         difficulty: m.difficulty,
+        // o bot joga como o personagem que ele é, e não como "um bot normal"
+        traits: personalidadeDoPersonagem(m.cosmetics.character.id),
       });
     } catch {
       action = legal.canCheck ? { type: 'check' } : { type: 'fold' };
@@ -1042,8 +1100,125 @@ export class Room {
       this.timers.delete(this.turnTimer);
       this.turnTimer = null;
     }
+    // a foto tem de sair antes: depois de `act` a mesa já é outra
+    const antes = this.preJogada(seat);
     const r = this.hand.act(seat, action);
+    if (r.ok && antes) this.notePlay(antes, action);
     return r.ok;
+  }
+
+  // ------------------------------------------------------------------ personalidade
+
+  /** O resumo desta partida para um membro (cria na primeira jogada dele). */
+  private resumoDe(id: string): ResumoDaPartida {
+    let r = this.resumos.get(id);
+    if (!r) {
+      r = resumoVazio();
+      this.resumos.set(id, r);
+    }
+    return r;
+  }
+
+  /** O estado que a jogada enfrentou, ou null quando não há o que medir (bot, mesa sem conta). */
+  private preJogada(seat: number): PreJogada | null {
+    const h = this.hand;
+    const m = this.seats[seat];
+    if (!h || !m || m.isBot || !m.accountId) return null;
+    const hp = h.players.find((p) => p.seat === seat);
+    const legal = h.legalActions(seat);
+    if (!hp || !legal) return null;
+    return {
+      id: m.id,
+      hole: [...hp.hole],
+      board: [...h.board],
+      variant: h.variant,
+      bet: hp.bet,
+      stack: hp.stack,
+      pot: h.totalPot,
+      toCall: legal.callAmount,
+      oponentes: h.players.filter((p) => !p.folded && p.seat !== seat).length,
+      primeira: isFirstStreet(h.street),
+      ultima: h.street === 'river' || h.street === 'postdraw',
+    };
+  }
+
+  /**
+   * A força da mão no instante da aposta, de 0 (a média da mesa) a 1 (imbatível).
+   *
+   * É a mesma conta que o bot faz para decidir, com menos simulações: aqui ninguém vai jogar com o
+   * número, só anotá-lo. Serve para separar a aposta com carta da aposta sem carta — sem ela,
+   * "agressivo" e "astuto" seriam a mesma coluna.
+   */
+  private forcaDaJogada(pre: PreJogada): number {
+    const opp = Math.max(1, Math.min(pre.oponentes, 5));
+    const eq =
+      pre.variant === 'draw5'
+        ? estimateEquity5(pre.hole, opp, ITERS_LEITURA)
+        : estimateEquity(pre.hole, pre.board, opp, ITERS_LEITURA);
+    const justa = 1 / (opp + 1);
+    return (eq - justa) / (1 - justa);
+  }
+
+  /** Anota uma jogada já aceita pela mão. */
+  private notePlay(pre: PreJogada, action: PlayerAction): void {
+    const t = this.resumoDe(pre.id);
+    const decisivo = pre.ultima && pre.toCall > 0;
+    if (decisivo) t.ultimasRuas++;
+    switch (action.type) {
+      case 'fold':
+        t.desistencias++;
+        break;
+      case 'check':
+        t.passadas++;
+        break;
+      case 'call':
+        t.pagadas++;
+        if (pre.primeira) this.entrou.add(pre.id);
+        if (decisivo) t.pagouAteOFim++;
+        break;
+      case 'raise':
+      case 'allin': {
+        t.agressoes++;
+        if (pre.primeira) this.entrou.add(pre.id);
+        if (this.forcaDaJogada(pre) < LIMIAR_BLEFE) t.blefes++;
+        // o que ele pôs **além** de pagar é a aposta; o resto é só acompanhar
+        const acrescimo = action.type === 'allin' ? pre.stack : Math.max(0, (action.amount ?? 0) - pre.bet);
+        if (action.type === 'allin' || acrescimo >= (pre.pot + pre.toCall) * 0.75) t.apostasGrandes++;
+        break;
+      }
+    }
+  }
+
+  /** O que se conta uma vez por mão, e não a cada jogada. */
+  private notePlayHand(h: Hand): void {
+    for (const m of this.members()) {
+      if (m.isBot || !m.accountId) continue;
+      const hp = h.players.find((p) => p.id === m.id);
+      if (!hp) continue;
+      const t = this.resumoDe(m.id);
+      t.maos++;
+      if (this.entrou.has(m.id)) t.entradas++;
+      if (h.street === 'showdown' && !hp.folded) {
+        t.showdowns++;
+        if (h.results.some((r) => r.winners.some((w) => w.seat === m.seat))) t.showdownsGanhos++;
+      }
+    }
+    this.entrou.clear();
+  }
+
+  /**
+   * Fecha o resumo de um membro e manda para a conta.
+   *
+   * Apaga ao mandar, então chamar duas vezes não conta a partida duas vezes — e é chamado dos dois
+   * fins possíveis: o da partida e o de levantar da mesa.
+   */
+  private guardarResumo(m: Member): void {
+    const r = this.resumos.get(m.id);
+    if (!r) return;
+    this.resumos.delete(m.id);
+    if (!m.accountId || m.isBot || !contaComoPartida(r)) return;
+    r.at = new Date().toISOString();
+    this.bank?.play?.(m.accountId, r);
   }
 
   /**
@@ -1083,7 +1258,11 @@ export class Room {
       this.timers.delete(this.turnTimer);
       this.turnTimer = null;
     }
-    const r = h.act(m.seat, { type: action.type, amount: Number(action.amount) || undefined });
+    const jogada: PlayerAction = { type: action.type, amount: Number(action.amount) || undefined };
+    // a foto tem de sair antes: depois de `act` a mesa já é outra
+    const antes = this.preJogada(m.seat);
+    const r = h.act(m.seat, jogada);
+    if (r.ok && antes) this.notePlay(antes, jogada);
     if (!r.ok) {
       // devolve o timer da vez
       this.turnKey = '';

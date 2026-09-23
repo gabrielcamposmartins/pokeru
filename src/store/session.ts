@@ -14,7 +14,7 @@ import {
 import { connectLocal, connectWs, type Transport } from '../net/transport';
 import { SERVER_URL, findStyle, myCosmetics, useProfile } from './profile';
 import { useAuth } from './auth';
-import { findItem } from '../../shared/catalog';
+import { findGift, findItem } from '../../shared/catalog';
 import { findCharacter } from '../../shared/styles';
 import { useRoleta } from './roleta';
 import { useBond } from './bond';
@@ -230,6 +230,22 @@ function handle(m: ServerMsg): void {
           });
         }
       }
+      /*
+       * O coração que abriu.
+       *
+       * Quem abre é a missão, e a missão fecha no meio de uma mão — não há botão nem momento em
+       * que o jogador peça por isso. Então a notícia é encontrada aqui, comparando a foto nova com
+       * a anterior: sem mensagem nova no protocolo, e sem passar batido.
+       */
+      const antes = useSession.getState().account?.bondUnlocked;
+      if (antes) {
+        for (const [c, n] of Object.entries(m.account.bondUnlocked ?? {})) {
+          if (n > (antes[c] ?? 0)) {
+            sfx.win();
+            useSession.getState().toast(`${findCharacter(c).name} abriu o ${n}º coração!`);
+          }
+        }
+      }
       set({ account: { ...m.account, token: undefined } });
       useBond.getState().applyServer(m.account.bond);
       director.serverBond = true;
@@ -287,10 +303,11 @@ function handle(m: ServerMsg): void {
       // o servidor já cobrou e já entregou: aqui só a cena revela o que ele mandou
       useRoleta.getState().chegou({ key: m.prize, dup: m.dup, refund: m.refund });
       break;
-    case 'bondUp': {
+    case 'gifted': {
       const c = findCharacter(m.character);
+      const g = findGift(m.gift);
       sfx.win();
-      useSession.getState().toast(`${c.name} abriu o ${m.heart}º coração!`);
+      useSession.getState().toast(`${c.name} recebeu ${g?.icon ?? '🎁'} ${g?.name ?? 'o presente'}: +${m.points} de vínculo`);
       break;
     }
     case 'bought': {

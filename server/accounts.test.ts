@@ -7,6 +7,7 @@ import type { AccountProfile } from '../shared/accounts';
 import { Lobby } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type AccountInfo, type ServerMsg, type TableView } from '../shared/protocol';
 import { BOND_POINTS } from '../shared/bond';
+import { personalidadeDe } from '../shared/personality';
 import { Accounts } from './accounts';
 
 const dirs: string[] = [];
@@ -235,6 +236,41 @@ describe('mesa a dinheiro', () => {
     expect(acc.money).toBeGreaterThanOrEqual(4000);
     expect(acc.money).toBeLessThanOrEqual(7000);
     expect(p.errors).toEqual([]);
+    accounts.close();
+  }, 30_000);
+
+  /**
+   * A personalidade é **observada**, não declarada.
+   *
+   * Este cliente de teste só passa e paga — nunca aposta. Se o resumo sair com agressão, alguma
+   * coisa está contando a jogada errada, e o gráfico do perfil estaria mentindo sobre a pessoa.
+   */
+  it('a partida guarda o resumo de como o jogador jogou', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    p.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'normal', rounds: 3, maxPlayers: 3, startingStack: 1000, smallBlind: 25, bigBlind: 50 },
+    });
+    for (let i = 0; i < 2; i++) p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    p.conn.handle({ type: 'startGame' });
+
+    await runUntil(() => p.events.includes('gameOver'));
+    await vi.advanceTimersByTimeAsync(500);
+
+    const acc = accounts.info(p.account!.id)!;
+    expect(acc.play).toHaveLength(1);
+    const r = acc.play[0];
+    expect(r.maos).toBeGreaterThanOrEqual(1);
+    expect(r.pagadas + r.passadas).toBeGreaterThan(0);
+    // ele nunca apostou: o resumo não pode inventar agressão nem blefe
+    expect(r.agressoes).toBe(0);
+    expect(r.blefes).toBe(0);
+    expect(personalidadeDe(r).agressao).toBeLessThan(0.5);
+    // e o bot da mesa não entra em conta nenhuma: a personalidade dele já está escrita
+    expect(accounts.count).toBe(1);
     accounts.close();
   }, 30_000);
 

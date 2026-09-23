@@ -16,7 +16,7 @@ import {
 } from '../shared/styles';
 import { priceOf } from '../shared/catalog';
 import { ROULETTES, dropsOf, findRoulette, refundOf, ticketPrice } from '../shared/roulette';
-import { bondCap } from '../shared/bond';
+import { bondCap, giftPoints } from '../shared/bond';
 import { Accounts } from './accounts';
 import { Gbot, GbotError, type GbotMove, type GbotUser } from './gbot';
 
@@ -374,16 +374,15 @@ describe('server authoritative: ninguém senta com o que não tem', () => {
     acc.close();
   });
 
-  it('o cliente pede presentes pelo lobby e recebe o coração novo', async () => {
+  it('o cliente dá um presente pelo lobby e recebe os pontos', async () => {
     const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
     const lobby = new Lobby('Teste', acc);
     const c = client(lobby, { character: { id: 'yukina' } });
     const id = c.last('account')!.account.id;
-    for (let i = 0; i < 40; i++) acc.bond(id, 'yukina', 'matchWin');
     await acc.buy(id, 'gift:flor', 'chips');
 
-    c.conn.handle({ type: 'offerGifts', character: 'yukina' });
-    expect(c.last('bondUp')).toEqual({ type: 'bondUp', character: 'yukina', heart: 1 });
+    c.conn.handle({ type: 'giveGift', character: 'yukina', gift: 'flor' });
+    expect(c.last('gifted')).toEqual({ type: 'gifted', character: 'yukina', gift: 'flor', points: giftPoints('yukina', 'flor') });
     acc.close();
   });
 
@@ -701,14 +700,15 @@ describe('roleta', () => {
 /**
  * A tranca do vínculo.
  *
- * Jogar enche o coração e para; presente abre. Os dois lados são do servidor: o teto dos pontos em
- * `bond` e a conferência da receita em `offerGifts`.
+ * Jogar enche o coração e para; a **missão** abre. O presente não abre nada: enche a barra, e só
+ * se for alto o bastante para o coração em que a pessoa está. Os três lados são do servidor.
  */
-describe('vínculo com presentes', () => {
-  it('os pontos param na borda do coração trancado, mas as missões continuam contando', () => {
+describe('vínculo: missões e presentes', () => {
+  it('os pontos param na borda do coração trancado, mas os contadores continuam', () => {
     const acc = new Accounts({ file: newFile() });
     const a = acc.login(undefined, profile())!;
 
+    // matchWin não conta mão nenhuma: a missão do 1º coração (10 mãos) nunca fecha
     for (let i = 0; i < 40; i++) acc.bond(a.id, 'yukina', 'matchWin');
     const st = acc.info(a.id)!.bond.yukina;
     expect(st.points).toBe(bondCap(0));
@@ -717,34 +717,79 @@ describe('vínculo com presentes', () => {
     acc.close();
   });
 
-  it('a receita certa destranca o coração, e o teto sobe', async () => {
-    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+  it('cumprida a missão, o coração abre sozinho e o teto sobe', () => {
+    const acc = new Accounts({ file: newFile() });
     const a = acc.login(undefined, profile())!;
-    for (let i = 0; i < 40; i++) acc.bond(a.id, 'yukina', 'matchWin');
 
-    // o 1º coração da Yukina pede um ramo de sakura
-    expect(acc.offerGifts(a.id, 'yukina')).toMatch(/faltam presentes/);
-    await acc.buy(a.id, 'gift:flor', 'chips');
-    expect(acc.offerGifts(a.id, 'yukina')).toBeNull();
-
-    const depois = acc.info(a.id)!;
-    expect(depois.bondUnlocked.yukina).toBe(1);
-    expect(depois.gifts.flor ?? 0).toBe(0);
-    // com o coração aberto, o teto sobe e os pontos voltam a andar
+    for (let i = 0; i < 9; i++) acc.bond(a.id, 'yukina', 'win');
+    expect(acc.info(a.id)!.bondUnlocked.yukina ?? 0).toBe(0);
+    // a décima mão fecha a missão: ninguém precisou pedir nada
     acc.bond(a.id, 'yukina', 'win');
+    expect(acc.info(a.id)!.bondUnlocked.yukina).toBe(1);
+
+    for (let i = 0; i < 40; i++) acc.bond(a.id, 'yukina', 'matchWin');
     expect(acc.info(a.id)!.bond.yukina.points).toBeGreaterThan(bondCap(0));
     acc.close();
   });
 
-  it('não destranca coração que ainda não está cheio', async () => {
+  it('o presente vira pontos e sai do estoque', async () => {
     const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
     const a = acc.login(undefined, profile())!;
     await acc.buy(a.id, 'gift:flor', 'chips');
 
-    acc.bond(a.id, 'yukina', 'win');
-    expect(acc.offerGifts(a.id, 'yukina')).toMatch(/ainda não está cheio/);
-    // e o presente continua no estoque
+    const r = acc.giveGift(a.id, 'yukina', 'flor');
+    expect(r).toBe(giftPoints('yukina', 'flor'));
+    const depois = acc.info(a.id)!;
+    expect(depois.bond.yukina.points).toBe(giftPoints('yukina', 'flor'));
+    expect(depois.gifts.flor ?? 0).toBe(0);
+    acc.close();
+  });
+
+  it('presente que não se tem é recusado', () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = acc.login(undefined, profile())!;
+    expect(acc.giveGift(a.id, 'yukina', 'joia')).toMatch(/não tem/);
+    acc.close();
+  });
+
+  it('presente baixo demais para o coração é recusado, e continua no estoque', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const a = acc.login(undefined, profile())!;
+    await acc.buy(a.id, 'gift:flor', 'chips');
+    // abre o 1º coração: a partir do 2º, comum não serve mais
+    for (let i = 0; i < 10; i++) acc.bond(a.id, 'yukina', 'win');
+    expect(acc.info(a.id)!.bondUnlocked.yukina).toBe(1);
+
+    expect(acc.giveGift(a.id, 'yukina', 'flor')).toMatch(/incomum ou melhor/);
     expect(acc.info(a.id)!.gifts.flor).toBe(1);
+    acc.close();
+  });
+
+  it('com a barra no teto, o presente é recusado inteiro: nada de queimar um kimono à toa', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const a = acc.login(undefined, profile())!;
+    await acc.buy(a.id, 'gift:flor', 'chips');
+    // enche a barra sem cumprir a missão (matchWin não conta mão)
+    for (let i = 0; i < 40; i++) acc.bond(a.id, 'yukina', 'matchWin');
+
+    expect(acc.giveGift(a.id, 'yukina', 'flor')).toMatch(/missão/);
+    expect(acc.info(a.id)!.gifts.flor).toBe(1);
+    acc.close();
+  });
+
+  it('o presente não passa do teto do coração: o excedente não entra', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const a = acc.login(undefined, profile())!;
+    await acc.buy(a.id, 'gift:livro', 'chips');
+    // abre o 1º coração e para dois pontos abaixo do teto do 2º, sem fechar a missão dele
+    for (let i = 0; i < 10; i++) acc.bond(a.id, 'yukina', 'win');
+    for (let i = 0; i < 3; i++) acc.bond(a.id, 'yukina', 'matchWin');
+    for (let i = 0; i < 18; i++) acc.bond(a.id, 'yukina', 'fold');
+    expect(acc.info(a.id)!.bond.yukina.points).toBe(bondCap(1) - 2);
+
+    // o livro vale 45, mas só cabem 2: o resto não entra (e o livro foi embora do mesmo jeito)
+    expect(acc.giveGift(a.id, 'yukina', 'livro')).toBe(2);
+    expect(acc.info(a.id)!.bond.yukina.points).toBe(bondCap(1));
     acc.close();
   });
 });

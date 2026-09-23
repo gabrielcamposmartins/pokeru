@@ -9,13 +9,14 @@ import {
   itemsOfKind,
   owns,
   padoPrice,
+  rarityOf,
   type CatalogItem,
   type Currency,
   type GiftSpec,
   type ItemKind,
 } from '../../shared/catalog';
 import { RARIDADES, ROULETTES, dropsOf, findRoulette, ticketPrice, type Drop, type Roulette } from '../../shared/roulette';
-import { BOND_RECIPES } from '../../shared/bond';
+import { BOND_GOSTOS, GIFT_POINTS, HEART_GIFT_RARITY } from '../../shared/bond';
 import {
   BACK_PRESETS,
   CHIP_PRESETS,
@@ -84,10 +85,10 @@ function GiftArt({ gift, size = 74 }: { gift: GiftSpec; size?: number }) {
   );
 }
 
-/** Quem pede este presente: a lista de personagens que têm o presente em alguma receita. */
+/** Quem se ilumina com este presente (rende meio a mais no vínculo). */
 function quemGosta(id: string): string[] {
-  return Object.entries(BOND_RECIPES)
-    .filter(([, receitas]) => receitas.some((r) => id in r))
+  return Object.entries(BOND_GOSTOS)
+    .filter(([, gostos]) => gostos.includes(id))
     .map(([char]) => findCharacter(char).name);
 }
 
@@ -198,11 +199,20 @@ export function Grande({ item }: { item: CatalogItem }) {
       const g = findGift(item.id);
       if (!g) return null;
       const gosta = quemGosta(g.id);
+      const degrau = rarityOf(item.key);
+      const coracao = HEART_GIFT_RARITY.indexOf(degrau) + 1;
       return (
         <div className="shop-grande">
           <GiftArt gift={g} size={260} />
           <p className="shop-sobre">
-            {gosta.length ? <>Pedido por <b>{gosta.join(', ')}</b> em algum coração do vínculo.</> : 'Ninguém pede este presente no vínculo — ainda.'}
+            Vale <b>{GIFT_POINTS[degrau]} pontos</b> de vínculo, e serve do <b>{coracao}º coração</b> em diante — cada coração pede um
+            presente de um degrau mais alto.
+            {gosta.length ? (
+              <>
+                {' '}
+                <b>{gosta.join(', ')}</b> gosta especialmente dele: rende metade a mais.
+              </>
+            ) : null}
           </p>
         </div>
       );

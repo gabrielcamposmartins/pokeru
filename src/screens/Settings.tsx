@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TitlePanel } from '../game/Titles';
+import { MinhaPersonalidade } from '../game/Personality';
 import { SERVER_URL, useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { AccountSection } from './Account';
@@ -63,6 +64,15 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
                 </button>
               </div>
             </div>
+          </Section>
+          {/*
+            * O jeito de jogar fica junto do perfil, e não das conquistas.
+            *
+            * Conquista é o que a pessoa fez; isto é quem ela é na mesa. São duas leituras
+            * diferentes, e a segunda é a que ela vem conferir depois de uma noite ruim.
+            */}
+          <Section title="Como você joga">
+            <MinhaPersonalidade />
           </Section>
           <Section title="Títulos e conquistas">
             <TitlePanel />

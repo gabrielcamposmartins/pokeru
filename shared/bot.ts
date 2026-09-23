@@ -2,6 +2,7 @@ import { Card, newDeck, randomInt, sameCard, type Rank } from './cards';
 import { HandCategory, evaluateHand } from './evaluator';
 import { isFirstStreet, type GameVariant, type LegalActions, type PlayerAction, type Street } from './engine';
 import type { BotDifficulty } from './protocol';
+import { estiloDoBot, type EstiloBot, type Personalidade } from './personality';
 
 export interface BotContext {
   hole: Card[];
@@ -16,6 +17,11 @@ export interface BotContext {
   /** Padrão: Texas Hold'em. No poker de 5 cartas a mão já está fechada (não há bordo). */
   variant?: GameVariant;
   difficulty: BotDifficulty;
+  /**
+   * O jeito do personagem (shared/personality.ts). A dificuldade diz o quanto o bot **sabe**; o
+   * traço diz o que ele **faz** com o que sabe. Sem ele, joga o estilo puro da dificuldade.
+   */
+  traits?: Personalidade;
 }
 
 /** Equidade estimada por Monte Carlo contra N oponentes com mãos aleatórias. */
@@ -78,18 +84,12 @@ export function estimateEquity5(hole: Card[], opponents: number, iterations: num
   return score / iterations;
 }
 
-const PROFILE: Record<BotDifficulty, { iters: number; noise: number; bluff: number; aggression: number; margin: number }> = {
-  easy: { iters: 120, noise: 0.18, bluff: 0.04, aggression: 0.35, margin: -0.04 },
-  normal: { iters: 260, noise: 0.08, bluff: 0.08, aggression: 0.55, margin: 0.02 },
-  hard: { iters: 500, noise: 0.03, bluff: 0.12, aggression: 0.7, margin: 0.04 },
-};
-
 function roundTo(v: number, step: number): number {
   return Math.max(step, Math.round(v / step) * step);
 }
 
 export function botDecide(ctx: BotContext): PlayerAction {
-  const prof = PROFILE[ctx.difficulty];
+  const prof: EstiloBot = estiloDoBot(ctx.difficulty, ctx.traits);
   const { legal } = ctx;
   const opp = Math.max(1, Math.min(ctx.opponents, 5));
   let equity =
@@ -102,7 +102,9 @@ export function botDecide(ctx: BotContext): PlayerAction {
   const fair = 1 / (opp + 1);
   const strength = (equity - fair) / (1 - fair); // <0 fraco, ~1 muito forte
 
-  const raiseTo = (fraction: number): PlayerAction => {
+  const raiseTo = (base: number): PlayerAction => {
+    // quem gosta de risco aposta maior a mesma coisa: o traço é um multiplicador do tamanho de sempre
+    const fraction = base * prof.bet;
     const potAfterCall = ctx.pot + toCall;
     const target = legal.maxRaiseTo - ctx.stack + toCall + potAfterCall * fraction; // bet atual + call + fração
     let to = roundTo(target, Math.max(1, Math.floor(ctx.bigBlind / 2)));
@@ -134,6 +136,14 @@ export function botDecide(ctx: BotContext): PlayerAction {
   if (toCall <= ctx.bigBlind && isFirstStreet(ctx.street) && equity > fair * 0.8) return { type: 'call' };
   const lastStreet = ctx.street === 'river' || ctx.street === 'postdraw';
   if (legal.canRaise && r < prof.bluff * 0.4 && !lastStreet) return raiseTo(0.8);
+  /*
+   * A teimosia: pagar a última aposta só para ver.
+   *
+   * As contas já disseram que não compensa — é exatamente por isso que isto é traço e não
+   * cálculo. Só vale quando a aposta cabe no bolso (até metade do pote): teimoso não é o mesmo
+   * que distraído, e um Tobi que paga qualquer all-in do river morre na segunda mão.
+   */
+  if (lastStreet && toCall <= ctx.pot * 0.5 && toCall < ctx.stack && Math.random() < prof.callDown) return { type: 'call' };
   return { type: 'fold' };
 }
 

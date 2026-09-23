@@ -98,6 +98,8 @@ import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
+import type { ResumoDaPartida } from '../../shared/personality';
+import { MinhaPersonalidade, PersonalidadeDoPersonagem } from '../game/Personality';
 
 const q = new URLSearchParams(location.search);
 const uiInicial = q.get('ui') ?? 'default';
@@ -441,18 +443,19 @@ function Vinculo() {
 /**
  * A página com o coração cheio e trancado.
  *
- * Yukina, primeiro coração no limite: a barra não anda mais, e o que abre é um ramo de sakura. O
- * estoque tem um dos dois presentes de propósito, para a foto mostrar o que falta.
+ * Yukina, primeiro coração no limite: a barra não anda mais, e o que abre é a missão (faltam
+ * mãos). O estoque mistura presentes que servem e um que já ficou pequeno, para a foto mostrar a
+ * prateleira nos dois estados.
  */
 function VinculoTranca() {
   const yukina = findCharacter('yukina');
   return (
     <BondPageView
       char={yukina}
-      st={{ ...EMPTY_BOND, points: HEART_COST[0], wins: 9, losses: 6, folds: 11, hands: 26, matches: 3 }}
+      st={{ ...EMPTY_BOND, points: HEART_COST[0], wins: 3, losses: 2, folds: 4, hands: 9, matches: 1 }}
       unlocked={0}
-      gifts={{ cha: 2 }}
-      onOffer={() => {}}
+      gifts={{ cha: 2, flor: 1, leque: 1, joia: 1 }}
+      onGive={() => {}}
       onClose={() => {}}
     />
   );
@@ -468,6 +471,31 @@ function VinculoAviso() {
         <BondBarView lv={bondLevel(bondStats.points)} size={16} compact />
       </div>
       <BondUnlockCard u={{ id: 1, char: char.id, heart: 2 }} onDone={() => {}} />
+    </div>
+  );
+}
+
+/**
+ * Os gráficos de personalidade lado a lado.
+ *
+ * É a única forma de conferir se o desenho diz alguma coisa: quatro personagens que jogam
+ * diferente têm de sair com quatro flores diferentes, e o do jogador com uma quinta.
+ */
+function Personalidades() {
+  return (
+    <div className="preview-personalidade">
+      <div className="panel pad">
+        <h3 style={{ marginTop: 0 }}>Você</h3>
+        <MinhaPersonalidade size={300} />
+      </div>
+      <div className="preview-personalidade-chars">
+        {CHARACTER_PRESETS.map((c) => (
+          <div key={c.id} className="panel pad">
+            <h3 style={{ marginTop: 0 }}>{c.name}</h3>
+            <PersonalidadeDoPersonagem id={c.id} size={180} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -523,6 +551,20 @@ if (cena === 'giro') {
 }
 
 /**
+ * Partidas de mentira para o gráfico de personalidade ter o que desenhar.
+ *
+ * É um jogador agressivo que blefa e não larga a mão: entra em quase tudo, aposta mais do que
+ * paga, e leva metade dos showdowns. A forma torta é o ponto — um gráfico redondo não mostraria
+ * se as pétalas estão na cor certa.
+ */
+const PARTIDAS_DE_EXEMPLO: ResumoDaPartida[] = [
+  { at: '2026-09-18T20:10:00.000Z', maos: 22, entradas: 20, agressoes: 31, pagadas: 6, passadas: 4, desistencias: 5, blefes: 24, apostasGrandes: 22, showdowns: 8, showdownsGanhos: 5, ultimasRuas: 7, pagouAteOFim: 2 },
+  { at: '2026-09-19T21:02:00.000Z', maos: 18, entradas: 16, agressoes: 24, pagadas: 5, passadas: 3, desistencias: 4, blefes: 18, apostasGrandes: 17, showdowns: 6, showdownsGanhos: 4, ultimasRuas: 6, pagouAteOFim: 1 },
+  { at: '2026-09-20T19:40:00.000Z', maos: 25, entradas: 23, agressoes: 33, pagadas: 7, passadas: 5, desistencias: 6, blefes: 26, apostasGrandes: 24, showdowns: 9, showdownsGanhos: 6, ultimasRuas: 8, pagouAteOFim: 3 },
+  { at: '2026-09-21T22:15:00.000Z', maos: 20, entradas: 18, agressoes: 26, pagadas: 6, passadas: 4, desistencias: 5, blefes: 20, apostasGrandes: 18, showdowns: 7, showdownsGanhos: 4, ultimasRuas: 6, pagouAteOFim: 2 },
+];
+
+/**
  * Contadores que dão exatamente o nível pedido, com a barra pela metade.
  *
  * O nível sai da experiência, e a experiência sai dos contadores — então para ver a barra de xp em
@@ -539,7 +581,20 @@ function statsDoNivel(nivel: number) {
 }
 
 // a loja: finge uma conta no servidor, com itens e as duas moedas
-if (cena === 'loja' || cena === 'galeria' || cena === 'menu' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' || cena === 'conta' || cena === 'titulos' || cena === 'fila' || cena === 'fila-esperando') {
+if (
+  cena === 'loja' ||
+  cena === 'galeria' ||
+  cena === 'menu' ||
+  cena === 'loja-sem-pado' ||
+  cena === 'giro' ||
+  cena === 'girando' ||
+  cena === 'conta' ||
+  cena === 'titulos' ||
+  cena === 'fila' ||
+  cena === 'fila-esperando' ||
+  cena === 'config-logado' ||
+  cena === 'personalidade'
+) {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
   useSession.setState({
@@ -554,8 +609,9 @@ if (cena === 'loja' || cena === 'galeria' || cena === 'menu' || cena === 'loja-s
       inPlay: 0,
       pado: comPado ? 2785 : null,
       // presentes no estoque e um coração já destrancado: é o que as telas novas precisam mostrar
-      gifts: { flor: 3, cha: 1, leque: 1, fone: 2, bolo: 2, joia: 1 },
+      gifts: { flor: 3, cha: 1, leque: 1, fone: 2, bolo: 2, joia: 1, kimono: 1 },
       bondUnlocked: { yukina: 1 },
+      play: PARTIDAS_DE_EXEMPLO,
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
       owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
       bond: {},
@@ -620,6 +676,11 @@ createRoot(document.getElementById('root')!).render(
         <OnlineLobby onBack={() => {}} />
       ) : cena === 'menu' || cena === 'menu-sentando' || cena === 'fila' || cena === 'fila-esperando' ? (
         <MainMenu go={() => {}} openQueue={cena === 'fila'} />
+      ) : cena === 'personalidade' ? (
+        <div className="screen">
+          <div className="menu-bg" />
+          <Personalidades />
+        </div>
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} />
       ) : cena === 'galeria' ? (

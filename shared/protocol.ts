@@ -314,7 +314,7 @@ export type ClientMsg =
    */
   | { type: 'spin'; roulette: string; currency: Currency }
   /** Oferece os presentes que destrancam o próximo coração do vínculo com o personagem. */
-  | { type: 'offerGifts'; character: string }
+  | { type: 'giveGift'; character: string; gift: string }
   /**
    * Fila rápida: entra numa mesa da fila que já exista, ou abre uma com três bots.
    * O servidor escolhe — o jogador não configura nada.
@@ -341,8 +341,8 @@ export type ServerMsg =
   | { type: 'bought'; item: string; currency: Currency }
   /** O resultado do giro: a chave do prêmio, e se ele repetiu (aí virou fichas). */
   | { type: 'spun'; roulette: string; prize: string; dup: boolean; refund: number }
-  /** Um coração de vínculo foi destrancado com presentes. */
-  | { type: 'bondUp'; character: string; heart: number }
+  /** O presente foi entregue: quantos pontos de vínculo ele rendeu. */
+  | { type: 'gifted'; character: string; gift: string; points: number }
   | { type: 'error'; message: string }
   | { type: 'pong' };
 

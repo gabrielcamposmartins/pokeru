@@ -66,7 +66,7 @@ export function useGifts(): Readonly<Record<string, number>> {
   return useSession((s) => s.account?.gifts) ?? SEM_PRESENTES;
 }
 
-/** Corações de vínculo já destrancados com presentes, neste personagem. */
+/** Corações de vínculo já abertos (pelas missões) neste personagem. */
 export function useBondUnlocked(character: string): number {
   return useSession((s) => s.account?.bondUnlocked?.[character] ?? 0);
 }
@@ -76,9 +76,9 @@ export function spinRoulette(roulette: string, currency: Currency): void {
   useRoleta.getState().girar(roulette, currency);
 }
 
-/** Oferece os presentes que destrancam o próximo coração do personagem. */
-export function offerGifts(character: string): void {
-  useSession.getState().send({ type: 'offerGifts', character });
+/** Dá um presente a um personagem (some do estoque e vira pontos de vínculo). */
+export function giveGift(character: string, gift: string): void {
+  useSession.getState().send({ type: 'giveGift', character, gift });
 }
 
 /** O jogador tem este item? */

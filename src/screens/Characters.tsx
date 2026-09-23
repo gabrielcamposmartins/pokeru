@@ -8,6 +8,8 @@ import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { BondBar, BondHearts } from '../game/BondBar';
+import { TagsPersonalidade } from '../game/Personality';
+import { personalidadeDoPersonagem } from '../../shared/personality';
 import { BondPage } from '../game/BondPage';
 import { useBondLevel } from '../store/bond';
 import { useOwned } from '../store/shop';
@@ -89,6 +91,14 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
                   {current.name}
                 </h2>
                 <BondBar char={current} size={18} compact />
+                {/*
+                  * O jeito do personagem.
+                  *
+                  * Não é enfeite: quando ele é o bot da mesa, é exatamente assim que joga
+                  * (shared/personality.ts). Ler "Astuto" aqui e apanhar de um blefe dele depois é
+                  * a mesma informação, entregue duas vezes.
+                  */}
+                <TagsPersonalidade p={personalidadeDoPersonagem(current.id)} vazio="Imprevisível" />
                 {chosen && (
                   <div className="badges" style={{ marginTop: 6 }}>
                     <span className="badge eq">Em uso</span>

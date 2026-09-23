@@ -5,9 +5,9 @@ import { say, voiceUrl } from '../audio/voice';
 import { sfx } from '../audio/sfx';
 import { useProfile } from '../store/profile';
 import { useBondStats } from '../store/bond';
-import { offerGifts, useCanShop, useGifts, useBondUnlocked } from '../store/shop';
-import { findGift } from '../../shared/catalog';
-import { bondBlocked, hasGifts, nextRecipe } from '../../shared/bond';
+import { giveGift, useCanShop, useGifts, useBondUnlocked } from '../store/shop';
+import { GIFTS, itemKey, rarityLabel, rarityOf } from '../../shared/catalog';
+import { bondBlocked, giftFits, giftPoints, giftRarityFor, gostaDe, questDone, questsFor } from '../../shared/bond';
 import { CharacterPortrait } from '../render/CharacterArt';
 import { BondBarView, BondHearts, Heart } from './BondBar';
 import {
@@ -16,6 +16,7 @@ import {
   BOND_POINTS,
   HEARTS,
   HEART_COST,
+  type HeartQuest,
   REWARD_KIND_LABEL,
   bondLevel,
   rewardsOf,
@@ -29,10 +30,13 @@ import {
  * Mostra onde o vínculo está, as missões (o que rende pontos) e as cinco recompensas com
  * o conteúdo delas à mostra: a fala liberada com texto, tradução e o áudio para ouvir.
  *
- * **A tranca dos presentes.** Jogar enche o coração; quem o abre é uma combinação de presentes
+ * **A tranca das missões.** Jogar enche o coração; quem o abre é a missão do personagem
  * (shared/bond.ts). Por isso `unlocked` é separado dos pontos: a barra pode estar cheia e a
- * recompensa ainda não ter saído. Quando ninguém informa `unlocked` — jogo local, sem conta, onde
- * não há loja nem presentes —, ele vale os corações dos pontos e a escada antiga continua igual.
+ * recompensa ainda não ter saído. Quando ninguém informa `unlocked` — jogo local, sem conta —,
+ * ele vale os corações dos pontos e a escada antiga continua igual.
+ *
+ * **Os presentes** não abrem nada: enchem a barra. Cada coração exige um degrau de raridade mais
+ * alto, então a prateleira de presentes aqui mostra o que **serve agora** e o que já ficou pequeno.
  */
 
 // ------------------------------------------------------------------ missões
@@ -172,58 +176,119 @@ function RewardCard({ char, r, hearts }: { char: CharacterStyle; r: BondReward; 
   );
 }
 
-// ------------------------------------------------------------------ a tranca dos presentes
+// ------------------------------------------------------------------ a tranca e os presentes
+
+/** A missão que abre o próximo coração, com o quanto já foi feito. */
+function QuestLine({ st, q }: { st: BondStats; q: HeartQuest }) {
+  const tem = st[q.counter] ?? 0;
+  const ok = questDone(st, q);
+  const label = BOND_COUNTERS.find((c) => c.key === q.counter)?.label ?? q.counter;
+  return (
+    <span className={`bond-quest ${ok ? 'ok' : 'falta'}`}>
+      <i>{ok ? '✓' : '○'}</i>
+      <span>{label}</span>
+      <b>
+        {Math.min(tem, q.need)}/{q.need}
+      </b>
+    </span>
+  );
+}
 
 /**
- * O coração cheio esperando presentes.
+ * O coração cheio esperando a missão.
  *
- * Mostra a receita com o que há e o que falta (`3/4`), e o botão que entrega. Quem confere de
- * verdade é o servidor: este botão só pede.
+ * Aparece só quando a barra bateu no teto: até lá a missão é só uma linha da lista, e pô-la em
+ * destaque o tempo todo transformaria o vínculo numa lista de tarefas.
  */
-function GiftGate({
-  char,
-  heart,
-  gifts,
-  onOffer,
-}: {
-  char: CharacterStyle;
-  /** Coração que os presentes vão abrir (1 a HEARTS). */
-  heart: number;
-  gifts: Readonly<Record<string, number>>;
-  onOffer?: () => void;
-}) {
-  const need = nextRecipe(char.id, heart - 1);
-  if (!need) return null;
-  const pode = hasGifts(gifts, need);
+function QuestGate({ char, heart, st }: { char: CharacterStyle; heart: number; st: BondStats }) {
+  const quests = questsFor(heart);
+  if (!quests.length) return null;
   return (
     <section className="bond-gate">
       <div className="bond-gate-cab">
         <Heart fill={1} size={20} id={`gate-${char.id}`} />
         <b>
-          O {heart}º coração está cheio — {char.name} abre com presentes
+          O {heart}º coração está cheio — falta cumprir a missão de {char.name}
         </b>
       </div>
       <div className="bond-gate-lista">
-        {Object.entries(need).map(([id, qty]) => {
-          const g = findGift(id);
-          const tem = gifts[id] ?? 0;
-          return (
-            <span key={id} className={`bond-gate-item ${tem >= qty ? 'ok' : 'falta'}`}>
-              <i>{g?.icon ?? '🎁'}</i>
-              <span>{g?.name ?? id}</span>
-              <b>
-                {Math.min(tem, qty)}/{qty}
-              </b>
-            </span>
-          );
-        })}
+        {quests.map((q) => (
+          <QuestLine key={q.counter} st={st} q={q} />
+        ))}
       </div>
       <div className="bond-gate-pe">
-        <button className="btn btn-gold small" disabled={!pode || !onOffer} onClick={onOffer}>
-          Oferecer presentes
-        </button>
-        {!pode && <small className="muted">O que falta está na Loja → Presentes.</small>}
+        <small className="muted">Presentes não abrem coração: eles enchem a barra. Quem abre é jogar.</small>
       </div>
+    </section>
+  );
+}
+
+/**
+ * A prateleira de presentes.
+ *
+ * Mostra o estoque com o que cada presente rende **para este personagem** — o predileto dele vem
+ * com o bônus já embutido no número, porque ninguém deveria precisar fazer a conta — e apaga o
+ * que já ficou pequeno para o coração atual.
+ */
+function GiftShelf({
+  char,
+  unlocked,
+  gifts,
+  cheio,
+  onGive,
+}: {
+  char: CharacterStyle;
+  unlocked: number;
+  gifts: Readonly<Record<string, number>>;
+  /** A barra bateu no teto: presente não entra mais até a missão fechar. */
+  cheio: boolean;
+  onGive?: (id: string) => void;
+}) {
+  const minima = giftRarityFor(unlocked);
+  const tem = GIFTS.filter((g) => (gifts[g.id] ?? 0) > 0);
+  return (
+    <section className="bond-presentes">
+      <div className="bond-presentes-cab">
+        <b>Presentes</b>
+        <small className="muted">
+          Do {unlocked + 1}º coração em diante, {char.name} só aceita <b>{rarityLabel(minima).toLowerCase()}</b> ou melhor.
+        </small>
+      </div>
+      {tem.length === 0 ? (
+        <p className="bond-presentes-vazio">Sem presentes no estoque. Eles estão na Loja → Presentes, e também caem nos tickets.</p>
+      ) : (
+        <div className="bond-presentes-lista">
+          {tem.map((g) => {
+            const serve = giftFits(g.id, unlocked);
+            const pontos = giftPoints(char.id, g.id);
+            const favorito = gostaDe(char.id, g.id);
+            const r = rarityOf(itemKey('gift', g.id));
+            return (
+              <button
+                key={g.id}
+                className={`bond-presente r-${r} ${serve && !cheio ? '' : 'off'}`}
+                disabled={!serve || cheio || !onGive}
+                title={
+                  cheio
+                    ? 'A barra está cheia: cumpra a missão deste coração'
+                    : serve
+                      ? `+${pontos} de vínculo${favorito ? ` — ${char.name} gosta especialmente` : ''}`
+                      : `${rarityLabel(r)} é pouco para este coração`
+                }
+                onClick={() => onGive?.(g.id)}
+              >
+                <i className="bond-presente-ico">{g.icon}</i>
+                <span className="bond-presente-nome">
+                  {g.name}
+                  {favorito && <em title={`${char.name} gosta especialmente`}>♥</em>}
+                </span>
+                <span className="bond-presente-pts">{serve ? `+${pontos}` : rarityLabel(r)}</span>
+                <span className="bond-presente-qtd">×{gifts[g.id]}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -236,15 +301,15 @@ export function BondPageView({
   onClose,
   unlocked,
   gifts = {},
-  onOffer,
+  onGive,
 }: {
   char: CharacterStyle;
   st: BondStats;
   onClose?: () => void;
-  /** Corações abertos com presentes. Ausente = vale o que os pontos dizem (jogo local). */
+  /** Corações abertos pelas missões. Ausente = vale o que os pontos dizem (jogo local). */
   unlocked?: number;
   gifts?: Readonly<Record<string, number>>;
-  onOffer?: () => void;
+  onGive?: (gift: string) => void;
 }) {
   const lv = bondLevel(st.points);
   const abertos = unlocked ?? lv.hearts;
@@ -297,15 +362,26 @@ export function BondPageView({
           {abertos >= HEARTS
             ? `Vínculo completo: ${char.name} já entregou todas as recompensas.`
             : travado
-              ? `A barra chegou ao fim do ${abertos + 1}º coração. Daqui em diante é presente: jogar não abre o que só um presente abre.`
+              ? `A barra chegou ao fim do ${abertos + 1}º coração e para aí até a missão fechar. Presente enche a barra; quem abre o coração é jogar.`
               : `Ganhar rende mais, mas perder ao lado de ${char.name} também aproxima. Faltam ${lv.toNext} pontos para o ${abertos + 1}º coração${next ? ` — ${next.name}` : ''}.`}
         </p>
 
-        {travado && <GiftGate char={char} heart={abertos + 1} gifts={gifts} onOffer={onOffer} />}
+        {travado && <QuestGate char={char} heart={abertos + 1} st={st} />}
+        {unlocked !== undefined && <GiftShelf char={char} unlocked={abertos} gifts={gifts} cheio={travado} onGive={onGive} />}
 
         <div className="bond-page-body">
           <section className="bond-page-col">
             <h3>Missões</h3>
+            {abertos < HEARTS && (
+              <div className="bond-proximo">
+                <b>Para abrir o {abertos + 1}º coração</b>
+                <div className="bond-gate-lista">
+                  {questsFor(abertos + 1).map((q) => (
+                    <QuestLine key={q.counter} st={st} q={q} />
+                  ))}
+                </div>
+              </div>
+            )}
             <Missions st={st} />
             <p className="bond-page-sum">
               <b>{st.hands}</b> mãos e <b>{st.matches}</b> partidas ao lado de {char.name}.
@@ -338,9 +414,9 @@ export function BondPage({ char, onClose }: { char: CharacterStyle; onClose: () 
       st={st}
       unlocked={comConta ? unlocked : undefined}
       gifts={gifts}
-      onOffer={() => {
+      onGive={(gift) => {
         sfx.click();
-        offerGifts(char.id);
+        giveGift(char.id, gift);
       }}
       onClose={() => {
         sfx.click();

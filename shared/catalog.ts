@@ -94,6 +94,15 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'character:tobi': 'lendario',
   'character:yukina': 'lendario',
   'ui:victorian': 'lendario',
+  /*
+   * O kimono é o presente do fim da escada.
+   *
+   * O vínculo cobra altura por coração (shared/bond.ts): o quinto só aceita lendário, e sem uma
+   * peça aqui esse coração não teria com o que ser alimentado.
+   */
+  'gift:kimono': 'lendario',
+  // épico: o presente que se guarda
+  'gift:joia': 'epico',
   // épico: os efeitos de vitória com cena própria
   'winfx:prism': 'epico',
   'winfx:lightning': 'epico',
@@ -108,6 +117,8 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'back:back-victorian-green': 'raro',
   'face:face-victorian': 'raro',
   'chip:chip-victorian': 'raro',
+  'gift:leque': 'raro',
+  'gift:fone': 'raro',
   // incomum: os brilhos de uma cor e as peças de acabamento mais rico
   'winfx:azure': 'incomum',
   'winfx:rose': 'incomum',
@@ -121,6 +132,9 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'back:back-midnight': 'incomum',
   'face:face-gold': 'incomum',
   'face:face-jade': 'incomum',
+  'gift:incenso': 'incomum',
+  'gift:livro': 'incomum',
+  // comum, por omissão: flor, chá e bolo — os presentes do primeiro coração
 };
 
 export function rarityOf(key: string): Raridade {
@@ -218,6 +232,7 @@ export const GIFTS: GiftSpec[] = [
   { id: 'fone', name: 'Fones dourados', icon: '🎧', chips: 900 },
   { id: 'incenso', name: 'Incenso de cedro', icon: '🕯', chips: 600 },
   { id: 'joia', name: 'Broche de jade', icon: '💎', chips: 1500 },
+  { id: 'kimono', name: 'Kimono de seda', icon: '👘', chips: 3000 },
 ];
 
 export const findGift = (id: string): GiftSpec | undefined => GIFTS.find((g) => g.id === id);

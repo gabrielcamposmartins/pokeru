@@ -1,6 +1,7 @@
 import type { BondEvent, BondStats } from './bond';
 import type { Currency } from './catalog';
 import type { PlayerStats, StatEvent } from './achievements';
+import type { ResumoDaPartida } from './personality';
 import type { AvatarInfo, PlayerCosmetics } from './styles';
 
 /**
@@ -73,6 +74,14 @@ export interface AccountInfo {
    * número o cliente não sabe distinguir os dois estados.
    */
   bondUnlocked: Record<string, number>;
+  /**
+   * Como a pessoa jogou as últimas partidas (shared/personality.ts).
+   *
+   * É contagem crua, uma entrada por partida, e só as `PARTIDAS_LEMBRADAS` mais recentes ficam: a
+   * personalidade é o jeito de jogar **de agora**, não um histórico. Quem conta é a mesa, ação por
+   * ação — o cliente só desenha o gráfico.
+   */
+  play: ResumoDaPartida[];
   /** Contadores das conquistas (shared/achievements.ts). */
   stats: PlayerStats;
   /**
@@ -147,6 +156,13 @@ export interface TableBank {
   creditIn?(accountId: string, amount: number, currency: Currency, key: string): Promise<void>;
   /** Pontos de vínculo com o personagem que a conta está usando. */
   bond(accountId: string, character: string, ev: BondEvent): void;
+  /**
+   * Guarda como a conta jogou uma partida (a personalidade sai das últimas dez).
+   *
+   * Opcional: uma mesa sem banca — o modo offline — não tem onde guardar, e não é por isso que
+   * ela deixa de funcionar.
+   */
+  play?(accountId: string, resumo: ResumoDaPartida): void;
   /** Contadores gerais da conta. */
   /** Sobe um contador de conquista da conta. */
   note(accountId: string, what: StatEvent): void;
@@ -183,10 +199,10 @@ export interface AccountService extends TableBank {
    */
   spin(accountId: string, roulette: string, currency: Currency): Promise<SpinResult | string>;
   /**
-   * Entrega os presentes que destrancam o próximo coração do personagem. Devolve a mensagem de
-   * erro, ou null quando destrancou.
+   * Dá um presente a um personagem: ele sai do estoque e vira pontos de vínculo. Devolve os pontos
+   * que entraram, ou a mensagem de erro.
    */
-  offerGifts(accountId: string, character: string): string | null;
+  giveGift(accountId: string, character: string, gift: string): number | string;
   /**
    * Relê o que vive fora do servidor (o saldo de padocoins, que é do bot do Discord) e avisa se
    * mudou. Opcional: um serviço que não fala com ninguém de fora não precisa disso.

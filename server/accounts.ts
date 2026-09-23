@@ -6,9 +6,22 @@ import {
   type PlayerStats,
   type StatEvent,
 } from '../shared/achievements';
-import { EMPTY_BOND, HEARTS, addBond, bondCap, bondBlocked, hasGifts, nextRecipe, payGifts, type BondEvent, type BondStats } from '../shared/bond';
+import {
+  EMPTY_BOND,
+  HEARTS,
+  addBond,
+  bondCap,
+  giftFits,
+  giftPoints,
+  giftRarityFor,
+  payGift,
+  questHearts,
+  type BondEvent,
+  type BondStats,
+} from '../shared/bond';
 import { findItem, isFree, isSold, priceOf, type Currency } from '../shared/catalog';
 import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
+import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
 import type { SpinResult } from '../shared/accounts';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, AuthIdentity, DiscordLink } from '../shared/accounts';
 import { sanitizeName } from '../shared/styles';
@@ -42,6 +55,8 @@ interface Stored {
   gifts?: Record<string, number>;
   /** Corações de vínculo já destrancados com presentes, por personagem. */
   bondUnlocked?: Record<string, number>;
+  /** Como jogou as últimas partidas (shared/personality.ts). */
+  play?: ResumoDaPartida[];
   stats: PlayerStats;
   /** Titulo de conquista escolhido (null/ausente = nenhum). */
   title?: string | null;
@@ -141,6 +156,8 @@ export class Accounts implements AccountService {
       // de antes dos presentes: estoque vazio e nenhum coração destrancado
       acc.gifts ??= {};
       acc.bondUnlocked ??= {};
+      // de antes da personalidade: quem já jogava começa sem histórico e vai enchendo
+      acc.play ??= [];
     }
   }
 
@@ -199,6 +216,7 @@ export class Accounts implements AccountService {
       bond: {},
       gifts: {},
       bondUnlocked: {},
+      play: [],
       stats: { ...EMPTY_STATS },
       title: null,
       since: new Date().toISOString(),
@@ -328,7 +346,11 @@ export class Accounts implements AccountService {
       owned: [...acc.owned],
       bond: { ...acc.bond },
       gifts: { ...(acc.gifts ?? {}) },
-      bondUnlocked: { ...(acc.bondUnlocked ?? {}) },
+      // a foto leva os corações **de verdade** (as missões), não o piso guardado
+      bondUnlocked: Object.fromEntries(
+        [...new Set([...Object.keys(acc.bond), ...Object.keys(acc.bondUnlocked ?? {})])].map((c) => [c, this.unlockedOf(acc, c)]),
+      ),
+      play: ultimasPartidas(acc.play ?? []),
       stats: sanitizeStats(acc.stats),
       title: sanitizeTitle(acc.title, sanitizeStats(acc.stats)),
       since: acc.since,
@@ -507,30 +529,45 @@ export class Accounts implements AccountService {
   }
 
   /**
-   * Entrega os presentes que destrancam o próximo coração do personagem.
+   * Quantos corações estão abertos para um personagem.
    *
-   * Confere aqui: o coração tem de estar cheio, a receita tem de existir e o estoque tem de dar.
-   * Destrancado, o teto de pontos sobe sozinho (veja `bond`) e a recompensa daquele coração passa
-   * a valer.
+   * Hoje quem abre são as missões, mas o número guardado na conta continua valendo como **piso**:
+   * quem destrancou com presentes na versão anterior não perde o que abriu por uma regra que mudou
+   * depois. O piso some sozinho — as missões alcançam — e ninguém precisa saber que ele existiu.
    */
-  offerGifts(accountId: string, character: string): string | null {
+  private unlockedOf(acc: Stored, character: string): number {
+    return Math.max(acc.bondUnlocked?.[character] ?? 0, questHearts(acc.bond[character] ?? EMPTY_BOND));
+  }
+
+  /**
+   * Dá um presente a um personagem: some do estoque e vira pontos de vínculo.
+   *
+   * O presente **não abre coração** — disso cuidam as missões —, ele enche a barra. O que se
+   * confere aqui é a altura: cada coração exige um degrau de raridade, e um ramo de sakura
+   * oferecido no quinto coração é recusado sem ser consumido.
+   *
+   * Devolve quantos pontos entraram, ou a mensagem de erro.
+   */
+  giveGift(accountId: string, character: string, gift: string): number | string {
     const acc = this.byId(accountId);
     if (!acc) return 'conta não encontrada';
     const id = character || acc.character || 'marina';
-    const unlocked = acc.bondUnlocked?.[id] ?? 0;
-    if (unlocked >= HEARTS) return 'esse vínculo já está completo';
+    if ((acc.gifts?.[gift] ?? 0) < 1) return 'você não tem esse presente';
+    const unlocked = this.unlockedOf(acc, id);
+    if (!giftFits(gift, unlocked)) return `neste coração só vale presente ${giftRarityFor(unlocked)} ou melhor`;
     const stats = acc.bond[id] ?? EMPTY_BOND;
-    if (!bondBlocked(stats.points, unlocked)) return 'este coração ainda não está cheio';
-    const need = nextRecipe(id, unlocked);
-    if (!need) return 'esse personagem não tem presentes para este coração';
-    if (!hasGifts(acc.gifts, need)) return 'faltam presentes para este coração';
+    const cap = bondCap(unlocked);
+    if (stats.points >= cap) {
+      return unlocked >= HEARTS ? 'esse vínculo já está completo' : 'a barra está cheia: falta cumprir a missão deste coração';
+    }
 
-    acc.gifts = payGifts(acc.gifts ?? {}, need);
-    acc.bondUnlocked = { ...(acc.bondUnlocked ?? {}), [id]: unlocked + 1 };
+    const pontos = Math.min(giftPoints(id, gift), cap - stats.points);
+    acc.gifts = payGift(acc.gifts ?? {}, gift);
+    acc.bond[id] = { ...stats, points: stats.points + pontos };
     this.store.flush();
     this.changed(acc.id);
-    console.log(`[vínculo] ${acc.name} destrancou o coração ${unlocked + 1} de ${id}`);
-    return null;
+    console.log(`[vínculo] ${acc.name} deu ${gift} a ${id} e ganhou ${pontos} pontos`);
+    return pontos;
   }
 
   // ---------------------------------------------------------------- banca
@@ -611,16 +648,32 @@ export class Accounts implements AccountService {
   /**
    * Soma um momento de vínculo, respeitando a tranca do coração.
    *
-   * O teto vem de quantos corações a pessoa já destrancou com presentes: os contadores das missões
-   * sobem sempre, mas os pontos param na borda do coração trancado. É aqui que a regra vale de
-   * verdade — o cliente só desenha.
+   * O teto vem das missões cumpridas: os contadores sobem sempre, mas os pontos param na borda do
+   * coração ainda trancado. O teto é calculado **antes** de somar, de propósito — a mão que
+   * fecha a missão abre o coração para as próximas, não para si mesma. É aqui que a regra vale de
+   * verdade; o cliente só desenha.
    */
   bond(accountId: string, character: string, ev: BondEvent): void {
     const acc = this.byId(accountId);
     if (!acc) return;
     const id = character || acc.character || 'marina';
-    const cap = bondCap(acc.bondUnlocked?.[id] ?? 0);
+    const cap = bondCap(this.unlockedOf(acc, id));
     acc.bond[id] = addBond(acc.bond[id] ?? EMPTY_BOND, ev, cap);
+    this.changed(acc.id);
+  }
+
+  /**
+   * Guarda como a conta jogou uma partida.
+   *
+   * A lista é uma janela: entra a partida nova, sai a décima primeira. A personalidade tem de
+   * poder mudar — quem passou a semana pagando tudo e resolveu apertar o jogo vê o gráfico virar
+   * junto, e um histórico eterno faria o contrário, congelaria a pessoa no que ela era.
+   */
+  play(accountId: string, resumo: ResumoDaPartida): void {
+    const acc = this.byId(accountId);
+    if (!acc) return;
+    acc.play = [...(acc.play ?? []), resumo].slice(-PARTIDAS_LEMBRADAS);
+    this.store.flush();
     this.changed(acc.id);
   }
 

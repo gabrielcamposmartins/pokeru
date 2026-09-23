@@ -370,20 +370,20 @@ export class Connection implements ClientHandle {
           });
         break;
       }
-      case 'offerGifts': {
+      case 'giveGift': {
         const accounts = this.lobby.accounts;
         if (!accounts || !this.accountId) {
-          this.error('o vínculo com presentes precisa de uma conta no servidor');
+          this.error('dar presente precisa de uma conta no servidor');
           return;
         }
         const character = String(msg.character ?? '');
-        const err = accounts.offerGifts(this.accountId, character);
-        if (err) {
-          this.error(err);
+        const gift = String(msg.gift ?? '');
+        const r = accounts.giveGift(this.accountId, character, gift);
+        if (typeof r === 'string') {
+          this.error(r);
           return;
         }
-        const info = accounts.info(this.accountId);
-        this.send({ type: 'bondUp', character, heart: info?.bondUnlocked?.[character] ?? 0 });
+        this.send({ type: 'gifted', character, gift, points: r });
         break;
       }
       case 'refreshAccount': {

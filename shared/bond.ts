@@ -5,16 +5,22 @@
  * mas perder também conta) e cada partida terminada dá um bônus. A barra tem cinco corações; a cada
  * coração completo o personagem entrega uma recompensa.
  *
- * **Jogar não basta.** Cada coração tem uma tranca: a barra enche até a borda dele e para ali. O
- * que abre é uma combinação de presentes (shared/catalog.ts), diferente para cada personagem e
- * cada coração — quem gosta de flores não se contenta com um livro. Enquanto o coração está
- * trancado, os pontos que continuariam entrando simplesmente não entram: a barra não desperdiça o
- * que você jogou, ela espera.
+ * **Jogar não basta.** Cada coração tem uma tranca, e quem a abre são as **missões** do
+ * personagem: tantas mãos ao lado dele, tantas vitórias, tantas partidas até o fim. A barra enche
+ * até a borda do coração e para ali enquanto a missão não fecha — a barra não desperdiça o que
+ * você jogou, ela espera.
+ *
+ * **Os presentes dão pontos.** Eles não abrem coração nenhum: enchem a barra mais depressa, e só
+ * isso. O que eles pedem é altura: o primeiro coração aceita um ramo de sakura, o quinto já não
+ * se impressiona com menos que um kimono. É a mesma escada de raridade do resto do jogo
+ * (shared/catalog.ts), o que dá ao presente caro um lugar onde ele vale a pena.
  *
  * Este arquivo é comum ao servidor e ao cliente: o servidor hospedado pontua o vínculo das contas
  * com as mesmas contas daqui. O catálogo de recompensas (vozes, emotes, skins) é do cliente e fica
  * em src/game/bond.ts; a interface, em src/game/BondBar.tsx e BondPage.tsx.
  */
+import { itemKey, rarityOf, rarityRank, type Raridade } from './catalog';
+
 /** Corações da barra de vínculo. */
 export const HEARTS = 5;
 
@@ -148,7 +154,70 @@ export function heartsOf(points: number): number {
 }
 
 // ---------------------------------------------------------------------
-// A tranca: presentes por coração
+// A tranca: as missões do personagem
+// ---------------------------------------------------------------------
+
+/** Um requisito de missão: tanto de um contador da ficha do personagem. */
+export interface HeartQuest {
+  counter: keyof BondStats;
+  need: number;
+}
+
+/**
+ * O que cada coração pede para abrir.
+ *
+ * São os contadores que a página de vínculo já mostra — mãos, vitórias, partidas —, e só esses:
+ * pedir "desista de 20 mãos" transformaria a afeição em tarefa. A escada acompanha o custo em
+ * pontos de cada coração, de modo que a missão fecha mais ou menos quando a barra enche; quem joga
+ * bem chega antes pela missão, quem dá presente chega antes pela barra, e o coração abre quando as
+ * duas coisas se encontram.
+ */
+export const HEART_QUESTS: readonly (readonly HeartQuest[])[] = [
+  [{ counter: 'hands', need: 10 }],
+  [
+    { counter: 'hands', need: 30 },
+    { counter: 'matches', need: 2 },
+  ],
+  [
+    { counter: 'hands', need: 80 },
+    { counter: 'wins', need: 20 },
+    { counter: 'matches', need: 5 },
+  ],
+  [
+    { counter: 'hands', need: 180 },
+    { counter: 'wins', need: 50 },
+    { counter: 'matches', need: 12 },
+  ],
+  [
+    { counter: 'hands', need: 350 },
+    { counter: 'wins', need: 100 },
+    { counter: 'matches', need: 25 },
+  ],
+];
+
+/** As missões do coração `heart` (1 a HEARTS). */
+export function questsFor(heart: number): readonly HeartQuest[] {
+  return HEART_QUESTS[heart - 1] ?? [];
+}
+
+/** A missão está cumprida? */
+export const questDone = (st: BondStats, q: HeartQuest): boolean => (st[q.counter] ?? 0) >= q.need;
+
+/**
+ * Quantos corações as missões já abriram.
+ *
+ * Para no primeiro que falta: os corações são uma escada, não um cardápio. Quem cumpriu a missão
+ * do terceiro sem a do segundo cumpriu a do segundo também — os requisitos só crescem —, então na
+ * prática isto nunca prende ninguém sem motivo.
+ */
+export function questHearts(st: BondStats): number {
+  let n = 0;
+  while (n < HEARTS && questsFor(n + 1).every((q) => questDone(st, q))) n++;
+  return n;
+}
+
+// ---------------------------------------------------------------------
+// Os presentes: pontos, e a altura que cada coração exige
 // ---------------------------------------------------------------------
 
 /**
@@ -170,49 +239,74 @@ export function bondBlocked(points: number, unlocked: number): boolean {
 }
 
 /**
- * As receitas de presentes, por personagem e por coração.
+ * O degrau mínimo que cada coração aceita.
  *
- * Cada personagem tem os seus gostos, e a conta sobe a cada coração: o primeiro é um presente, o
- * quinto é um punhado. Os ids são os de GIFTS, em shared/catalog.ts.
+ * Um ramo de sakura diz muito no primeiro dia e diz pouco no quinto. Cada coração sobe um degrau
+ * da escada de raridade: presente abaixo da altura do coração é recusado — não dá pontos e não é
+ * consumido —, e presente acima vale o que ele é, sem desconto. Assim o presente caro tem um
+ * lugar, e o barato não vira moeda de rolo para acelerar o vínculo inteiro.
  */
-export type GiftRecipe = Readonly<Record<string, number>>;
+export const HEART_GIFT_RARITY: readonly Raridade[] = ['comum', 'incomum', 'raro', 'epico', 'lendario'];
 
-export const BOND_RECIPES: Record<string, readonly GiftRecipe[]> = {
-  // Marina: barulho, açúcar e brilho
-  marina: [{ fone: 1 }, { fone: 1, bolo: 2 }, { fone: 2, bolo: 2 }, { fone: 3, joia: 1 }, { fone: 4, joia: 2, bolo: 3 }],
-  // Ren: silêncio, leitura e cedro
-  ren: [{ livro: 1 }, { livro: 2, cha: 1 }, { livro: 2, incenso: 2 }, { livro: 3, incenso: 2 }, { livro: 4, incenso: 3, joia: 1 }],
-  // Tobi: dourado, doce e mais dourado
-  tobi: [{ joia: 1 }, { joia: 1, bolo: 2 }, { joia: 2, fone: 1 }, { joia: 2, bolo: 3 }, { joia: 4, fone: 2, bolo: 3 }],
-  // Yukina: flores, chá e o leque
-  yukina: [{ flor: 1 }, { flor: 2, cha: 1 }, { flor: 2, leque: 1 }, { flor: 3, cha: 2, leque: 1 }, { flor: 4, leque: 2, joia: 1 }],
+/** O degrau mínimo do coração em que a pessoa está (`unlocked` corações abertos). */
+export function giftRarityFor(unlocked: number): Raridade {
+  const i = Math.max(0, Math.min(HEARTS - 1, Math.floor(unlocked)));
+  return HEART_GIFT_RARITY[i];
+}
+
+/** O presente é alto o bastante para este coração? */
+export function giftFits(giftId: string, unlocked: number): boolean {
+  return rarityRank(rarityOf(itemKey('gift', giftId))) <= rarityRank(giftRarityFor(unlocked));
+}
+
+/**
+ * Quanto cada degrau rende de vínculo.
+ *
+ * A escala é mais íngreme que a do preço de propósito: o lendário custa sete vezes o comum e vale
+ * doze. Um presente caro tem de **parecer** um gesto, não um pagamento proporcional.
+ */
+export const GIFT_POINTS: Record<Raridade, number> = {
+  comum: 25,
+  incomum: 45,
+  raro: 80,
+  epico: 150,
+  lendario: 300,
 };
 
-/** A receita do coração `heart` (1 a HEARTS) do personagem, ou null quando não há. */
-export function recipeFor(character: string, heart: number): GiftRecipe | null {
-  const lista = BOND_RECIPES[character];
-  if (!lista || heart < 1 || heart > lista.length) return null;
-  return lista[heart - 1];
+/**
+ * Os gostos de cada personagem: o presente predileto rende meio a mais.
+ *
+ * É o que sobrou — e o que importava — das antigas receitas por coração: quem gosta de flores se
+ * ilumina com flores. A diferença não é grande o bastante para obrigar ninguém a decorar tabela,
+ * só para recompensar quem reparou.
+ */
+export const BOND_GOSTOS: Record<string, readonly string[]> = {
+  // Marina: barulho, açúcar e brilho
+  marina: ['fone', 'bolo', 'joia'],
+  // Ren: silêncio, leitura e cedro
+  ren: ['livro', 'incenso', 'cha'],
+  // Tobi: dourado, doce e mais dourado
+  tobi: ['joia', 'bolo', 'fone'],
+  // Yukina: flores, chá e o leque
+  yukina: ['flor', 'cha', 'leque'],
+};
+
+/** O bônus de acertar o gosto. */
+export const BONUS_GOSTO = 1.5;
+
+export const gostaDe = (character: string, giftId: string): boolean => (BOND_GOSTOS[character] ?? []).includes(giftId);
+
+/** Quantos pontos de vínculo um presente rende a um personagem. */
+export function giftPoints(character: string, giftId: string): number {
+  const base = GIFT_POINTS[rarityOf(itemKey('gift', giftId))];
+  return Math.round(base * (gostaDe(character, giftId) ? BONUS_GOSTO : 1));
 }
 
-/** A receita do próximo coração a destrancar. */
-export function nextRecipe(character: string, unlocked: number): GiftRecipe | null {
-  return recipeFor(character, unlocked + 1);
-}
-
-/** O estoque dá para a receita? */
-export function hasGifts(stock: Readonly<Record<string, number>> | undefined, need: GiftRecipe): boolean {
-  return Object.entries(need).every(([id, qty]) => (stock?.[id] ?? 0) >= qty);
-}
-
-/** Desconta a receita do estoque: devolve o estoque novo (não mexe no antigo). */
-export function payGifts(stock: Readonly<Record<string, number>>, need: GiftRecipe): Record<string, number> {
+/** Tira um presente do estoque: devolve o estoque novo (não mexe no antigo). */
+export function payGift(stock: Readonly<Record<string, number>>, giftId: string): Record<string, number> {
   const out = { ...stock };
-  for (const [id, qty] of Object.entries(need)) {
-    const resta = (out[id] ?? 0) - qty;
-    if (resta > 0) out[id] = resta;
-    else delete out[id];
-  }
+  const resta = (out[giftId] ?? 0) - 1;
+  if (resta > 0) out[giftId] = resta;
+  else delete out[giftId];
   return out;
 }
-
