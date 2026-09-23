@@ -188,9 +188,9 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
    * todo em vez de se descolarem no meio do caminho.
    */
   const camadas = [
-    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 235, larg: 106, amp: 36 },
-    { cor: colors[0], op: 0.78, blur: 2.6, alt: 190, larg: 77, amp: 29 },
-    { cor: colors[1], op: 0.9, blur: 1.3, alt: 134, larg: 46, amp: 21 },
+    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 266, larg: 92, amp: 36 },
+    { cor: colors[0], op: 0.78, blur: 2.6, alt: 215, larg: 67, amp: 29 },
+    { cor: colors[1], op: 0.9, blur: 1.3, alt: 152, larg: 40, amp: 21 },
   ];
   /*
    * A dança é de cada carta.
