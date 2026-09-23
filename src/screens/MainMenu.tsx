@@ -323,16 +323,17 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
         * da esquerda para a direita, como líquido numa garrafa deitada. Por isso a porcentagem é
         * uma variável de CSS aqui — o preenchimento é o fundo dela, não um risco embaixo do nome.
         *
-        * O nome não se edita daqui: quem troca é Configurações → Perfil. Um campo de texto no meio
-        * do menu convidava a apagar o nome sem querer, e dava um cursor piscando onde devia haver
-        * uma etiqueta.
+        * O nome não se edita daqui: quem troca é o Perfil, que abre clicando na foto. Um campo de
+        * texto no meio do menu convidava a apagar o nome sem querer, e dava um cursor piscando
+        * onde devia haver uma etiqueta.
         */}
       <div
         className="player-chip"
         style={{ '--xp': `${Math.round(lv.progress * 100)}%`, '--xp-cor': levelColor(lv.level) } as CSSProperties}
         title={`${lv.into} / ${lv.need} de experiência para o nível ${lv.level + 1}`}
       >
-        <button className="player-portrait" style={{ background: `linear-gradient(160deg, ${st.bg}, ${st.bg2})` }} onClick={() => go('characters')} title="Trocar personagem">
+        {/* a foto abre o perfil: trocar de personagem tem botão próprio lá embaixo */}
+        <button className="player-portrait" style={{ background: `linear-gradient(160deg, ${st.bg}, ${st.bg2})` }} onClick={() => go('profile')} title="Ver perfil">
           <CharacterPortrait st={st} size={54} />
         </button>
         {/* as bolhas sobem dentro do líquido: o recorte para no nível, como numa bebida gaseificada */}

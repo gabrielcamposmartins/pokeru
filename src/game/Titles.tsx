@@ -9,9 +9,10 @@
  * conta liberou; pedir outro não teria efeito.
  */
 
-import { sfx } from '../audio/sfx';
 import { equipTitle, useAchievements, useMyTitle } from '../store/titles';
 import { useSession } from '../store/session';
+import { Select, type SelectOption } from '../ui/controls';
+import { TitleGlow } from '../render/Title';
 
 export function TitlePanel() {
   const rows = useAchievements();
@@ -37,29 +38,30 @@ export function TitlePanel() {
           Nenhuma conquista ainda. Jogue uma mão até o fim e o primeiro título aparece aqui.
         </p>
       ) : (
-        <div className="title-picks">
-          <button
-            className={`btn small ${equipped === null ? 'btn-gold' : 'btn-ghost'}`}
-            onClick={() => {
-              sfx.click();
-              equipTitle(null);
-            }}
-          >
-            Nenhum
-          </button>
-          {feitas.map((r) => (
-            <button
-              key={r.a.id}
-              className={`btn small ${equipped === r.a.title ? 'btn-gold' : 'btn-ghost'}`}
-              onClick={() => {
-                sfx.click();
-                equipTitle(r.a.title);
-              }}
-            >
-              {r.a.title}
-            </button>
-          ))}
-        </div>
+        /*
+         * Um seletor, e não uma fileira de botões.
+         *
+         * Os títulos se acumulam — são dez, e vão ser mais — e a fileira crescia até virar um
+         * parágrafo de botões onde só um estava aceso. A lista fechada mostra o título em uso com o
+         * brilho que ele tem na mesa, que é a única coisa que interessa enquanto não se está
+         * trocando.
+         */
+        <Select<string | null>
+          value={equipped}
+          onChange={equipTitle}
+          placeholder="Nenhum título"
+          options={[
+            { value: null, label: 'Nenhum', hint: 'Jogar sem título ao lado do nome' },
+            ...feitas.map(
+              (r): SelectOption<string | null> => ({
+                value: r.a.title,
+                label: r.a.title,
+                render: <TitleGlow title={r.a.title} />,
+                hint: r.a.name,
+              }),
+            ),
+          ]}
+        />
       )}
 
       <div className="field-label" style={{ marginTop: 14 }}>

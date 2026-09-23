@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
-import { TitlePanel } from '../game/Titles';
-import { MinhaPersonalidade } from '../game/Personality';
 import { SERVER_URL, useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { AccountSection } from './Account';
-import { ScreenHeader, Section, Slider, Toggle, Field } from '../ui/controls';
-import { CharacterPortrait } from '../render/CharacterArt';
+import { ScreenHeader, Section, Slider, Toggle } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { FALA_SLOTS, sayLine } from '../audio/voice';
 import { Petals } from './MainMenu';
@@ -31,9 +28,17 @@ function useAppInfo(): string {
   return info;
 }
 
-export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; onCharacters: () => void }) {
+/**
+ * Configurações: o que se resolve uma vez.
+ *
+ * Perfil, personalidade e títulos saíram daqui para a tela de Perfil (src/screens/Profile.tsx),
+ * que abre pela foto no menu. O que sobra é ajuste — jogo, som, conta — e o rodapé com a versão e
+ * o endereço do servidor.
+ */
+export function SettingsScreen({ onBack }: { onBack: () => void }) {
   const p = useProfile();
   const character = useCharacter();
+
   const toast = useSession((s) => s.toast);
   const info = useAppInfo();
   const [confirmReset, setConfirmReset] = useState(false);
@@ -44,43 +49,6 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
       <Petals />
       <ScreenHeader title="Configurações" onBack={onBack} />
       <div className="settings-grid">
-        <div className="panel pad">
-          <Section title="Perfil">
-            <Field label="Nome">
-              <input className="input" value={p.name} maxLength={16} onChange={(e) => p.setName(e.target.value)} />
-            </Field>
-            <div className="field-label">Personagem</div>
-            <div className="row gap">
-              <div className="char-info-portrait" style={{ background: `linear-gradient(160deg, ${character.bg}, ${character.bg2})` }}>
-                <CharacterPortrait st={character} size={72} />
-              </div>
-              <div>
-                {/* o nome precisa de linha propria: sem o titulo do personagem embaixo, o botao subia para o lado dele */}
-                <div>
-                  <b>{character.name}</b>
-                </div>
-                <button className="btn btn-pink small" style={{ marginTop: 6 }} onClick={onCharacters}>
-                  Trocar personagem
-                </button>
-              </div>
-            </div>
-          </Section>
-          {/*
-            * O jeito de jogar fica junto do perfil, e não das conquistas.
-            *
-            * Conquista é o que a pessoa fez; isto é quem ela é na mesa. São duas leituras
-            * diferentes, e a segunda é a que ela vem conferir depois de uma noite ruim.
-            */}
-          <Section title="Como você joga">
-            <MinhaPersonalidade />
-          </Section>
-          <Section title="Títulos e conquistas">
-            <TitlePanel />
-          </Section>
-          <Section title="Conta">
-            <AccountSection />
-          </Section>
-        </div>
         <div className="panel pad">
           {/*
             * Jogo e som numa seção só.
@@ -154,6 +122,11 @@ export function SettingsScreen({ onBack, onCharacters }: { onBack: () => void; o
               </button>
             )}
           </div>
+        </div>
+        <div className="panel pad">
+          <Section title="Conta">
+            <AccountSection />
+          </Section>
         </div>
       </div>
     </div>

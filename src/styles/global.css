@@ -6840,69 +6840,182 @@ button.avatar {
 /*
  * O gráfico do jeito de jogar.
  *
- * Seis pétalas, uma por traço, cada uma na sua cor: o desenho é lido como uma flor torta, e a
- * ponta que mais avança é a resposta. A grade fica fraca de propósito — ela existe para dar
- * escala, não para ser vista.
+ * Uma flor de seis pétalas, uma por traço: contorno grosso e escuro, cor cheia, ponta
+ * arredondada. O desenho é cartunesco de propósito — um radar fino e cinzento parece relatório, e
+ * ninguém volta a um relatório. A grade fica fraca: ela dá escala, não é para ser vista.
  */
 .personalidade {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+.personalidade-pe {
+  max-width: 34ch;
+  text-align: center;
+  line-height: 1.4;
+}
+.radar-caixa {
+  position: relative;
 }
 .radar {
   overflow: visible;
+  display: block;
 }
 .radar-grade path {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.09);
-  stroke-width: 1;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-dasharray: 5 7;
+}
+/* o anél de fora é o 100: com ele visível, a flor pequena se lê como pequena, e não como distante */
+.radar-grade path:last-of-type {
+  stroke: rgba(255, 255, 255, 0.26);
+  stroke-dasharray: none;
 }
 .radar-grade line {
-  stroke: rgba(255, 255, 255, 0.07);
-  stroke-width: 1;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2;
+}
+
+/* a flor inteira ganha sombra de uma vez: sombra por pétala sujaria as juntâncias no centro */
+.radar-flor {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.45));
 }
 .radar-petala {
-  fill-opacity: 0.32;
-  stroke: none;
+  stroke: #150b28;
+  stroke-width: 4;
+  stroke-linejoin: round;
+  fill-opacity: 0.92;
+  cursor: help;
+  transition:
+    fill-opacity 0.15s,
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: 50% 50%;
 }
-/* as pétalas abrem em sequência, de dentro para fora */
-.radar.vivo .radar-petala {
-  animation: radar-abre 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* o brilho de dentro não recebe mouse: senão ele roubaria o hover da própria pétala */
+.radar-brilho {
+  fill: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+.radar-petala-g.on .radar-petala {
+  transform: scale(1.06);
+  fill-opacity: 1;
+}
+.radar-petala-g.apagada {
+  opacity: 0.45;
+}
+.radar-miolo {
+  fill: #150b28;
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 2.5;
+  pointer-events: none;
+}
+/* as pétalas abrem em sequência, de dentro para fora, com uma quicada */
+.radar.vivo .radar-petala,
+.radar.vivo .radar-brilho {
+  animation: radar-abre 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   animation-delay: var(--atraso, 0s);
+  transform-origin: 50% 50%;
 }
 @keyframes radar-abre {
   from {
-    transform: scale(0.2);
-    fill-opacity: 0;
+    transform: scale(0.1);
+    opacity: 0;
   }
 }
-.radar-linha {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.55);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-}
-.radar-ponto {
-  stroke: rgba(10, 6, 24, 0.7);
-  stroke-width: 1.5;
-}
 .radar-label {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   text-anchor: middle;
   dominant-baseline: middle;
   letter-spacing: 0.02em;
+  cursor: help;
+  /* o contorno escuro por baixo da letra solta o rótulo do fundo, qualquer que seja o tema */
+  paint-order: stroke;
+  stroke: #150b28;
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+  transition: font-size 0.15s;
+}
+.radar-label.on {
+  font-size: 15px;
 }
 .radar-num {
   font-family: var(--num);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
-  opacity: 0.75;
+  opacity: 0.85;
 }
 
-/* as etiquetas: o mesmo traço dito em uma palavra */
+/* a explicação do traço, presa à ponta da pétala */
+.radar-dica {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -118%);
+  min-width: 150px;
+  max-width: 210px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--cor, #fff) 60%, transparent);
+  background: rgba(14, 8, 30, 0.96);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  animation: radar-dica-entra 0.14s ease-out;
+}
+.radar-dica b {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--cor, var(--text));
+  font-size: 13.5px;
+}
+.radar-dica b i {
+  font-family: var(--num);
+  font-style: normal;
+  font-size: 15px;
+}
+.radar-dica small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.radar-dica.desce {
+  transform: translate(-50%, 18%);
+}
+@keyframes radar-dica-entra {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
+ * As etiquetas, no bloco delas.
+ *
+ * O gráfico é a medida; a etiqueta é a conclusão. Encostadas uma na outra pareciam legenda do
+ * gráfico — e legenda a pessoa ignora.
+ */
+.tracos-bloco {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.035);
+}
+.tracos-titulo {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .tracos {
   display: flex;
   flex-wrap: wrap;
@@ -6910,13 +7023,14 @@ button.avatar {
   justify-content: center;
 }
 .traco {
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--cor, var(--text));
-  border: 1px solid color-mix(in srgb, var(--cor, #fff) 45%, transparent);
-  background: color-mix(in srgb, var(--cor, #fff) 14%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--cor, #fff) 50%, transparent);
+  background: color-mix(in srgb, var(--cor, #fff) 15%, transparent);
+  cursor: help;
 }
 
 /* ------------------------------------------------------------------ presentes do vínculo */
@@ -7051,4 +7165,175 @@ button.avatar {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
+}
+
+/* ------------------------------------------------------------------ seletor */
+
+/*
+ * O seletor com a cara do jogo (src/ui/controls.tsx).
+ *
+ * A lista abre por cima do que vier depois, presa ao campo — por isso o contêiner é relativo e a
+ * lista, absoluta: num painel que rola, uma lista em fluxo empurraria a página inteira para baixo
+ * a cada abertura.
+ */
+.sel {
+  position: relative;
+  width: 100%;
+}
+.sel-botao {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(10, 6, 24, 0.5);
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.sel-botao:hover:not(:disabled) {
+  border-color: var(--gold);
+  background: rgba(255, 255, 255, 0.05);
+}
+.sel.aberto .sel-botao {
+  border-color: var(--gold);
+}
+.sel-botao:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sel-valor {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sel-seta {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+.sel.aberto .sel-seta {
+  transform: rotate(180deg);
+}
+.sel-lista {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(14, 8, 30, 0.98);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  animation: sel-abre 0.13s ease-out;
+}
+@keyframes sel-abre {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.sel-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.sel-item.foco {
+  background: rgba(255, 255, 255, 0.07);
+}
+.sel-item.on {
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+.sel-item .sel-ico {
+  grid-column: 1;
+}
+.sel-texto {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sel-texto b {
+  font-size: 14px;
+  font-weight: 700;
+}
+.sel-texto small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.sel-marca {
+  grid-column: 3;
+  color: var(--gold);
+}
+
+/* ------------------------------------------------------------------ perfil */
+
+/*
+ * A tela de perfil.
+ *
+ * Duas colunas: a identidade e as conquistas de um lado, o gráfico do outro. O gráfico pede
+ * largura e altura próprias — espremido numa coluna com a lista de conquistas, ele voltaria a ser
+ * o selinho que era dentro de Configurações.
+ */
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
+  gap: 16px;
+  padding: 0 20px 20px;
+  align-items: start;
+  overflow-y: auto;
+}
+@media (max-width: 1100px) {
+  .profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.profile-cab {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.profile-cab-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.profile-com {
+  color: var(--muted);
+  font-size: 13px;
+}
+.profile-nivel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.profile-nivel small {
+  font-family: var(--num);
+  font-size: 11.5px;
 }

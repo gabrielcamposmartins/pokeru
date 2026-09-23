@@ -100,6 +100,7 @@ import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
 import type { ResumoDaPartida } from '../../shared/personality';
 import { MinhaPersonalidade, PersonalidadeDoPersonagem } from '../game/Personality';
+import { ProfileScreen } from '../screens/Profile';
 
 const q = new URLSearchParams(location.search);
 const uiInicial = q.get('ui') ?? 'default';
@@ -593,7 +594,8 @@ if (
   cena === 'fila' ||
   cena === 'fila-esperando' ||
   cena === 'config-logado' ||
-  cena === 'personalidade'
+  cena === 'personalidade' ||
+  cena === 'perfil'
 ) {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
@@ -670,8 +672,10 @@ createRoot(document.getElementById('root')!).render(
         <CharactersScreen onBack={() => {}} />
       ) : cena === 'login' || cena === 'login-erro' ? (
         <LoginScreen />
-      ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' || cena === 'titulos' ? (
-        <SettingsScreen onBack={() => {}} onCharacters={() => {}} />
+      ) : cena === 'perfil' || cena === 'titulos' ? (
+        <ProfileScreen onBack={() => {}} />
+      ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' ? (
+        <SettingsScreen onBack={() => {}} />
       ) : cena === 'salas' ? (
         <OnlineLobby onBack={() => {}} />
       ) : cena === 'menu' || cena === 'menu-sentando' || cena === 'fila' || cena === 'fila-esperando' ? (

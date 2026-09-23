@@ -11,6 +11,7 @@ import { RoomLobby } from './screens/RoomLobby';
 import { GameScreen } from './screens/GameScreen';
 import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
+import { ProfileScreen } from './screens/Profile';
 import { CharactersScreen } from './screens/Characters';
 import { StoreScreen } from './screens/Store';
 import { GalleryScreen } from './screens/Gallery';
@@ -22,13 +23,14 @@ import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
 
-export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'characters' | 'store' | 'gallery';
+export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'characters' | 'store' | 'gallery';
 
 /** Telas que vivem por conta própria: sair de uma partida não tira o jogador delas. */
 const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
   online: true,
   studio: true,
   settings: true,
+  profile: true,
   characters: true,
   store: true,
   gallery: true,
@@ -113,7 +115,8 @@ export function App() {
   else if (mode === 'online' && room) content = <RoomLobby />;
   else if (screen === 'online' || mode === 'online') content = <OnlineLobby onBack={() => setScreen('menu')} />;
   else if (screen === 'studio') content = <Studio onBack={() => setScreen('menu')} />;
-  else if (screen === 'settings') content = <SettingsScreen onBack={() => setScreen('menu')} onCharacters={() => setScreen('characters')} />;
+  else if (screen === 'settings') content = <SettingsScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'profile') content = <ProfileScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} onStore={() => setScreen('store')} />;
   else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'gallery') content = <GalleryScreen onBack={() => setScreen('menu')} />;

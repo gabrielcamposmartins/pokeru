@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { sfx } from '../audio/sfx';
 import { BLIND_STEPS } from '../../shared/protocol';
 
@@ -129,6 +129,134 @@ export function Section({ title, children }: { title: string; children: ReactNod
     <div className="section">
       <div className="section-title">{title}</div>
       {children}
+    </div>
+  );
+}
+
+/** Uma opção do seletor. `value` é o que vai para quem escolhe; o resto é do desenho. */
+export interface SelectOption<T> {
+  value: T;
+  label: string;
+  /** Uma linha embaixo do rótulo, na lista aberta. */
+  hint?: string;
+  /** Um enfeite à esquerda (ícone, marca). */
+  glyph?: ReactNode;
+  /** O rótulo desenhado de outro jeito (o título com o brilho dele, por exemplo). */
+  render?: ReactNode;
+}
+
+/**
+ * Um seletor com a cara do jogo.
+ *
+ * O `<select>` do sistema abre uma lista do Windows no meio de uma tela laqueada: fonte errada,
+ * cor errada, e nenhuma chance de mostrar o título com o brilho que ele tem na mesa. Este abre a
+ * própria lista, com rótulo, explicação e enfeite por linha.
+ *
+ * O teclado continua funcionando como se espera de um seletor — setas andam, Enter escolhe, Esc
+ * fecha — e o papel de acessibilidade é o de uma caixa de combinação, então quem usa leitor de
+ * tela ouve "seletor", e não "botão" seguido de uma lista de botões soltos.
+ */
+export function Select<T extends string | number | null>({
+  value,
+  options,
+  onChange,
+  placeholder = 'Escolher…',
+  disabled,
+}: {
+  value: T;
+  options: readonly SelectOption<T>[];
+  onChange: (v: T) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [foco, setFoco] = useState(0);
+  const caixa = useRef<HTMLDivElement>(null);
+  const atual = options.find((o) => o.value === value);
+
+  // clicar fora fecha: uma lista aberta esquecida no canto da tela rouba o próximo clique
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: MouseEvent) => {
+      if (!caixa.current?.contains(e.target as Node)) setAberto(false);
+    };
+    document.addEventListener('mousedown', fora);
+    return () => document.removeEventListener('mousedown', fora);
+  }, [aberto]);
+
+  const escolher = (o: SelectOption<T>) => {
+    sfx.click();
+    onChange(o.value);
+    setAberto(false);
+  };
+
+  const tecla = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+    if (e.key === 'Escape') {
+      setAberto(false);
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!aberto) {
+        setAberto(true);
+        setFoco(Math.max(0, options.findIndex((o) => o.value === value)));
+        return;
+      }
+      setFoco((f) => (f + (e.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length);
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (aberto && options[foco]) escolher(options[foco]);
+      else setAberto(true);
+    }
+  };
+
+  return (
+    <div className={`sel ${aberto ? 'aberto' : ''} ${disabled ? 'off' : ''}`} ref={caixa}>
+      <button
+        type="button"
+        className="sel-botao"
+        role="combobox"
+        aria-expanded={aberto}
+        aria-haspopup="listbox"
+        disabled={disabled}
+        onKeyDown={tecla}
+        onClick={() => {
+          if (disabled) return;
+          sfx.click();
+          setAberto((a) => !a);
+          setFoco(Math.max(0, options.findIndex((o) => o.value === value)));
+        }}
+      >
+        <span className="sel-valor">{atual ? (atual.render ?? atual.label) : <i className="muted">{placeholder}</i>}</span>
+        <span className="sel-seta" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {aberto && (
+        <div className="sel-lista" role="listbox" tabIndex={-1}>
+          {options.map((o, i) => (
+            <button
+              type="button"
+              key={String(o.value)}
+              className={`sel-item ${o.value === value ? 'on' : ''} ${i === foco ? 'foco' : ''}`}
+              role="option"
+              aria-selected={o.value === value}
+              onMouseEnter={() => setFoco(i)}
+              onClick={() => escolher(o)}
+            >
+              {o.glyph && <span className="sel-ico">{o.glyph}</span>}
+              <span className="sel-texto">
+                <b>{o.render ?? o.label}</b>
+                {o.hint && <small>{o.hint}</small>}
+              </span>
+              {o.value === value && <span className="sel-marca">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
