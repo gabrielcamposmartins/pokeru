@@ -10,6 +10,16 @@
   pointer-events: none;
   z-index: 4;
 }
+/*
+ * A camada de trás do efeito.
+ *
+ * Fica entre a espessura do papel (o `::before` do .cardv, em -1) e a frente da carta, que sobe
+ * para o degrau 1 em global.css. **Não** é z negativo: aí ela passaria por baixo do fundo da tela
+ * inteira — num painel com fundo, o fogo simplesmente sumia.
+ */
+.card-fx-back {
+  z-index: 0;
+}
 
 /* ------------------------------------------------------------------ moldura */
 

@@ -1330,7 +1330,16 @@ button.avatar {
 .card-svg {
   display: block;
 }
+/*
+ * A frente da carta sobe um degrau.
+ *
+ * É o que abre espaço para a camada de trás dos efeitos (`.card-fx-back`, no degrau 0) caber
+ * **entre** a espessura do papel e a carta. Sem isto ela só caberia em z negativo, e de lá ela
+ * some atrás do fundo do painel em que a carta estiver.
+ */
 .cardv > .card-svg {
+  position: relative;
+  z-index: 1;
   filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35));
 }
 .card-hl > .card-svg {

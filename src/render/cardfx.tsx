@@ -46,6 +46,13 @@ export interface WinFx {
   frame: FxFrame;
   /** Camadas desenhadas sobre a carta. */
   layers?: (ctx: FxCtx) => ReactNode;
+  /**
+   * Camadas desenhadas **atrás** da carta.
+   *
+   * O que cai aqui só aparece onde a carta não cobre: em volta dela e acima. É o que faz o fogo
+   * parecer que a carta está dentro dele, e não que ele foi pintado por cima dela.
+   */
+  back?: (ctx: FxCtx) => ReactNode;
   /** Som tocado quando o efeito aparece. */
   sound?: FxSound;
 }
@@ -94,19 +101,18 @@ function lingua(x: number, y0: number, h: number, w: number, tilt: number): stri
 }
 
 /**
- * A carta pegando fogo.
+ * A fogueira: fica **atrás** da carta.
  *
- * Fogo de verdade não é uma cor: é uma pilha de temperaturas. São três camadas de línguas — a
- * base vermelha, larga e lenta; o miolo laranja; e o núcleo quase branco, estreito e rápido —
- * cada uma com o seu desfoque e a sua velocidade. Sobrepostas, as três dão a profundidade que uma
- * chama de uma cor só não tem.
+ * Fogo de verdade não é uma cor, é uma pilha de temperaturas. São três camadas de línguas — a
+ * base vermelha, larga e lenta; o miolo laranja; e o núcleo quase branco, estreito e rápido —,
+ * cada uma com o seu desfoque e a sua velocidade.
  *
- * Em cima disso: o brilho no rodapé (a carta iluminada **de baixo**, que é de onde vem o fogo),
- * duas línguas subindo pelas laterais para o fogo lamber a carta em vez de só ficar embaixo,
- * brasas que sobem tortas — cada uma com a sua deriva — e fumaça saindo por cima da carta, no
- * espaço que o efeito tem para transbordar.
+ * O corpo do fogo é **mais largo e mais alto que a carta**, e é isso que faz a coisa funcionar de
+ * trás: o que se vê é o fogo saindo em volta da silhueta e passando por cima da borda de cima. Com
+ * as chamas na frente, elas comiam metade da carta e a mão ficava ilegível; atrás, a carta parece
+ * estar **dentro** do fogo, e continua sendo uma carta.
  */
-function Flames({ seed, colors }: { seed: number; colors: [string, string] }) {
+function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }) {
   const r = rnd(seed);
   const uid = cleanId(useId());
   /** As três temperaturas, da mais fria (fora) para a mais quente (dentro). */
@@ -115,27 +121,9 @@ function Flames({ seed, colors }: { seed: number; colors: [string, string] }) {
     { cor: colors[0], op: 0.7, blur: 1.8, alt: 0.72, larg: 0.95, dur: 0.78, lados: 0.8 },
     { cor: colors[1], op: 0.85, blur: 0.9, alt: 0.42, larg: 0.55, dur: 0.56, lados: 0 },
   ];
-  const bocas = [8, 22, 36, 50, 64, 78, 92];
+  // as bocas passam da carta nos dois lados: é de lá que o fogo aparece
+  const bocas = [-12, 2, 16, 30, 44, 58, 72, 86, 100, 112];
   return (
-    <>
-      {/* a fumaça sai por cima da carta, e por isso não entra no grupo que clareia (screen) */}
-      <g className="fx-fumaca">
-        {Array.from({ length: 3 }, (_, i) => {
-          const x = 24 + i * 26 + r() * 8;
-          return (
-            <ellipse
-              key={i}
-              cx={x.toFixed(1)}
-              cy={-4}
-              rx={(7 + r() * 5).toFixed(1)}
-              ry={(9 + r() * 6).toFixed(1)}
-              fill="#2b1608"
-              style={{ animationDelay: `${(i * 0.9 + r()).toFixed(2)}s`, ['--dx' as string]: `${(r() * 14 - 7).toFixed(1)}px` }}
-            />
-          );
-        })}
-      </g>
-
       <g className="fx-hot">
         <defs>
           <radialGradient id={`brasa${uid}`} cx="50%" cy="100%" r="70%">
@@ -156,39 +144,62 @@ function Flames({ seed, colors }: { seed: number; colors: [string, string] }) {
         {camadas.map((c) => (
           <g key={c.cor} style={{ filter: `blur(${c.blur}px)`, opacity: c.op }}>
             {bocas.map((x) => {
-              // altura e inclinação sorteadas: sete línguas iguais viram uma serra
-              const h = (19 + r() * 21) * c.alt;
-              const w = (5 + r() * 4) * c.larg;
-              const tilt = (r() - 0.5) * 9;
+              /*
+               * Altura sorteada, e as das pontas mais altas.
+               *
+               * As línguas do meio ficam escondidas atrás da carta quase inteiras; quem desenha o
+               * contorno do fogo são as das bordas. Sem esse empurrão elas ficavam do tamanho das
+               * outras e o fogo sumia atrás da carta.
+               */
+              const borda = x < 10 || x > 90 ? 1.5 : 1;
+              const h = (58 + r() * 52) * c.alt * borda;
+              const w = (7 + r() * 5) * c.larg;
+              const tilt = (r() - 0.5) * 12;
               return (
                 <path
                   key={x}
                   className="fx-flame"
                   style={{ animationDelay: `${(r() * 0.8).toFixed(2)}s`, animationDuration: `${(c.dur + r() * 0.2).toFixed(2)}s` }}
                   fill={c.cor}
-                  d={lingua(x + (r() - 0.5) * 5, 150, h, w, tilt)}
+                  d={lingua(x + (r() - 0.5) * 6, 152, h, w, tilt)}
                 />
               );
             })}
-            {/*
-              * As laterais: o fogo lambe a carta em vez de ficar só no rodapé.
-              *
-              * São finas e só nas camadas de fora — o núcleo fica no pé. Grossas, elas comiam a
-              * margem da carta e o naipe do canto sumia atrás do fogo.
-              */}
-            {c.lados > 0 &&
-              [1, 99].map((x, i) => (
-                <path
-                  key={x}
-                  className="fx-flame fx-flame-lado"
-                  style={{ animationDelay: `${(0.2 + i * 0.35).toFixed(2)}s`, animationDuration: `${(c.dur * 1.35).toFixed(2)}s` }}
-                  fill={c.cor}
-                  d={lingua(x, 146, (34 + r() * 26) * c.lados, (2.6 + r() * 2) * c.larg, (x < 50 ? 1 : -1) * (4 + r() * 5))}
-                />
-              ))}
           </g>
         ))}
+      </g>
+  );
+}
 
+/**
+ * O que fica **na frente** da carta: brasas e fumaça.
+ *
+ * Só o que precisa passar por cima. A fogueira em si está atrás (veja `FlamesBack`) — se as brasas
+ * também fossem para lá, elas sumiriam justamente no trecho em que sobem pela carta, que é onde o
+ * olho as segue.
+ */
+function FlamesFront({ seed, colors }: { seed: number; colors: [string, string] }) {
+  const r = rnd(seed);
+  return (
+    <>
+      {/* a fumaça é escura: fora do grupo que clareia, senão ela não apareceria */}
+      <g className="fx-fumaca">
+        {Array.from({ length: 3 }, (_, i) => {
+          const x = 24 + i * 26 + r() * 8;
+          return (
+            <ellipse
+              key={i}
+              cx={x.toFixed(1)}
+              cy={-6}
+              rx={(7 + r() * 5).toFixed(1)}
+              ry={(9 + r() * 6).toFixed(1)}
+              fill="#2b1608"
+              style={{ animationDelay: `${(i * 0.9 + r()).toFixed(2)}s`, ['--dx' as string]: `${(r() * 14 - 7).toFixed(1)}px` }}
+            />
+          );
+        })}
+      </g>
+      <g className="fx-hot">
         {/* brasas: cada uma com a sua deriva, para não subirem em coluna */}
         {Array.from({ length: 14 }, (_, i) => (
           <circle
@@ -199,8 +210,8 @@ function Flames({ seed, colors }: { seed: number; colors: [string, string] }) {
               animationDuration: `${(1.7 + r() * 1.3).toFixed(2)}s`,
               ['--dx' as string]: `${(r() * 26 - 13).toFixed(1)}px`,
             }}
-            cx={(4 + r() * 92).toFixed(1)}
-            cy={(118 + r() * 30).toFixed(1)}
+            cx={(-6 + r() * 112).toFixed(1)}
+            cy={(120 + r() * 30).toFixed(1)}
             r={(0.6 + r() * 1.6).toFixed(2)}
             fill={r() > 0.4 ? colors[1] : colors[0]}
           />
@@ -343,11 +354,12 @@ export const WIN_FX: WinFx[] = [
   {
     id: 'fire',
     name: 'Fogo',
-    description: 'Três camadas de chama lambem a carta, com brasas subindo e fumaça saindo por cima.',
+    description: 'A carta arde dentro da fogueira: três camadas de chama saem por trás dela, com brasas e fumaça subindo.',
     colors: ['#ff8a3d', '#ffd166'],
     frame: 'pulse',
     sound: 'flame',
-    layers: ({ seed }) => <Flames seed={seed} colors={['#ff6a1f', '#ffd166']} />,
+    layers: ({ seed }) => <FlamesFront seed={seed} colors={['#ff6a1f', '#ffd166']} />,
+    back: ({ seed }) => <FlamesBack seed={seed} colors={['#ff6a1f', '#ffd166']} />,
   },
   {
     id: 'ice',
@@ -417,24 +429,32 @@ export const CardWinFx = memo(function CardWinFx({
   const pad = width * 0.22;
   const k = width / 100;
   const r = radius / k;
+  const caixa = {
+    left: -pad,
+    top: -pad,
+    width: width + pad * 2,
+    height: width * 1.4 + pad * 2,
+    '--fx-1': fx.colors[0],
+    '--fx-2': fx.colors[1],
+  } as React.CSSProperties;
+  const viewBox = `${-pad / k} ${-pad / k} ${100 + (pad * 2) / k} ${140 + (pad * 2) / k}`;
   return (
-    <svg
-      className={`card-fx fx-${fx.id}`}
-      style={
-        {
-          left: -pad,
-          top: -pad,
-          width: width + pad * 2,
-          height: width * 1.4 + pad * 2,
-          '--fx-1': fx.colors[0],
-          '--fx-2': fx.colors[1],
-        } as React.CSSProperties
-      }
-      viewBox={`${-pad / k} ${-pad / k} ${100 + (pad * 2) / k} ${140 + (pad * 2) / k}`}
-      aria-hidden
-    >
-      {fx.layers?.({ seed, radius: r })}
-      <rect className={`fx-frame fx-frame-${fx.frame}`} x={1.2} y={1.2} width={97.6} height={137.6} rx={r} fill="none" />
-    </svg>
+    <>
+      {/*
+        * A camada de trás, quando o efeito tem uma.
+        *
+        * É um SVG separado porque não dá para ficar dos dois lados da carta com um só: a frente da
+        * carta é conteúdo em fluxo, e só um `z-index` negativo passa por baixo dela.
+        */}
+      {fx.back && (
+        <svg className={`card-fx card-fx-back fx-${fx.id}`} style={caixa} viewBox={viewBox} aria-hidden>
+          {fx.back({ seed, radius: r })}
+        </svg>
+      )}
+      <svg className={`card-fx fx-${fx.id}`} style={caixa} viewBox={viewBox} aria-hidden>
+        {fx.layers?.({ seed, radius: r })}
+        <rect className={`fx-frame fx-frame-${fx.frame}`} x={1.2} y={1.2} width={97.6} height={137.6} rx={r} fill="none" />
+      </svg>
+    </>
   );
 });
