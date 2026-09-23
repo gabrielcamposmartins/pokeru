@@ -8,6 +8,11 @@ import { create } from 'zustand';
  * assinatura é do próprio atualizador do Tauri: só instala um pacote assinado com a chave do
  * projeto, então uma release adulterada é recusada.
  *
+ * **No Windows não aparece instalador nenhum**: o modo é `quiet` (veja tauri.conf.json), o NSIS
+ * roda com `/S /R` e ele mesmo reabre o app. O que se vê é só o aviso de progresso do jogo, e
+ * depois o jogo voltando — substituir o executável em uso exige fechar, e isso não tem como
+ * evitar.
+ *
  * No navegador nada disso existe: os módulos do Tauri só são carregados dentro do app, e a
  * checagem simplesmente não acontece.
  */
@@ -80,7 +85,13 @@ export async function runAutoUpdate(): Promise<boolean> {
     });
 
     st.set({ stage: 'ready' });
-    // o instalador já rodou: reiniciar entra na versão nova
+    /*
+     * Reinicia — quando ainda houver processo para reiniciar.
+     *
+     * No Windows esta linha não costuma ser alcançada: o plugin dispara o instalador e encerra o
+     * app com `exit(0)`, e quem reabre é o próprio NSIS (`/R`). É no macOS e no Linux, onde o
+     * pacote é trocado no lugar, que ela faz o trabalho.
+     */
     const { relaunch } = await import('@tauri-apps/plugin-process');
     await relaunch();
     return true;

@@ -56,7 +56,7 @@
         "https://github.com/gabrielcamposmartins/pokeru/releases/latest/download/latest.json"
       ],
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       }
     }
   }

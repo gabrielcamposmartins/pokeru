@@ -487,6 +487,19 @@ instala e reinicia (um aviso com a barra de progresso aparece no canto). Sem int
 release, o jogo abre normalmente — a falha é só um aviso que some sozinho. Dá para desligar em
 **Configurações → Jogo → Atualizar o app sozinho ao abrir**.
 
+**Sem instalador na tela** (desde a 0.9.6): `plugins.updater.windows.installMode` é `quiet`, o que
+faz o atualizador chamar o NSIS com `/S /R` — silencioso, e reiniciando o app no fim. Ninguém vê
+janela nem clica em nada, e não há pedido de administrador porque o instalador é por usuário
+(`bundle.windows.nsis.installMode: currentUser`). Três coisas a saber:
+
+- **o app fecha e abre de novo**, e isso não tem como evitar no Windows: o executável em uso não
+  pode ser substituído. O que o `quiet` tira é a janela, não o reinício.
+- **quem decide é a versão que está rodando**, não a que está sendo instalada: quem está na 0.9.5
+  ainda vê a janelinha ao subir para a 0.9.6. Da 0.9.6 em diante é invisível.
+- **em modo silencioso o instalador também não mostra erro.** A queda no download continua
+  aparecendo no aviso do jogo; uma falha dentro do instalador, não — é o preço de não ter
+  janela. Os valores possíveis são `quiet`, `passive` (a janelinha de progresso) e `basicUi`.
+
 O pacote precisa estar **assinado**, senão o atualizador recusa. A chave pública fica em
 `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`) e a privada **fora do repositório**, em
 `~/.tauri/pokeru-updater.key` — sem ela não dá para publicar atualizações, então guarde uma cópia
