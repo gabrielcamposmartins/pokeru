@@ -154,6 +154,14 @@ export interface TableBank {
   chargeIn?(accountId: string, amount: number, currency: Currency, key: string): Promise<number>;
   /** Devolve numa moeda qualquer (a saída da mesa). */
   creditIn?(accountId: string, amount: number, currency: Currency, key: string): Promise<void>;
+  /**
+   * Prêmio em padocoin por terminar a partida.
+   *
+   * Não é devolução de mesa: é dinheiro novo, do Discord, e por isso só sai para quem tem
+   * vínculo — quem não tem é ignorado em silêncio, sem a mesa precisar saber. `key` é a chave de
+   * idempotência, e `motivo` aparece no extrato do bot.
+   */
+  bonus?(accountId: string, amount: number, key: string, motivo: string): void;
   /** Pontos de vínculo com o personagem que a conta está usando. */
   bond(accountId: string, character: string, ev: BondEvent): void;
   /**

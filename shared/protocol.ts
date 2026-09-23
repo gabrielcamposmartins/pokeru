@@ -42,6 +42,28 @@ export interface RoomSettings {
   /** Multiplicador de ritmo das animações/pausas do servidor (1 = normal). */
   pace: number;
   /**
+   * O degrau da mesa. Manda no prêmio em padocoin do fim da partida, e é o que os bots jogam.
+   *
+   * Uma mesa sem degrau declarado vale como normal: é o caso das Custom antigas.
+   */
+  difficulty?: BotDifficulty;
+  /**
+   * A mesa do recomeço: quem não tem o buy-in senta de graça.
+   *
+   * É a torneira de fichas do jogo, e só o degrau fácil contra bots a tem. Sem ela, quebrar era
+   * um beco sem saída — nenhuma mesa aceita quem não pode pagar, e o jogo acabava ali. **Nunca**
+   * em padocoin: padocoin é dinheiro de verdade da economia do bot, e dar de graça seria imprimir.
+   */
+  recomeco?: boolean;
+  /**
+   * A mesa foi montada em Custom (o jogador escolheu tudo).
+   *
+   * Serve para uma regra só, mas importante: na partida **normal** que não é Custom, sair no meio
+   * perde as fichas da mesa — elas saem do saldo ao sentar e só voltam se a partida terminar. Numa
+   * Custom, que é mesa de amigo, levantar devolve o que sobrou.
+   */
+  custom?: boolean;
+  /**
    * A sala aparece na lista pública do lobby?
    * As partidas contra bots ficam de fora: são suas, não têm por que poluir a lista.
    */
@@ -78,6 +100,8 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   listed: true,
   currency: 'chips',
   queue: false,
+  difficulty: 'normal',
+  custom: true,
 };
 
 /**
@@ -113,6 +137,111 @@ export const NORMAL_STACK = 1000;
 export const NORMAL_BLINDS = { sb: 50, bb: 100 };
 
 /**
+ * A partida contra bots: tudo o que **não** se escolhe.
+ *
+ * O botão do menu leva a uma partida só, sempre a mesma: três oponentes, Hold'em, dez rodadas,
+ * vinte e cinco segundos por jogada e ritmo normal. Quem quiser outra coisa vai em Custom — ter
+ * doze campos na porta de entrada do jogo fazia a pessoa escolher antes de saber o que estava
+ * escolhendo.
+ */
+export const BOT_MATCH = { bots: 3, mode: 'normal', variant: 'holdem', rounds: 10, turnTime: 25, pace: 1 } as const;
+
+/** A mesa de um degrau, numa moeda. */
+export interface BotTable {
+  stack: number;
+  smallBlind: number;
+  bigBlind: number;
+}
+
+/**
+ * Os três degraus da partida contra bots.
+ *
+ * Dificuldade não é só o bot pensar melhor: é a mesa inteira subindo. A pilha cresce, os blinds
+ * crescem mais rápido que ela (50/100 em mil fichas são dez blinds; 500/1000 em dez mil são dez
+ * também, mas cada mão custa dez vezes mais), e o prêmio em padocoin acompanha.
+ *
+ * **Os degraus se liberam por nível.** O fácil vem com o jogo; o normal pede nível 5 e o difícil,
+ * 20. Quem confere é o servidor (veja `botMatch` em shared/lobby.ts) — aqui é só a tabela.
+ *
+ * Em padocoin tudo divide por dez, como na fila (QUEUE_STAKES): padocoin é dinheiro de verdade da
+ * economia do bot, e uma mesa de dez mil padocoins não é a mesma aposta que uma de dez mil fichas.
+ */
+export interface BotTier {
+  id: BotDifficulty;
+  label: string;
+  /** Nível do jogador que libera o degrau (1 = vem com o jogo). */
+  level: number;
+  mesa: Record<Currency, BotTable>;
+  /** Padocoins ao terminar a partida, e ao terminar em primeiro. */
+  bonus: { fim: number; vitoria: number };
+}
+
+/** O que a mesa de fichas vale em padocoin. O mesmo da fila: padocoin é dez vezes a ficha. */
+export const PADO_POR_MESA = 10;
+
+const degrau = (id: BotDifficulty, label: string, level: number, stack: number, sb: number, bb: number, i: number): BotTier => ({
+  id,
+  label,
+  level,
+  mesa: {
+    chips: { stack, smallBlind: sb, bigBlind: bb },
+    pado: { stack: stack / PADO_POR_MESA, smallBlind: sb / PADO_POR_MESA, bigBlind: bb / PADO_POR_MESA },
+  },
+  // 200 por terminar e 400 por vencer, mais cem a cada degrau
+  bonus: { fim: 200 + i * 100, vitoria: 400 + i * 100 },
+});
+
+/** As três dificuldades, na ordem da escada. */
+export const DIFFICULTIES: readonly BotDifficulty[] = ['easy', 'normal', 'hard'];
+
+export const BOT_TIERS: readonly BotTier[] = [
+  degrau('easy', 'Fácil', 1, 1000, 50, 100, 0),
+  degrau('normal', 'Normal', 5, 2000, 250, 500, 1),
+  degrau('hard', 'Difícil', 20, 10_000, 500, 1000, 2),
+];
+
+export const botTier = (d: BotDifficulty): BotTier => BOT_TIERS.find((t) => t.id === d) ?? BOT_TIERS[0];
+
+/** O degrau está liberado para quem está neste nível? */
+export const tierUnlocked = (d: BotDifficulty, level: number): boolean => level >= botTier(d).level;
+
+/**
+ * O prêmio em padocoin de uma partida terminada.
+ *
+ * Vale para **qualquer** partida, não só contra bots: a fila e as mesas Custom também pagam, pelo
+ * degrau da mesa. Só recebe quem tem Discord vinculado — padocoin mora lá.
+ */
+export const bonusPado = (d: BotDifficulty, venceu: boolean): number =>
+  venceu ? botTier(d).bonus.vitoria : botTier(d).bonus.fim;
+
+/** A mesa de uma partida contra bots. `paga` liga o buy-in (servidor com contas). */
+export function botMatchSettings(difficulty: BotDifficulty, currency: Currency, paga: boolean): RoomSettings {
+  const t = botTier(difficulty);
+  const m = t.mesa[currency];
+  return {
+    ...DEFAULT_SETTINGS,
+    name: `Contra bots · ${t.label}`,
+    maxPlayers: BOT_MATCH.bots + 1,
+    mode: BOT_MATCH.mode,
+    variant: BOT_MATCH.variant,
+    rounds: BOT_MATCH.rounds,
+    turnTime: BOT_MATCH.turnTime,
+    pace: BOT_MATCH.pace,
+    startingStack: m.stack,
+    smallBlind: m.smallBlind,
+    bigBlind: m.bigBlind,
+    buyIn: paga ? m.stack : 0,
+    currency,
+    difficulty,
+    // o fácil em fichas é o recomeço: quem quebrou senta de graça e joga para voltar
+    recomeco: difficulty === 'easy' && currency === 'chips',
+    // a partida contra bots não entra na lista de mesas: ela é de um jogador só
+    listed: false,
+    custom: false,
+  };
+}
+
+/**
  * As mesas da fila rápida: cash (com rebuy), seis lugares, e o jogador joga com o que é dele até
  * zerar. Os valores são fixos de propósito — fila é para entrar sem escolher nada.
  *
@@ -141,6 +270,9 @@ export function queueSettings(currency: Currency): RoomSettings {
     currency,
     queue: true,
     listed: true,
+    // a fila senta três bots normais: é o degrau dela, e é dele que sai o prêmio em padocoin
+    difficulty: 'normal',
+    custom: false,
   };
 }
 
@@ -296,6 +428,13 @@ export type ClientMsg =
   | { type: 'joinRoom'; roomId: string; password?: string }
   | { type: 'leaveRoom' }
   | { type: 'addBot'; difficulty: BotDifficulty }
+  /**
+   * Partida contra bots: o servidor monta a mesa e senta todos.
+   *
+   * Só estas duas escolhas são do jogador; o resto da mesa é fixo (BOT_MATCH) e a trava por nível
+   * é conferida no servidor.
+   */
+  | { type: 'botMatch'; difficulty: BotDifficulty; currency: Currency }
   | { type: 'removeBot'; seat: number }
   | { type: 'startGame' }
   /** "Terminei de carregar": a mesa espera isso de cada jogador antes da primeira mão. */

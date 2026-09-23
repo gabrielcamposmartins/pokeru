@@ -17,6 +17,7 @@ import {
 import { priceOf } from '../shared/catalog';
 import { ROULETTES, dropsOf, findRoulette, refundOf, ticketPrice } from '../shared/roulette';
 import { bondCap, giftPoints } from '../shared/bond';
+import { bonusPado } from '../shared/protocol';
 import { Accounts } from './accounts';
 import { Gbot, GbotError, type GbotMove, type GbotUser } from './gbot';
 
@@ -55,6 +56,7 @@ const identity: AuthIdentity = { sub: '42', username: 'gabi', discordId: '343954
  */
 function fakeGbot(saldo = 1000) {
   const debits: { id: string; quantity: number; key: string | null }[] = [];
+  const credits: { id: string; quantity: number; reason: string; key: string | null }[] = [];
   let balance = saldo;
   const state = { linked: null as string | null, down: false };
   const http = (async (url: string | URL, init?: RequestInit) => {
@@ -66,6 +68,14 @@ function fakeGbot(saldo = 1000) {
     if (path.startsWith('/user/')) {
       const user: GbotUser = { user_id: identity.discordId!, username: 'berlineta.', nickname: 'Mogleo', balance };
       return ok(user);
+    }
+    if (path === '/economy/credit') {
+      const body = JSON.parse(String(init?.body)) as { id: string; quantity: number; reason: string };
+      credits.push({ ...body, key: (init?.headers as Record<string, string>)['Idempotency-Key'] ?? null });
+      const before = balance;
+      balance += body.quantity;
+      const move: GbotMove = { ok: true, user_id: body.id, before, after: balance };
+      return ok(move);
     }
     if (path === '/economy/debit') {
       const body = JSON.parse(String(init?.body)) as { id: string; quantity: number };
@@ -83,6 +93,7 @@ function fakeGbot(saldo = 1000) {
   }) as unknown as typeof fetch;
   return {
     debits,
+    credits,
     get balance() {
       return balance;
     },
@@ -790,6 +801,53 @@ describe('vínculo: missões e presentes', () => {
     // o livro vale 45, mas só cabem 2: o resto não entra (e o livro foi embora do mesmo jeito)
     expect(acc.giveGift(a.id, 'yukina', 'livro')).toBe(2);
     expect(acc.info(a.id)!.bond.yukina.points).toBe(bondCap(1));
+    acc.close();
+  });
+});
+
+/**
+ * O prêmio em padocoin por terminar a partida.
+ *
+ * É dinheiro novo saindo da economia do bot, então tem regra estreita: só quem tem Discord
+ * vinculado, e só quando a partida acaba (quem chama é `Room.finishGame`). O que se confere aqui é
+ * a ponta que fala com o bot.
+ */
+describe('bônus de padocoin', () => {
+  it('credita no Discord, com o motivo e a chave de idempotência', async () => {
+    const fake = fakeGbot(500);
+    const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
+    const a = (await acc.loginAuth(identity, profile()))!;
+    expect(a.discord?.id).toBe(identity.discordId);
+
+    acc.bonus(a.id, bonusPado('normal', true), 'pokeru:bonus:sala:1', 'vitória');
+    await vi.waitFor(() => expect(fake.credits).toHaveLength(1));
+
+    expect(fake.credits[0]).toMatchObject({ id: identity.discordId, quantity: 500, key: 'pokeru:bonus:sala:1' });
+    expect(fake.credits[0].reason).toMatch(/vitória/);
+    expect(fake.balance).toBe(1000);
+    acc.close();
+  });
+
+  it('sem Discord vinculado não sai nada, e ninguém quebra', async () => {
+    const fake = fakeGbot(500);
+    const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
+    const a = acc.login(undefined, profile())!;
+
+    acc.bonus(a.id, 400, 'k', 'partida completa');
+    await Promise.resolve();
+    expect(fake.credits).toHaveLength(0);
+    expect(fake.balance).toBe(500);
+    acc.close();
+  });
+
+  it('prêmio zero não vira chamada de rede', async () => {
+    const fake = fakeGbot(500);
+    const acc = new Accounts({ file: newFile(), gbot: fake.gbot });
+    const a = (await acc.loginAuth(identity, profile()))!;
+
+    acc.bonus(a.id, 0, 'k', 'partida completa');
+    await Promise.resolve();
+    expect(fake.credits).toHaveLength(0);
     acc.close();
   });
 });

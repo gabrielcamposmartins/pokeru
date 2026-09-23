@@ -11,7 +11,9 @@ import {
   type ResumoDaPartida,
 } from './personality';
 import {
+  DIFFICULTIES,
   EMOTES,
+  bonusPado,
   type BotDifficulty,
   type RoomInfo,
   type RoomSettings,
@@ -144,7 +146,15 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
   return {
     name: (typeof o.name === 'string' && o.name.trim().slice(0, 32)) || 'Mesa Pokeru',
     maxPlayers: n(o.maxPlayers, 2, 6, 6),
-    startingStack: Math.max(bigBlind * 10, n(o.startingStack, 100, 10_000_000, 2000)),
+    /*
+     * A pilha cobre pelo menos dois big blinds.
+     *
+     * O piso era dez, e ele recusava mesa curta de propósito — o degrau Normal contra bots é
+     * 2.000 com 250/500, quatro blinds de pilha, e a peneira o inflava para 5.000 sem avisar
+     * ninguém. Mesa curta é uma escolha de desenho; o que não pode existir é pilha que não paga o
+     * blind, porque aí a mão começa com todos em all-in involuntário.
+     */
+    startingStack: Math.max(bigBlind * 2, n(o.startingStack, 100, 10_000_000, 2000)),
     smallBlind,
     bigBlind,
     mode: o.mode === 'sitgo' ? 'sitgo' : o.mode === 'normal' ? 'normal' : 'cash',
@@ -160,6 +170,17 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
     listed: o.listed !== false,
     currency: o.currency === 'pado' ? 'pado' : 'chips',
     queue: o.queue === true,
+    // recomeço nunca vem de fora: só `botMatchSettings` o liga, e nunca em padocoin
+    recomeco: o.recomeco === true && o.currency !== 'pado',
+    difficulty: DIFFICULTIES.includes(o.difficulty as BotDifficulty) ? (o.difficulty as BotDifficulty) : 'normal',
+    /*
+     * Custom por omissão, e isto é de propósito.
+     *
+     * `custom: false` é o que faz sair no meio perder as fichas. Uma mesa que chega sem dizer nada
+     * não pode ganhar essa regra de brinde — quem a liga é quem sabe que está ligando, e hoje só
+     * `botMatchSettings` liga.
+     */
+    custom: o.custom !== false,
   };
 }
 
@@ -401,8 +422,15 @@ export class Room {
     let stack = this.settings.startingStack;
     if (this.settings.buyIn > 0) {
       const paid = this.bank!.charge(client.accountId!, this.settings.buyIn);
-      if (!paid) return 'Saldo insuficiente para o buy-in desta mesa';
-      stack = paid;
+      /*
+       * A mesa do recomeço senta quem não pode pagar.
+       *
+       * Quebrar não pode ser o fim do jogo: sem uma mesa que aceite saldo zero, o jogador ficaria
+       * olhando um menu em que nenhum botão funciona. Aqui ele senta com a pilha do degrau fácil e
+       * joga para voltar — e como é partida normal, só leva as fichas se terminar.
+       */
+      if (!paid && !this.settings.recomeco) return 'Saldo insuficiente para o buy-in desta mesa';
+      stack = paid || this.settings.startingStack;
     }
     this.seatAt(client, seat, stack);
     return null;
@@ -477,11 +505,26 @@ export class Room {
     this.checkOpening();
   }
 
+  /**
+   * Levantar da mesa: fecha o resumo da partida e resolve as fichas.
+   *
+   * É o único lugar em que uma saída mexe em dinheiro, e de propósito — há dois caminhos para
+   * sair (na hora, ou no fim da mão em que ele ainda estava), e a regra de perder as fichas por
+   * sair no meio tem de valer nos dois. Separados, um deles devolvia o que o outro cobrava.
+   */
+  private saiDaMesa(m: Member): void {
+    this.guardarResumo(m);
+    if (this.status === 'playing' && this.perdeAoSair() && m.stack > 0 && !m.isBot) {
+      this.system(`${m.name} saiu no meio e deixou ${m.stack} na mesa.`);
+      m.stack = 0;
+    }
+    this.cashOut(m);
+  }
+
   private removeOrMark(m: Member): void {
     const hp = this.hand && !this.hand.finished ? this.hand.players.find((p) => p.id === m.id) : undefined;
-    // numa mesa a dinheiro não há "fim de partida": levantar é o fim, e é aqui que o resumo fecha
-    if (!hp) this.guardarResumo(m);
-    if (!hp) this.cashOut(m);
+    // numa mesa a dinheiro não há "fim de partida": levantar é o fim, e é aqui que ele acontece
+    if (!hp) this.saiDaMesa(m);
     if (hp && !hp.folded) {
       m.leaving = true;
       // se for a vez dele, desiste imediatamente
@@ -701,6 +744,18 @@ export class Room {
     return this.bank!.charge(m.accountId, amount);
   }
 
+  /**
+   * Sair no meio perde o que está na mesa?
+   *
+   * Só na partida **normal** que não é Custom — a partida do jogo. Ali as fichas saem do saldo ao
+   * sentar e só voltam se a pessoa chegar ao fim: uma partida de dez rodadas em que dá para
+   * levantar com o lucro na terceira não é uma partida, é um caixa eletrônico. Numa Custom, que é
+   * mesa entre amigos, levantar devolve o que sobrou.
+   */
+  private perdeAoSair(): boolean {
+    return this.settings.mode === 'normal' && this.settings.custom === false;
+  }
+
   /** Devolve as fichas da mesa ao saldo do jogador e zera a pilha (ele não leva duas vezes). */
   private cashOut(m: Member): void {
     if (!this.paid() || !m.accountId || m.stack <= 0) return;
@@ -755,10 +810,10 @@ export class Room {
   private startHand(): void {
     if (this.status !== 'playing' || this.opening) return;
     this.rushing = false;
-    // limpa quem saiu
+    // limpa quem saiu (e resolve as fichas pela mesma regra de quem levantou na hora)
     for (const m of this.members()) {
       if (m.leaving) {
-        this.cashOut(m);
+        this.saiDaMesa(m);
         this.seats[m.seat] = null;
         this.emit({ t: 'seatLeave', seat: m.seat });
       }
@@ -904,10 +959,27 @@ export class Room {
       }
     }
     for (const m of this.members()) {
-      this.guardarResumo(m, { lugar: ranking.find((r) => r.seat === m.seat)?.place ?? 0, jogadores: ranking.length });
+      const lugar = ranking.find((r) => r.seat === m.seat)?.place ?? 0;
+      this.guardarResumo(m, { lugar, jogadores: ranking.length });
+      this.premioDoFim(m, lugar === 1);
       this.cashOut(m);
     }
     this.broadcastRoom();
+  }
+
+  /**
+   * O prêmio em padocoin por terminar a partida.
+   *
+   * Vale para **qualquer** partida — contra bots, da fila ou Custom —, no degrau da mesa, e só
+   * para quem tem Discord vinculado: padocoin mora lá, e a banca devolve em silêncio para quem
+   * não tem. É pago aqui, e só aqui, porque a promessa é "termine a partida": quem levantou no
+   * meio já não está sentado quando isto roda.
+   */
+  private premioDoFim(m: Member, venceu: boolean): void {
+    if (m.isBot || !m.accountId || m.leaving || !this.bank?.bonus) return;
+    const premio = bonusPado(this.settings.difficulty ?? 'normal', venceu);
+    if (premio <= 0) return;
+    this.bank.bonus(m.accountId, premio, `pokeru:bonus:${this.id}:${m.accountId}:${Date.now()}`, venceu ? 'vitória' : 'partida completa');
   }
 
   /** Permite ao anfitrião reiniciar a sala após o fim do Sit & Go. */

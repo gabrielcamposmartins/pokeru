@@ -498,11 +498,16 @@ textarea.input {
 
 /* a mesa que não se escolhe: a linha que explica a partida normal */
 .mesa-fixa {
+  /* uma linha por frase: a mesa, o prêmio e o aviso de nível são três coisas diferentes */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   padding: 9px 12px;
   border-radius: 12px;
   border: 1px dashed var(--line-soft);
   background: rgba(10, 6, 24, 0.35);
   font-size: 13px;
+  line-height: 1.4;
   color: var(--muted);
 }
 .mesa-fixa b {

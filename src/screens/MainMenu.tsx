@@ -1,23 +1,22 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useMyStats, useMyTitle } from '../store/titles';
-import { levelInfo } from '../../shared/achievements';
+import { levelInfo, playerLevel } from '../../shared/achievements';
 import { LevelNumber, levelColor } from '../render/Level';
 import { Sparks } from '../render/Sparks';
 import { TitleGlow } from '../render/Title';
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion';
-import type { BotDifficulty, GameMode, GameVariant } from '../../shared/protocol';
+import type { BotDifficulty, Currency } from '../../shared/protocol';
 import { useCharacter, useEquipped, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
 import { HandGuideButton } from '../game/HandGuide';
-import { BlindPicker, Segmented } from '../ui/controls';
+import { Segmented } from '../ui/controls';
 import { WalletBar, useChips } from '../ui/Wallet';
-import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
 import { sfx } from '../audio/sfx';
 import { APP_VERSION } from '../util/version';
-import { NORMAL_BLINDS, NORMAL_STACK, QUEUE_STAKES, blindStep } from '../../shared/protocol';
+import { BOT_MATCH, BOT_TIERS, QUEUE_STAKES, botTier, tierUnlocked } from '../../shared/protocol';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { ChipSvg } from '../render/Chip';
 import { usePado } from '../store/shop';
@@ -97,127 +96,117 @@ export function CharacterStageView({ heightVh = 92, className }: { heightVh?: nu
   );
 }
 
-function QuickPlayModal({ onClose }: { onClose: () => void }) {
-  const startBots = useSession((s) => s.startBots);
+/**
+ * Contra bots: duas escolhas, e só.
+ *
+ * A mesa é sempre a mesma — três oponentes, Hold'em, dez rodadas, 25s por jogada (BOT_MATCH) — e
+ * quem a monta é o servidor. O que sobra para escolher é a **moeda** (só quem tem Discord vê
+ * padocoin) e o **degrau**, que muda a mesa inteira: a pilha, os blinds e o prêmio.
+ *
+ * O formulário antigo tinha doze campos na porta de entrada do jogo. A pessoa escolhia formato,
+ * variante, blinds e ritmo antes de saber o que qualquer um deles fazia; quem quer decidir isso
+ * tem Custom.
+ */
+function BotMatchModal({ onClose }: { onClose: () => void }) {
+  const pedirPartida = useSession((s) => s.botMatch);
   const pending = useSession((s) => s.botsPending);
-  const [bots, setBots] = useState(5);
-  const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
-  // normal é o formato padrão: partida com começo, meio e fim, e mesa igual para todos
-  const [mode, setMode] = useState<GameMode>('normal');
-  const [variant, setVariant] = useState<GameVariant>('holdem');
-  const [rounds, setRounds] = useState(8);
-  const [stack, setStack] = useState(1000);
-  const [blinds, setBlinds] = useState(100);
-  const [turnTime, setTurnTime] = useState(25);
-  const [pace, setPace] = useState(1);
-  const chips = useChips();
-  // sem conta no servidor não há saldo para cobrar: a mesa é de treino, e o botão não trava
   const temConta = useSession((s) => !!s.account);
+  const temDiscord = useSession((s) => !!s.account?.discord);
+  const chips = useChips();
+  const pado = usePado();
+  const nivel = playerLevel(useMyStats());
+  const [difficulty, setDifficulty] = useState<BotDifficulty>('easy');
+  const [currency, setCurrency] = useState<Currency>('chips');
+  const moeda: Currency = temDiscord ? currency : 'chips';
+  const tier = botTier(difficulty);
+  const mesa = tier.mesa[moeda];
+  const saldo = moeda === 'pado' ? (pado ?? 0) : chips;
   /*
-   * Partida normal tem mesa fixa: mil fichas e 50/100.
+   * A mesa do recomeço.
    *
-   * O que muda de mesa para mesa é o que se decide numa cash ou numa sit & go; a normal é a
-   * partida do jogo, e ela vale o mesmo para todo mundo.
+   * Quebrar não pode trancar o jogo: no fácil em fichas, quem não tem o buy-in senta de graça e
+   * joga para voltar. É a mesma regra do servidor (veja `recomeco` em shared/protocol.ts) — aqui
+   * ela só troca o texto do botão, para a pessoa entender o que está recebendo.
    */
-  const fixa = mode === 'normal';
-  const pilha = fixa ? NORMAL_STACK : stack;
-  const bb = fixa ? NORMAL_BLINDS.bb : blinds;
+  const paga = temConta && saldo < mesa.stack;
+  const recomeco = paga && difficulty === 'easy' && moeda === 'chips';
+  const travado = paga && !recomeco;
   return (
     <div className="modal-back" onClick={onClose}>
       <motion.div className="modal panel quick-modal" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} onClick={(e) => e.stopPropagation()}>
         <h2 className="title-deco">Contra Bots</h2>
         <p className="muted">
-          Contra bots <b>no servidor</b> — vale fichas de verdade: o buy-in sai do seu saldo e o que sobrar na mesa volta para ele.
-          Se o servidor não responder, a partida começa no seu computador, sem valer nada.
+          Três oponentes, Texas Hold'em, <b>{BOT_MATCH.rounds} rodadas</b> e {BOT_MATCH.turnTime}s por jogada. Vale de verdade: o buy-in sai do
+          seu saldo e só volta se você <b>terminar a partida</b>.
         </p>
         <div className="form-stack">
-          <Segmented label="Oponentes" value={bots} onChange={setBots} options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `${n}` }))} />
+          {temDiscord && (
+            <Segmented
+              label="Moeda"
+              value={currency}
+              onChange={setCurrency}
+              options={[
+                { value: 'chips' as Currency, label: 'Fichas' },
+                { value: 'pado' as Currency, label: 'Padocoins' },
+              ]}
+            />
+          )}
           <Segmented
             label="Dificuldade"
             value={difficulty}
             onChange={setDifficulty}
-            options={[
-              { value: 'easy', label: 'Fácil' },
-              { value: 'normal', label: 'Normal' },
-              { value: 'hard', label: 'Difícil' },
-            ]}
+            options={BOT_TIERS.map((t) => ({
+              value: t.id,
+              label: t.label,
+              disabled: temConta && !tierUnlocked(t.id, nivel),
+              title: temConta && !tierUnlocked(t.id, nivel) ? `Abre no nível ${t.level}` : undefined,
+            }))}
           />
-          <Segmented
-            label="Jogo"
-            value={variant}
-            onChange={setVariant}
-            options={[
-              { value: 'holdem', label: VARIANT_LABEL.holdem },
-              { value: 'draw5', label: VARIANT_LABEL.draw5 },
-            ]}
-          />
-          <Segmented
-            label="Formato"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'normal', label: 'Normal' },
-              { value: 'cash', label: MODE_LABEL.cash },
-              { value: 'sitgo', label: MODE_LABEL.sitgo },
-            ]}
-          />
-          {fixa ? (
-            <>
-              <Segmented label="Rodadas" value={rounds} onChange={setRounds} options={[4, 8, 12, 20].map((v) => ({ value: v, label: `${v}` }))} />
-              <div className="mesa-fixa">
-                <span>
-                  Mesa da partida normal: <b>{NORMAL_STACK.toLocaleString('pt-BR')}</b> fichas e blinds{' '}
-                  <b>
-                    {NORMAL_BLINDS.sb}/{NORMAL_BLINDS.bb}
-                  </b>
-                  .
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* só o que o saldo paga: a mesa cobra o buy-in da conta */}
-              <Segmented
-                label="Fichas iniciais"
-                value={stack}
-                onChange={setStack}
-                options={[1000, 2000, 5000, 10000].map((v) => ({
-                  value: v,
-                  label: v.toLocaleString('pt-BR'),
-                  disabled: chips < v,
-                  title: chips < v ? `Faltam ${fmt(v - chips)} fichas` : undefined,
-                }))}
-              />
-              <BlindPicker value={blinds} onChange={setBlinds} />
-            </>
-          )}
-          <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[10, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
-          <Segmented
-            label="Ritmo da mesa"
-            value={pace}
-            onChange={setPace}
-            options={[
-              { value: 0.6, label: 'Rápido' },
-              { value: 1, label: 'Normal' },
-              { value: 1.4, label: 'Calmo' },
-            ]}
-          />
+          {/* a mesa do degrau escolhido, por extenso: é o que muda entre um e outro */}
+          <div className="mesa-fixa">
+            <span>
+              Mesa do <b>{tier.label}</b>: <b>{fmt(mesa.stack)}</b> {moeda === 'pado' ? 'padocoins' : 'fichas'} e blinds{' '}
+              <b>
+                {mesa.smallBlind}/{mesa.bigBlind}
+              </b>
+              .
+            </span>
+            {temDiscord && (
+              <span>
+                Terminar rende <b>{tier.bonus.fim}</b> padocoins; terminar em 1º, <b>{tier.bonus.vitoria}</b>.
+              </span>
+            )}
+            {temConta && !tierUnlocked('hard', nivel) && (
+              <span className="muted">
+                Você está no nível {nivel}. {tierUnlocked('normal', nivel) ? 'Difícil abre no 20.' : 'Normal abre no 5, Difícil no 20.'}
+              </span>
+            )}
+          </div>
         </div>
         <div className="row gap center" style={{ marginTop: 18 }}>
           <button
             className="btn btn-gold big"
-            disabled={pending || (temConta && chips < pilha)}
+            disabled={pending || travado}
             onClick={() => {
               sfx.click();
-              startBots({ bots, difficulty, mode, variant, rounds, startingStack: pilha, smallBlind: blindStep(bb).sb, bigBlind: bb, turnTime, pace });
+              pedirPartida(difficulty, moeda);
             }}
           >
-            {pending ? 'Sentando à mesa…' : temConta && chips < pilha ? `Faltam ${fmt(pilha - chips)} fichas` : temConta ? `♠ Sentar por ${fmt(pilha)}` : '♠ Sentar à mesa'}
+            {pending
+              ? 'Sentando à mesa…'
+              : travado
+                ? `Faltam ${fmt(mesa.stack - saldo)} ${moeda === 'pado' ? 'padocoins' : 'fichas'}`
+                : recomeco
+                  ? '♠ Recomeçar — esta é de graça'
+                  : temConta
+                    ? `♠ Sentar por ${fmt(mesa.stack)}`
+                    : '♠ Sentar à mesa'}
           </button>
           <button className="btn btn-ghost" disabled={pending} onClick={onClose}>
             Cancelar
           </button>
         </div>
+        {recomeco && <p className="muted small" style={{ textAlign: 'center', marginTop: 10 }}>Sem fichas para o buy-in: esta mesa é o recomeço, e sai de graça.</p>}
       </motion.div>
     </div>
   );
@@ -452,7 +441,7 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
         </div>
       </div>
       <div className="version">v{APP_VERSION}</div>
-      {quick && <QuickPlayModal onClose={() => setQuick(false)} />}
+      {quick && <BotMatchModal onClose={() => setQuick(false)} />}
       {(queue || queueing) && <QueueModal onClose={() => setQueue(false)} />}
     </div>
   );

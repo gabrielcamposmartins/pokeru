@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BOT_CONNECT_MS, net, useSession } from './session';
 import { useTable } from './table';
 import { connectLocal, type Transport, type TransportHandlers } from '../net/transport';
-import { DEFAULT_SETTINGS, type ServerMsg } from '../../shared/protocol';
+import { BOT_MATCH, DEFAULT_SETTINGS, botTier, type ServerMsg } from '../../shared/protocol';
 
 /**
  * Partida contra bots: quem manda é o servidor. Só quando ele não dá conta é que a mesma partida
@@ -12,15 +12,19 @@ import { DEFAULT_SETTINGS, type ServerMsg } from '../../shared/protocol';
  * aqui (é o que faz as vezes do servidor), os outros encenam as falhas.
  */
 
+/** O jogador só escolhe duas coisas; o resto da mesa é do servidor (BOT_MATCH). */
+const pedir = () => useSession.getState().botMatch('easy', 'chips');
+
+/** A mesma mesa, montada à mão: é o que a partida local (offline) recebe. */
 const OPTS = {
-  bots: 2,
+  bots: BOT_MATCH.bots,
   difficulty: 'easy' as const,
-  mode: 'cash' as const,
-  variant: 'holdem' as const,
-  rounds: 8,
+  mode: BOT_MATCH.mode,
+  variant: BOT_MATCH.variant,
+  rounds: BOT_MATCH.rounds,
   startingStack: 1000,
-  smallBlind: 10,
-  bigBlind: 20,
+  smallBlind: 50,
+  bigBlind: 100,
   turnTime: 5,
   pace: 0.4,
 };
@@ -63,7 +67,7 @@ describe('partida contra bots', () => {
   it('roda no servidor: a mesa vem de lá e a sessão fica online', async () => {
     // o "servidor" é o mesmo Lobby do servidor de verdade, rodando neste processo
     net.ws = (_url, h) => connectLocal(h);
-    useSession.getState().startBots(OPTS);
+    pedir();
     await vi.advanceTimersByTimeAsync(3000);
 
     const s = useSession.getState();
@@ -71,7 +75,7 @@ describe('partida contra bots', () => {
     expect(s.status).toBe('connected');
     expect(s.offline).toBe(false);
     // a sala nasceu, os bots sentaram e a mão começou — tudo pedido pelo cliente, decidido lá
-    expect(s.room?.members).toHaveLength(OPTS.bots + 1);
+    expect(s.room?.members).toHaveLength(BOT_MATCH.bots + 1);
     expect(useTable.getState().display?.handNo).toBeGreaterThan(0);
     // e a espera acabou: o menu sai da frente
     expect(s.botsPending).toBe(false);
@@ -79,11 +83,28 @@ describe('partida contra bots', () => {
 
   it('a mesa contra bots não aparece na lista pública', async () => {
     net.ws = (_url, h) => connectLocal(h);
-    useSession.getState().startBots(OPTS);
+    pedir();
     await vi.advanceTimersByTimeAsync(3000);
 
     expect(useSession.getState().room).toBeTruthy();
     expect(useSession.getState().room!.settings.listed).toBe(false);
+  });
+
+  it("a mesa é sempre a mesma: três bots, Hold'em, dez rodadas e 25s", async () => {
+    net.ws = (_url, h) => connectLocal(h);
+    pedir();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    const st = useSession.getState().room!.settings;
+    expect(st.mode).toBe('normal');
+    expect(st.variant).toBe('holdem');
+    expect(st.rounds).toBe(BOT_MATCH.rounds);
+    expect(st.turnTime).toBe(BOT_MATCH.turnTime);
+    // o degrau fácil: mil fichas e 50/100
+    expect(st.startingStack).toBe(botTier('easy').mesa.chips.stack);
+    expect(st.bigBlind).toBe(botTier('easy').mesa.chips.bigBlind);
+    // e sair no meio custa as fichas: não é mesa Custom
+    expect(st.custom).toBe(false);
   });
 
   it('servidor fora do ar: a partida segue no computador do jogador', async () => {
@@ -91,7 +112,7 @@ describe('partida contra bots', () => {
       queueMicrotask(() => h.onClose?.('Não foi possível conectar ao servidor'));
       return mudo();
     };
-    useSession.getState().startBots(OPTS);
+    pedir();
     await vi.advanceTimersByTimeAsync(3000);
 
     const s = useSession.getState();
@@ -107,7 +128,7 @@ describe('partida contra bots', () => {
       queueMicrotask(() => h.onOpen?.());
       return mudo();
     };
-    useSession.getState().startBots(OPTS);
+    pedir();
 
     // antes do prazo, ainda está esperando o servidor (e o menu segue na frente). O modo só vira
     // 'online' quando a sala nasce: estar conectado, por si, é só estar no lobby.
@@ -125,9 +146,9 @@ describe('partida contra bots', () => {
   it('servidor que recusa a mesa também cai para local', async () => {
     net.ws = fakeServer((msg, say) => {
       if (msg.type === 'hello') say({ type: 'welcome', playerId: 'p1', serverName: 'Teste' });
-      if (msg.type === 'createRoom') say({ type: 'error', message: 'Servidor cheio' });
+      if (msg.type === 'botMatch') say({ type: 'error', message: 'Servidor cheio' });
     });
-    useSession.getState().startBots(OPTS);
+    pedir();
     await vi.advanceTimersByTimeAsync(3000);
 
     const s = useSession.getState();
@@ -144,7 +165,7 @@ describe('partida contra bots', () => {
       drop = () => h.onClose?.('Conexão perdida');
       return t;
     };
-    useSession.getState().startBots(OPTS);
+    pedir();
     await vi.advanceTimersByTimeAsync(3000);
     expect(useSession.getState().mode).toBe('online');
 

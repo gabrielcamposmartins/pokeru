@@ -2,7 +2,20 @@ import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
 import type { AccountInfo, AccountProfile, AccountService, AuthIdentity } from './accounts';
 import { playerLevel } from './achievements';
 import { clampCosmetics } from './catalog';
-import { queueSettings, type BotDifficulty, type ClientMsg, type Currency, type RoomSummary, type ServerMsg } from './protocol';
+import {
+  BOT_MATCH,
+  DIFFICULTIES,
+  botMatchSettings,
+  botTier,
+  queueSettings,
+  tierUnlocked,
+  type BotDifficulty,
+  type ClientMsg,
+  type Currency,
+  type RoomSettings,
+  type RoomSummary,
+  type ServerMsg,
+} from './protocol';
 import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
@@ -120,7 +133,6 @@ export class Lobby {
   }
 }
 
-const DIFFICULTIES: BotDifficulty[] = ['easy', 'normal', 'hard'];
 
 export class Connection implements ClientHandle {
   readonly id = 'p-' + makeId(10);
@@ -422,6 +434,15 @@ export class Connection implements ClientHandle {
         });
         break;
       }
+      case 'botMatch': {
+        // a mesma trava da fila: dois cliques não devem virar duas mesas (nem dois buy-ins)
+        if (this.queueing) return;
+        this.queueing = true;
+        void this.botMatch(msg.difficulty, msg.currency).finally(() => {
+          this.queueing = false;
+        });
+        break;
+      }
       case 'leaveRoom':
         this.leave();
         this.send({ type: 'rooms', rooms: this.lobby.list() });
@@ -508,9 +529,52 @@ export class Connection implements ClientHandle {
       if (this.closed) return;
     }
     // nenhuma servia: abre a própria, com três bots para a mesa já ter jogo
-    const room = this.lobby.createRoom(this, queueSettings(currency));
-    if (!(await this.sit(room))) return;
+    const room = await this.abrirEsentar(queueSettings(currency));
+    if (!room) return;
     for (let i = 0; i < 3; i++) this.error(room.addBot(this.id, 'normal'));
+    this.error(room.start(this.id));
+  }
+
+  /**
+   * Abre uma mesa e senta nela; se a cadeira não sair, a mesa não fica.
+   *
+   * `createRoom` acontece antes da cobrança, então uma entrada recusada — saldo curto, mesa
+   * cheia — deixava uma sala vazia para sempre no lobby, ocupando a lista e o id. Aqui ela é
+   * desfeita no mesmo caminho em que nasceu.
+   */
+  private async abrirEsentar(settings: RoomSettings): Promise<Room | null> {
+    const room = this.lobby.createRoom(this, settings);
+    if (await this.sit(room)) return room;
+    room.destroy();
+    this.lobby.rooms.delete(room.id);
+    this.lobby.roomsChanged();
+    return null;
+  }
+
+  /**
+   * A partida contra bots: uma mesa só, sempre a mesma, montada **aqui**.
+   *
+   * O cliente manda duas coisas — o degrau e a moeda — e o resto é do servidor: três oponentes,
+   * Hold'em, dez rodadas, vinte e cinco segundos (veja BOT_MATCH). Antes era o cliente que
+   * montava a sala e sentava os bots; assim ele podia pedir dez mil fichas no nível 1, e a trava
+   * dos degraus não valeria nada.
+   *
+   * Sem conta no servidor não há trava nem cobrança: ali é treino, e não há o que proteger.
+   */
+  private async botMatch(d: unknown, c: unknown): Promise<void> {
+    const difficulty: BotDifficulty = DIFFICULTIES.includes(d as BotDifficulty) ? (d as BotDifficulty) : 'easy';
+    const conta = this.accountId ? this.lobby.accounts?.info(this.accountId) : null;
+    const tier = botTier(difficulty);
+    if (conta && !tierUnlocked(difficulty, playerLevel(conta.stats))) {
+      this.error(`O degrau ${tier.label} abre no nível ${tier.level}`);
+      return;
+    }
+    // padocoin mora no Discord: sem vínculo, a mesa é de fichas
+    const currency: Currency = c === 'pado' && conta?.discord ? 'pado' : 'chips';
+    if (this.room) this.leave();
+    const room = await this.abrirEsentar(botMatchSettings(difficulty, currency, !!conta));
+    if (!room) return;
+    for (let i = 0; i < BOT_MATCH.bots; i++) this.error(room.addBot(this.id, difficulty));
     this.error(room.start(this.id));
   }
 

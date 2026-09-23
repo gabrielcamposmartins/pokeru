@@ -617,6 +617,34 @@ export class Accounts implements AccountService {
     }
   }
 
+  /**
+   * Prêmio em padocoin por terminar a partida (shared/room.ts).
+   *
+   * Sai do mesmo lugar que a devolução de mesa — a economia do bot —, mas com motivo próprio,
+   * para o extrato de quem recebe dizer de onde veio. Quem não tem Discord não recebe e não é
+   * avisado: não há o que avisar, padocoin só existe lá.
+   *
+   * Não espera a rede: a mesa acabou de acabar, e travar o fim da partida numa chamada HTTP
+   * deixaria todo mundo olhando a tela de placar. Falha vira log, como na devolução.
+   */
+  bonus(accountId: string, amount: number, key: string, motivo: string): void {
+    const acc = this.byId(accountId);
+    const gbot = this.opts.gbot;
+    const got = Math.max(0, Math.round(amount));
+    if (!acc?.discord || !gbot?.canMoveMoney || !got) return;
+    void gbot
+      .credit(acc.discord.id, got, `pokeru: ${motivo}`, key)
+      .then((move) => {
+        this.pado.set(acc.id, { value: move.after, at: Date.now() });
+        this.changed(acc.id);
+        console.log(`[padocoin] ${acc.name} ganhou ${got} de bônus (${motivo}, saldo ${move.after})`);
+      })
+      .catch((err) => {
+        const razao = err instanceof GbotError ? `${err.status} ${err.message}` : String(err);
+        console.error(`[padocoin] FALHA no bônus de ${got} para ${acc.name} (${acc.discord!.id}), chave ${key}: ${razao}`);
+      });
+  }
+
   money(accountId: string): number {
     return this.byId(accountId)?.money ?? 0;
   }

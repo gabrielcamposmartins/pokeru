@@ -7,6 +7,8 @@ import type { AccountProfile } from '../shared/accounts';
 import { Lobby } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type AccountInfo, type ServerMsg, type TableView } from '../shared/protocol';
 import { BOND_POINTS } from '../shared/bond';
+import { BOT_MATCH } from '../shared/protocol';
+import { playerLevel, xpForLevel } from '../shared/achievements';
 import { personalidadeDe } from '../shared/personality';
 import { Accounts } from './accounts';
 
@@ -319,6 +321,148 @@ describe('mesa a dinheiro', () => {
     // é o que o servidor faz no SIGTERM
     for (const room of lobby.rooms.values()) room.cashOutAll();
     expect(accounts.money(p.account!.id)).toBe(2000);
+    accounts.close();
+  });
+});
+
+/**
+ * A partida contra bots: a mesa do botão do menu.
+ *
+ * Três regras valem dinheiro e são conferidas **aqui**, não no cliente: a trava por nível (um
+ * cliente modificado pediria o difícil no nível 1 e sentaria numa mesa de dez mil), o recomeço de
+ * quem quebrou, e o "termine para levar".
+ */
+describe('partida contra bots no servidor', () => {
+  /** Sobe o nível da conta até `alvo` pelos contadores (uma mão vale 1 de xp). */
+  function subirNivel(accounts: Accounts, id: string, alvo: number): void {
+    for (let i = 0; i < xpForLevel(alvo); i++) accounts.note(id, 'hands');
+    expect(playerLevel(accounts.info(id)!.stats)).toBeGreaterThanOrEqual(alvo);
+  }
+
+  it('o difícil não abre no nível 1, e a mesa não é montada', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    p.conn.handle({ type: 'botMatch', difficulty: 'hard', currency: 'chips' });
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(p.errors.join(' ')).toMatch(/nível 20/);
+    expect(lobby.rooms.size).toBe(0);
+    // e o saldo não foi tocado
+    expect(accounts.money(p.account!.id)).toBe(100_000);
+    accounts.close();
+  });
+
+  it('o fácil abre para qualquer um: mesa de mil fichas, três bots e dez rodadas', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    p.conn.handle({ type: 'botMatch', difficulty: 'easy', currency: 'chips' });
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(p.errors).toEqual([]);
+    const room = [...lobby.rooms.values()][0];
+    expect(room.settings.startingStack).toBe(1000);
+    expect(room.settings.bigBlind).toBe(100);
+    expect(room.settings.rounds).toBe(BOT_MATCH.rounds);
+    expect(room.summary().bots).toBe(BOT_MATCH.bots);
+    // o buy-in saiu do saldo
+    expect(accounts.money(p.account!.id)).toBe(4000);
+    accounts.close();
+  });
+
+  it('subindo de nível, o normal abre — com a mesa dele', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    const id = p.account!.id;
+    p.conn.handle({ type: 'botMatch', difficulty: 'normal', currency: 'chips' });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(p.errors.join(' ')).toMatch(/nível 5/);
+
+    subirNivel(accounts, id, 5);
+    p.conn.handle({ type: 'botMatch', difficulty: 'normal', currency: 'chips' });
+    await vi.advanceTimersByTimeAsync(200);
+
+    const room = [...lobby.rooms.values()][0];
+    expect(room.settings.startingStack).toBe(2000);
+    expect(room.settings.bigBlind).toBe(500);
+    accounts.close();
+  });
+
+  it('quem não tem fichas senta de graça no fácil, e só no fácil', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 0, faucet: 0 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    const id = p.account!.id;
+    expect(accounts.money(id)).toBe(0);
+
+    // o normal (mesmo liberado) não tem de onde cobrar
+    subirNivel(accounts, id, 5);
+    p.conn.handle({ type: 'botMatch', difficulty: 'normal', currency: 'chips' });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(p.errors.join(' ')).toMatch(/[Ss]aldo insuficiente/);
+
+    // o fácil é o recomeço: senta com a pilha do degrau, sem pagar
+    p.conn.handle({ type: 'botMatch', difficulty: 'easy', currency: 'chips' });
+    await vi.advanceTimersByTimeAsync(200);
+    const room = [...lobby.rooms.values()][0];
+    expect(room.chipsOf(id)).toBe(1000);
+    expect(accounts.money(id)).toBe(0);
+    accounts.close();
+  });
+
+  it('sair no meio deixa as fichas na mesa; a partida tem de terminar', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    const id = p.account!.id;
+    p.conn.handle({ type: 'botMatch', difficulty: 'easy', currency: 'chips' });
+    await runUntil(() => p.events.includes('handStart'));
+    expect(accounts.money(id)).toBe(4000);
+
+    // levanta no meio: as mil fichas ficam lá
+    p.conn.handle({ type: 'leaveRoom' });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(accounts.money(id)).toBe(4000);
+    accounts.close();
+  }, 30_000);
+
+  it('terminando a partida, o que sobrou na mesa volta para o saldo', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    const id = p.account!.id;
+    p.conn.handle({ type: 'botMatch', difficulty: 'easy', currency: 'chips' });
+    await runUntil(() => p.events.includes('gameOver'));
+    await vi.advanceTimersByTimeAsync(500);
+
+    // ganhou ou perdeu, mas nada ficou preso na mesa
+    expect(accounts.info(id)!.inPlay).toBe(0);
+    expect(accounts.money(id)).toBeGreaterThanOrEqual(4000);
+    accounts.close();
+  }, 60_000);
+
+  it('numa mesa Custom, levantar devolve o que sobrou', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 5000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    const id = p.account!.id;
+    // é o que a tela Custom manda: modo normal, mas mesa de amigo
+    p.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'normal', buyIn: 1000, startingStack: 1000 } });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(accounts.money(id)).toBe(4000);
+
+    p.conn.handle({ type: 'leaveRoom' });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(accounts.money(id)).toBe(5000);
     accounts.close();
   });
 });

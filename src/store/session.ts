@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import {
+  BOT_MATCH,
   DEFAULT_SETTINGS,
+  botTier,
   type BotDifficulty,
   type ClientMsg,
   type AccountInfo,
@@ -78,8 +80,12 @@ interface SessionState {
    * saldo. Conectar não muda o `mode`: quem manda na tela é a navegação.
    */
   connectOnline(): void;
-  /** Partida contra bots: no servidor, e no seu computador se ele não responder. */
-  startBots(o: LocalOptions): void;
+  /**
+   * Partida contra bots no servidor: manda o degrau e a moeda, e a mesa vem montada de lá.
+   *
+   * Se o servidor não responder, a mesma partida começa aqui — de treino, sem valer fichas.
+   */
+  botMatch(difficulty: BotDifficulty, currency: Currency): void;
   /**
    * Fila rápida: pede ao servidor uma mesa da fila (ele entra numa que já exista ou abre uma com
    * bots). Não há nada para configurar — é o ponto da fila.
@@ -113,7 +119,19 @@ export const BOT_CONNECT_MS = 6000;
  * Partida contra bots pedida ao servidor, do `hello` até a mesa começar. Enquanto isso estiver
  * preenchido, qualquer tropeço (conexão caída, erro do servidor, demora) cai para o local.
  */
-let botMatch: { o: LocalOptions; step: 'connect' | 'create' } | null = null;
+let botMatch: {
+  o: LocalOptions;
+  /**
+   * Em que pé está o pedido.
+   *
+   * - `connect`: esperando o `welcome` para poder pedir.
+   * - `pedido`: o `botMatch` foi mandado e o servidor está montando a mesa — ele senta os bots e
+   *   começa, e o cliente só espera a sala aparecer.
+   */
+  step: 'connect' | 'pedido';
+  /** O pedido a mandar quando a conexão ficar de pé. */
+  pedido: { difficulty: BotDifficulty; currency: Currency };
+} | null = null;
 let botTimer: ReturnType<typeof setTimeout> | null = null;
 
 function clearBotMatch(): void {
@@ -204,10 +222,11 @@ function handle(m: ServerMsg): void {
         transport?.send({ type: 'quickMatch', currency: queueAfterHello });
         queueAfterHello = null;
       }
-      // partida contra bots: a sala é pedida assim que o servidor cumprimenta
-      if (botMatch?.step === 'connect') {
-        botMatch.step = 'create';
-        transport?.send({ type: 'createRoom', settings: { ...botRoomSettings(botMatch.o, 'Contra bots', !!useSession.getState().account), listed: false } });
+      // partida contra bots: o pedido sai assim que o servidor cumprimenta
+      if (botMatch?.step === 'connect' && botMatch.pedido) {
+        const { difficulty, currency } = botMatch.pedido;
+        botMatch.step = 'pedido';
+        transport?.send({ type: 'botMatch', difficulty, currency });
       }
       break;
     case 'account': {
@@ -268,12 +287,8 @@ function handle(m: ServerMsg): void {
         set({ queueing: false });
         clearQueue();
       }
-      // a sala nasceu: senta os bots e começa. Daqui para frente, quem manda na mesa é o servidor.
-      if (botMatch?.step === 'create' && m.room.status === 'waiting') {
-        const o = botMatch.o;
-        clearBotMatch();
-        if (transport) seatBotsAndStart(transport, o);
-      }
+      // a mesa pedida ao servidor chegou pronta: ele mesmo sentou os bots e começou
+      if (botMatch?.step === 'pedido') clearBotMatch();
       break;
     case 'left':
       // saiu da sala, mas segue conectado: volta para o menu com a conta ainda viva
@@ -399,19 +414,37 @@ export const useSession = create<SessionState>()((set, get) => ({
     }, QUEUE_WAIT_MS);
   },
 
-  startBots(o) {
-    // reaproveita a conexão do lobby quando já existe: reconectar perderia a conta por um instante
+  botMatch(difficulty, currency) {
+    /*
+     * A mesa é montada no servidor.
+     *
+     * Só vão o degrau e a moeda: as fichas, os blinds, o número de bots e a trava por nível são
+     * dele. O `o` guardado aqui serve apenas para a queda para o modo local, onde não há servidor
+     * para montar nada.
+     */
+    const t = botTier(difficulty);
+    const mesa = t.mesa.chips;
+    const o: LocalOptions = {
+      bots: BOT_MATCH.bots,
+      difficulty,
+      startingStack: mesa.stack,
+      smallBlind: mesa.smallBlind,
+      bigBlind: mesa.bigBlind,
+      mode: BOT_MATCH.mode,
+      variant: BOT_MATCH.variant,
+      rounds: BOT_MATCH.rounds,
+      turnTime: BOT_MATCH.turnTime,
+      pace: BOT_MATCH.pace,
+    };
     if (get().status === 'connected' && transport) {
       set({ botsPending: true, offline: false });
-      botMatch = { o, step: 'create' };
-      // a mesa só cobra se houver conta para cobrar: servidor sem serviço de contas segue de graça
-      transport.send({ type: 'createRoom', settings: { ...botRoomSettings(o, 'Contra bots', !!get().account), listed: false } });
+      botMatch = { o, step: 'pedido', pedido: { difficulty, currency } };
+      transport.send({ type: 'botMatch', difficulty, currency });
     } else {
       get().connectOnline();
       set({ botsPending: true });
-      botMatch = { o, step: 'connect' };
+      botMatch = { o, step: 'connect', pedido: { difficulty, currency } };
     }
-    // se o servidor não abrir a mesa nesse tempo, a partida começa aqui mesmo
     botTimer = setTimeout(() => fallbackToLocal('O servidor não respondeu'), BOT_CONNECT_MS);
   },
 
