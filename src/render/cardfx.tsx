@@ -112,7 +112,14 @@ function labareda(cx: number, y0: number, h: number, w: number, tilt: number): s
     ` C${xt(-0.62, 0.6)} ${y(0.78)} ${xt(-0.14, 1)} ${y(0.9)} ${xt(0, 1)} ${y(1)}` +
     // desce pela direita, com outra onda
     ` C${xt(0.3, 1)} ${y(0.88)} ${xt(0.7, 0.5)} ${y(0.72)} ${x(0.5)} ${y(0.56)}` +
-    ` C${x(1.05)} ${y(0.4)} ${x(1)} ${y(0.2)} ${x(0.72)} ${n(y0)} Z`
+    ` C${x(1.05)} ${y(0.4)} ${x(1)} ${y(0.2)} ${x(0.72)} ${n(y0)}` +
+    /*
+     * E o fundo fecha numa barriga, não numa reta.
+     *
+     * A base reta dava à labareda um corte de tesoura embaixo — lia como recorte de papel colado
+     * na carta. Arredondada, ela vira um corpo: a chama assenta no rodapé em vez de terminar nele.
+     */
+    ` C${x(0.5)} ${y(-0.05)} ${x(-0.5)} ${y(-0.05)} ${x(-0.72)} ${n(y0)} Z`
   );
 }
 
@@ -133,10 +140,19 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
   const uid = cleanId(useId());
   /** As três temperaturas, da mais fria (fora) para a mais quente (dentro). */
   const camadas = [
-    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 196, larg: 88, dur: 2.6 },
-    { cor: colors[0], op: 0.78, blur: 2.6, alt: 158, larg: 64, dur: 2.1 },
-    { cor: colors[1], op: 0.9, blur: 1.3, alt: 112, larg: 38, dur: 1.6 },
+    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 294, larg: 132, dur: 2.6 },
+    { cor: colors[0], op: 0.78, blur: 2.6, alt: 237, larg: 96, dur: 2.1 },
+    { cor: colors[1], op: 0.9, blur: 1.3, alt: 168, larg: 57, dur: 1.6 },
   ];
+  /*
+   * A dança é de cada carta.
+   *
+   * A semente vem da carta (veja o `seed` em CardArt.tsx), então este sorteio dá a cada uma o seu
+   * compasso e o seu ponto de partida. Sem isto, uma mão de cinco cartas queimava em coro — cinco
+   * chamas inflando e murchando no mesmo instante, que é coisa de luz de natal, não de fogo.
+   */
+  const compasso = 0.78 + r() * 0.5;
+  const partida = r() * 4;
   return (
       <g className="fx-hot">
         <defs>
@@ -162,10 +178,10 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
             style={{
               filter: `blur(${c.blur}px)`,
               opacity: c.op,
-              // cada corpo no seu tempo: juntos, eles pulsariam como uma coisa só, que é o que
-              // faz uma chama grande parecer um balão inflando
-              animationDuration: `${c.dur.toFixed(2)}s`,
-              animationDelay: `-${(i * 0.7).toFixed(2)}s`,
+              // cada corpo no seu tempo, e o tempo de cada carta é o dela: juntos, eles pulsariam
+              // como uma coisa só, que é o que faz uma chama grande parecer um balão inflando
+              animationDuration: `${(c.dur * compasso).toFixed(2)}s`,
+              animationDelay: `-${(partida + i * 0.7 + r() * 0.6).toFixed(2)}s`,
             }}
             fill={c.cor}
             d={labareda(50 + (r() - 0.5) * 6, 152, c.alt, c.larg, (r() - 0.5) * 18)}
