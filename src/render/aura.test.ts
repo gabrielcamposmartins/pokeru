@@ -60,12 +60,29 @@ describe('auras', () => {
     }
   });
 
-  it('os quatro círculos escrevem em quatro escritas diferentes', () => {
+  it('os círculos escrevem em escritas diferentes, e cada um tem o seu miolo', () => {
     const circulos = AURAS.filter((a) => a.shape === 'circulo');
-    expect(circulos).toHaveLength(4);
-    // latim, grego, japonês e cirílico: cada um com a sua faixa de caracteres
-    const escritas = [/[A-Z]/, /[Ͱ-Ͽ]/, /[　-鿿]/, /[Ѐ-ӿ]/];
-    for (const re of escritas) expect(circulos.filter((a) => re.test(a.texto!.linha)), String(re)).toHaveLength(1);
+    expect(circulos).toHaveLength(5);
+    // latim, ideogramas (o japonês e o chinês) e cirílico: cada escrita aparece
+    const escritas = [/[A-Z]/, /[　-鿿]/, /[Ѐ-ӿ]/];
+    for (const re of escritas) expect(circulos.some((a) => re.test(a.texto!.linha)), String(re)).toBe(true);
+    expect(findAura('selo-onmyoji').texto!.centro).toBe('shuriken');
+    expect(findAura('circulo-oracular').texto!.centro).toBe('yinyang');
+    expect(findAura('circulo-prisma').texto!.centro).toBe('mandala');
+    // o arco-íris desenha naipes no anel do meio: os oito sinais precisam ser naipes de verdade
+    for (const g of findAura('circulo-prisma').texto!.glifos) expect(['s', 'h', 'd', 'c'], g).toContain(g);
+    // o oráculo desenha os oito trigramas do bagua, todos diferentes
+    const trigramas = findAura('circulo-oracular').texto!.glifos;
+    expect(new Set(trigramas).size).toBe(8);
+    for (const g of trigramas) expect(g, g).toMatch(/^[01]{3}$/);
+  });
+
+  it('cada círculo tem o seu degrau, do comum ao lendário', () => {
+    expect(rarityOf('aura:circulo-boreal')).toBe('comum');
+    expect(rarityOf('aura:circulo-arcano')).toBe('incomum');
+    expect(rarityOf('aura:circulo-oracular')).toBe('raro');
+    expect(rarityOf('aura:selo-onmyoji')).toBe('epico');
+    expect(rarityOf('aura:circulo-prisma')).toBe('lendario');
   });
 
   it('id desconhecido cai na aura padrão, que é a que vem com o jogo', () => {

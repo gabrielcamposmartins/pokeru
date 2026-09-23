@@ -114,13 +114,18 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
  * Quanto cada coisa vale de experiência. Mão jogada é o chão; partida terminada vale mais porque
  * custa tempo, e ganhar a partida vale mais ainda.
  */
-const XP: Partial<Record<StatEvent, number>> = { hands: 1, wins: 3, matches: 10, matchWins: 25 };
+export const XP = { hands: 1, wins: 3, matches: 10, matchWins: 25 } as const satisfies Partial<Record<StatEvent, number>>;
 
 /** Experiência acumulada da conta. */
 export function xpOf(stats: PlayerStats): number {
   let xp = 0;
   for (const [k, peso] of Object.entries(XP)) xp += (stats[k as StatEvent] ?? 0) * peso;
   return xp;
+}
+
+/** O nível de uma quantidade de experiência (a mesma curva de `playerLevel`). */
+export function levelOfXp(xp: number): number {
+  return 1 + Math.floor(Math.sqrt(Math.max(0, xp) / 40));
 }
 
 /**
@@ -131,7 +136,7 @@ export function xpOf(stats: PlayerStats): number {
  * 360…), então o número cresce rápido no começo e devagar depois. Começa em 1.
  */
 export function playerLevel(stats: PlayerStats): number {
-  return 1 + Math.floor(Math.sqrt(xpOf(stats) / 40));
+  return levelOfXp(xpOf(stats));
 }
 
 /**
@@ -159,8 +164,12 @@ export interface LevelInfo {
 }
 
 export function levelInfo(stats: PlayerStats): LevelInfo {
-  const xp = xpOf(stats);
-  const level = playerLevel(stats);
+  return levelInfoOfXp(xpOf(stats));
+}
+
+/** Onde uma quantidade de experiência está na escada — é o que o placar usa para o antes e o depois. */
+export function levelInfoOfXp(xp: number): LevelInfo {
+  const level = levelOfXp(xp);
   const base = xpForLevel(level);
   const need = xpForLevel(level + 1) - base;
   const into = xp - base;

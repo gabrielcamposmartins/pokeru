@@ -328,13 +328,20 @@ O que a loja **vende** e o que ela só **mostra**:
 
 ### Roletas
 
-Duas roletas (`shared/roulette.ts`), cada uma com o seu ticket. As duas dão prêmio de **todas** as
-categorias; o que muda é a fatia de personagens — a **Roleta das Flores** sorteia só personagens
-femininas e a **do Dragão** só masculinos.
+Duas roletas (`shared/roulette.ts`), cada uma com o seu ticket, e **nenhum prêmio está nas duas**.
+A divisão é por tema: a **Roleta das Flores** tem a luz, o céu, o gelo, a flor e a jade — asas de anjo,
+auréolas, o conjunto vitoriano verde — e as personagens femininas; a **do Dragão** tem o fogo, a
+sombra, a noite, o metal e o bordô — asas de dragão e de morcego, labaredas, o conjunto vitoriano
+bordô — e os personagens masculinos.
 
-- A tabela de prêmios é **derivada do catálogo**: o peso é do *tipo* (presente 46, frente 12, verso
-  12, ficha 10, mesa 8, efeito 8, personagem 4) e se reparte entre os itens dele. Entrar com uma
-  mesa nova não encolhe as outras categorias, só reparte a fatia das mesas.
+- Cada peça é **declarada** numa roleta (`ROLETA_DE`); os personagens vão pelo gênero. A divisão é
+  equilibrada nas três réguas ao mesmo tempo: 36 prêmios em cada, a mesma quantidade em cada degrau
+  de raridade e em cada tipo (no máximo uma peça de diferença), e o valor esperado por giro fica
+  parecido. Os testes de `shared/roulette.test.ts` cobram isso — e cobram que peça nova entre em
+  alguma roleta.
+- O peso do sorteio é da **raridade** (lendário 2,5, épico 6, raro 10, incomum 26, comum 55,5) e se
+  reparte entre as peças daquele degrau na roleta. Entrar com uma mesa comum nova encolhe só as
+  outras comuns daquela roleta.
 - A loja anuncia a **chance de cada prêmio** lida dessa mesma tabela — a vitrine não tem como dizer
   4% e o sorteio usar 1%.
 - **O sorteio é do servidor**, com `crypto`: o cliente manda qual roleta e em que moeda, recebe o
@@ -973,7 +980,7 @@ Duas famílias de cosméticos que são da **pessoa**, e não da mesa: a **aura**
 personagem, e a **moldura**, que é a borda do seu retrato. As duas viajam pela rede, então os outros
 jogadores veem as suas.
 
-**Auras** (catálogo em `src/render/aura.tsx`, dezessete peças). Aparecem em volta da ilustração no
+**Auras** (catálogo em `src/render/aura.tsx`, dezoito peças). Aparecem em volta da ilustração no
 menu, na tela de Personagens e no **cut-in de quem ganha a mão**.
 
 Dá para usar **várias ao mesmo tempo, uma por lugar** (`AURA_SLOT`, em `shared/styles.ts`): a luz de
@@ -986,7 +993,8 @@ lugar, e a trava do servidor só tira da lista as que a conta não tem. Ficar se
 |---|---|---|
 | Brilho | luz | a luz parada que o menu sempre teve; pega a cor do personagem (vem com o jogo) |
 | Poeira de Luz | luz | o brilho vivo: respira, acende um miolo e solta poeira de luz subindo (comum, sai da roleta) |
-| Círculo Arcano / Oracular / Selo do Onmyōji / Círculo Boreal | círculo | selo mágico em latim, grego, japonês e cirílico: aro escrito, anel de sinais e estrela girando em sentidos opostos |
+| Círculo Boreal (comum) / Arcano (incomum) / Oracular (raro) / Selo do Onmyōji (épico) | círculo | selo mágico com o centro na cintura: aro escrito, anel de sinais e um miolo girando em sentido oposto. O Boreal em cirílico e o Arcano em latim, com estrela; o Oracular é o I Ching — provérbios taoistas, os oito trigramas e o yin-yang; o Onmyōji tem kanji e uma shuriken de três lâminas curvas só de contorno |
+| Círculo Prismático (lendário) | círculo | o anel em arco-íris com a cor correndo em volta, as mãos do poker escritas no aro, os quatro naipes no anel do meio e uma mandala de pétalas coloridas no centro |
 | Auréola / Auréola Radiante / Auréola Negra | cabeça | o anel dourado deitado sobre a cabeça, com cone de luz; o nimbo de raios atrás dela; a coroa de espinhos curvos com chamas roxas |
 | Naipes em Órbita / Shurikens | órbita | figuras dando a volta na cintura, passando por trás e pela frente do corpo |
 | Espadas Suspensas | arsenal | seis silhuetas de espada acesas, em leque atrás, pairando |

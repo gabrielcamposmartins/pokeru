@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { CATALOG, isFree } from './catalog';
-import { DUP_FRACAO, RARIDADES, ROULETTES, dropsOf, draw, findRoulette, giftOfKey, isCountable, rarityOf, rarityRank, refundOf, ticketPrice } from './roulette';
+import { CATALOG, findItem, isFree } from './catalog';
+import {
+  DUP_FRACAO,
+  RARIDADES,
+  ROULETTES,
+  dropsOf,
+  draw,
+  findRoulette,
+  giftOfKey,
+  isCountable,
+  rarityOf,
+  rarityRank,
+  refundOf,
+  roletaDe,
+  ticketPrice,
+} from './roulette';
 import { findCharacter } from './styles';
 
 /**
@@ -34,6 +48,45 @@ describe('tabela de prêmios', () => {
     const naRoleta = new Set(ROULETTES.flatMap((r) => dropsOf(r).map((d) => d.key)));
     const deveria = CATALOG.filter((i) => !isFree(i.key) && i.kind !== 'ui');
     for (const item of deveria) expect(naRoleta.has(item.key), item.key).toBe(true);
+  });
+
+  it('nenhum prêmio está nas duas roletas', () => {
+    const [a, b] = ROULETTES.map((r) => new Set(dropsOf(r).map((d) => d.key)));
+    for (const key of a) expect(b.has(key), key).toBe(false);
+    // e cada peça sabe dizer de onde sai
+    for (const r of ROULETTES) for (const d of dropsOf(r)) expect(roletaDe(d.key)?.id, d.key).toBe(r.id);
+  });
+
+  /*
+   * O equilíbrio da divisão.
+   *
+   * As roletas não têm as mesmas peças, então o que precisa bater é o tamanho de cada pedaço: o
+   * mesmo número de prêmios em cada degrau de raridade e em cada tipo, com no máximo uma peça de
+   * diferença. É o que impede que uma delas vire "a roleta boa" ou "a roleta das mesas".
+   */
+  it('as duas têm o mesmo número de prêmios, degrau a degrau (no máximo um de diferença)', () => {
+    const [a, b] = ROULETTES.map((r) => dropsOf(r));
+    expect(Math.abs(a.length - b.length)).toBeLessThanOrEqual(1);
+    for (const q of RARIDADES) {
+      const conta = (l: typeof a) => l.filter((d) => d.raridade === q.id).length;
+      expect(Math.abs(conta(a) - conta(b)), q.label).toBeLessThanOrEqual(1);
+      // e nenhum degrau fica vazio numa delas: toda roleta tem de tudo um pouco
+      expect(conta(a), `${ROULETTES[0].id}: ${q.label}`).toBeGreaterThan(0);
+      expect(conta(b), `${ROULETTES[1].id}: ${q.label}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('cada tipo de prêmio se divide ao meio entre as duas', () => {
+    const [a, b] = ROULETTES.map((r) => dropsOf(r));
+    for (const kind of new Set([...a, ...b].map((d) => d.kind))) {
+      const conta = (l: typeof a) => l.filter((d) => d.kind === kind).length;
+      expect(Math.abs(conta(a) - conta(b)), kind).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('o que se ganha por giro é parecido nas duas (menos de 10% de diferença)', () => {
+    const [a, b] = ROULETTES.map((r) => dropsOf(r).reduce((t, d) => t + d.chance * findItem(d.key)!.chips, 0));
+    expect(Math.abs(a - b) / Math.max(a, b)).toBeLessThan(0.1);
   });
 
   it('o ticket custa o dobro em padocoin, como todo preço do jogo', () => {

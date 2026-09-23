@@ -12,8 +12,8 @@ import { ondaDe } from './flame';
  *
  * Cada aura é uma entrada em AURAS: nome, cores, a **forma** e os parâmetros dela. Uma forma
  * atende várias auras — os quatro círculos escritos mudam só a escrita e a cor, as três asas mudam
- * o material sobre a mesma silhueta —, que é o que permite ter dezessete auras sem dezessete
- * desenhos diferentes.
+ * o material sobre a mesma silhueta —, que é o que permite ter dezoito auras sem dezoito desenhos
+ * diferentes.
  *
  * Dá para usar **várias ao mesmo tempo**, uma por lugar (a regra está em AURA_SLOT, em
  * shared/styles.ts): um círculo, uma auréola, um par de asas, um fogo no chão…
@@ -27,7 +27,8 @@ import { ondaDe } from './flame';
  * ## O espaço do desenho
  *
  * Tudo é desenhado num quadrado `0 0 100 100` que tem a **altura do personagem**: o alto da
- * cabeça fica por volta de y=1, o rosto em 7, os ombros em 30, a cintura em 50 e os pés em 98. O
+ * cabeça fica por volta de y=1, o rosto em 7, os ombros em 17, a cintura em 38 e os pés em 98 —
+ * medidos na ilustração, não chutados. As asas nascem em y=30, nas costas, abaixo das omoplatas. O
  * corpo ocupa mais ou menos x de 33 a 67, então o que passa disso é o que aparece de fora da
  * silhueta — e é justamente o que se vê.
  *
@@ -56,8 +57,20 @@ export interface AuraTexto {
   peso: number;
   /** A estrela do meio: quantas pontas, e o raio de dentro em relação ao de fora. */
   estrela: [pontas: number, razao: number];
-  /** Os oito sinais do anel do meio, na mesma escrita do aro. */
+  /**
+   * Os oito sinais do anel do meio, na mesma escrita do aro. No círculo de arco-íris são naipes
+   * (`s`, `h`, `d`, `c`), desenhados em vez de escritos.
+   */
   glifos: string[];
+  /**
+   * O anel do meio desenha trigramas do I Ching em vez de escrever: cada glifo é uma sequência de
+   * três traços, de cima para baixo, `1` inteiro e `0` partido (`'101'` é ☲).
+   */
+  trigramas?: boolean;
+  /** O que fica no miolo: a estrela (o padrão), a shuriken de três lâminas, o yin-yang ou a mandala. */
+  centro?: 'estrela' | 'shuriken' | 'yinyang' | 'mandala';
+  /** O círculo inteiro em arco-íris, com a cor correndo em volta — em vez das duas cores da aura. */
+  arcoIris?: boolean;
 }
 
 export interface Aura {
@@ -320,12 +333,138 @@ function PoeiraDeLuz({ cor, uid, plano }: { cor: string; uid: string; plano: Pla
  *
  * O círculo fica só de pé, atrás do corpo. Ele já teve um reflexo deitado no chão, debaixo dos
  * pés; saiu, e o círculo não desenha nada no plano da frente.
+ *
+ * Ele é desenhado em volta de (50, 50) e posto no lugar por fora (`NO_CORPO`): três quartos do
+ * tamanho, com o centro na **cintura**. Do tamanho cheio e centrado no meio da figura, ele ia do
+ * peito aos joelhos e o miolo caía no quadril.
  */
+const NO_CORPO = 'translate(50 38) scale(0.75) translate(-50 -50)';
+
+/**
+ * Uma lâmina da shuriken de três pontas, apontando para cima, em unidades do raio.
+ *
+ * A borda de fora é cheia e a de dentro é côncava, e a ponta cai para o lado: três dessas giradas
+ * de 120° formam o catavento que parece estar sempre girando, mesmo parado. O começo das três se
+ * sobrepõe no meio, e o miolo escuro cobre a emenda.
+ */
+function lamina(R: number): string {
+  const p = (x: number, y: number) => `${n(x * R)} ${n(y * R)}`;
+  return `M${p(-0.2, 0.08)} C${p(-0.34, -0.4)} ${p(-0.12, -0.84)} ${p(0.22, -1)} C${p(0.02, -0.72)} ${p(0.02, -0.4)} ${p(0.24, -0.1)} Z`;
+}
+
+/** O yin-yang em volta da origem: a metade escura à direita, cada cabeça com o ponto da outra cor. */
+function yinYang(R: number): string {
+  return `M0 ${n(-R)} A ${n(R)} ${n(R)} 0 0 1 0 ${n(R)} A ${n(R / 2)} ${n(R / 2)} 0 0 1 0 0 A ${n(R / 2)} ${n(R / 2)} 0 0 0 0 ${n(-R)} Z`;
+}
+
+/**
+ * Um trigrama do I Ching em volta da origem: três traços, de cima para baixo, inteiros (`1`) ou
+ * partidos ao meio (`0`). Desenhado, e não escrito: os caracteres ☰…☷ não existem em todas as
+ * fontes, e um trigrama que vira quadradinho estraga o selo inteiro.
+ */
+function trigrama(linhas: string): string {
+  return [...linhas]
+    .map((l, k) => {
+      const y = n((k - 1) * 1.3);
+      return l === '1' ? `M-2 ${y} L2 ${y}` : `M-2 ${y} L-0.45 ${y} M0.45 ${y} L2 ${y}`;
+    })
+    .join(' ');
+}
+
+/** A cor de um ponto da roda do arco-íris (0 a 1 dá a volta inteira). */
+const matiz = (f: number, luz = 64) => `hsl(${Math.round(f * 360)}, 92%, ${luz}%)`;
+
+/**
+ * O miolo do círculo, em volta da origem — cada círculo tem o seu.
+ *
+ * A **estrela** inscrita no polígono é o padrão; o Selo do Onmyōji tem a **shuriken** de três
+ * lâminas curvas girando sobre um disco vermelho; o Oracular tem o **yin-yang**; o Prismático tem a
+ * **mandala**, duas coroas de pétalas em todas as cores girando uma contra a outra.
+ */
+function Miolo({ t, fora, dentro, uid }: { t: AuraTexto; fora: string; dentro: string; uid: string }) {
+  const [pontas, razao] = t.estrela;
+  switch (t.centro ?? 'estrela') {
+    case 'shuriken':
+      /*
+       * A shuriken só de contorno, como o resto do selo — nada preenchido.
+       *
+       * As três lâminas começam sobrepostas no meio, e sem preenchimento os contornos delas se
+       * cruzariam num emaranhado dentro do miolo. A máscara apaga o que cai dentro do círculo do
+       * meio: de fora se vê três lâminas soltas saindo de um anel.
+       */
+      return (
+        <g>
+          <defs>
+            <mask id={`miolo${uid}`} maskUnits="userSpaceOnUse" x={-30} y={-30} width={60} height={60}>
+              <rect x={-30} y={-30} width={60} height={60} fill="#ffffff" />
+              <circle r={6.5} fill="#000000" />
+            </mask>
+          </defs>
+          <g mask={`url(#miolo${uid})`}>
+            {[0, 120, 240].map((g) => (
+              <path key={g} d={lamina(21.5)} transform={`rotate(${g})`} fill="none" stroke={fora} strokeWidth={0.75} strokeLinejoin="round" />
+            ))}
+          </g>
+          <circle r={6.5} fill="none" stroke={fora} strokeWidth={0.75} />
+          <circle className="aura-respira" r={2.6} fill="none" stroke={dentro} strokeWidth={0.6} />
+          <Gira s={16} />
+        </g>
+      );
+    case 'yinyang':
+      return (
+        <g>
+          <circle r={17.5} fill="none" stroke={dentro} strokeWidth={0.5} opacity={0.7} />
+          <circle r={15.5} fill={dentro} opacity={0.92} />
+          <path d={yinYang(15.5)} fill="#0e3a33" />
+          <circle cy={-7.75} r={2.6} fill="#0e3a33" />
+          <circle cy={7.75} r={2.6} fill={dentro} />
+          <circle r={15.5} fill="none" stroke={fora} strokeWidth={0.6} />
+          <Gira s={30} />
+        </g>
+      );
+    case 'mandala':
+      return (
+        <>
+          <g>
+            {Array.from({ length: 12 }, (_, i) => (
+              <ellipse key={i} cy={-13} rx={3.3} ry={8.5} transform={`rotate(${i * 30})`} fill={matiz(i / 12)} opacity={0.78} stroke="#ffffff" strokeWidth={0.3} />
+            ))}
+            <Gira s={40} />
+          </g>
+          <g>
+            {Array.from({ length: 6 }, (_, i) => (
+              <ellipse key={i} cy={-6.5} rx={2.4} ry={5} transform={`rotate(${i * 60 + 30})`} fill={matiz(i / 6 + 0.08, 72)} opacity={0.9} stroke="#ffffff" strokeWidth={0.25} />
+            ))}
+            <Gira s={26} volta={-360} />
+          </g>
+          <path className="aura-respira" d={starPath(4, 0.9, 4)} fill="#ffffff" />
+        </>
+      );
+    default:
+      return (
+        <>
+          <g>
+            <path d={poligono(pontas, 23.4)} fill="none" stroke={dentro} strokeWidth={0.35} opacity={0.5} />
+            <path d={starPath(23.4, 23.4 * razao, pontas)} fill="none" stroke={dentro} strokeWidth={0.6} opacity={0.85} strokeLinejoin="round" />
+            <Gira s={140} />
+          </g>
+          <circle r={9.5} fill="none" stroke={fora} strokeWidth={0.5} opacity={0.85} />
+          <path className="aura-respira" d={starPath(6.2, 6.2 * razao, pontas)} fill={dentro} opacity={0.6} />
+        </>
+      );
+  }
+}
+
 function Circulo({ a, uid, plano }: { a: Aura; uid: string; plano: Plano }) {
   if (plano === 'frente') return null;
-  const [fora, dentro] = a.colors;
   const t = a.texto!;
-  const [pontas, razao] = t.estrela;
+  const iris = !!t.arcoIris;
+  // no arco-íris, o que era a cor de fora vira o degradê (fixo no espaço: a escrita passa por ele girando)
+  const fora = iris ? `url(#iris${uid})` : a.colors[0];
+  const dentro = iris ? '#ffffff' : a.colors[1];
+  const luz = iris ? '#ffffff' : a.colors[0];
+  // o disco aceso e o halo são brancos no arco-íris: fortes, eles lavavam as cores num véu leitoso
+  const acende = iris ? 0.35 : 1;
   const marcas = Array.from({ length: 60 }, (_, i) => {
     const [x1, y1] = pt(50, 50, 41, i * 6);
     const [x2, y2] = pt(50, 50, i % 5 === 0 ? 37.9 : 39.4, i * 6);
@@ -333,19 +472,44 @@ function Circulo({ a, uid, plano }: { a: Aura; uid: string; plano: Plano }) {
   }).join(' ');
   // o `color` não pinta nada aqui: é o que o halo do CSS lê como `currentColor`
   return (
-    <g className="aura-circulo" style={{ color: fora }}>
+    <g transform={NO_CORPO}>
+    <g className={iris ? 'aura-circulo aura-circulo-iris' : 'aura-circulo'} style={{ color: luz }}>
       <defs>
         <path id={`aro${uid}`} d={aro(50, 50, 35)} />
         <radialGradient id={`disco${uid}`}>
-          <stop offset="0" stopColor={dentro} stopOpacity="0.16" />
-          <stop offset="0.6" stopColor={fora} stopOpacity="0.06" />
-          <stop offset="0.93" stopColor={fora} stopOpacity="0.2" />
-          <stop offset="1" stopColor={fora} stopOpacity="0" />
+          <stop offset="0" stopColor={dentro} stopOpacity={0.16 * acende} />
+          <stop offset="0.6" stopColor={luz} stopOpacity={0.06 * acende} />
+          <stop offset="0.93" stopColor={luz} stopOpacity={0.2 * acende} />
+          <stop offset="1" stopColor={luz} stopOpacity="0" />
         </radialGradient>
+        {iris && (
+          <linearGradient id={`iris${uid}`} gradientUnits="userSpaceOnUse" x1="10" y1="10" x2="90" y2="90">
+            {Array.from({ length: 7 }, (_, i) => (
+              <stop key={i} offset={i / 6} stopColor={matiz(i / 7)} />
+            ))}
+          </linearGradient>
+        )}
       </defs>
       {/* o disco aceso por dentro, fraco: o selo é luz, não arame */}
       <circle cx={50} cy={50} r={43} fill={`url(#disco${uid})`} />
-      <circle cx={50} cy={50} r={41} fill="none" stroke={fora} strokeWidth={1.1} />
+      {iris ? (
+        /*
+         * O anel de fora em arco-íris, e a cor andando.
+         *
+         * SVG não tem degradê circular, então o anel é feito de setenta e dois arquinhos, cada um
+         * de um matiz — e o anel inteiro gira, o que faz as cores correrem em volta.
+         */
+        <g>
+          {Array.from({ length: 72 }, (_, i) => {
+            const [x1, y1] = pt(50, 50, 41, i * 5 - 0.3);
+            const [x2, y2] = pt(50, 50, 41, i * 5 + 5.3);
+            return <path key={i} d={`M${n(x1)} ${n(y1)} A 41 41 0 0 1 ${n(x2)} ${n(y2)}`} fill="none" stroke={matiz(i / 72)} strokeWidth={1.6} />;
+          })}
+          <Gira cx={50} cy={50} s={24} />
+        </g>
+      ) : (
+        <circle cx={50} cy={50} r={41} fill="none" stroke={fora} strokeWidth={1.1} />
+      )}
       <circle cx={50} cy={50} r={39.4} fill="none" stroke={fora} strokeWidth={0.35} opacity={0.7} />
       <path d={marcas} stroke={fora} strokeWidth={0.45} opacity={0.75} />
       <g>
@@ -368,29 +532,39 @@ function Circulo({ a, uid, plano }: { a: Aura; uid: string; plano: Plano }) {
         <circle cx={50} cy={50} r={27} fill="none" stroke={dentro} strokeWidth={0.3} opacity={0.5} />
         {t.glifos.map((g, i) => {
           const [x, y] = pt(50, 50, 27, -90 + i * 45);
+          const pisca = <animate attributeName="opacity" values="0.4;1;0.4" dur="3.2s" begin={`-${(i * 0.4).toFixed(1)}s`} repeatCount="indefinite" />;
           return (
             <g key={i}>
-              <circle cx={n(x)} cy={n(y)} r={3.5} fill={fora} fillOpacity={0.16} stroke={dentro} strokeWidth={0.45} />
-              <text x={n(x)} y={n(y)} fontFamily={t.fonte} fontSize={3.7} fontWeight={t.peso} fill={dentro} textAnchor="middle" dominantBaseline="central">
-                {g}
-                <animate attributeName="opacity" values="0.4;1;0.4" dur="3.2s" begin={`-${(i * 0.4).toFixed(1)}s`} repeatCount="indefinite" />
-              </text>
+              <circle cx={n(x)} cy={n(y)} r={3.5} fill={iris ? matiz(i / 8) : fora} fillOpacity={iris ? 0.22 : 0.16} stroke={dentro} strokeWidth={0.45} />
+              {iris ? (
+                // no arco-íris os sinais são naipes, desenhados — cada um na cor do seu lugar da roda
+                <g>
+                  <SuitGlyph suit={g as 's' | 'h' | 'd' | 'c'} x={x} y={y} size={4.2} color={matiz(i / 8, 78)} />
+                  {pisca}
+                </g>
+              ) : t.trigramas ? (
+                // o trigrama deitado ao longo do anel, como no bagua: os traços são perpendiculares ao raio
+                <g transform={`translate(${n(x)} ${n(y)}) rotate(${i * 45})`}>
+                  <path d={trigrama(g)} stroke={dentro} strokeWidth={0.6} strokeLinecap="round" />
+                  {pisca}
+                </g>
+              ) : (
+                <text x={n(x)} y={n(y)} fontFamily={t.fonte} fontSize={3.7} fontWeight={t.peso} fill={dentro} textAnchor="middle" dominantBaseline="central">
+                  {g}
+                  {pisca}
+                </text>
+              )}
             </g>
           );
         })}
         <Gira cx={50} cy={50} s={100} volta={-360} />
       </g>
       <circle cx={50} cy={50} r={23.4} fill="none" stroke={dentro} strokeWidth={0.5} opacity={0.75} />
-      {/* a estrela inscrita no polígono das pontas, e o miolo */}
+      {/* o miolo: estrela, shuriken, yin-yang ou mandala (veja Miolo) */}
       <g transform="translate(50 50)">
-        <g>
-          <path d={poligono(pontas, 23.4)} fill="none" stroke={dentro} strokeWidth={0.35} opacity={0.5} />
-          <path d={starPath(23.4, 23.4 * razao, pontas)} fill="none" stroke={dentro} strokeWidth={0.6} opacity={0.85} strokeLinejoin="round" />
-          <Gira s={140} />
-        </g>
-        <circle r={9.5} fill="none" stroke={fora} strokeWidth={0.5} opacity={0.85} />
-        <path className="aura-respira" d={starPath(6.2, 6.2 * razao, pontas)} fill={dentro} opacity={0.6} />
+        <Miolo t={t} fora={iris ? '#ffffff' : a.colors[0]} dentro={dentro} uid={uid} />
       </g>
+    </g>
     </g>
   );
 }
@@ -1241,11 +1415,12 @@ function aura(spec: Spec): Aura {
 }
 
 function circulo(id: AuraId, name: string, description: string, colors: [string, string], texto: AuraTexto): Aura {
-  return aura({ id, name, description, colors, shape: 'circulo', texto, vitrine: [5, 5, 90] });
+  // o círculo encolhido e subido (veja NO_CORPO): raio 32 em volta de (50, 38)
+  return aura({ id, name, description, colors, shape: 'circulo', texto, vitrine: [16, 4, 68] });
 }
 
 /**
- * As dezessete auras.
+ * As dezoito auras.
  *
  * A ordem é a da vitrine: o brilho de graça na frente, e depois subindo — círculos, auréolas,
  * órbitas, espadas, fogo e, no fim, as asas.
@@ -1284,21 +1459,24 @@ export const AURAS: Aura[] = [
   circulo(
     'circulo-oracular',
     'Círculo Oracular',
-    'O conselho de Delfos em grego, na letra de manuscrito. No anel do meio, oito letras do alfabeto grego; no centro, uma estrela de sete pontas.',
+    'O oráculo do I Ching: provérbios taoistas correndo pelo aro, os oito trigramas do bagua no anel do meio e o yin-yang girando devagar no centro — o equilíbrio no meio da sorte.',
     ['#7fe8cf', '#dcfff6'],
     {
-      linha: 'ΓΝΩΘΙ ΣΕΑΥΤΟΝ · ΜΗΔΕΝ ΑΓΑΝ · ΤΥΧΗ ΚΑΙ ΤΕΧΝΗ · ΕΓΓΥΑ ΠΑΡΑ ΑΤΗ · ',
-      fonte: '"Cormorant Garamond", "M PLUS Rounded 1c", serif',
-      tamanho: 5.8,
-      peso: 700,
-      estrela: [7, 0.3],
-      glifos: ['Α', 'Β', 'Γ', 'Δ', 'Θ', 'Λ', 'Σ', 'Ω'],
+      linha: '太極・天人合一・陰陽調和・道法自然・上善若水・福禄寿・吉祥如意・',
+      fonte: '"M PLUS Rounded 1c", sans-serif',
+      tamanho: 5.6,
+      peso: 800,
+      estrela: [8, 0.4],
+      // o bagua do Céu Anterior, de cima para baixo: céu, lago, fogo, trovão, vento, água, montanha, terra
+      glifos: ['111', '011', '101', '001', '110', '010', '100', '000'],
+      trigramas: true,
+      centro: 'yinyang',
     },
   ),
   circulo(
     'selo-onmyoji',
     'Selo do Onmyōji',
-    'Kanji e kana num selo de exorcista. O anel do meio traz os cinco elementos, o yin e o yang e o céu; no centro, o pentagrama de Seimei.',
+    'Kanji e kana num selo de exorcista. O anel do meio traz os cinco elementos, o yin e o yang e o céu; no centro gira uma shuriken de três lâminas curvas, só de contorno.',
     ['#ff6f9a', '#ffe0ea'],
     {
       linha: '天地無双・一擲千金・運命は我が手に・急急如律令・勝負は時の運・',
@@ -1307,6 +1485,7 @@ export const AURAS: Aura[] = [
       peso: 800,
       estrela: [5, 0.382],
       glifos: ['木', '火', '土', '金', '水', '陰', '陽', '天'],
+      centro: 'shuriken',
     },
   ),
   circulo(
@@ -1321,6 +1500,22 @@ export const AURAS: Aura[] = [
       peso: 700,
       estrela: [6, 0.577],
       glifos: ['Ж', 'Ф', 'Щ', 'Ю', 'Я', 'Д', 'Л', 'Б'],
+    },
+  ),
+  circulo(
+    'circulo-prisma',
+    'Círculo Prismático',
+    'Um selo de todas as cores: o anel de fora é um arco-íris que corre em volta, a escrita são as mãos do poker, da maior à menor, o anel do meio tem os quatro naipes e no centro gira uma mandala de pétalas coloridas.',
+    ['#ffffff', '#ffffff'],
+    {
+      linha: 'ROYAL FLUSH ♠ QUADRA ♥ FULL HOUSE ♦ FLUSH ♣ SEQUÊNCIA ♠ TRINCA ♥ DOIS PARES ♦ PAR ♣ ',
+      fonte: '"Cinzel", serif',
+      tamanho: 4.4,
+      peso: 700,
+      estrela: [8, 0.4],
+      glifos: ['s', 'h', 'd', 'c', 's', 'h', 'd', 'c'],
+      centro: 'mandala',
+      arcoIris: true,
     },
   ),
   aura({

@@ -1,6 +1,7 @@
 import { randomInt, type Card } from './cards';
 import type { TableBank } from './accounts';
 import type { BondEvent } from './bond';
+import { XP } from './achievements';
 import { HandCategory, evaluateHand } from './evaluator';
 import { Hand, isFirstStreet, type GameVariant, type HandEvent, type PlayerAction } from './engine';
 import { botDecide, botDraw, botThinkTimeMs, estimateEquity, estimateEquity5 } from './bot';
@@ -11,9 +12,11 @@ import {
   type ResumoDaPartida,
 } from './personality';
 import {
+  CONSOLACAO_BOTS,
   DIFFICULTIES,
   EMOTES,
   bonusPado,
+  type GanhoDaPartida,
   type BotDifficulty,
   type RoomInfo,
   type RoomSettings,
@@ -86,6 +89,12 @@ interface Member {
   /** Saiu durante uma mão: o assento é liberado quando a mão acaba. */
   leaving: boolean;
   busted: boolean;
+  /** Pagou buy-in nesta partida (quem sentou de graça no recomeço, não). A consolação depende disto. */
+  pagou?: boolean;
+  /** Mãos jogadas e ganhas nesta partida — o xp da partida sai daqui. */
+  naPartida?: { maos: number; ganhas: number };
+  /** Fichas de consolação que recebeu ao ser eliminado nesta partida. */
+  consolacao?: number;
 }
 
 /**
@@ -412,7 +421,7 @@ export class Room {
       void this.bank?.creditIn?.(client.accountId!, pago, this.settings.currency, `pokeru:volta:${this.id}:${client.id}:${Date.now()}`);
       return agora.erro;
     }
-    this.seatAt(client, agora.seat, pago);
+    this.seatAt(client, agora.seat, pago, true);
     return null;
   }
 
@@ -434,13 +443,15 @@ export class Room {
        */
       if (!paid && !this.settings.recomeco) return 'Saldo insuficiente para o buy-in desta mesa';
       stack = paid || this.settings.startingStack;
+      this.seatAt(client, seat, stack, paid > 0);
+      return null;
     }
-    this.seatAt(client, seat, stack);
+    this.seatAt(client, seat, stack, false);
     return null;
   }
 
   /** Ocupa a cadeira (o buy-in já foi pago, se havia). */
-  private seatAt(client: ClientHandle, seat: number, stack: number): void {
+  private seatAt(client: ClientHandle, seat: number, stack: number, pagou: boolean): void {
     const m: Member = {
       id: client.id,
       accountId: client.accountId,
@@ -458,6 +469,7 @@ export class Room {
       connected: true,
       leaving: false,
       busted: false,
+      pagou,
     };
     this.seats[seat] = m;
     this.system(`${m.name} sentou-se à mesa.`);
@@ -621,10 +633,16 @@ export class Room {
     this.bigBlind = this.settings.bigBlind;
     for (const m of seated) {
       m.matchCharacter = m.cosmetics.character.id;
+      m.naPartida = { maos: 0, ganhas: 0 };
+      m.consolacao = 0;
       if (this.paid()) {
         // todos começam com o buy-in: os bots de graça, os jogadores pagando a diferença
         if (m.isBot) m.stack = this.settings.buyIn;
-        else if (m.stack < this.settings.buyIn) m.stack += this.charge(m, this.settings.buyIn - m.stack);
+        else if (m.stack < this.settings.buyIn) {
+          const pago = this.charge(m, this.settings.buyIn - m.stack);
+          m.stack += pago;
+          if (pago > 0) m.pagou = true;
+        }
       } else m.stack = this.settings.startingStack;
       m.busted = false;
     }
@@ -704,6 +722,7 @@ export class Room {
         title: m.title,
         level: m.level,
         character: m.cosmetics.character,
+        auras: m.cosmetics.auras,
         face: m.cosmetics.face,
         back: m.cosmetics.back,
         // bot não carrega nada: entra pronto
@@ -916,13 +935,45 @@ export class Room {
         this.eliminated.push({ name: m.name, seat: m.seat, place });
         this.emit({ t: 'bust', seat: m.seat, place });
         this.system(`${m.name} foi eliminado em ${place}º lugar.`);
+        this.consolar(m);
       }
     });
     this.awardBond(h);
     this.notePlayHand(h);
     this.emit({ t: 'handEnd' });
-    if (this.closedGame() && alive() <= 1) this.finishGame();
+    if (this.closedGame() && (alive() <= 1 || this.semGenteViva())) this.finishGame();
     else if (this.roundsOver()) this.finishGame();
+  }
+
+  /** A partida contra bots — a normal que não é Custom, montada pelo servidor para uma pessoa só. */
+  private contraBots(): boolean {
+    return this.settings.mode === 'normal' && this.settings.custom === false;
+  }
+
+  /**
+   * Partida contra bots em que a pessoa já quebrou — é o fim.
+   *
+   * A mesa seguir com os bots jogando entre si até a décima rodada era fazer a pessoa esperar por
+   * uma partida que já não é dela. Vale só para a partida contra bots: numa Custom com amigos, quem
+   * caiu pode estar assistindo os outros, e ali a partida vai até o fim como sempre foi.
+   */
+  private semGenteViva(): boolean {
+    if (!this.contraBots()) return false;
+    const gente = this.members().filter((m) => !m.isBot);
+    return gente.length > 0 && gente.every((m) => m.busted || m.leaving || m.stack <= 0);
+  }
+
+  /**
+   * A consolação de quem é eliminado numa partida contra bots.
+   *
+   * Sai na hora da eliminação, e em fichas — seja a partida em fichas ou em padocoin. Só para quem
+   * pagou o buy-in (veja CONSOLACAO_BOTS): no recomeço de graça ela viraria uma torneira.
+   */
+  private consolar(m: Member): void {
+    if (m.isBot || !m.accountId || !this.bank || !this.contraBots() || !m.pagou) return;
+    this.bank.credit(m.accountId, CONSOLACAO_BOTS);
+    m.consolacao = (m.consolacao ?? 0) + CONSOLACAO_BOTS;
+    this.system(`${m.name} recebeu ${CONSOLACAO_BOTS} fichas de consolação.`);
   }
 
   /**
@@ -946,6 +997,10 @@ export class Room {
       this.bank.bond(m.accountId, m.handCharacter ?? m.cosmetics.character.id, ev);
       this.bank.note(m.accountId, 'hands');
       if (won) this.bank.note(m.accountId, 'wins');
+      // o placar do fim mostra o xp desta partida: conta aqui, no mesmo lugar que a conta anota
+      m.naPartida ??= { maos: 0, ganhas: 0 };
+      m.naPartida.maos++;
+      if (won) m.naPartida.ganhas++;
       if (hp.folded) this.bank.note(m.accountId, 'folds');
       if (hp.allIn) this.bank.note(m.accountId, 'allIns');
       if (h.street === 'showdown' && !hp.folded) this.bank.note(m.accountId, 'showdowns');
@@ -960,9 +1015,7 @@ export class Room {
       ...alive.sort((a, b) => b.stack - a.stack).map((m, i) => ({ name: m.name, seat: m.seat, place: i + 1 })),
       ...[...this.eliminated].sort((a, b) => a.place - b.place),
     ];
-    this.emit({ t: 'gameOver', ranking });
-    if (ranking[0]) this.system(`${ranking[0].name} venceu ${this.settings.mode === 'normal' ? `as ${this.settings.rounds} rodadas` : 'o Sit & Go'}!`);
-    // as contas levam o vínculo da partida e as fichas que sobraram na mesa
+    // as contas levam o vínculo da partida (e, mais abaixo, as fichas que sobraram na mesa)
     if (this.bank) {
       for (const m of this.members()) {
         if (m.isBot || !m.accountId) continue;
@@ -972,6 +1025,9 @@ export class Room {
         if (place === 1) this.bank.note(m.accountId, 'matchWins');
       }
     }
+    // o fim sai **depois** de anotar: o xp de depois, que vai no evento, já tem a partida somada
+    this.emit({ t: 'gameOver', ranking, ganhos: this.ganhos(ranking) });
+    if (ranking[0]) this.system(`${ranking[0].name} venceu ${this.settings.mode === 'normal' ? `as ${this.settings.rounds} rodadas` : 'o Sit & Go'}!`);
     for (const m of this.members()) {
       const lugar = ranking.find((r) => r.seat === m.seat)?.place ?? 0;
       this.guardarResumo(m, { lugar, jogadores: ranking.length });
@@ -979,6 +1035,35 @@ export class Room {
       this.cashOut(m);
     }
     this.broadcastRoom();
+  }
+
+  /** O que cada pessoa com conta levou da partida (veja GanhoDaPartida). Offline, nada. */
+  private ganhos(ranking: { seat: number; place: number }[]): GanhoDaPartida[] {
+    if (!this.bank) return [];
+    return this.members()
+      .filter((m) => !m.isBot && m.accountId)
+      .map((m) => {
+        const conta = m.naPartida ?? { maos: 0, ganhas: 0 };
+        const campeao = ranking.find((r) => r.seat === m.seat)?.place === 1;
+        const xp = {
+          maos: conta.maos * XP.hands,
+          vitorias: conta.ganhas * XP.wins,
+          partida: XP.matches,
+          campeao: campeao ? XP.matchWins : 0,
+          total: 0,
+        };
+        xp.total = xp.maos + xp.vitorias + xp.partida + xp.campeao;
+        const xpDepois = this.bank!.xp?.(m.accountId!) ?? xp.total;
+        return {
+          seat: m.seat,
+          xp,
+          jogadas: conta.maos,
+          ganhas: conta.ganhas,
+          xpAntes: Math.max(0, xpDepois - xp.total),
+          xpDepois,
+          consolacao: m.consolacao ?? 0,
+        };
+      });
   }
 
   /**

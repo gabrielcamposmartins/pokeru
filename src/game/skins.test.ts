@@ -115,10 +115,28 @@ describe('mesa segue o dealer', () => {
     expect(tableSkin(v, MEU_TABLE)).toBe(MEU_TABLE);
   });
 
-  it('se eu sou o dealer, é a minha mesa que vale para todos', () => {
-    // a mesa do dealer vem do assento dele; do meu lado, é a que eu equipei
+  it('se eu sou o dealer, é a minha mesa que vale — a do perfil, não a cópia do servidor', () => {
+    // a cópia do servidor pode estar um passo atrás de uma troca que eu acabei de fazer no Estúdio
     const v = view({ dealerSeat: 0 });
-    expect(tableSkin(v, MEU_TABLE)).toBe(cosmetics(1).table);
+    expect(tableSkin(v, MEU_TABLE)).toBe(MEU_TABLE);
+  });
+
+  it('contra bots é a minha mesa a partida inteira, ande o botão para onde andar', () => {
+    const soBots = view({ seats: [seat(0), seat(1, true), seat(2, true), null, null, null] });
+    for (const dealerSeat of [0, 1, 2, null]) {
+      expect(tableSkin({ ...soBots, dealerSeat }, MEU_TABLE), `botão em ${dealerSeat}`).toBe(MEU_TABLE);
+      expect(mainChipSkin({ ...soBots, dealerSeat }, MEU_CHIP), `botão em ${dealerSeat}`).toBe(MEU_CHIP);
+    }
+  });
+
+  it('com gente na mesa, a mesa troca quando o botão passa de um para o outro', () => {
+    // eu (0), duas pessoas (1 e 2) e um bot (3)
+    const v = view({ seats: [seat(0), seat(1), seat(2), seat(3, true), null, null] });
+    expect(tableSkin({ ...v, dealerSeat: 1 }, MEU_TABLE)).toBe(cosmetics(2).table);
+    expect(tableSkin({ ...v, dealerSeat: 2 }, MEU_TABLE)).toBe(cosmetics(3).table);
+    expect(tableSkin({ ...v, dealerSeat: 3 }, MEU_TABLE)).toBe(MEU_TABLE);
+    expect(tableSkin({ ...v, dealerSeat: 0 }, MEU_TABLE)).toBe(MEU_TABLE);
+    expect(mainChipSkin({ ...v, dealerSeat: 2 }, MEU_CHIP)).toBe(cosmetics(3).chip);
   });
 
   it('sem dealer definido cai na minha', () => {

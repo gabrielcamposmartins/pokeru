@@ -3197,8 +3197,7 @@ button.avatar {
   z-index: 26;
   overflow: hidden;
 }
-.cutin-band,
-.cutin-lines {
+.cutin-band {
   position: absolute;
   left: 0;
   right: 0;
@@ -3209,18 +3208,6 @@ button.avatar {
 }
 .cutin-band {
   box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.35);
-}
-.cutin-lines {
-  background: repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.22) 0 2px, transparent 2px 42px);
-  animation: speedlines 0.45s linear infinite;
-}
-@keyframes speedlines {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: -420px 0;
-  }
 }
 .cutin-char {
   position: absolute;
@@ -3762,6 +3749,84 @@ button.avatar {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+/*
+ * O resumo de xp do fim da partida: o total grande à esquerda, as parcelas no meio e a barra de
+ * nível à direita, numa faixa só — o placar já tem quatro linhas e o vínculo, e não cabe mais altura.
+ */
+.me-xp {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 22px;
+  border-radius: 14px;
+  background: rgba(12, 8, 26, 0.72);
+  border: 1px solid rgba(242, 193, 78, 0.35);
+}
+.me-xp-total {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: none;
+}
+.me-xp-total b {
+  font-family: var(--num);
+  font-size: 34px;
+  font-weight: 900;
+  color: #ffe08a;
+  text-shadow: 0 2px 0 #3a2300;
+}
+.me-xp-total small {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold-2);
+  text-transform: uppercase;
+}
+.me-xp-parcelas {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.me-xp-parcelas b {
+  color: var(--text);
+}
+.me-xp-consolo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.me-xp-consolo b {
+  color: var(--mint);
+}
+.me-xp-nivel {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.me-xp-nivel em {
+  font-style: normal;
+  font-weight: 800;
+  color: var(--mint);
+}
+.me-xp-barra {
+  width: 120px;
+  height: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.me-xp-barra i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f2c14e, #ffe08a);
 }
 .me-row {
   position: relative;

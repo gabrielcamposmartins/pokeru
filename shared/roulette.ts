@@ -17,9 +17,11 @@ import { findCharacter } from './styles';
 /**
  * As roletas — de onde vêm os cosméticos agora que eles saíram da venda direta.
  *
- * Duas roletas, cada uma com o seu ticket. As duas dão prêmio de **todas** as categorias; o que
- * muda é a fatia de personagens: a Roleta das Flores sorteia só personagens femininas e a do
- * Dragão só masculinos. Quem quer uma personagem específica sabe em qual gastar.
+ * Duas roletas, cada uma com o seu ticket, e **nenhum prêmio está nas duas**. Cada peça do jogo
+ * sai de uma roleta só (veja ROLETA_DE), e a divisão é por tema: a das Flores tem a luz, o céu, o
+ * gelo, a flor e a jade — e as personagens femininas; a do Dragão tem o fogo, a sombra, a noite, o
+ * metal e o bordô — e os personagens masculinos. Quem quer uma peça sabe em qual gastar, e nenhum
+ * ticket é repetição do outro.
  *
  * Este arquivo é comum ao servidor e ao cliente **de propósito**, como o catálogo de preços: a
  * loja mostra as chances lidas daqui e o servidor sorteia com a mesma tabela. Não há como a
@@ -45,14 +47,14 @@ export const ROULETTES: Roulette[] = [
   {
     id: 'flores',
     name: 'Roleta das Flores',
-    about: 'Presentes, peças de mesa, auras, molduras e personagens femininas.',
+    about: 'Luz, céu, gelo e flores: asas de anjo, auréolas, as peças de jade e sakura — e as personagens femininas.',
     gender: 'f',
     chips: 2500,
   },
   {
     id: 'dragao',
     name: 'Roleta do Dragão',
-    about: 'Presentes, peças de mesa, auras, molduras e personagens masculinos.',
+    about: 'Fogo, sombra e metal: asas de dragão e de morcego, labaredas, o bordô e a noite — e os personagens masculinos.',
     gender: 'm',
     chips: 2500,
   },
@@ -74,10 +76,10 @@ export function ticketPrice(r: Roulette, currency: Currency): number {
  * mesas do mesmo degrau e não mexe nos degraus de cima.
  *
  * Um detalhe honesto: a fatia de um degrau é **fixa** e se reparte entre as peças dele, então cada
- * lendário novo dilui os outros. Hoje o degrau lendário de cada roleta tem seis peças — o
- * personagem do gênero dela, o kimono, as duas frentes de material, as asas de dragão e a moldura
- * de dragão —, o que dá pouco mais de 0,4% para cada uma. Para o personagem valer mais que uma
- * frente, o caminho é dar fatia própria a ele, e não mexer nesta tabela.
+ * lendário novo dilui os outros. Hoje o degrau lendário de cada roleta tem quatro peças — nas
+ * Flores, Yukina, as duas frentes de material e o Círculo Prismático; no Dragão, Ren, as asas e a
+ * moldura de dragão e o kimono —, pouco mais de 0,6% cada. Para o personagem valer mais que as
+ * outras peças, o caminho é dar fatia própria a ele, e não mexer nesta tabela.
  */
 const PESOS: Record<Raridade, number> = {
   lendario: 2.5,
@@ -105,12 +107,123 @@ export interface Drop {
 /** Tipos que a roleta sorteia: cosmético e presente. Aparência da interface se compra, não se tira. */
 const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'aura', 'frame', 'back', 'face', 'chip', 'table', 'gift'];
 
-/** Entra na roleta? O que já vem com o jogo não entra, e personagem só do gênero dela. */
+/**
+ * De qual roleta sai cada peça — todas, menos os personagens (esses vão pelo gênero).
+ *
+ * A lista é **declarada**, peça por peça, e a divisão segue três réguas ao mesmo tempo:
+ *
+ *   - o **tema**, que é o que a pessoa enxerga: luz e flor de um lado, fogo e sombra do outro;
+ *   - a **raridade**: em cada degrau as duas roletas têm o mesmo número de peças, ou uma a mais;
+ *   - o **tipo**: auras, molduras, efeitos, cartas, fichas, mesas e presentes também se dividem ao
+ *     meio, para nenhum ticket ser "o das mesas" ou "o dos efeitos".
+ *
+ * Os pares que existem se separam: o conjunto vitoriano verde (Salão Esmeralda, Salão Vitoriano)
+ * fica nas Flores e o bordô (Brasão Bordô, Veludo Bordô) no Dragão.
+ *
+ * Peça nova que não entrar aqui não sai de roleta nenhuma — e o teste de cobertura em
+ * roulette.test.ts falha, que é para ninguém esquecer.
+ */
+const ROLETA_DE: Record<string, 'flores' | 'dragao'> = {
+  // ---------------------------------------------------------------- Roleta das Flores
+  // lendário (e a Yukina)
+  'face:face-glass': 'flores',
+  'face:face-rainbow': 'flores',
+  'aura:circulo-prisma': 'flores',
+  // épico
+  'aura:asas-anjo': 'flores',
+  'aura:selo-onmyoji': 'flores',
+  'frame:anjinho': 'flores',
+  'frame:gelo': 'flores',
+  'gift:joia': 'flores',
+  'winfx:holy': 'flores',
+  'winfx:ice': 'flores',
+  'winfx:prism': 'flores',
+  // raro
+  'aura:aureola-radiante': 'flores',
+  'frame:vitoriana': 'flores',
+  'gift:leque': 'flores',
+  'back:back-victorian-green': 'flores',
+  'table:table-victorian': 'flores',
+  'chip:chip-victorian': 'flores',
+  // incomum
+  'aura:aureola': 'flores',
+  'aura:naipes': 'flores',
+  'aura:circulo-arcano': 'flores',
+  'frame:sakura': 'flores',
+  'face:face-jade': 'flores',
+  'back:back-royal': 'flores',
+  'table:table-royal': 'flores',
+  'winfx:emerald': 'flores',
+  'winfx:rose': 'flores',
+  'gift:livro': 'flores',
+  // comum
+  'aura:poeira-de-luz': 'flores',
+  'frame:jade': 'flores',
+  'face:face-sakura': 'flores',
+  'back:back-jade': 'flores',
+  'chip:chip-pastel': 'flores',
+  'table:table-green': 'flores',
+  'gift:flor': 'flores',
+  'gift:bolo': 'flores',
+
+  // ---------------------------------------------------------------- Roleta do Dragão
+  // lendário (e o Ren)
+  'aura:asas-dragao': 'dragao',
+  'frame:dragao': 'dragao',
+  'gift:kimono': 'dragao',
+  // épico
+  'aura:asas-morcego': 'dragao',
+  'aura:aureola-negra': 'dragao',
+  'aura:labaredas': 'dragao',
+  'aura:fogo-fatuo': 'dragao',
+  'frame:chama': 'dragao',
+  'winfx:fire': 'dragao',
+  'winfx:lightning': 'dragao',
+  'winfx:void': 'dragao',
+  // raro
+  'aura:circulo-oracular': 'dragao',
+  'aura:espadas': 'dragao',
+  'frame:neon': 'dragao',
+  'face:face-victorian': 'dragao',
+  'back:back-victorian': 'dragao',
+  'table:table-victorian-wine': 'dragao',
+  'gift:fone': 'dragao',
+  // incomum
+  'aura:shurikens': 'dragao',
+  'frame:obsidiana': 'dragao',
+  'face:face-gold': 'dragao',
+  'back:back-gold': 'dragao',
+  'back:back-midnight': 'dragao',
+  'table:table-night': 'dragao',
+  'table:table-wine': 'dragao',
+  'winfx:azure': 'dragao',
+  'winfx:violet': 'dragao',
+  'gift:incenso': 'dragao',
+  // comum
+  'frame:prata': 'dragao',
+  'face:face-four': 'dragao',
+  'face:face-neon': 'dragao',
+  'back:back-crimson': 'dragao',
+  'chip:chip-metal': 'dragao',
+  'chip:chip-neon': 'dragao',
+  // o Boreal é o inverno e a noite; comum como as peças baratas daqui, ele equilibra o degrau
+  'aura:circulo-boreal': 'dragao',
+  'gift:cha': 'dragao',
+};
+
+/** De qual roleta a peça sai (undefined = de nenhuma: é grátis, é aparência, ou ficou de fora). */
+export function roletaDe(key: string): Roulette | undefined {
+  const item = findItem(key);
+  if (!item) return undefined;
+  return ROULETTES.find((r) => cabe(item, r));
+}
+
+/** Entra na roleta? O que já vem com o jogo não entra, personagem vai pelo gênero, o resto por ROLETA_DE. */
 function cabe(item: CatalogItem, r: Roulette): boolean {
   if (isFree(item.key)) return false;
   if (!TIPOS.includes(item.kind)) return false;
   if (item.kind === 'character') return findCharacter(item.id).gender === r.gender;
-  return true;
+  return ROLETA_DE[item.key] === r.id;
 }
 
 const tabelas = new Map<string, Drop[]>();

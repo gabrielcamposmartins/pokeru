@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { TableView } from '../../shared/protocol';
-import { findCharacter, type CharacterStyle, type FrameId } from '../../shared/styles';
+import type { GanhoDaPartida, TableView } from '../../shared/protocol';
+import { levelInfoOfXp } from '../../shared/achievements';
+import { LevelNumber } from '../render/Level';
+import { findCharacter, type AuraId, type CharacterStyle, type FrameId } from '../../shared/styles';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { useTable, type MatchEnd, type Ranking } from '../store/table';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { PortraitFrame, findFrame } from '../render/PortraitFrame';
+import { CharacterAura } from '../render/aura';
 import { BondGain } from './BondBar';
 import { ChipSvg } from '../render/Chip';
 import { useUiTheme } from '../ui/themes';
@@ -20,6 +23,8 @@ export interface MatchRow {
   character: CharacterStyle;
   /** Moldura do retrato desta linha (a de cada jogador, veja src/render/PortraitFrame.tsx). */
   frame: FrameId;
+  /** Auras de quem está nesta linha — as do campeão abrem atrás dele no placar. */
+  auras: AuraId[];
   stack: number;
   /** Resultado em relação às fichas iniciais. */
   delta: number;
@@ -43,6 +48,7 @@ const place = (n: number) => ORDINAL[n - 1] ?? `${n}º`;
 export function buildMatchRows(view: TableView, ranking: Ranking[] | null, startingStack: number): MatchRow[] {
   const myCharacter = findCharacter(useProfile.getState().character);
   const myFrame = useProfile.getState().frame;
+  const myAuras = useProfile.getState().auras;
   const row = (seat: number, placeNo: number, name?: string): MatchRow => {
     const s = view.seats[seat];
     const isMe = seat === view.mySeat;
@@ -51,6 +57,8 @@ export function buildMatchRows(view: TableView, ranking: Ranking[] | null, start
       name: name ?? s?.name ?? `Assento ${seat + 1}`,
       character: isMe ? myCharacter : (s?.cosmetics.character ?? findCharacter('')),
       frame: isMe ? myFrame : (s?.cosmetics.frame ?? 'ouro'),
+      // servidor de antes das auras não manda o campo: aí o campeão fica sem aura, e nada quebra
+      auras: isMe ? myAuras : (s?.cosmetics.auras ?? []),
       stack: s?.stack ?? 0,
       delta: (s?.stack ?? 0) - startingStack,
       isMe,
@@ -115,7 +123,70 @@ function Row({ r, i }: { r: MatchRow; i: number }) {
   );
 }
 
-export function MatchEndPanel({ m, rows, info }: { m: MatchEnd; rows: MatchRow[]; info?: string }) {
+/**
+ * O resumo da experiência: quanto a partida rendeu, de onde veio e onde o nível ficou.
+ *
+ * O número grande é o total; ao lado, as parcelas — mãos jogadas, mãos ganhas, terminar a partida
+ * e ganhá-la —, que são as mesmas contas de `xpOf` (shared/achievements.ts), e é por isso que elas
+ * sempre somam o total. A barra anda do antes para o depois; subindo de nível, ela recomeça do zero
+ * no nível novo, e o placar diz que subiu.
+ *
+ * Quem calcula é o servidor (veja GanhoDaPartida): sem conta não há xp, e o resumo nem aparece.
+ */
+function ResumoDeXp({ ganho }: { ganho: GanhoDaPartida }) {
+  const antes = levelInfoOfXp(ganho.xpAntes);
+  const depois = levelInfoOfXp(ganho.xpDepois);
+  const subiu = depois.level > antes.level;
+  const x = ganho.xp;
+  const parcelas = [
+    { rotulo: `${ganho.jogadas} ${ganho.jogadas === 1 ? 'mão jogada' : 'mãos jogadas'}`, xp: x.maos },
+    { rotulo: `${ganho.ganhas} ${ganho.ganhas === 1 ? 'mão ganha' : 'mãos ganhas'}`, xp: x.vitorias },
+    { rotulo: 'partida terminada', xp: x.partida },
+    { rotulo: 'campeão', xp: x.campeao },
+  ].filter((p) => p.xp > 0);
+  return (
+    <motion.div className="me-xp" initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.55 }}>
+      <div className="me-xp-total">
+        <b>+{fmt(x.total)}</b>
+        <small>xp</small>
+      </div>
+      <div className="me-xp-parcelas">
+        {parcelas.map((p) => (
+          <span key={p.rotulo}>
+            {p.rotulo} <b>+{fmt(p.xp)}</b>
+          </span>
+        ))}
+        {ganho.consolacao > 0 && (
+          <span className="me-xp-consolo">
+            <ChipSvg value={100} size={14} /> consolação <b>+{fmt(ganho.consolacao)} fichas</b>
+          </span>
+        )}
+      </div>
+      <div className="me-xp-nivel">
+        <LevelNumber level={antes.level} size={22} sparks={false} />
+        <div className="me-xp-barra">
+          <motion.i
+            initial={{ width: `${Math.round((subiu ? 0 : antes.progress) * 100)}%` }}
+            animate={{ width: `${Math.round(depois.progress * 100)}%` }}
+            transition={{ delay: 0.8, duration: 1.1, ease: 'easeOut' }}
+          />
+        </div>
+        {subiu ? (
+          <>
+            <LevelNumber level={depois.level} size={22} sparks={false} />
+            <em>subiu de nível!</em>
+          </>
+        ) : (
+          <small>
+            {fmt(depois.into)} / {fmt(depois.need)}
+          </small>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+export function MatchEndPanel({ m, rows, info, ganho }: { m: MatchEnd; rows: MatchRow[]; info?: string; ganho?: GanhoDaPartida }) {
   const setMatch = useTable((s) => s.setMatch);
   const setGameOver = useTable((s) => s.setGameOver);
   const leaveRoom = useSession((s) => s.leaveRoom);
@@ -132,7 +203,8 @@ export function MatchEndPanel({ m, rows, info }: { m: MatchEnd; rows: MatchRow[]
     pages.findIndex((p) => p.some((r) => r.isMe)),
   );
   const [page, setPage] = useState(meIndex);
-  const champion = rows.find((r) => r.place === 1)?.character ?? findCharacter('');
+  const campeao = rows.find((r) => r.place === 1);
+  const champion = campeao?.character ?? findCharacter('');
   const isHost = !!room && room.hostId === playerId;
   const shown = pages[Math.min(page, pages.length - 1)] ?? [];
 
@@ -173,7 +245,10 @@ export function MatchEndPanel({ m, rows, info }: { m: MatchEnd; rows: MatchRow[]
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.06, type: 'spring', stiffness: 150, damping: 20 }}
       >
+        {/* as auras do campeão em volta dele, como no cut-in de quem ganha a mão */}
+        <CharacterAura auras={campeao?.auras} tint={champion.bg} className="rr-aura" />
         <CharacterFull st={champion} height={820} />
+        <CharacterAura auras={campeao?.auras} tint={champion.bg} plano="frente" className="rr-aura" />
       </motion.div>
 
       <div className="me-list">
@@ -181,6 +256,7 @@ export function MatchEndPanel({ m, rows, info }: { m: MatchEnd; rows: MatchRow[]
           <Row key={`${r.place}-${r.name}`} r={r} i={i} />
         ))}
         {me && <BondGain char={me.character} />}
+        {ganho && <ResumoDeXp ganho={ganho} />}
         {info && <div className="me-foot">{info}</div>}
         {pages.length > 1 && (
           <div className="me-pager">
@@ -221,6 +297,8 @@ export function MatchEndScreen() {
   const match = useTable((s) => s.match);
   const view = useTable((s) => s.display);
   const ranking = useTable((s) => s.gameOver);
+  const ganhos = useTable((s) => s.ganhos);
+  const meuGanho = ganhos?.find((g) => g.seat === view?.mySeat);
   const room = useSession((s) => s.room);
   const startingStack = room?.settings.startingStack ?? 0;
   const rows = useMemo(() => (view ? buildMatchRows(view, ranking, startingStack) : []), [view, ranking, startingStack]);
@@ -234,5 +312,5 @@ export function MatchEndScreen() {
   ]
     .filter(Boolean)
     .join(' · ');
-  return <AnimatePresence>{match && rows.length > 0 && <MatchEndPanel key={match.id} m={match} rows={rows} info={info} />}</AnimatePresence>;
+  return <AnimatePresence>{match && rows.length > 0 && <MatchEndPanel key={match.id} m={match} rows={rows} info={info} ganho={meuGanho} />}</AnimatePresence>;
 }

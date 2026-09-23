@@ -7,7 +7,7 @@ import type { AccountProfile } from '../shared/accounts';
 import { Lobby } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type AccountInfo, type ServerMsg, type TableView } from '../shared/protocol';
 import { BOND_POINTS } from '../shared/bond';
-import { BOT_MATCH } from '../shared/protocol';
+import { BOT_MATCH, CONSOLACAO_BOTS, type GanhoDaPartida } from '../shared/protocol';
 import { playerLevel, xpForLevel } from '../shared/achievements';
 import { personalidadeDe } from '../shared/personality';
 import { Accounts } from './accounts';
@@ -448,6 +448,103 @@ describe('partida contra bots no servidor', () => {
     expect(accounts.money(id)).toBeGreaterThanOrEqual(4000);
     accounts.close();
   }, 60_000);
+
+  /**
+   * Um jogador que vai de all-in em toda mão, guardando os eventos crus: com dez big blinds de
+   * pilha contra três bots, ele quebra depressa — ou dobra, e aí a partida seguinte tenta de novo.
+   */
+  function allIn(lobby: Lobby) {
+    const c = { conn: null as never as ReturnType<Lobby['connect']>, account: null as AccountInfo | null, seat: -1, eventos: [] as { t: string; seat?: number; ganhos?: GanhoDaPartida[] }[] };
+    c.conn = lobby.connect((m: ServerMsg) => {
+      if (m.type === 'account') c.account = m.account;
+      if (m.type === 'event') {
+        c.seat = m.view.mySeat ?? c.seat;
+        c.eventos.push(m.ev as never);
+        if (m.ev.t === 'turn' && m.view.legal && m.view.toAct === m.view.mySeat) setTimeout(() => c.conn.handle({ type: 'action', action: { type: 'allin' } }), 5);
+      }
+    });
+    c.conn.handle({ type: 'hello', name: 'Gabi', avatar: {}, cosmetics: {} });
+    return c;
+  }
+
+  /**
+   * Joga partidas contra bots até a pessoa quebrar numa delas; devolve os eventos dessa partida.
+   * `antes` roda antes de cada tentativa (o teste do recomeço zera o saldo ali).
+   */
+  async function ateQuebrar(c: ReturnType<typeof allIn>, antes?: () => void) {
+    for (let tentativa = 0; tentativa < 12; tentativa++) {
+      antes?.();
+      c.eventos = [];
+      c.conn.handle({ type: 'botMatch', difficulty: 'easy', currency: 'chips' });
+      await runUntil(() => c.eventos.some((e) => e.t === 'gameOver'));
+      await vi.advanceTimersByTimeAsync(500);
+      if (c.eventos.some((e) => e.t === 'bust' && e.seat === c.seat)) return c.eventos;
+      c.conn.handle({ type: 'leaveRoom' });
+      await vi.advanceTimersByTimeAsync(200);
+    }
+    throw new Error('não quebrou em doze partidas');
+  }
+
+  it('quebrar contra bots encerra a partida ali, e quem pagou o buy-in leva a consolação', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 1_000_000 });
+    const lobby = new Lobby('teste', accounts);
+    const c = allIn(lobby);
+    const id = c.account!.id;
+    const antes = accounts.money(id);
+    const eventos = await ateQuebrar(c);
+
+    // a partida acabou na mão em que a pessoa quebrou: depois do bust dela não começa mão nenhuma
+    const quebrou = eventos.findIndex((e) => e.t === 'bust' && e.seat === c.seat);
+    const depois = eventos.slice(quebrou);
+    expect(depois.some((e) => e.t === 'handStart')).toBe(false);
+    expect(depois.some((e) => e.t === 'gameOver')).toBe(true);
+
+    // o fim traz a consolação, e ela entrou no saldo (as partidas anteriores podem ter dado lucro)
+    const fim = eventos.find((e) => e.t === 'gameOver')!;
+    const meu = fim.ganhos!.find((g) => g.seat === c.seat)!;
+    expect(meu.consolacao).toBe(CONSOLACAO_BOTS);
+    expect(accounts.money(id)).toBeGreaterThanOrEqual(antes - 1000 * 12 + CONSOLACAO_BOTS);
+    accounts.close();
+  }, 120_000);
+
+  it('no recomeço de graça, quebrar não dá consolação', async () => {
+    vi.useFakeTimers();
+    // sem saldo e sem recarga: o fácil senta de graça
+    const accounts = new Accounts({ file: newFile(), startingMoney: 0, faucet: 0 });
+    const lobby = new Lobby('teste', accounts);
+    const c = allIn(lobby);
+    const id = c.account!.id;
+    // se uma partida terminar sem quebra ele sai dela com fichas, e a seguinte já seria paga: o
+    // saldo volta a zero antes de cada tentativa, para a quebra acontecer mesmo na mesa de graça
+    const eventos = await ateQuebrar(c, () => void accounts.charge(id, accounts.money(id)));
+    const meu = eventos.find((e) => e.t === 'gameOver')!.ganhos!.find((g) => g.seat === c.seat)!;
+    expect(meu.consolacao).toBe(0);
+    expect(accounts.money(id)).toBe(0);
+    accounts.close();
+  }, 120_000);
+
+  it('o fim da partida traz o xp dela, parcela por parcela, e o antes e o depois da conta', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 1_000_000 });
+    const lobby = new Lobby('teste', accounts);
+    const c = allIn(lobby);
+    const id = c.account!.id;
+    const eventos = await ateQuebrar(c);
+    const meu = eventos.find((e) => e.t === 'gameOver')!.ganhos!.find((g) => g.seat === c.seat)!;
+    const maos = eventos.filter((e) => e.t === 'handStart').length;
+
+    expect(meu.jogadas).toBe(maos);
+    expect(meu.xp.maos).toBe(maos);
+    expect(meu.xp.vitorias).toBe(meu.ganhas * 3);
+    expect(meu.xp.partida).toBe(10);
+    // quem quebrou não é campeão
+    expect(meu.xp.campeao).toBe(0);
+    expect(meu.xp.total).toBe(meu.xp.maos + meu.xp.vitorias + meu.xp.partida + meu.xp.campeao);
+    expect(meu.xpDepois - meu.xpAntes).toBe(meu.xp.total);
+    expect(meu.xpDepois).toBe(accounts.xp(id));
+    accounts.close();
+  }, 120_000);
 
   it('numa mesa Custom, levantar devolve o que sobrou', async () => {
     vi.useFakeTimers();

@@ -17,6 +17,7 @@ function jogador(over: Partial<OpeningPlayer> = {}): OpeningPlayer {
     title: null,
     level: 1,
     character: CHARACTER_PRESETS[0],
+    auras: ['brilho'],
     face: FACE_PRESETS[0],
     back: BACK_PRESETS[0],
     ready: false,

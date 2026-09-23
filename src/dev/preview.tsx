@@ -69,8 +69,8 @@ import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
 import '../styles/persona.css';
-import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, findCharacter } from '../../shared/styles';
-import type { Opening, SeatView } from '../../shared/protocol';
+import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, findCharacter, type AuraId } from '../../shared/styles';
+import type { GanhoDaPartida, Opening, SeatView } from '../../shared/protocol';
 import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
@@ -99,6 +99,7 @@ import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
 import { nextId, useTable, type RoundResult } from '../store/table';
+import { WinSplash } from '../game/Overlays';
 import type { ResumoDaPartida } from '../../shared/personality';
 import { MinhaPersonalidade, PersonalidadeDoPersonagem } from '../game/Personality';
 import { ProfileScreen } from '../screens/Profile';
@@ -205,6 +206,16 @@ const SCENES: Record<string, RoundResult> = {
   },
 };
 
+/** Combinações de auras para as cenas de exemplo (uma por lugar, como a regra manda). */
+const AURAS_DE_EXEMPLO: AuraId[][] = [
+  ['poeira-de-luz', 'asas-anjo', 'aureola'],
+  ['circulo-arcano', 'naipes'],
+  ['labaredas', 'aureola-negra'],
+  ['brilho'],
+  ['asas-dragao', 'espadas'],
+  ['fogo-fatuo', 'aureola-radiante'],
+];
+
 const NAMES = ['Jogador', 'Ren', 'Yukina', 'Tobi', 'Marina 2', 'Ren 2'];
 
 /** Placar de exemplo: `n` jogadores, você em `mePlace`. */
@@ -214,6 +225,7 @@ function rows(n: number, mePlace: number): MatchRow[] {
     const stack = 6400 - i * 1100;
     return {
       place: p,
+      auras: AURAS_DE_EXEMPLO[i % AURAS_DE_EXEMPLO.length],
       // uma moldura por linha: o placar é onde se compara uma com a outra
       frame: FRAME_IDS[i % FRAME_IDS.length],
       name: p === mePlace ? 'Jogador' : NAMES[(i + 1) % NAMES.length],
@@ -225,6 +237,16 @@ function rows(n: number, mePlace: number): MatchRow[] {
     };
   });
 }
+
+/**
+ * O que a partida rendeu, para o resumo do placar: `match` é o campeão que sobe de nível, `match-6`
+ * quem terminou em segundo, e `match-me6` quem foi eliminado contra bots e levou a consolação.
+ */
+const GANHO_DE_EXEMPLO: Record<string, GanhoDaPartida> = {
+  match: { seat: 0, xp: { maos: 18, vitorias: 21, partida: 10, campeao: 25, total: 74 }, jogadas: 18, ganhas: 7, xpAntes: 1400, xpDepois: 1474, consolacao: 0 },
+  'match-6': { seat: 0, xp: { maos: 18, vitorias: 9, partida: 10, campeao: 0, total: 37 }, jogadas: 18, ganhas: 3, xpAntes: 1200, xpDepois: 1237, consolacao: 0 },
+  'match-me6': { seat: 0, xp: { maos: 6, vitorias: 3, partida: 10, campeao: 0, total: 19 }, jogadas: 6, ganhas: 1, xpAntes: 700, xpDepois: 719, consolacao: 200 },
+};
 
 const MATCHES: Record<string, MatchRow[]> = {
   match: rows(4, 1),
@@ -551,6 +573,8 @@ if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queuei
  * No jogo quem põe a cena nesse estado é a resposta do servidor; aqui o endereço faz o papel dela,
  * porque tirar foto de uma animação exige poder pausá-la em cada momento.
  */
+// o cut-in do all-in: some sozinho em 2,4s, então a captura tem de ser rápida
+if (cena === 'cutin') useTable.setState({ splash: { id: nextId(), title: 'All-in!', subtitle: 'Marina • 3.240', kind: 'big', character: CHARACTER_PRESETS[0] } });
 if (cena === 'girando') useRoleta.setState({ status: 'girando', roulette: q.get('roleta') ?? 'flores', premio: null });
 if (cena === 'giro') {
   useRoleta.setState({
@@ -694,6 +718,8 @@ const ABERTURA: Opening = {
   ].map((q, i) => ({
     ...q,
     character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
+    // uma combinação de auras por card: a abertura é onde se confere que elas cabem no card
+    auras: AURAS_DE_EXEMPLO[i % AURAS_DE_EXEMPLO.length],
     face: FACE_PRESETS[i % FACE_PRESETS.length],
     back: BACK_PRESETS[i % BACK_PRESETS.length],
   })),
@@ -774,6 +800,8 @@ createRoot(document.getElementById('root')!).render(
               <Mesa />
             ) : cena === 'placa' ? (
               <Placas />
+            ) : cena === 'cutin' ? (
+              <WinSplash />
             ) : cena === 'draw5' ? (
               <Draw5 />
             ) : cena === 'bond' ? (
@@ -785,7 +813,12 @@ createRoot(document.getElementById('root')!).render(
             ) : cena === 'solids' ? (
               <Solids />
             ) : matchRows ? (
-              <MatchEndPanel m={{ id: 1, kind: 'over' }} rows={matchRows} info="Treino Offline · Sit & Go · 18 mãos" />
+              <MatchEndPanel
+                m={{ id: 1, kind: 'over' }}
+                rows={matchRows}
+                info="Treino Offline · Sit & Go · 18 mãos"
+                ganho={GANHO_DE_EXEMPLO[cena]}
+              />
             ) : (
               <RoundResultPanel r={scene} />
             )}

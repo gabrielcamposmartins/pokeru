@@ -17,7 +17,7 @@ import {
   findCharacter,
 } from '../shared/styles';
 import { priceOf } from '../shared/catalog';
-import { ROULETTES, dropsOf, findRoulette, refundOf, ticketPrice } from '../shared/roulette';
+import { ROULETTES, dropsOf, findRoulette, refundOf, roletaDe, ticketPrice } from '../shared/roulette';
 import { bondCap, giftPoints } from '../shared/bond';
 import { bonusPado } from '../shared/protocol';
 import { Accounts } from './accounts';
@@ -373,8 +373,9 @@ describe('server authoritative: ninguém senta com o que não tem', () => {
   });
 
   it('um verso do Estúdio vale pela peça de onde saiu', async () => {
-    // a peça de origem sai de roleta: o sorteio é fixado para cair nela
-    const acc = new Accounts({ file: newFile(), startingMoney: 999_999, rnd: () => rndPara('flores', 'back:back-crimson') });
+    // a peça de origem sai de roleta — de uma só, a que a tabela disser — e o sorteio é fixado nela
+    const roleta = roletaDe('back:back-crimson')!.id;
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999, rnd: () => rndPara(roleta, 'back:back-crimson') });
     const lobby = new Lobby('Teste', acc);
     // um verso personalizado feito a partir de um preset que o jogador NÃO tem
     const pirata = { ...BACK_PRESETS[2], id: 'back-meu', from: 'back-crimson' };
@@ -383,7 +384,7 @@ describe('server authoritative: ninguém senta com o que não tem', () => {
     expect(c.last('room')!.room.members[0].character.id).toBe('marina');
 
     // ganha a peça de origem e o verso personalizado passa a valer
-    c.conn.handle({ type: 'spin', roulette: 'flores', currency: 'chips' });
+    c.conn.handle({ type: 'spin', roulette: roleta, currency: 'chips' });
     await vi.waitFor(() => expect(c.last('spun')).toBeTruthy());
     expect(c.last('spun')!.prize).toBe('back:back-crimson');
     acc.close();

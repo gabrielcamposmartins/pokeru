@@ -4,6 +4,7 @@ import { nextId, useTable } from '../store/table';
 import { useEquipped, useProfile } from '../store/profile';
 import { Stage } from '../game/Stage';
 import { TableStage } from '../game/TableStage';
+import { tableSkin } from '../game/skins';
 import { ActionPanel } from '../game/ActionPanel';
 import { ChatPanel, EmoteMenu, WinSplash } from '../game/Overlays';
 import { HandGuideButton } from '../game/HandGuide';
@@ -17,7 +18,15 @@ export function GameScreen() {
   const room = useSession((s) => s.room);
   const leaveRoom = useSession((s) => s.leaveRoom);
   const stopPlaying = useSession((s) => s.stopPlaying);
-  const table = useEquipped('table');
+  const minhaMesa = useEquipped('table');
+  /*
+   * O fundo da sala é da mesma mesa que o feltro.
+   *
+   * Ele usava sempre a mesa equipada, enquanto o feltro seguia o dealer (veja `tableSkin`): numa
+   * partida com gente, quando o botão passava para outra pessoa, o feltro trocava e a sala em volta
+   * não — meia cena de uma mesa, meia de outra.
+   */
+  const table = view ? tableSkin(view, minhaMesa) : minhaMesa;
   const muted = useProfile((s) => s.settings.muted);
   const updateSettings = useProfile((s) => s.updateSettings);
   const [chatOpen, setChatOpen] = useState(false);

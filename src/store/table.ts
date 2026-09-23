@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Card } from '../../shared/cards';
-import type { Opening, SeatView, TableView } from '../../shared/protocol';
+import type { GanhoDaPartida, Opening, SeatView, TableView } from '../../shared/protocol';
 import type { AuraId, CardBackStyle, CharacterStyle, WinFxId } from '../../shared/styles';
 import type { Pt } from '../game/layout';
 
@@ -118,6 +118,8 @@ interface TableState {
   callouts: Callout[];
   log: LogLine[];
   gameOver: Ranking[] | null;
+  /** O que cada um levou da partida (xp e consolação), vindo com o fim dela. */
+  ganhos: GanhoDaPartida[] | null;
   winners: number[];
   /** Assento que esta abrindo a mao no showdown (primeiro a mostrar). */
   opener: number | null;
@@ -139,7 +141,8 @@ interface TableState {
   addEmote(seat: number, emote: string): void;
   addCallout(seat: number, text: string, kind: CalloutKind): void;
   addLog(text: string, kind?: LogLine['kind']): void;
-  setGameOver(r: Ranking[] | null): void;
+  /** O fim da partida, e o que cada um levou dela. Limpar o fim limpa os ganhos junto. */
+  setGameOver(r: Ranking[] | null, ganhos?: GanhoDaPartida[] | null): void;
   setWinners(w: number[]): void;
   setOpener(opener: number | null): void;
   setOpening(opening: Opening | null): void;
@@ -162,6 +165,7 @@ export const useTable = create<TableState>()((set, get) => ({
   callouts: [],
   log: [],
   gameOver: null,
+  ganhos: null,
   winners: [],
   opener: null,
   opening: null,
@@ -199,7 +203,7 @@ export const useTable = create<TableState>()((set, get) => ({
     setTimeout(() => set((s) => ({ callouts: s.callouts.filter((c) => c.id !== id) })), 1300);
   },
   addLog: (text, kind) => set((s) => ({ log: [...s.log.slice(-120), { id: nextId(), text, kind }] })),
-  setGameOver: (gameOver) => set({ gameOver }),
+  setGameOver: (gameOver, ganhos = null) => set({ gameOver, ganhos: gameOver ? ganhos : null }),
   setWinners: (winners) => set({ winners }),
   setOpener: (opener) => set({ opener }),
   setOpening: (opening) => set({ opening }),
@@ -217,6 +221,7 @@ export const useTable = create<TableState>()((set, get) => ({
       callouts: [],
       log: [],
       gameOver: null,
+      ganhos: null,
       winners: [],
       opener: null,
       opening: null,

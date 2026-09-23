@@ -85,9 +85,16 @@
  */
 .char-palco {
   position: relative;
+  /* uma pilha própria: sem ela, o plano de trás (z-index -1) caía atrás do fundo de quem está em
+     volta — o card da abertura, o painel da tela de personagens — e a aura sumia */
+  isolation: isolate;
   display: flex;
   align-items: flex-end;
   height: fit-content;
+}
+/* no card da abertura a figura ocupa 92% da altura, e a caixa da aura acompanha */
+.pm-art .char-palco {
+  height: 92%;
 }
 
 /* As auras em uso, no painel do Estúdio: uma etiqueta por aura, com o lugar em cima do nome. */
@@ -223,6 +230,10 @@
 .aura-circulo {
   filter: drop-shadow(0 0 1.5px currentColor);
   animation: aura-brilha 5.5s ease-in-out infinite alternate;
+}
+/* no arco-íris o halo é fraco: branco e forte, ele cobria as cores de leite */
+.aura-circulo-iris {
+  filter: drop-shadow(0 0 0.8px rgba(255, 255, 255, 0.55));
 }
 
 /* ------------------------------------------------------------------ moldura */

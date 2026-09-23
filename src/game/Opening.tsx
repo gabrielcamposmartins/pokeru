@@ -19,6 +19,8 @@ import { motion } from 'framer-motion';
 import type { Opening, OpeningPlayer } from '../../shared/protocol';
 import { CardView } from '../render/CardArt';
 import { CharacterFull } from '../render/CharacterArt';
+import { CharacterAura } from '../render/aura';
+import { useProfile } from '../store/profile';
 import { LevelNumber } from '../render/Level';
 import { TitleGlow } from '../render/Title';
 import { Petals } from '../screens/MainMenu';
@@ -45,6 +47,9 @@ function carrega(url: string, ms: number): Promise<void> {
 
 function PlayerCard({ p, isMe, delay }: { p: OpeningPlayer; isMe: boolean; delay: number }) {
   const cls = ['pm-slot', p.ready && 'ready', isMe && 'me'].filter(Boolean).join(' ');
+  // as minhas auras saem do perfil (a troca mais recente vale na hora); as dos outros, do servidor
+  const minhas = useProfile((s) => s.auras);
+  const auras = isMe ? minhas : p.auras;
   return (
     <motion.div className={cls} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay, duration: 0.35 }}>
       {/* nome e título ficam fora do card: dentro dele é lugar do personagem */}
@@ -54,8 +59,17 @@ function PlayerCard({ p, isMe, delay }: { p: OpeningPlayer; isMe: boolean; delay
         {/* decoração de fundo do card: PENDENTE — entra atrás do personagem, por trás de tudo aqui */}
         <div className="pm-deco" aria-hidden />
 
+        {/*
+          * A arte com as auras em volta, numa caixa do tamanho da figura: a aura mede cabeça, ombro
+          * e pé pela altura da caixa. O card corta o que passa da borda — as asas abertas ficam
+          * enquadradas, como numa carta.
+          */}
         <div className="pm-art">
-          <CharacterFull st={p.character} height="92%" animate={p.ready} />
+          <div className="char-palco">
+            <CharacterAura auras={auras} tint={p.character.bg} />
+            <CharacterFull st={p.character} height="100%" animate={p.ready} />
+            <CharacterAura auras={auras} tint={p.character.bg} plano="frente" />
+          </div>
         </div>
 
         <span className="pm-level">{p.isBot ? <span className="pm-bot">BOT</span> : <LevelNumber level={p.level} size="clamp(20px, 2.9vh, 32px)" />}</span>

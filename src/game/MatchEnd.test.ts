@@ -31,6 +31,7 @@ const row = (place: number, isMe = false): MatchRow => ({
   name: `P${place}`,
   character: CHARACTER_PRESETS[0],
   frame: 'ouro',
+  auras: ['brilho'],
   stack: 1000 * place,
   delta: 0,
   isMe,

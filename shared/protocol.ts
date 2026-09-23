@@ -1,6 +1,6 @@
 import type { Card } from './cards';
 import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
-import type { AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, PlayerCosmetics } from './styles';
+import type { AuraId, AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, PlayerCosmetics } from './styles';
 import type { AccountCreds, AccountInfo } from './accounts';
 import type { Currency } from './catalog';
 import type { FriendInfo, PartyInfo, PartyKind } from './friends';
@@ -148,6 +148,44 @@ export const NORMAL_BLINDS = { sb: 50, bb: 100 };
  * escolhendo.
  */
 export const BOT_MATCH = { bots: 3, mode: 'normal', variant: 'holdem', rounds: 10, turnTime: 25, pace: 1 } as const;
+
+/**
+ * Fichas de consolação para quem é eliminado numa partida contra bots.
+ *
+ * Só para quem **pagou** o buy-in daquela partida. A mesa do recomeço (o fácil de graça, para quem
+ * quebrou) não paga consolação: sem custo para sentar, bastaria ir de all-in na primeira mão, cair
+ * e sentar de novo — duzentas fichas por minuto, de graça.
+ */
+export const CONSOLACAO_BOTS = 200;
+
+/**
+ * O que um jogador levou de uma partida: a experiência, parcela por parcela, e a consolação.
+ *
+ * Vai no `gameOver`, calculado pelo servidor — é ele que conta as mãos e credita as fichas. O
+ * cliente só mostra. Só existe para quem tem conta: sem conta não há experiência para somar.
+ */
+export interface GanhoDaPartida {
+  seat: number;
+  xp: {
+    /** Mãos jogadas nesta partida, e o xp delas. */
+    maos: number;
+    /** Mãos ganhas nesta partida, e o xp delas. */
+    vitorias: number;
+    /** O xp de terminar a partida (todo mundo que estava na mesa até o fim, eliminado ou não). */
+    partida: number;
+    /** O xp de ganhar a partida (0 para quem não foi o primeiro). */
+    campeao: number;
+    total: number;
+  };
+  /** Quantas mãos jogou e quantas ganhou — para o placar dizer "12 mãos", e não só o xp. */
+  jogadas: number;
+  ganhas: number;
+  /** Experiência da conta antes e depois da partida (o placar desenha a barra de nível com isto). */
+  xpAntes: number;
+  xpDepois: number;
+  /** Fichas de consolação por ter sido eliminado contra bots (0 = nenhuma). */
+  consolacao: number;
+}
 
 /** A mesa de um degrau, numa moeda. */
 export interface BotTable {
@@ -380,7 +418,7 @@ export type TableEvent =
   | { t: 'rebuy'; seat: number; amount: number }
   | { t: 'bust'; seat: number; place: number }
   | { t: 'blindsUp'; smallBlind: number; bigBlind: number }
-  | { t: 'gameOver'; ranking: { name: string; place: number; seat: number }[] };
+  | { t: 'gameOver'; ranking: { name: string; place: number; seat: number }[]; ganhos?: GanhoDaPartida[] };
 
 /**
  * Um jogador na **abertura** da partida — a tela que o jogo mostra como "preparando a mesa" antes
@@ -399,6 +437,8 @@ export interface OpeningPlayer {
   /** Nível do jogador; 0 nos bots, que não têm conta. */
   level: number;
   character: CharacterStyle;
+  /** As auras dele, que abrem em volta do personagem no card (veja AURA_SLOT). */
+  auras: AuraId[];
   /** Frente e verso das cartas dele, para o par mostrado no card. */
   face: CardFaceStyle;
   back: CardBackStyle;

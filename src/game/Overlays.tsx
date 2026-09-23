@@ -23,7 +23,6 @@ function CutIn({ splash }: { splash: Splash }) {
         animate={{ scaleX: 1 }}
         transition={{ duration: 0.28, ease: 'easeOut' }}
       />
-      <div className="cutin-lines" />
       <motion.div
         className="cutin-char"
         initial={{ x: -320, opacity: 0 }}

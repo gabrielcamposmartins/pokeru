@@ -123,6 +123,18 @@ const RARIDADE_DE: Record<string, Raridade> = {
    */
   'aura:asas-dragao': 'lendario',
   'frame:dragao': 'lendario',
+  /*
+   * Os círculos têm cada um o seu degrau, do mais simples ao mais trabalhado.
+   *
+   * O Prismático é lendário: é o único em que a cor anda, e o único escrito com o próprio jogo (as
+   * mãos do poker). O Onmyōji é épico, pela shuriken; o Oracular raro; o Arcano incomum; o Boreal,
+   * o mais sóbrio, é o círculo comum — a porta de entrada para quem quer um.
+   */
+  'aura:circulo-prisma': 'lendario',
+  'aura:selo-onmyoji': 'epico',
+  'aura:circulo-oracular': 'raro',
+  'aura:circulo-arcano': 'incomum',
+  'aura:circulo-boreal': 'comum',
   // épico: o presente que se guarda
   'gift:joia': 'epico',
   /*
@@ -147,16 +159,7 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'winfx:ice': 'epico',
   'winfx:holy': 'epico',
   'winfx:void': 'epico',
-  /*
-   * Raro: os círculos escritos e o que os acompanha.
-   *
-   * Cada um é uma escrita diferente — latim, grego, japonês e cirílico —, e é isso que os põe
-   * acima de um anel de luz: quem vê reconhece a língua antes de reconhecer o círculo.
-   */
-  'aura:circulo-arcano': 'raro',
-  'aura:circulo-oracular': 'raro',
-  'aura:selo-onmyoji': 'raro',
-  'aura:circulo-boreal': 'raro',
+  // raro: o nimbo e o arsenal
   'aura:aureola-radiante': 'raro',
   'aura:espadas': 'raro',
   'frame:neon': 'raro',

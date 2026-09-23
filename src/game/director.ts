@@ -360,7 +360,7 @@ class Director {
     const { ev, view } = item;
     const t = useTable.getState();
     if (ev.t === 'gameOver') {
-      t.setGameOver(ev.ranking);
+      t.setGameOver(ev.ranking, ev.ganhos);
       t.setMatch({ id: nextId(), kind: 'over' });
     }
     if (ev.t === 'handStart') {
@@ -651,7 +651,7 @@ class Director {
         return;
 
       case 'gameOver':
-        store.setGameOver(ev.ranking);
+        store.setGameOver(ev.ranking, ev.ganhos);
         store.setMatch({ id: nextId(), kind: 'over' });
         return;
 

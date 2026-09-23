@@ -3,6 +3,7 @@ import {
   EMPTY_STATS,
   playerLevel,
   sanitizeStats,
+  xpOf,
   sanitizeTitle,
   type PlayerStats,
   type StatEvent,
@@ -873,6 +874,12 @@ export class Accounts implements AccountService {
     // um titulo pode ter deixado de valer (ou o contador acabou de liberar outro)
     acc.title = sanitizeTitle(acc.title, acc.stats);
     this.changed(acc.id);
+  }
+
+  /** Experiência acumulada da conta — o placar mostra o antes e o depois da partida com isto. */
+  xp(accountId: string): number {
+    const acc = this.byId(accountId);
+    return acc ? xpOf(sanitizeStats(acc.stats)) : 0;
   }
 
   /** Equipa um titulo. Recusa o que as conquistas da conta nao sustentam. */

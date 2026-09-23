@@ -29,10 +29,15 @@ function human(view: TableView, seat: number | null) {
 }
 
 /**
- * Mesa da partida: a do dealer quando o dealer é gente, a minha caso contrário.
- * Sem dealer definido (mesa parada), ou com o botão num bot, também fica a minha.
+ * Mesa da partida: a do dealer, **só quando há outra pessoa na mesa**.
+ *
+ * Contra bots a mesa é sempre a minha, de ponta a ponta. Com gente, ela é a de quem está com o
+ * botão — e quando o botão está comigo, ou num bot, ou ainda não foi sorteado, volta a ser a
+ * minha. A minha sai do **perfil**, e não da cópia que o servidor guarda: é a troca mais recente,
+ * que eu fiz no Estúdio há um minuto, e que o servidor pode ainda não ter recebido.
  */
 export function tableSkin(view: TableView, mine: TableStyle): TableStyle {
+  if (!hasOtherHumans(view) || view.dealerSeat === view.mySeat) return mine;
   return human(view, view.dealerSeat)?.cosmetics.table ?? mine;
 }
 
@@ -47,6 +52,7 @@ export function chipSkin(view: TableView, seat: number, mine: ChipStyle): ChipSt
  * São as do dealer, pela mesma razão da mesa.
  */
 export function mainChipSkin(view: TableView, mine: ChipStyle): ChipStyle {
+  if (!hasOtherHumans(view) || view.dealerSeat === view.mySeat) return mine;
   return human(view, view.dealerSeat)?.cosmetics.chip ?? mine;
 }
 

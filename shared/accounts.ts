@@ -188,9 +188,10 @@ export interface TableBank {
    * ela deixa de funcionar.
    */
   play?(accountId: string, resumo: ResumoDaPartida): void;
-  /** Contadores gerais da conta. */
   /** Sobe um contador de conquista da conta. */
   note(accountId: string, what: StatEvent): void;
+  /** Experiência acumulada da conta (dos mesmos contadores). Opcional: a mesa offline não tem conta. */
+  xp?(accountId: string): number;
   /** Equipa um titulo. Recusa silenciosamente o que as conquistas nao sustentam. */
   setTitle(accountId: string, title: string | null): void;
 
