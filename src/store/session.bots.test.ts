@@ -101,8 +101,8 @@ describe('partida contra bots', () => {
     expect(st.rounds).toBe(BOT_MATCH.rounds);
     expect(st.turnTime).toBe(BOT_MATCH.turnTime);
     // o degrau fácil: mil fichas e 50/100
-    expect(st.startingStack).toBe(botTier('easy').mesa.chips.stack);
-    expect(st.bigBlind).toBe(botTier('easy').mesa.chips.bigBlind);
+    expect(st.startingStack).toBe(botTier('easy').mesa.stack);
+    expect(st.bigBlind).toBe(botTier('easy').mesa.bigBlind);
     // e sair no meio custa as fichas: não é mesa Custom
     expect(st.custom).toBe(false);
   });

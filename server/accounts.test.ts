@@ -389,7 +389,7 @@ describe('partida contra bots no servidor', () => {
 
     const room = [...lobby.rooms.values()][0];
     expect(room.settings.startingStack).toBe(2000);
-    expect(room.settings.bigBlind).toBe(500);
+    expect(room.settings.bigBlind).toBe(200);
     accounts.close();
   });
 

@@ -120,7 +120,7 @@ function BotMatchModal({ onClose }: { onClose: () => void }) {
   const [currency, setCurrency] = useState<Currency>('chips');
   const moeda: Currency = temDiscord ? currency : 'chips';
   const tier = botTier(difficulty);
-  const mesa = tier.mesa[moeda];
+  const mesa = tier.mesa;
   const saldo = moeda === 'pado' ? (pado ?? 0) : chips;
   /*
    * A mesa do recomeço.

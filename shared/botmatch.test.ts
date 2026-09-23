@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BOT_MATCH,
-  BOT_TIERS,
-  DIFFICULTIES,
-  PADO_POR_MESA,
-  botMatchSettings,
-  botTier,
-  bonusPado,
-  tierUnlocked,
-} from './protocol';
+import { BOT_MATCH, BOT_TIERS, DIFFICULTIES, QUEUE_STAKES, botMatchSettings, botTier, bonusPado, tierUnlocked } from './protocol';
 import { sanitizeSettings } from './room';
 import { xpForLevel } from './achievements';
 
@@ -26,32 +17,33 @@ describe('os degraus', () => {
     expect(BOT_TIERS.map((t) => t.id)).toEqual([...DIFFICULTIES]);
     for (let i = 1; i < BOT_TIERS.length; i++) {
       expect(BOT_TIERS[i].level, BOT_TIERS[i].id).toBeGreaterThan(BOT_TIERS[i - 1].level);
-      expect(BOT_TIERS[i].mesa.chips.stack, BOT_TIERS[i].id).toBeGreaterThan(BOT_TIERS[i - 1].mesa.chips.stack);
-      expect(BOT_TIERS[i].mesa.chips.bigBlind, BOT_TIERS[i].id).toBeGreaterThan(BOT_TIERS[i - 1].mesa.chips.bigBlind);
+      expect(BOT_TIERS[i].mesa.stack, BOT_TIERS[i].id).toBeGreaterThan(BOT_TIERS[i - 1].mesa.stack);
+      expect(BOT_TIERS[i].mesa.bigBlind, BOT_TIERS[i].id).toBeGreaterThan(BOT_TIERS[i - 1].mesa.bigBlind);
       expect(BOT_TIERS[i].bonus.fim, BOT_TIERS[i].id).toBeGreaterThan(BOT_TIERS[i - 1].bonus.fim);
     }
   });
 
-  it('as mesas são as combinadas: 1.000 com 50/100, 2.000 com 250/500, 10.000 com 500/1.000', () => {
-    expect(botTier('easy').mesa.chips).toEqual({ stack: 1000, smallBlind: 50, bigBlind: 100 });
-    expect(botTier('normal').mesa.chips).toEqual({ stack: 2000, smallBlind: 250, bigBlind: 500 });
-    expect(botTier('hard').mesa.chips).toEqual({ stack: 10_000, smallBlind: 500, bigBlind: 1000 });
+  it('as mesas são as combinadas: 1.000 com 50/100, 2.000 com 100/200, 10.000 com 500/1.000', () => {
+    expect(botTier('easy').mesa).toEqual({ stack: 1000, smallBlind: 50, bigBlind: 100 });
+    expect(botTier('normal').mesa).toEqual({ stack: 2000, smallBlind: 100, bigBlind: 200 });
+    expect(botTier('hard').mesa).toEqual({ stack: 10_000, smallBlind: 500, bigBlind: 1000 });
   });
 
-  it('em padocoin tudo divide por dez, e o formato da mesa não muda', () => {
-    for (const t of BOT_TIERS) {
-      expect(t.mesa.pado.stack, t.id).toBe(t.mesa.chips.stack / PADO_POR_MESA);
-      // a mesa continua tendo os mesmos big blinds de pilha: é a mesma partida, em outra moeda
-      expect(t.mesa.pado.stack / t.mesa.pado.bigBlind, t.id).toBeCloseTo(t.mesa.chips.stack / t.mesa.chips.bigBlind, 6);
+  it('a mesa é a mesma nas duas moedas: o pote em padocoin tem os números do pote em fichas', () => {
+    for (const t of DIFFICULTIES) {
+      const fichas = botMatchSettings(t, 'chips', true);
+      const pado = botMatchSettings(t, 'pado', true);
+      expect(pado.startingStack, t).toBe(fichas.startingStack);
+      expect(pado.smallBlind, t).toBe(fichas.smallBlind);
+      expect(pado.bigBlind, t).toBe(fichas.bigBlind);
+      expect(pado.buyIn, t).toBe(fichas.buyIn);
     }
+    // e a fila segue a mesma regra
+    expect(QUEUE_STAKES.pado).toEqual(QUEUE_STAKES.chips);
   });
 
-  it('a pilha paga o blind, e o degrau mais alto é mesa mais curta', () => {
-    // pilha que não paga o big blind faria a mão começar em all-in involuntário
-    for (const t of BOT_TIERS) expect(t.mesa.chips.stack / t.mesa.chips.bigBlind, t.id).toBeGreaterThanOrEqual(2);
-    // e a mesa aperta conforme sobe: 10 blinds no fácil, 4 no normal, 10 no difícil com aposta 10x
-    expect(botTier('easy').mesa.chips.stack / botTier('easy').mesa.chips.bigBlind).toBe(10);
-    expect(botTier('normal').mesa.chips.stack / botTier('normal').mesa.chips.bigBlind).toBe(4);
+  it('todo degrau dá dez big blinds de pilha: a mesa aperta pelo valor, não pelo número de mãos', () => {
+    for (const t of BOT_TIERS) expect(t.mesa.stack / t.mesa.bigBlind, t.id).toBe(10);
   });
 });
 
@@ -106,7 +98,8 @@ describe('a mesa que o servidor monta', () => {
   it('o buy-in é a pilha do degrau, e sem conta não se cobra nada', () => {
     expect(botMatchSettings('hard', 'chips', true).buyIn).toBe(10_000);
     expect(botMatchSettings('hard', 'chips', false).buyIn).toBe(0);
-    expect(botMatchSettings('hard', 'pado', true).buyIn).toBe(1000);
+    // em padocoin é o mesmo número — e é por isso que a mesma mesa custa muito mais lá
+    expect(botMatchSettings('hard', 'pado', true).buyIn).toBe(10_000);
   });
 
   it('não é Custom: sair no meio custa as fichas', () => {

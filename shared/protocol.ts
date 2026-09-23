@@ -117,6 +117,8 @@ export const BLIND_STEPS: { sb: number; bb: number }[] = [
   { sb: 10, bb: 20 },
   { sb: 25, bb: 50 },
   { sb: 50, bb: 100 },
+  // 100/200 fecha o maior buraco da escada: de 50/100 para 250/500 era um salto de cinco vezes
+  { sb: 100, bb: 200 },
   { sb: 250, bb: 500 },
   { sb: 500, bb: 1000 },
   { sb: 1000, bb: 2000 },
@@ -157,37 +159,33 @@ export interface BotTable {
 /**
  * Os três degraus da partida contra bots.
  *
- * Dificuldade não é só o bot pensar melhor: é a mesa inteira subindo. A pilha cresce, os blinds
- * crescem mais rápido que ela (50/100 em mil fichas são dez blinds; 500/1000 em dez mil são dez
- * também, mas cada mão custa dez vezes mais), e o prêmio em padocoin acompanha.
+ * Dificuldade não é só o bot pensar melhor: é a mesa inteira subindo. A pilha cresce e os blinds
+ * crescem com ela, mantendo **dez big blinds de pilha** nos três degraus: o que muda é quanto cada
+ * mão custa, não quantas mãos a pilha aguenta. O prêmio em padocoin acompanha.
  *
  * **Os degraus se liberam por nível.** O fácil vem com o jogo; o normal pede nível 5 e o difícil,
  * 20. Quem confere é o servidor (veja `botMatch` em shared/lobby.ts) — aqui é só a tabela.
  *
- * Em padocoin tudo divide por dez, como na fila (QUEUE_STAKES): padocoin é dinheiro de verdade da
- * economia do bot, e uma mesa de dez mil padocoins não é a mesma aposta que uma de dez mil fichas.
+ * **A mesa é a mesma nas duas moedas.** O pote de uma partida em padocoin tem os mesmos números do
+ * de uma em fichas: uma mesa é uma mesa, e dividir os valores por dez fazia a partida em padocoin
+ * parecer de brinquedo ao lado da de fichas. O que muda é de onde sai o buy-in — e, sendo padocoin
+ * dinheiro de verdade da economia do bot, a mesma mesa já custa muito mais lá.
  */
 export interface BotTier {
   id: BotDifficulty;
   label: string;
   /** Nível do jogador que libera o degrau (1 = vem com o jogo). */
   level: number;
-  mesa: Record<Currency, BotTable>;
+  mesa: BotTable;
   /** Padocoins ao terminar a partida, e ao terminar em primeiro. */
   bonus: { fim: number; vitoria: number };
 }
-
-/** O que a mesa de fichas vale em padocoin. O mesmo da fila: padocoin é dez vezes a ficha. */
-export const PADO_POR_MESA = 10;
 
 const degrau = (id: BotDifficulty, label: string, level: number, stack: number, sb: number, bb: number, i: number): BotTier => ({
   id,
   label,
   level,
-  mesa: {
-    chips: { stack, smallBlind: sb, bigBlind: bb },
-    pado: { stack: stack / PADO_POR_MESA, smallBlind: sb / PADO_POR_MESA, bigBlind: bb / PADO_POR_MESA },
-  },
+  mesa: { stack, smallBlind: sb, bigBlind: bb },
   // 200 por terminar e 400 por vencer, mais cem a cada degrau
   bonus: { fim: 200 + i * 100, vitoria: 400 + i * 100 },
 });
@@ -197,7 +195,7 @@ export const DIFFICULTIES: readonly BotDifficulty[] = ['easy', 'normal', 'hard']
 
 export const BOT_TIERS: readonly BotTier[] = [
   degrau('easy', 'Fácil', 1, 1000, 50, 100, 0),
-  degrau('normal', 'Normal', 5, 2000, 250, 500, 1),
+  degrau('normal', 'Normal', 5, 2000, 100, 200, 1),
   degrau('hard', 'Difícil', 20, 10_000, 500, 1000, 2),
 ];
 
@@ -218,7 +216,7 @@ export const bonusPado = (d: BotDifficulty, venceu: boolean): number =>
 /** A mesa de uma partida contra bots. `paga` liga o buy-in (servidor com contas). */
 export function botMatchSettings(difficulty: BotDifficulty, currency: Currency, paga: boolean): RoomSettings {
   const t = botTier(difficulty);
-  const m = t.mesa[currency];
+  const m = t.mesa;
   return {
     ...DEFAULT_SETTINGS,
     name: `Contra bots · ${t.label}`,
@@ -246,12 +244,14 @@ export function botMatchSettings(difficulty: BotDifficulty, currency: Currency, 
  * As mesas da fila rápida: cash (com rebuy), seis lugares, e o jogador joga com o que é dele até
  * zerar. Os valores são fixos de propósito — fila é para entrar sem escolher nada.
  *
- * O padocoin vale muito mais que a ficha, então as apostas acompanham: em fichas são 100 big
- * blinds de mesa; em padocoin, 50.
+ * **A mesa é a mesma nas duas moedas**, como na partida contra bots: o pote em padocoin tem os
+ * mesmos números do pote em fichas. Antes o padocoin dividia tudo por dez, e a mesa dele parecia de
+ * brinquedo ao lado da de fichas — só que padocoin é dinheiro de verdade, então a mesma mesa lá já
+ * é uma aposta muito maior sem precisar de número maior.
  */
 export const QUEUE_STAKES: Record<Currency, { buyIn: number; smallBlind: number; bigBlind: number }> = {
   chips: { buyIn: 2000, smallBlind: 10, bigBlind: 20 },
-  pado: { buyIn: 200, smallBlind: 2, bigBlind: 4 },
+  pado: { buyIn: 2000, smallBlind: 10, bigBlind: 20 },
 };
 
 /** Configuração automática de uma mesa da fila. */

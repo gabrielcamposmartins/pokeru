@@ -446,7 +446,7 @@ export const useSession = create<SessionState>()((set, get) => ({
      * para montar nada.
      */
     const t = botTier(difficulty);
-    const mesa = t.mesa.chips;
+    const mesa = t.mesa;
     const o: LocalOptions = {
       bots: BOT_MATCH.bots,
       difficulty,

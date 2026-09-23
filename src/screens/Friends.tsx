@@ -275,7 +275,7 @@ function Grupo({ onCustom }: { onCustom?: () => void }) {
               ))}
             </div>
             <small className="muted">
-              Mesa de {tier.mesa.chips.stack.toLocaleString('pt-BR')} fichas; os bots completam o que sobrar da mesa.
+              Mesa de {tier.mesa.stack.toLocaleString('pt-BR')}; os bots completam o que sobrar da mesa.
             </small>
           </div>
           <div className="row gap wrap">
