@@ -38,6 +38,7 @@ import { useSession } from '../store/session';
 import { buyItem, pedeSaldo, spinRoulette, useCanShop, useGifts, useOwned, usePado } from '../store/shop';
 import { useRoleta } from '../store/roleta';
 import { Sparks } from '../render/Sparks';
+import { rarityColor } from '../render/rarity';
 import { useChips } from '../ui/Wallet';
 import { ScreenHeader } from '../ui/controls';
 import { fmt } from '../util/format';
@@ -790,6 +791,26 @@ function PremioArte({ item }: { item: CatalogItem }) {
 }
 
 /**
+ * Os feixes de luz atrás do prêmio.
+ *
+ * É a Luz Sagrada das cartas vencedoras (render/cardfx.tsx) recortada para fora da carta: doze
+ * raios girando e um halo, pintados com `currentColor` — que quem chama define como a cor da
+ * raridade. Um lendário nasce dourado; um comum, verde.
+ */
+function LuzDoPremio() {
+  return (
+    <svg className="giro-luz" viewBox="0 0 100 100" aria-hidden>
+      <g className="giro-raios">
+        {Array.from({ length: 12 }, (_, i) => (
+          <path key={i} transform={`rotate(${i * 30} 50 50)`} d="M50 50 L45 -30 L55 -30 Z" />
+        ))}
+      </g>
+      <circle className="giro-halo" cx={50} cy={50} r={34} />
+    </svg>
+  );
+}
+
+/**
  * A cena do giro: a tela some, o ticket gira e vira o prêmio.
  *
  * Cobre a loja inteira de propósito — o pedido era que a interface se esconda. O prêmio que
@@ -823,9 +844,20 @@ function RoletaCena() {
       ) : (
         item && (
           <motion.div className="giro-meio" initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 18 }}>
-            <Sparks color={premio?.dup ? '#b3a9d6' : 'var(--gold)'} count={14} rise={90} spread={140} size={5} />
-            <div className="giro-premio">
-              <PremioArte item={item} />
+            <Sparks color={rarityColor(item.key)} count={14} rise={90} spread={140} size={5} />
+            <div className="giro-premio" style={{ color: rarityColor(item.key) }}>
+              {/* a Luz Sagrada das cartas vencedoras, na cor do degrau do prêmio */}
+              <LuzDoPremio />
+              {/*
+                * O prêmio se materializa: a mesma arte entra duas vezes, e a de cima — achatada em
+                * branco por um filtro — se dissolve. A peça não aparece, ela **vira** peça.
+                */}
+              <span className="giro-arte">
+                <PremioArte item={item} />
+                <span className="giro-branco" aria-hidden>
+                  <PremioArte item={item} />
+                </span>
+              </span>
             </div>
             <h2 className="title-deco">{labelOf(item)}</h2>
             <div className="giro-linha">

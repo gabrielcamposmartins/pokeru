@@ -6227,10 +6227,111 @@ button.avatar {
   color: var(--gold-2);
 }
 .giro-premio {
+  position: relative;
   display: grid;
   place-items: center;
   width: min(80vw, 420px);
   height: min(52vh, 420px);
+}
+
+/*
+ * A Luz Sagrada do prêmio.
+ *
+ * Os mesmos feixes das cartas vencedoras, na cor do degrau: doze raios girando devagar atrás da
+ * peça e um halo que respira. Transborda a caixa de propósito — luz que cabe num retângulo não
+ * parece luz — e a máscara redonda apaga as pontas, senão os feixes morrem num quadrado.
+ *
+ * Fica atrás da arte por **ordem de pintura**, não por `z-index: -1`. O negativo só funcionava
+ * enquanto a mola de entrada corria: o framer-motion tira o `transform` ao assentar, a caixa deixa
+ * de ser contexto de empilhamento, e aí a luz caía atrás do fundo da cena — sumia.
+ */
+.giro-luz {
+  position: absolute;
+  inset: -22%;
+  color: inherit;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at 50% 50%, #000 30%, transparent 70%);
+  animation: giro-luz-entra 0.9s ease-out both;
+}
+.giro-raios {
+  transform-origin: 50px 50px;
+  fill: currentColor;
+  opacity: 0.32;
+  filter: blur(1.2px);
+  animation: fx-spin-lento 16s linear infinite;
+}
+.giro-halo {
+  fill: currentColor;
+  opacity: 0.16;
+  filter: blur(9px);
+  transform-origin: 50px 50px;
+  animation: giro-halo-pulsa 2.6s ease-in-out infinite alternate;
+}
+@keyframes fx-spin-lento {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes giro-halo-pulsa {
+  from {
+    transform: scale(0.92);
+    opacity: 0.12;
+  }
+  to {
+    transform: scale(1.08);
+    opacity: 0.22;
+  }
+}
+@keyframes giro-luz-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/*
+ * A materialização.
+ *
+ * A camada de cima é a mesma arte achatada em branco (`brightness(0) invert(1)` pinta de branco o
+ * que é opaco e não toca no que é transparente, então sai a silhueta exata) e ela se dissolve
+ * sobre a arte de verdade. Meio segundo parado em branco, meio sumindo: é o tempo de a peça
+ * "chegar".
+ */
+/*
+ * A arte ocupa a caixa do prêmio inteira e, vindo depois da luz, pinta por cima dela.
+ *
+ * Tem de ser posição absoluta, não `height: 100%`: a caixa é um grid de altura automática, e
+ * altura em porcentagem dentro dela não resolve — o personagem saía no tamanho natural do
+ * arquivo, 1.500px, por cima do nome e do botão.
+ */
+.giro-arte {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.giro-branco {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  filter: brightness(0) invert(1) drop-shadow(0 0 18px currentColor);
+  animation: materializa 1.15s ease-in forwards;
+  pointer-events: none;
+}
+@keyframes materializa {
+  0% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  38% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
 }
 .ticket-art.girando {
   box-shadow:
@@ -6628,4 +6729,108 @@ button.avatar {
   text-transform: uppercase;
   color: var(--gold);
   opacity: 0.85;
+}
+
+/* ------------------------------------------------------------------ guia das mãos */
+
+/*
+ * A tela que ensina.
+ *
+ * Uma linha por mão: a posição, o nome com a explicação e as cinco cartas. As cartas que formam a
+ * mão ficam acesas e as outras recuam — é o que separa "um par" de "duas cartas quaisquer" sem
+ * precisar de uma palavra a mais.
+ */
+.guia {
+  width: min(760px, 94vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.guia-cab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 34px;
+}
+.guia-cab h2 {
+  margin: 0;
+}
+.guia-fechar {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.5);
+  color: var(--muted);
+  cursor: pointer;
+}
+.guia-fechar:hover {
+  color: var(--text);
+  border-color: var(--line);
+}
+.guia-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.guia-lista li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 12px;
+}
+.guia-lista li:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.035);
+}
+.guia-pos {
+  font-family: var(--num);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  text-align: center;
+}
+.guia-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.guia-info b {
+  font-size: 15px;
+}
+.guia-info small {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.guia-cartas {
+  display: flex;
+  gap: 3px;
+}
+/* a carta que não entra na mão fica de lado: apagada e um pouco menor */
+.guia-cartas i {
+  display: block;
+  line-height: 0;
+  opacity: 0.32;
+  transform: scale(0.9);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+.guia-cartas i.on {
+  opacity: 1;
+  transform: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }

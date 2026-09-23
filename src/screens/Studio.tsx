@@ -16,8 +16,8 @@ import {
   type WinFxId,
 } from '../../shared/styles';
 import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useProfile, type StyleKind, type StyleMap } from '../store/profile';
-import { useMyStyles, useOwns } from '../store/shop';
-import { itemKey, padoPrice, priceOf } from '../../shared/catalog';
+import { useMyStyles, useOwned, useOwns } from '../store/shop';
+import { itemKey, ownsItem, padoPrice, priceOf } from '../../shared/catalog';
 import { useSession } from '../store/session';
 import { CardBackSvg, CardFaceSvg, CardView, FONT_FAMILY, FONT_LABEL } from '../render/CardArt';
 import { ChipSvg } from '../render/Chip';
@@ -627,6 +627,16 @@ const FX_SOUND_LABEL: Record<FxSound, string> = {
  * Aba "Efeitos": escolhe o efeito das suas cartas quando você ganha. O catálogo está em
  * src/render/cardfx.tsx — acrescentar um efeito lá já faz ele aparecer aqui.
  */
+/**
+ * Aba "Efeitos de vitória".
+ *
+ * Era a única aba sem cadeado: listava os onze efeitos e deixava equipar qualquer um. O servidor
+ * corrigia na mesa (`clampCosmetics` troca pelo gratuito o que a conta não tem), então o jogador
+ * equipava Fogo, lia "✓ Equipado" e ganhava a mão com o brilho dourado — o jogo discordando de si
+ * mesmo em silêncio. Agora o que não é seu aparece trancado, e o botão diz de onde ele sai.
+ *
+ * Ver e ouvir continua livre: a aba também serve de vitrine.
+ */
 function WinFxStudio() {
   const chosen = useProfile((s) => s.winFx);
   const setWinFx = useProfile((s) => s.setWinFx);
@@ -634,6 +644,9 @@ function WinFxStudio() {
   const [sel, setSel] = useState<WinFxId>(chosen);
   const fx = findWinFx(sel);
   const equipped = fx.id === chosen;
+  // `useOwns` é hook e não pode ser chamado dentro do map: a lista pergunta à posse já lida
+  const owned = useOwned();
+  const meu = (id: string) => ownsItem(owned, 'winfx', id);
   return (
     <div className="studio-body">
       <div className="panel style-list">
@@ -654,7 +667,10 @@ function WinFxStudio() {
             </span>
             <span className="style-name">
               {f.name}
-              <span className="badges">{f.id === chosen && <span className="badge eq">Equipado</span>}</span>
+              <span className="badges">
+                {f.id === chosen && meu(f.id) && <span className="badge eq">Equipado</span>}
+                {!meu(f.id) && <span className="badge locked">🔒 Roleta</span>}
+              </span>
             </span>
           </button>
         ))}
@@ -668,14 +684,14 @@ function WinFxStudio() {
             </button>
             <button
               className={`btn ${equipped ? 'btn-ghost' : 'btn-gold'} small`}
-              disabled={equipped}
+              disabled={equipped || !meu(fx.id)}
               onClick={() => {
                 setWinFx(fx.id);
                 sfx.pop();
                 toast(`Efeito de vitória: “${fx.name}” equipado!`);
               }}
             >
-              {equipped ? '✓ Equipado' : 'Equipar'}
+              {equipped ? '✓ Equipado' : meu(fx.id) ? 'Equipar' : '🔒 Sai de roleta'}
             </button>
           </div>
         </div>
@@ -686,7 +702,11 @@ function WinFxStudio() {
             <CardView card={null} faceUp={false} width={140} winFx={fx} />
           </div>
         </div>
-        <div className="preset-note">As cartas vencedoras (as suas e as da mesa) ficam assim quando você ganha no showdown.</div>
+        <div className="preset-note">
+          {meu(fx.id)
+            ? 'As cartas vencedoras (as suas e as da mesa) ficam assim quando você ganha no showdown.'
+            : 'Pré-visualização: este efeito ainda não é seu. Ele sai das roletas, na Loja → Tickets.'}
+        </div>
       </div>
       <div className="panel editor">
         <Section title="Sobre">
@@ -906,7 +926,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
             ))}
             {trancados > 0 && (
               <div className="field-hint style-locked">
-                {trancados === 1 ? 'Mais 1 estilo deste tipo está' : 'Mais ' + trancados + ' estilos deste tipo estão'} na <b>Loja</b>. Aqui aparece o que é seu.
+                {trancados === 1 ? 'Mais 1 estilo deste tipo sai' : 'Mais ' + trancados + ' estilos deste tipo saem'} das roletas (<b>Loja → Tickets</b>). Aqui aparece o que é seu.
               </div>
             )}
           </div>

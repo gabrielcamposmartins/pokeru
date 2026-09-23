@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { CHARACTER_PRESETS } from '../../shared/styles';
-import { itemKey, ownsItem, priceOf } from '../../shared/catalog';
+import { ownsItem } from '../../shared/catalog';
 import { HEARTS } from '../game/bond';
+import { ROULETTES } from '../../shared/roulette';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
@@ -10,7 +11,6 @@ import { BondBar, BondHearts } from '../game/BondBar';
 import { BondPage } from '../game/BondPage';
 import { useBondLevel } from '../store/bond';
 import { useOwned } from '../store/shop';
-import { fmt } from '../util/format';
 import { ScreenHeader } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { Petals } from './MainMenu';
@@ -45,7 +45,8 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
   const chosen = profile.character === current.id;
   // personagem é item de loja: só entra na mesa quem é do jogador (o servidor confere de novo)
   const mine = ownsItem(owned, 'character', current.id);
-  const preco = priceOf(itemKey('character', current.id), 'chips') ?? 0;
+  // o personagem não se compra mais: cada um sai da roleta do gênero dele
+  const roleta = ROULETTES.find((r) => r.gender === current.gender);
   const bond = useBondLevel(current.id);
 
   const say = () => {
@@ -114,10 +115,10 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
                   onClick={() => {
                     sfx.click();
                     if (onStore) onStore();
-                    else toast('Abra a Loja para desbloquear este personagem.');
+                    else toast(`${current.name} sai da ${roleta?.name ?? 'roleta'}, na Loja → Tickets.`);
                   }}
                 >
-                  🔒 {fmt(preco)} fichas · na Loja
+                  🔒 Sai da {roleta?.name ?? 'roleta'}
                 </button>
               )}
               <button

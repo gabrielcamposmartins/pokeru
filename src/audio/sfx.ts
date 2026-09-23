@@ -143,6 +143,30 @@ export const sfx = {
   unlock(): void {
     ac();
   },
+  /**
+   * O suspense do giro do ticket.
+   *
+   * Nada de tambor: é um sopro que sobe de grave a agudo com o filtro abrindo, uma nota que sobe
+   * junto, e um relógio que acelera por cima — as três coisas terminando ao mesmo tempo. A pressa
+   * do tique é o que faz o peito apertar; o sopro só sustenta.
+   */
+  girar(): void {
+    playNoise({ dur: 2.1, type: 'bandpass', freq: 280, freqEnd: 4200, q: 1.3, gain: 0.13 });
+    playTone({ freq: 196, freqEnd: 784, dur: 2.1, type: 'triangle', gain: 0.05, attack: 0.6 });
+    let t = 0;
+    let passo = 0.22;
+    for (let i = 0; i < 12 && t < 2; i++) {
+      playTone({ freq: 1200 + i * 70, dur: 0.05, type: 'triangle', gain: 0.045, at: t });
+      t += passo;
+      passo *= 0.87;
+    }
+  },
+  /** A revelação: o acorde claro e o estalo de luz em cima dele. */
+  revelar(): void {
+    [783.99, 1174.66, 1567.98].forEach((f, i) => playTone({ freq: f, dur: 1.2 - i * 0.2, type: 'triangle', gain: 0.075, at: i * 0.045, attack: 0.01 }));
+    playNoise({ dur: 0.5, type: 'highpass', freq: 6200, gain: 0.13 });
+    playTone({ freq: 2349, dur: 0.6, type: 'sine', gain: 0.035, at: 0.12 });
+  },
   /** Som do efeito das cartas vencedoras. */
   fx(kind: FxSound | undefined): void {
     if (kind) FX_SOUNDS[kind]?.();

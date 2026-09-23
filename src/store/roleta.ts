@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Currency } from '../../shared/catalog';
 import { useSession } from './session';
+import { sfx } from '../audio/sfx';
 
 /**
  * O giro da roleta, do lado do cliente.
@@ -53,6 +54,7 @@ export const useRoleta = create<RoletaState>((set, get) => ({
     if (revelar) clearTimeout(revelar);
     inicio = Date.now();
     set({ status: 'girando', roulette, premio: null });
+    sfx.girar();
     useSession.getState().send({ type: 'spin', roulette, currency });
   },
 
@@ -62,7 +64,9 @@ export const useRoleta = create<RoletaState>((set, get) => ({
     if (revelar) clearTimeout(revelar);
     revelar = setTimeout(() => {
       revelar = null;
-      if (useRoleta.getState().status === 'girando') set({ status: 'revelado', premio });
+      if (useRoleta.getState().status !== 'girando') return;
+      sfx.revelar();
+      set({ status: 'revelado', premio });
     }, falta);
   },
 

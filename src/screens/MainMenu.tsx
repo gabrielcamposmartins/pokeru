@@ -11,6 +11,7 @@ import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
+import { HandGuideButton } from '../game/HandGuide';
 import { BlindPicker, Segmented } from '../ui/controls';
 import { WalletBar, useChips } from '../ui/Wallet';
 import { MODE_LABEL, VARIANT_LABEL } from '../util/format';
@@ -346,6 +347,7 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
       </div>
       <WalletBar />
       <div className="top-actions">
+        <HandGuideButton />
         <button className="round-icon" title={muted ? 'Ativar som' : 'Silenciar'} onClick={() => updateSettings({ muted: !muted })}>
           {muted ? '🔇' : '🔊'}
         </button>

@@ -6,6 +6,7 @@ import { Stage } from '../game/Stage';
 import { TableStage } from '../game/TableStage';
 import { ActionPanel } from '../game/ActionPanel';
 import { ChatPanel, EmoteMenu, WinSplash } from '../game/Overlays';
+import { HandGuideButton } from '../game/HandGuide';
 import { RoundResultScreen } from '../game/RoundResult';
 import { MatchEndScreen } from '../game/MatchEnd';
 import { VARIANT_SHORT, fmt, matchLabel } from '../util/format';
@@ -49,6 +50,8 @@ export function GameScreen() {
           </div>
         </div>
         <div className="hud-right">
+          {/* a dúvida sobre as mãos vem no meio da partida, não antes dela */}
+          <HandGuideButton className="hud-btn" />
           <button className="hud-btn" title={muted ? 'Ativar som' : 'Silenciar'} onClick={() => updateSettings({ muted: !muted })}>
             {muted ? '🔇' : '🔊'}
           </button>
