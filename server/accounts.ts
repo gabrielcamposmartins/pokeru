@@ -74,8 +74,11 @@ export interface AccountsOptions {
   startingMoney?: number;
   /**
    * Recarga de cortesia: quando a conta chega a zero (sem fichas em mesa), o saldo volta para
-   * este valor na próxima cobrança. 0 desliga — aí quem perde tudo precisa de um presente do
-   * administrador (`POKERU_GIFT`, veja o README).
+   * este valor na próxima cobrança.
+   *
+   * **0 desliga, e é o padrão do servidor oficial**: quem zera volta jogando a mesa do recomeço
+   * (Contra Bots no Fácil, que senta de graça quem não tem o buy-in). Com a cortesia ligada,
+   * quebrar não custa nada — o saldo se refaz sozinho na próxima mesa, qualquer que seja ela.
    */
   faucet?: number;
   /** Teto de contas guardadas: passando disso, o servidor não cria mais (só mesas livres). */

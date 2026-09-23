@@ -103,7 +103,7 @@ DATA_DIR=./data npm run server:start
 | `DATA_DIR` | `./data` | pasta dos dados (`accounts.json`) |
 | `POKERU_ACCOUNTS` | `1` | `0` desliga as contas: mesas livres, nada salvo |
 | `STARTING_MONEY` | `10000` | saldo de uma conta nova |
-| `FAUCET` | `2000` | recarga de cortesia de quem zera (`0` desliga) |
+| `FAUCET` | `0` | recarga de cortesia de quem zera (o padrão é desligado: quem volta do zero é a mesa do recomeço, em Contra Bots no Fácil) |
 | `MAX_ACCOUNTS` | `1000` | teto de contas guardadas; passando dele, quem chega joga só em mesas livres |
 | `ADMIN_TOKEN` | — | libera `/admin` (sem ele, as rotas respondem 403) |
 

@@ -80,7 +80,16 @@ const accounts = WITH_ACCOUNTS
   ? new Accounts({
       file: dataFile('accounts.json'),
       startingMoney: num(process.env.STARTING_MONEY, 10_000),
-      faucet: num(process.env.FAUCET, 2000),
+      /*
+       * Recarga de cortesia desligada: quem volta do zero é a mesa do recomeço.
+       *
+       * A torneira antiga devolvia 2.000 fichas na próxima cobrança de quem zerasse, em
+       * **qualquer** mesa — e com isso quebrar não custava nada. Hoje o caminho de volta é jogar
+       * o Contra Bots no Fácil, que senta de graça quem não tem o buy-in (veja `recomeco` em
+       * shared/protocol.ts): ganhar as fichas de novo passa por jogar. `FAUCET` continua de pé
+       * para quem quiser a cortesia de volta.
+       */
+      faucet: num(process.env.FAUCET, 0),
       maxAccounts: num(process.env.MAX_ACCOUNTS, 1000),
       gbot,
     })
