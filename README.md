@@ -342,6 +342,28 @@ femininas e a **do Dragão** só masculinos.
 - **Repetido vira fichas** (30% do preço de catálogo): o ticket nunca sai vazio. Presente não
   repete — dois ramos de sakura são dois ramos.
 
+### Amigos e grupo
+
+Amizade é **por código**, nunca por nome (`shared/friends.ts`). Cada conta nasce com seis
+caracteres estáveis — sem `0/O` nem `1/I`, para poderem ser ditados — e é isso que se digita para
+pedir amizade. Nome se troca em Configurações; uma lista guardada por nome apontaria para outra
+pessoa no dia seguinte.
+
+- **Pedido, aceite e recusa** ficam na conta, em disco. Pedido cruzado (os dois se pedem) vira
+  amizade na hora. Desfazer tira dos dois lados.
+- **O estado online é do lobby**, não do disco: a bolinha verde é uma conexão aberta
+  (`Lobby.friendsFor`). Verde é "no menu agora", âmbar é "numa mesa", cinza é offline — e a lista
+  vem com os online em cima, que é quem importa quando se quer jogar.
+- **Quando um amigo entra**, quem é amigo dele recebe um aviso (`friendOnline`) e a lista nova.
+- **O grupo** cabe quatro (o tamanho da mesa contra bots) e vive em memória: é do momento, não é
+  clã. Só amigos são convidados — um convite para estranho seria mensagem para estranho — e só
+  quem está online, porque um convite que ninguém vê só faz o líder esperar.
+- **Jogar junto** tem três caminhos: `bots` (o grupo senta e os bots completam o que sobrar),
+  `queue` (uma mesa da fila, que gente de fora também acha) e Custom — nesta a mesa é criada na
+  tela de sempre, e o grupo é puxado com quem a criou.
+- Quem **já está numa mesa não é arrastado** para a partida do grupo. Na partida normal sair no
+  meio custa as fichas, e um clique do líder não pode torrar o dinheiro de um amigo.
+
 ### Imagem no Artifact Registry (GCP)
 
 A imagem do servidor é publicada automaticamente pela action

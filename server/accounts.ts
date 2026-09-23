@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import {
   EMPTY_STATS,
+  playerLevel,
   sanitizeStats,
   sanitizeTitle,
   type PlayerStats,
@@ -22,8 +23,9 @@ import {
 import { findItem, isFree, isSold, priceOf, type Currency } from '../shared/catalog';
 import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
 import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
+import { MAX_REQUESTS, isFriendCode, makeFriendCode, normalizeFriendCode, podeMaisAmigos } from '../shared/friends';
 import type { SpinResult } from '../shared/accounts';
-import type { AccountCreds, AccountInfo, AccountProfile, AccountService, AuthIdentity, DiscordLink } from '../shared/accounts';
+import type { AccountCreds, AccountInfo, AccountProfile, AccountService, AuthIdentity, DiscordLink, FriendRow } from '../shared/accounts';
 import { sanitizeName } from '../shared/styles';
 import { GbotError, type Gbot } from './gbot';
 import { JsonStore } from './store';
@@ -57,6 +59,14 @@ interface Stored {
   bondUnlocked?: Record<string, number>;
   /** Como jogou as últimas partidas (shared/personality.ts). */
   play?: ResumoDaPartida[];
+  /** Código de amigo (seis caracteres estáveis). Ausente nas contas de antes das amizades. */
+  code?: string;
+  /** Amigos, por id de conta. */
+  friends?: string[];
+  /** Pedidos recebidos, por id de conta. */
+  reqIn?: string[];
+  /** Pedidos enviados, por id de conta. */
+  reqOut?: string[];
   stats: PlayerStats;
   /** Titulo de conquista escolhido (null/ausente = nenhum). */
   title?: string | null;
@@ -161,6 +171,11 @@ export class Accounts implements AccountService {
       acc.bondUnlocked ??= {};
       // de antes da personalidade: quem já jogava começa sem histórico e vai enchendo
       acc.play ??= [];
+      // de antes das amizades: cada conta ganha o seu código na primeira vez que o servidor sobe
+      acc.friends ??= [];
+      acc.reqIn ??= [];
+      acc.reqOut ??= [];
+      if (!acc.code) acc.code = this.codigoLivre();
     }
   }
 
@@ -220,6 +235,10 @@ export class Accounts implements AccountService {
       gifts: {},
       bondUnlocked: {},
       play: [],
+      code: this.codigoLivre(),
+      friends: [],
+      reqIn: [],
+      reqOut: [],
       stats: { ...EMPTY_STATS },
       title: null,
       since: new Date().toISOString(),
@@ -354,6 +373,7 @@ export class Accounts implements AccountService {
         [...new Set([...Object.keys(acc.bond), ...Object.keys(acc.bondUnlocked ?? {})])].map((c) => [c, this.unlockedOf(acc, c)]),
       ),
       play: ultimasPartidas(acc.play ?? []),
+      code: acc.code ?? '',
       stats: sanitizeStats(acc.stats),
       title: sanitizeTitle(acc.title, sanitizeStats(acc.stats)),
       since: acc.since,
@@ -646,6 +666,143 @@ export class Accounts implements AccountService {
         const razao = err instanceof GbotError ? `${err.status} ${err.message}` : String(err);
         console.error(`[padocoin] FALHA no bônus de ${got} para ${acc.name} (${acc.discord!.id}), chave ${key}: ${razao}`);
       });
+  }
+
+  // ---------------------------------------------------------------- amizades
+
+  /**
+   * Um código que ninguém tem ainda.
+   *
+   * Com 887 milhões de combinações a colisão é raríssima, mas "raríssima" com código repetido
+   * significaria duas contas que atendem pelo mesmo código — e aí um pedido de amizade vai para a
+   * pessoa errada. Tentar de novo custa nada.
+   */
+  private codigoLivre(): string {
+    const usados = new Set(Object.values(this.store.get().accounts).map((a) => a.code));
+    for (let i = 0; i < 50; i++) {
+      const c = makeFriendCode();
+      if (!usados.has(c)) return c;
+    }
+    return makeFriendCode();
+  }
+
+  byCode(code: string): string | null {
+    const c = normalizeFriendCode(code);
+    if (!isFriendCode(c)) return null;
+    return Object.values(this.store.get().accounts).find((a) => a.code === c)?.id ?? null;
+  }
+
+  /** A ficha de uma conta como os outros a veem: sem saldo, sem token, sem nada de dentro. */
+  private row(acc: Stored): FriendRow {
+    const stats = sanitizeStats(acc.stats);
+    return {
+      id: acc.id,
+      code: acc.code ?? '',
+      name: acc.name,
+      level: playerLevel(stats),
+      title: sanitizeTitle(acc.title, stats),
+      character: acc.character || 'marina',
+    };
+  }
+
+  private rows(ids: readonly string[] | undefined): FriendRow[] {
+    return (ids ?? []).map((id) => this.byId(id)).filter((a): a is Stored => !!a).map((a) => this.row(a));
+  }
+
+  friends(accountId: string): { friends: FriendRow[]; incoming: FriendRow[]; outgoing: FriendRow[] } {
+    const acc = this.byId(accountId);
+    if (!acc) return { friends: [], incoming: [], outgoing: [] };
+    return { friends: this.rows(acc.friends), incoming: this.rows(acc.reqIn), outgoing: this.rows(acc.reqOut) };
+  }
+
+  /** Junta os dois como amigos e limpa os pedidos pendentes entre eles. */
+  private amizade(a: Stored, b: Stored): void {
+    const juntar = (lista: string[] | undefined, id: string) => (lista?.includes(id) ? lista : [...(lista ?? []), id]);
+    const tirar = (lista: string[] | undefined, id: string) => (lista ?? []).filter((x) => x !== id);
+    a.friends = juntar(a.friends, b.id);
+    b.friends = juntar(b.friends, a.id);
+    a.reqIn = tirar(a.reqIn, b.id);
+    a.reqOut = tirar(a.reqOut, b.id);
+    b.reqIn = tirar(b.reqIn, a.id);
+    b.reqOut = tirar(b.reqOut, a.id);
+  }
+
+  requestFriend(accountId: string, code: string): { to: string; aceito: boolean } | string {
+    const acc = this.byId(accountId);
+    if (!acc) return 'conta não encontrada';
+    const alvoId = this.byCode(code);
+    if (!alvoId) return 'nenhuma conta com esse código';
+    if (alvoId === acc.id) return 'esse código é o seu';
+    const alvo = this.byId(alvoId)!;
+    if (acc.friends?.includes(alvoId)) return `você e ${alvo.name} já são amigos`;
+    if (!podeMaisAmigos(acc.friends?.length ?? 0)) return 'sua lista de amigos está cheia';
+    if (!podeMaisAmigos(alvo.friends?.length ?? 0)) return `a lista de ${alvo.name} está cheia`;
+
+    /*
+     * Pedido cruzado vira amizade na hora.
+     *
+     * Os dois se acharam ao mesmo tempo e trocaram código; exigir que um deles vá na lista
+     * aceitar o que acabou de pedir seria burocracia sem nenhuma proteção em troca.
+     */
+    if (acc.reqIn?.includes(alvoId)) {
+      this.amizade(acc, alvo);
+      this.store.flush();
+      this.changed(acc.id);
+      this.changed(alvo.id);
+      return { to: alvoId, aceito: true };
+    }
+    if (acc.reqOut?.includes(alvoId)) return `o pedido para ${alvo.name} já está esperando`;
+    if ((alvo.reqIn?.length ?? 0) >= MAX_REQUESTS) return `a caixa de pedidos de ${alvo.name} está cheia`;
+
+    acc.reqOut = [...(acc.reqOut ?? []), alvoId];
+    alvo.reqIn = [...(alvo.reqIn ?? []), acc.id];
+    this.store.flush();
+    this.changed(acc.id);
+    this.changed(alvo.id);
+    console.log(`[amigos] ${acc.name} pediu amizade a ${alvo.name}`);
+    return { to: alvoId, aceito: false };
+  }
+
+  acceptFriend(accountId: string, otherId: string): string | null {
+    const acc = this.byId(accountId);
+    const alvo = this.byId(otherId);
+    if (!acc || !alvo) return 'conta não encontrada';
+    if (!acc.reqIn?.includes(otherId)) return 'não há pedido dessa pessoa';
+    if (!podeMaisAmigos(acc.friends?.length ?? 0)) return 'sua lista de amigos está cheia';
+    this.amizade(acc, alvo);
+    this.store.flush();
+    this.changed(acc.id);
+    this.changed(alvo.id);
+    console.log(`[amigos] ${acc.name} e ${alvo.name} agora são amigos`);
+    return null;
+  }
+
+  declineFriend(accountId: string, otherId: string): string | null {
+    const acc = this.byId(accountId);
+    const alvo = this.byId(otherId);
+    if (!acc || !alvo) return 'conta não encontrada';
+    // serve para recusar o que chegou e para cancelar o que foi enviado: é a mesma limpeza
+    acc.reqIn = (acc.reqIn ?? []).filter((x) => x !== otherId);
+    acc.reqOut = (acc.reqOut ?? []).filter((x) => x !== otherId);
+    alvo.reqIn = (alvo.reqIn ?? []).filter((x) => x !== accountId);
+    alvo.reqOut = (alvo.reqOut ?? []).filter((x) => x !== accountId);
+    this.store.flush();
+    this.changed(acc.id);
+    this.changed(alvo.id);
+    return null;
+  }
+
+  removeFriend(accountId: string, otherId: string): string | null {
+    const acc = this.byId(accountId);
+    const alvo = this.byId(otherId);
+    if (!acc || !alvo) return 'conta não encontrada';
+    // desfaz dos dois lados: amizade de um lado só é uma lista mentindo para alguém
+    acc.friends = (acc.friends ?? []).filter((x) => x !== otherId);
+    alvo.friends = (alvo.friends ?? []).filter((x) => x !== accountId);
+    this.store.flush();
+    this.changed(acc.id);
+    this.changed(alvo.id);
+    return null;
   }
 
   money(accountId: string): number {

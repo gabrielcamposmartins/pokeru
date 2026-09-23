@@ -101,6 +101,8 @@ import { nextId, useTable, type RoundResult } from '../store/table';
 import type { ResumoDaPartida } from '../../shared/personality';
 import { MinhaPersonalidade, PersonalidadeDoPersonagem } from '../game/Personality';
 import { ProfileScreen } from '../screens/Profile';
+import { ConviteDeGrupo, FriendsScreen } from '../screens/Friends';
+import { useFriends } from '../store/friends';
 
 const q = new URLSearchParams(location.search);
 const uiInicial = q.get('ui') ?? 'default';
@@ -552,6 +554,22 @@ if (cena === 'giro') {
 }
 
 /**
+ * Amigos de mentira: um online, um jogando, um offline, e um pedido esperando.
+ *
+ * A lista de verdade vem do servidor (que sabe quem está conectado); aqui ela é semeada à mão
+ * porque o que se confere na prévia é o desenho — a bolinha verde, o grupo, a caixa de pedidos.
+ */
+const AMIGOS_DE_EXEMPLO = {
+  friends: [
+    { id: 'a-2', code: 'RJ4K7P', name: 'Leo', level: 31, title: 'Colecionador de Potes', character: 'ren', online: true, playing: false },
+    { id: 'a-3', code: 'TX9M2B', name: 'Bia', level: 12, title: null, character: 'yukina', online: true, playing: true },
+    { id: 'a-4', code: 'HQ3N8D', name: 'Duda', level: 7, title: 'Novato da Mesa', character: 'tobi', online: false, playing: false },
+  ],
+  incoming: [{ id: 'a-5', code: 'WV6C4F', name: 'Nando', level: 19, title: null, character: 'marina', online: true, playing: false }],
+  outgoing: [{ id: 'a-6', code: 'ZK8T3R', name: 'Rafa', level: 4, title: null, character: 'ren', online: false, playing: false }],
+};
+
+/**
  * Partidas de mentira para o gráfico de personalidade ter o que desenhar.
  *
  * É um jogador agressivo que blefa e não larga a mão: entra em quase tudo, aposta mais do que
@@ -581,6 +599,29 @@ function statsDoNivel(nivel: number) {
   return { ...outros, hands: Math.max(0, alvo - gastos), folds: 74, allIns: 9, bigWins: 3, showdowns: 41 };
 }
 
+/*
+ * Amigos e grupo semeados à mão.
+ *
+ * `amigos` mostra a tela cheia (com grupo montado e convite no ar); `amigos-vazio`, a tela de quem
+ * ainda não tem ninguém — que é o primeiro estado que todo jogador vê.
+ */
+if (cena === 'amigos') {
+  useFriends.setState({
+    ...AMIGOS_DE_EXEMPLO,
+    party: {
+      id: 'g-1',
+      leader: 'a-1',
+      members: [
+        { id: 'a-1', name: 'Gabi', character: 'marina', level: 23, leader: true, online: true },
+        { id: 'a-2', name: 'Leo', character: 'ren', level: 31, leader: false, online: true },
+      ],
+    },
+  });
+}
+
+// a tela de quem ainda não tem amigo nenhum, com um convite chegando por cima
+if (cena === 'amigos-vazio') useFriends.setState({ convite: { party: 'g-9', from: 'a-2', name: 'Leo' } });
+
 // a loja: finge uma conta no servidor, com itens e as duas moedas
 if (
   cena === 'loja' ||
@@ -595,7 +636,9 @@ if (
   cena === 'fila-esperando' ||
   cena === 'config-logado' ||
   cena === 'personalidade' ||
-  cena === 'perfil'
+  cena === 'perfil' ||
+  cena === 'amigos' ||
+  cena === 'amigos-vazio'
 ) {
   const comPado = cena !== 'loja-sem-pado';
   useAuth.setState({ status: 'logged', user: 'gabi', token: 'jwt.exemplo', discord: comPado ? '343954786300854276' : null, remember: true, serviceReady: true });
@@ -614,6 +657,7 @@ if (
       gifts: { flor: 3, cha: 1, leque: 1, fone: 2, bolo: 2, joia: 1, kimono: 1 },
       bondUnlocked: { yukina: 1 },
       play: PARTIDAS_DE_EXEMPLO,
+      code: 'K7M2PQ',
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
       owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
       bond: {},
@@ -672,6 +716,11 @@ createRoot(document.getElementById('root')!).render(
         <CharactersScreen onBack={() => {}} />
       ) : cena === 'login' || cena === 'login-erro' ? (
         <LoginScreen />
+      ) : cena === 'amigos' || cena === 'amigos-vazio' ? (
+        <>
+          <FriendsScreen onBack={() => {}} onCustom={() => {}} />
+          <ConviteDeGrupo />
+        </>
       ) : cena === 'perfil' || cena === 'titulos' ? (
         <ProfileScreen onBack={() => {}} />
       ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' ? (

@@ -20,6 +20,7 @@ import { findGift, findItem } from '../../shared/catalog';
 import { findCharacter } from '../../shared/styles';
 import { useRoleta } from './roleta';
 import { useBond } from './bond';
+import { useFriends } from './friends';
 import { useTable } from './table';
 import { director } from '../game/director';
 import { sfx } from '../audio/sfx';
@@ -318,6 +319,22 @@ function handle(m: ServerMsg): void {
       // o servidor já cobrou e já entregou: aqui só a cena revela o que ele mandou
       useRoleta.getState().chegou({ key: m.prize, dup: m.dup, refund: m.refund });
       break;
+    // ---------------------------------------------------------------- amizades e grupo
+    case 'friends':
+      useFriends.getState().aplicar({ friends: m.friends, incoming: m.incoming, outgoing: m.outgoing });
+      break;
+    case 'friendOnline':
+      // a notícia que faz a noite começar: alguém com quem jogar acabou de entrar
+      sfx.hover();
+      useSession.getState().toast(`${m.name} entrou no jogo`);
+      break;
+    case 'party':
+      useFriends.getState().setParty(m.party);
+      break;
+    case 'partyAsk':
+      sfx.win();
+      useFriends.getState().setConvite({ party: m.party, from: m.from, name: m.name });
+      break;
     case 'gifted': {
       const c = findCharacter(m.character);
       const g = findGift(m.gift);
@@ -497,6 +514,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     director.reset();
     director.serverBond = false;
     useBond.getState().clearServer();
+    useFriends.getState().limpar();
     set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [], account: null, offline: false, botsPending: false });
   },
 

@@ -12,6 +12,7 @@ import { GameScreen } from './screens/GameScreen';
 import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
 import { ProfileScreen } from './screens/Profile';
+import { ConviteDeGrupo, FriendsScreen } from './screens/Friends';
 import { CharactersScreen } from './screens/Characters';
 import { StoreScreen } from './screens/Store';
 import { GalleryScreen } from './screens/Gallery';
@@ -23,7 +24,7 @@ import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
 
-export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'characters' | 'store' | 'gallery';
+export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'friends' | 'characters' | 'store' | 'gallery';
 
 /** Telas que vivem por conta própria: sair de uma partida não tira o jogador delas. */
 const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
@@ -31,6 +32,7 @@ const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
   studio: true,
   settings: true,
   profile: true,
+  friends: true,
   characters: true,
   store: true,
   gallery: true,
@@ -117,6 +119,7 @@ export function App() {
   else if (screen === 'studio') content = <Studio onBack={() => setScreen('menu')} />;
   else if (screen === 'settings') content = <SettingsScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'profile') content = <ProfileScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'friends') content = <FriendsScreen onBack={() => setScreen('menu')} onCustom={() => setScreen('online')} />;
   else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} onStore={() => setScreen('store')} />;
   else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'gallery') content = <GalleryScreen onBack={() => setScreen('menu')} />;
@@ -133,6 +136,8 @@ export function App() {
         {content}
       </ErrorBoundary>
       <BondUnlockScreen />
+      {/* o convite de grupo fica por cima de qualquer tela: ele tem pressa */}
+      <ConviteDeGrupo />
       <UpdateOverlay />
       <Toasts />
     </>

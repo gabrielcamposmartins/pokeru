@@ -6,6 +6,7 @@ import { useMyStats } from '../store/titles';
 import { levelInfo } from '../../shared/achievements';
 import { PARTIDAS_NO_HISTORICO, personalidadeDe, tracoDominante, ultimasPartidas, type ResumoDaPartida } from '../../shared/personality';
 import { findCharacter } from '../../shared/styles';
+import { prettyFriendCode } from '../../shared/friends';
 import { ScreenHeader, Section, Field } from '../ui/controls';
 import { CharacterPortrait } from '../render/CharacterArt';
 import { LevelNumber } from '../render/Level';
@@ -91,6 +92,7 @@ function Historico() {
  */
 export function ProfileScreen({ onBack }: { onBack: () => void }) {
   const p = useProfile();
+  const code = useSession((s) => s.account?.code);
   const character = useCharacter();
   const stats = useMyStats();
   const lv = levelInfo(stats);
@@ -118,6 +120,12 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
               <span className="profile-com">
                 com <b>{character.name}</b>
               </span>
+              {/* o código de amigo mora aqui porque é identidade, não configuração — e é o que se dita */}
+              {code && (
+                <span className="profile-codigo">
+                  código de amigo <b>{prettyFriendCode(code)}</b>
+                </span>
+              )}
             </div>
             <div className="profile-nivel">
               <LevelNumber level={lv.level} size={54} />

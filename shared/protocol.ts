@@ -3,6 +3,7 @@ import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVar
 import type { AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, PlayerCosmetics } from './styles';
 import type { AccountCreds, AccountInfo } from './accounts';
 import type { Currency } from './catalog';
+import type { FriendInfo, PartyInfo, PartyKind } from './friends';
 
 export type { AccountCreds, AccountInfo, Currency };
 
@@ -435,6 +436,22 @@ export type ClientMsg =
    * é conferida no servidor.
    */
   | { type: 'botMatch'; difficulty: BotDifficulty; currency: Currency }
+  // ---------------------------------------------------------------- amizades e grupo
+  /** Pede a lista de amigos de novo (o cliente pede ao abrir a tela). */
+  | { type: 'friends' }
+  /** Pede amizade por código — nunca por nome, que se troca. */
+  | { type: 'friendAdd'; code: string }
+  | { type: 'friendAccept'; id: string }
+  /** Recusa um pedido recebido, ou cancela um enviado. */
+  | { type: 'friendDecline'; id: string }
+  | { type: 'friendRemove'; id: string }
+  /** Chama um amigo para o grupo (cria o grupo, se ainda não houver). */
+  | { type: 'partyInvite'; id: string }
+  | { type: 'partyAccept'; party: string }
+  | { type: 'partyDecline'; party: string }
+  | { type: 'partyLeave' }
+  /** O líder manda o grupo jogar: fila, bots ou a próxima mesa Custom que ele criar. */
+  | { type: 'partyStart'; kind: PartyKind; difficulty?: BotDifficulty; currency?: Currency }
   | { type: 'removeBot'; seat: number }
   | { type: 'startGame' }
   /** "Terminei de carregar": a mesa espera isso de cada jogador antes da primeira mão. */
@@ -482,6 +499,14 @@ export type ServerMsg =
   | { type: 'spun'; roulette: string; prize: string; dup: boolean; refund: number }
   /** O presente foi entregue: quantos pontos de vínculo ele rendeu. */
   | { type: 'gifted'; character: string; gift: string; points: number }
+  /** A lista de amigos e os pedidos, com quem está online agora. */
+  | { type: 'friends'; friends: FriendInfo[]; incoming: FriendInfo[]; outgoing: FriendInfo[] }
+  /** Um amigo acabou de entrar no jogo. */
+  | { type: 'friendOnline'; id: string; name: string }
+  /** O grupo mudou (null = você não está em grupo nenhum). */
+  | { type: 'party'; party: PartyInfo | null }
+  /** Alguém te chamou para o grupo dele. */
+  | { type: 'partyAsk'; party: string; from: string; name: string }
   | { type: 'error'; message: string }
   | { type: 'pong' };
 

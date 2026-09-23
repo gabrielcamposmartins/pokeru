@@ -1,6 +1,8 @@
 import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
 import type { AccountInfo, AccountProfile, AccountService, AuthIdentity } from './accounts';
 import { playerLevel } from './achievements';
+import { MAX_PARTY, podeMaisNoGrupo, type FriendInfo, type PartyInfo, type PartyKind } from './friends';
+import type { FriendRow } from './accounts';
 import { clampCosmetics } from './catalog';
 import {
   BOT_MATCH,
@@ -42,10 +44,29 @@ import {
  * valida por conta própria e é daí que sai a identidade do jogador. Sem validador — o modo offline,
  * por exemplo — só existe a identidade por token deste aparelho.
  */
+/**
+ * Um grupo: gente que vai jogar junto.
+ *
+ * Vive **em memória**, e de propósito: grupo é do momento, não é clã. Um reinício do servidor
+ * desfaz os grupos e ninguém perde nada — as amizades, que são o que a pessoa construiu, estão em
+ * disco.
+ */
+interface Party {
+  id: string;
+  /** Conta do líder: quem convida e quem manda o grupo jogar. */
+  leader: string;
+  /** Contas no grupo, o líder incluso. */
+  members: string[];
+  /** Contas convidadas e ainda sem resposta. */
+  convidados: Set<string>;
+}
+
 export class Lobby {
   readonly rooms = new Map<string, Room>();
   private conns = new Set<Connection>();
   private listTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Grupos abertos, por id. */
+  private parties = new Map<string, Party>();
 
   constructor(
     readonly serverName = 'Pokeru',
@@ -130,6 +151,239 @@ export class Lobby {
 
   get connectionCount(): number {
     return this.conns.size;
+  }
+
+  // ------------------------------------------------------------------ amizades
+
+  /** As conexões de uma conta (a mesma conta pode estar aberta em dois lugares). */
+  private connsOf(accountId: string): Connection[] {
+    return [...this.conns].filter((c) => c.accountId === accountId && c.greeted);
+  }
+
+  /** A conta está conectada agora? É daqui que sai a bolinha verde. */
+  online(accountId: string): boolean {
+    return this.connsOf(accountId).length > 0;
+  }
+
+  /**
+   * A ficha de um amigo: o que é da conta (nome, nível, código) mais o que é do momento.
+   *
+   * O estado online **não** é guardado em disco: ele é uma conexão aberta, e ler de outro lugar
+   * seria inventar — um servidor que caiu deixaria todo mundo verde para sempre.
+   */
+  private friendInfo(row: FriendRow): FriendInfo {
+    const conns = this.connsOf(row.id);
+    return { ...row, online: conns.length > 0, playing: conns.some((c) => !!c.room) };
+  }
+
+  /** A lista de amigos de uma conta, pronta para o cliente. */
+  friendsFor(accountId: string): { friends: FriendInfo[]; incoming: FriendInfo[]; outgoing: FriendInfo[] } {
+    const raw = this.accounts?.friends(accountId) ?? { friends: [], incoming: [], outgoing: [] };
+    const conv = (rows: FriendRow[]) => rows.map((r) => this.friendInfo(r));
+    /*
+     * Online primeiro, e depois por nome.
+     *
+     * A lista serve para achar **com quem jogar agora**; quem está offline pode ficar embaixo.
+     * Ordenar só por nome deixaria a pessoa procurando a bolinha verde numa lista de cinquenta.
+     */
+    const ordem = (a: FriendInfo, b: FriendInfo) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name, 'pt-BR');
+    return { friends: conv(raw.friends).sort(ordem), incoming: conv(raw.incoming), outgoing: conv(raw.outgoing) };
+  }
+
+  /** Manda a lista de amigos para todas as conexões de uma conta. */
+  sendFriends(accountId: string): void {
+    if (!this.accounts) return;
+    const l = this.friendsFor(accountId);
+    for (const c of this.connsOf(accountId)) c.send({ type: 'friends', ...l });
+  }
+
+  /** Reavisa os amigos de alguém: a bolinha dele mudou de cor para eles. */
+  private avisaAmigos(accountId: string, entrou: boolean, name: string): void {
+    const raw = this.accounts?.friends(accountId);
+    if (!raw) return;
+    for (const amigo of raw.friends) {
+      if (entrou) for (const c of this.connsOf(amigo.id)) c.send({ type: 'friendOnline', id: accountId, name });
+      this.sendFriends(amigo.id);
+    }
+  }
+
+  /** @internal Uma conta entrou: avisa quem é amigo dela e manda a lista dela. */
+  entrou(accountId: string, name: string): void {
+    this.avisaAmigos(accountId, true, name);
+    this.sendFriends(accountId);
+  }
+
+  /** @internal Uma conta saiu: os amigos perdem a bolinha verde, e o grupo perde um membro. */
+  saiu(accountId: string, name: string): void {
+    // outra aba da mesma conta ainda aberta: para os amigos, ele não saiu
+    if (this.online(accountId)) return;
+    this.avisaAmigos(accountId, false, name);
+    this.deixarGrupo(accountId);
+  }
+
+  // ------------------------------------------------------------------ grupo
+
+  /** O grupo de uma conta, se ela estiver em algum. */
+  partyOf(accountId: string): Party | null {
+    for (const p of this.parties.values()) if (p.members.includes(accountId)) return p;
+    return null;
+  }
+
+  private partyInfo(p: Party): PartyInfo {
+    return {
+      id: p.id,
+      leader: p.leader,
+      members: p.members.map((id) => {
+        const info = this.accounts?.info(id);
+        return {
+          id,
+          name: info?.name ?? 'Jogador',
+          character: this.connsOf(id)[0]?.cosmetics.character.id ?? 'marina',
+          level: info ? playerLevel(info.stats) : 0,
+          leader: id === p.leader,
+          online: this.online(id),
+        };
+      }),
+    };
+  }
+
+  private broadcastParty(p: Party): void {
+    const info = this.partyInfo(p);
+    for (const id of p.members) for (const c of this.connsOf(id)) c.send({ type: 'party', party: info });
+  }
+
+  /** Desfaz o grupo e avisa quem estava nele. */
+  private fecharGrupo(p: Party): void {
+    this.parties.delete(p.id);
+    for (const id of p.members) for (const c of this.connsOf(id)) c.send({ type: 'party', party: null });
+  }
+
+  /**
+   * Convida um amigo para o grupo (criando o grupo, se for o caso).
+   *
+   * Amizade é requisito: sem isso, o convite seria a porta dos fundos para falar com estranho. E
+   * quem não está online não pode ser convidado — um convite que ninguém vai ver só faz o líder
+   * esperar por nada.
+   */
+  convidar(from: Connection, alvoId: string): string | null {
+    const accounts = this.accounts;
+    if (!accounts || !from.accountId) return 'grupo precisa de uma conta no servidor';
+    if (alvoId === from.accountId) return 'você já está no seu grupo';
+    if (!accounts.friends(from.accountId).friends.some((f) => f.id === alvoId)) return 'chame apenas amigos';
+    if (!this.online(alvoId)) return 'esse amigo não está online agora';
+    if (this.partyOf(alvoId)) return 'esse amigo já está num grupo';
+
+    let p = this.partyOf(from.accountId);
+    if (p && p.leader !== from.accountId) return 'apenas o líder do grupo convida';
+    if (!p) {
+      p = { id: 'g-' + makeId(6), leader: from.accountId, members: [from.accountId], convidados: new Set() };
+      this.parties.set(p.id, p);
+      this.broadcastParty(p);
+    }
+    if (!podeMaisNoGrupo(p.members.length + p.convidados.size)) return `o grupo cabe ${MAX_PARTY}`;
+    p.convidados.add(alvoId);
+    const nome = accounts.info(from.accountId)?.name ?? 'Um amigo';
+    for (const c of this.connsOf(alvoId)) c.send({ type: 'partyAsk', party: p.id, from: from.accountId, name: nome });
+    return null;
+  }
+
+  entrarNoGrupo(accountId: string, partyId: string): string | null {
+    const p = this.parties.get(partyId);
+    if (!p) return 'esse grupo já se desfez';
+    if (!p.convidados.has(accountId)) return 'você não foi chamado para esse grupo';
+    if (this.partyOf(accountId)) return 'saia do seu grupo antes';
+    if (!podeMaisNoGrupo(p.members.length)) return `o grupo cabe ${MAX_PARTY}`;
+    p.convidados.delete(accountId);
+    p.members.push(accountId);
+    this.broadcastParty(p);
+    return null;
+  }
+
+  recusarGrupo(accountId: string, partyId: string): void {
+    this.parties.get(partyId)?.convidados.delete(accountId);
+  }
+
+  /**
+   * Sai do grupo. Se quem sai é o líder, o grupo se desfaz.
+   *
+   * Passar a liderança adiante pareceria mais gentil, mas um grupo que sobrevive a quem o juntou
+   * costuma virar uma sala com duas pessoas que nem se chamaram.
+   */
+  deixarGrupo(accountId: string): void {
+    const p = this.partyOf(accountId);
+    if (!p) return;
+    if (p.leader === accountId) {
+      this.fecharGrupo(p);
+      return;
+    }
+    p.members = p.members.filter((x) => x !== accountId);
+    for (const c of this.connsOf(accountId)) c.send({ type: 'party', party: null });
+    if (p.members.length <= 1) this.fecharGrupo(p);
+    else this.broadcastParty(p);
+  }
+
+  /**
+   * As conexões do grupo que podem sentar agora, o líder primeiro.
+   *
+   * Quem **já está numa mesa fica de fora**, e isso não é detalhe: na partida normal sair no meio
+   * custa as fichas da mesa (veja `perdeAoSair` em shared/room.ts), então arrastar para cá quem
+   * está jogando faria o líder torrar o dinheiro de um amigo com um clique. Ele entra na próxima.
+   */
+  private conexoesDoGrupo(p: Party): Connection[] {
+    const fila = [p.leader, ...p.members.filter((id) => id !== p.leader)];
+    return fila.map((id) => this.connsOf(id)[0]).filter((c): c is Connection => !!c && !c.room);
+  }
+
+  /**
+   * O grupo vai jogar junto.
+   *
+   * - `bots`: a mesa contra bots, com o grupo nas cadeiras e bots no que sobrar.
+   * - `queue`: uma mesa da fila, que gente de fora também pode achar — o grupo entra junto.
+   * - `custom`: a mesa é criada pela tela Custom, e o grupo é puxado lá (veja `puxarGrupo`).
+   *
+   * Quem não conseguir pagar o buy-in fica de fora, e a partida começa sem ele: não dá para travar
+   * a noite dos outros por causa de um saldo.
+   */
+  async jogarEmGrupo(leader: Connection, kind: PartyKind, difficulty: BotDifficulty, currency: Currency): Promise<string | null> {
+    const p = this.partyOf(leader.accountId ?? '');
+    if (!p) return 'você não está num grupo';
+    if (p.leader !== leader.accountId) return 'apenas o líder começa a partida';
+    if (kind === 'custom') return null;
+
+    const conexoes = this.conexoesDoGrupo(p);
+    if (!conexoes.includes(leader)) return 'saia da mesa em que você está antes de começar';
+    const conta = leader.accountId ? this.accounts?.info(leader.accountId) : null;
+    const settings =
+      kind === 'bots'
+        ? { ...botMatchSettings(difficulty, currency, !!conta), maxPlayers: Math.max(BOT_MATCH.bots + 1, conexoes.length) }
+        : queueSettings(currency);
+    const room = this.createRoom(leader, settings);
+    let sentados = 0;
+    for (const c of conexoes) {
+      if (await c.entrarNa(room)) sentados++;
+    }
+    if (!sentados) {
+      room.destroy();
+      this.rooms.delete(room.id);
+      this.roomsChanged();
+      return 'ninguém do grupo conseguiu sentar';
+    }
+    // bots só no que sobrou: o grupo ocupa as cadeiras primeiro
+    if (kind === 'bots') for (let i = sentados; i < BOT_MATCH.bots + 1; i++) room.addBot(leader.id, difficulty);
+    room.start(leader.id);
+    return null;
+  }
+
+  /**
+   * O líder criou uma mesa Custom: o grupo vai com ele.
+   *
+   * É chamado logo depois de a sala nascer, e é o que faz "jogar junto em Custom" não ser um
+   * terceiro caminho — a tela Custom continua sendo a mesma de sempre.
+   */
+  async puxarGrupo(leader: Connection, room: Room): Promise<void> {
+    const p = this.partyOf(leader.accountId ?? '');
+    if (!p || p.leader !== leader.accountId) return;
+    for (const c of this.conexoesDoGrupo(p)) if (c !== leader) await c.entrarNa(room);
   }
 }
 
@@ -241,6 +495,8 @@ export class Connection implements ClientHandle {
           /* bot fora do ar: a conta segue valendo, só sem o saldo */
         });
       }
+      // os amigos ganham a bolinha verde, e ele ganha a lista
+      this.lobby.entrou(account.id, account.name);
     }
     this.send({ type: 'rooms', rooms: this.lobby.list() });
   }
@@ -412,7 +668,10 @@ export class Connection implements ClientHandle {
       case 'createRoom': {
         if (this.room) this.leave();
         const room = this.lobby.createRoom(this, msg.settings);
-        void this.sit(room, msg.settings?.password);
+        // quem cria em grupo leva o grupo: é assim que "jogar junto em Custom" acontece
+        void this.sit(room, msg.settings?.password).then((ok) => {
+          if (ok) void this.lobby.puxarGrupo(this, room);
+        });
         break;
       }
       case 'joinRoom': {
@@ -447,6 +706,78 @@ export class Connection implements ClientHandle {
         this.leave();
         this.send({ type: 'rooms', rooms: this.lobby.list() });
         break;
+
+      // ---------------------------------------------------------------- amizades
+      case 'friends':
+        if (this.accountId) this.lobby.sendFriends(this.accountId);
+        break;
+      case 'friendAdd': {
+        const accounts = this.lobby.accounts;
+        if (!accounts || !this.accountId) {
+          this.error('amizades precisam de uma conta no servidor');
+          return;
+        }
+        const r = accounts.requestFriend(this.accountId, String(msg.code ?? ''));
+        if (typeof r === 'string') {
+          this.error(r);
+          return;
+        }
+        // as duas listas mudaram: a dele e a de quem recebeu
+        this.lobby.sendFriends(this.accountId);
+        this.lobby.sendFriends(r.to);
+        break;
+      }
+      case 'friendAccept':
+      case 'friendDecline':
+      case 'friendRemove': {
+        const accounts = this.lobby.accounts;
+        if (!accounts || !this.accountId) {
+          this.error('amizades precisam de uma conta no servidor');
+          return;
+        }
+        const outro = String(msg.id ?? '');
+        const err =
+          msg.type === 'friendAccept'
+            ? accounts.acceptFriend(this.accountId, outro)
+            : msg.type === 'friendDecline'
+              ? accounts.declineFriend(this.accountId, outro)
+              : accounts.removeFriend(this.accountId, outro);
+        if (err) {
+          this.error(err);
+          return;
+        }
+        this.lobby.sendFriends(this.accountId);
+        this.lobby.sendFriends(outro);
+        break;
+      }
+
+      // ---------------------------------------------------------------- grupo
+      case 'partyInvite':
+        this.error(this.lobby.convidar(this, String(msg.id ?? '')));
+        break;
+      case 'partyAccept':
+        if (this.accountId) this.error(this.lobby.entrarNoGrupo(this.accountId, String(msg.party ?? '')));
+        break;
+      case 'partyDecline':
+        if (this.accountId) this.lobby.recusarGrupo(this.accountId, String(msg.party ?? ''));
+        break;
+      case 'partyLeave':
+        if (this.accountId) this.lobby.deixarGrupo(this.accountId);
+        break;
+      case 'partyStart': {
+        if (this.queueing) return;
+        this.queueing = true;
+        const kind: PartyKind = msg.kind === 'queue' ? 'queue' : msg.kind === 'custom' ? 'custom' : 'bots';
+        const dif: BotDifficulty = DIFFICULTIES.includes(msg.difficulty as BotDifficulty) ? (msg.difficulty as BotDifficulty) : 'easy';
+        const moeda: Currency = msg.currency === 'pado' ? 'pado' : 'chips';
+        void this.lobby
+          .jogarEmGrupo(this, kind, dif, moeda)
+          .then((err) => this.error(err))
+          .finally(() => {
+            this.queueing = false;
+          });
+        break;
+      }
       case 'addBot':
         if (!this.room) return;
         this.error(this.room.addBot(this.id, DIFFICULTIES.includes(msg.difficulty) ? msg.difficulty : 'normal'));
@@ -499,6 +830,13 @@ export class Connection implements ClientHandle {
    * Senta numa sala. Sentar é assíncrono por causa da mesa de padocoin, que cobra o buy-in no bot
    * antes de ocupar a cadeira.
    */
+  /** @internal O lobby senta o grupo inteiro por aqui (veja `jogarEmGrupo`). */
+  async entrarNa(room: Room): Promise<boolean> {
+    if (this.room === room) return true;
+    if (this.room) this.leave();
+    return this.sit(room);
+  }
+
   private async sit(room: Room, password?: string): Promise<boolean> {
     // mesa normal senta na hora; só a de padocoin passa pela rede antes de ocupar a cadeira
     const err = room.asyncBuyIn ? await room.joinPaid(this, password) : room.join(this, password);
@@ -588,6 +926,10 @@ export class Connection implements ClientHandle {
     if (this.closed) return;
     this.leave();
     this.closed = true;
+    const conta = this.accountId;
+    const nome = this.name;
     this.lobby.drop(this);
+    // a ordem importa: só depois de sair da lista é que "estar online" pode ser respondido
+    if (conta) this.lobby.saiu(conta, nome);
   }
 }

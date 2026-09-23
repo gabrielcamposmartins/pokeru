@@ -91,6 +91,23 @@ export interface AccountInfo {
   title: string | null;
   /** Quando a conta foi criada (ISO). */
   since: string;
+  /**
+   * Código de amigo desta conta: seis caracteres estáveis, que a pessoa passa para quem quiser.
+   *
+   * É por ele que se pede amizade, e não pelo nome — nome se troca, e uma lista guardada por nome
+   * apontaria para outra pessoa no dia seguinte (veja shared/friends.ts).
+   */
+  code: string;
+}
+
+/** O que uma conta sabe de si em matéria de amizade (o estado online vem do lobby). */
+export interface FriendRow {
+  id: string;
+  code: string;
+  name: string;
+  level: number;
+  title: string | null;
+  character: string;
 }
 
 /** O que saiu de um giro de roleta. */
@@ -176,6 +193,26 @@ export interface TableBank {
   note(accountId: string, what: StatEvent): void;
   /** Equipa um titulo. Recusa silenciosamente o que as conquistas nao sustentam. */
   setTitle(accountId: string, title: string | null): void;
+
+  // ---------------------------------------------------------------- amizades
+
+  /** A conta de um código de amigo (null quando não existe). */
+  byCode(code: string): string | null;
+  /** Os amigos e os pedidos de uma conta, sem o estado online (quem sabe dele é o lobby). */
+  friends(accountId: string): { friends: FriendRow[]; incoming: FriendRow[]; outgoing: FriendRow[] };
+  /**
+   * Pede amizade por código. Devolve quem recebeu o pedido — para o lobby avisar, se estiver
+   * online — ou a mensagem de erro.
+   *
+   * Pedido cruzado vira amizade na hora: se o outro já havia pedido, mandar de volta é aceitar.
+   */
+  requestFriend(accountId: string, code: string): { to: string; aceito: boolean } | string;
+  /** Aceita um pedido recebido. Devolve a mensagem de erro, ou null. */
+  acceptFriend(accountId: string, otherId: string): string | null;
+  /** Recusa um pedido recebido, ou cancela um enviado. */
+  declineFriend(accountId: string, otherId: string): string | null;
+  /** Desfaz a amizade dos dois lados. */
+  removeFriend(accountId: string, otherId: string): string | null;
 }
 
 /** A banca mais o login e a loja — é o que o lobby recebe do servidor. */

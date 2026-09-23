@@ -20,6 +20,7 @@ import { BOT_MATCH, BOT_TIERS, QUEUE_STAKES, botTier, tierUnlocked } from '../..
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { ChipSvg } from '../render/Chip';
 import { usePado } from '../store/shop';
+import { usePedidos } from '../store/friends';
 import { fmt } from '../util/format';
 import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
@@ -385,8 +386,10 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
   // `openQueue` existe para a página de pré-visualização poder abrir a fila (veja src/dev/preview.tsx)
   const [queue, setQueue] = useState(openQueue);
   const queueing = useSession((s) => s.queueing);
+  const pedidos = usePedidos();
   const { menu } = useUiTheme();
   const icons: { key: Screen; icon: string; label: string }[] = [
+    { key: 'friends', icon: '☻', label: 'Amigos' },
     { key: 'characters', icon: menu.icons.characters, label: 'Personagens' },
     { key: 'store', icon: '🛍', label: 'Loja' },
     { key: 'gallery', icon: '🖼', label: 'Galeria' },
@@ -434,7 +437,11 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
                 go(it.key);
               }}
             >
-              <span className="icon-circle">{it.icon}</span>
+              <span className="icon-circle">
+                {it.icon}
+                {/* a bolinha dos pedidos: quem chamou você espera resposta, e isso não pode ficar escondido */}
+                {it.key === 'friends' && pedidos > 0 && <i className="icon-badge">{pedidos}</i>}
+              </span>
               <span className="icon-label">{it.label}</span>
             </motion.button>
           ))}
