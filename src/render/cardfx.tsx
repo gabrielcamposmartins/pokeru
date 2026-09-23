@@ -85,42 +85,59 @@ function Sparks({ seed, n = 7, color }: { seed: number; n?: number; color: strin
   );
 }
 
+/** Quantos pontos desenham cada lado da labareda. Mais que isto não se vê; menos, vira serrote. */
+const PONTOS = 26;
+
 /**
- * Uma labareda: sobe de `y0` até `h`, com meia-largura `w` na base e a ponta pendendo para `tilt`.
+ * A meia-largura da labareda na altura `t` (0 no pé, 1 na ponta).
  *
- * A assimetria é o ponto. Chama simétrica parece folha, e uma labareda grande e lisa parece balão;
- * o que faz o olho ler "fogo" é a silhueta ondulada — infla, estrangula, volta a inflar — e a
- * ponta caindo para um lado. Os dois lados usam controles diferentes de propósito.
+ * Engorda do pé até a barriga, a pouco mais de um terço da altura, e afina até fechar num bico.
  */
-function labareda(cx: number, y0: number, h: number, w: number, tilt: number): string {
+function meiaLargura(t: number, w: number): number {
+  const perfil = t < 0.32 ? 0.72 + 0.34 * (t / 0.32) : 1.06 * Math.pow(1 - (t - 0.32) / 0.68, 0.85);
+  return perfil * w;
+}
+
+/**
+ * Uma labareda ondulada — a cobrinha.
+ *
+ * O contorno não é uma forma rígida que balança: ele é **construído altura por altura**, e em cada
+ * altura o eixo do corpo anda para o lado segundo uma senoide. Uma onda inteira ao longo do corpo
+ * é o que desenha o S; e a amplitude cresce com a altura (`t^1.7`), então o pé fica plantado no
+ * chão e quem viaja é a ponta.
+ *
+ * `fase` é o instante da onda. Rodando a fase de 0 a 2π, a mesma crista sobe pelo corpo e a ponta
+ * é jogada para a direita, para a esquerda e de volta — que é o movimento de uma chama parada
+ * queimando, e não o de uma chama sendo entortada por inteiro.
+ */
+function labareda(cx: number, y0: number, h: number, w: number, amp: number, fase: number): string {
   const n = (v: number) => v.toFixed(1);
-  const x = (f: number) => n(cx + w * f);
-  const xt = (f: number, t: number) => n(cx + w * f + tilt * t);
-  const y = (f: number) => n(y0 - h * f);
-  /*
-   * A barriga fica na **altura do meio**, não na base.
-   *
-   * Uma chama mais larga embaixo some atrás da carta: o que aparece é só um rodapé aceso. Com o
-   * ponto mais largo lá em cima — e passando da carta nos dois lados —, a labareda abraça a carta
-   * na altura em que o olho está olhando.
-   */
-  return (
-    `M${x(-0.72)} ${n(y0)}` +
-    // sobe pela esquerda: infla até a barriga e estrangula no ombro
-    ` C${x(-1.02)} ${y(0.2)} ${x(-1.06)} ${y(0.42)} ${xt(-0.55, 0.3)} ${y(0.62)}` +
-    // o segundo inchaço e a ponta
-    ` C${xt(-0.62, 0.6)} ${y(0.78)} ${xt(-0.14, 1)} ${y(0.9)} ${xt(0, 1)} ${y(1)}` +
-    // desce pela direita, com outra onda
-    ` C${xt(0.3, 1)} ${y(0.88)} ${xt(0.7, 0.5)} ${y(0.72)} ${x(0.5)} ${y(0.56)}` +
-    ` C${x(1.05)} ${y(0.4)} ${x(1)} ${y(0.2)} ${x(0.72)} ${n(y0)}` +
-    /*
-     * E o fundo fecha numa barriga, não numa reta.
-     *
-     * A base reta dava à labareda um corte de tesoura embaixo — lia como recorte de papel colado
-     * na carta. Arredondada, ela vira um corpo: a chama assenta no rodapé em vez de terminar nele.
-     */
-    ` C${x(0.5)} ${y(-0.05)} ${x(-0.5)} ${y(-0.05)} ${x(-0.72)} ${n(y0)} Z`
-  );
+  const eixo = (t: number) => cx + amp * Math.pow(t, 1.7) * Math.sin(Math.PI * 2 * (t * 1.15) + fase);
+  const alt = (t: number) => y0 - h * t;
+  const meia = (t: number) => meiaLargura(t, w);
+
+  let d = `M${n(eixo(0) - meia(0))} ${n(y0)}`;
+  // sobe pela esquerda até o bico (em t = 1 a largura é zero: o bico é um ponto só)
+  for (let i = 1; i <= PONTOS; i++) {
+    const t = i / PONTOS;
+    d += ` L${n(eixo(t) - meia(t))} ${n(alt(t))}`;
+  }
+  // e desce pela direita
+  for (let i = PONTOS - 1; i >= 0; i--) {
+    const t = i / PONTOS;
+    d += ` L${n(eixo(t) + meia(t))} ${n(alt(t))}`;
+  }
+  // o pé fecha numa barriga, não numa reta
+  d += ` C${n(eixo(0) + meia(0) * 0.5)} ${n(y0 + h * 0.05)} ${n(eixo(0) - meia(0) * 0.5)} ${n(y0 + h * 0.05)} ${n(eixo(0) - meia(0))} ${n(y0)} Z`;
+  return d;
+}
+
+/** Quantos instantes da onda entram na volta. Oito já interpola liso, e a volta fecha no primeiro. */
+const QUADROS = 8;
+
+/** Os desenhos de uma volta inteira da onda, para o `<animate>` percorrer. */
+function ondaDe(cx: number, y0: number, h: number, w: number, amp: number, faseInicial: number): string {
+  return Array.from({ length: QUADROS + 1 }, (_, i) => labareda(cx, y0, h, w, amp, faseInicial + (i / QUADROS) * Math.PI * 2)).join(';');
 }
 
 /**
@@ -138,11 +155,16 @@ function labareda(cx: number, y0: number, h: number, w: number, tilt: number): s
 function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }) {
   const r = rnd(seed);
   const uid = cleanId(useId());
-  /** As três temperaturas, da mais fria (fora) para a mais quente (dentro). */
+  /**
+   * As três temperaturas, da mais fria (fora) para a mais quente (dentro).
+   *
+   * `amp` é o quanto a ponta daquele corpo viaja para os lados. O núcleo viaja menos que a casca:
+   * é o que faz os três se descolarem no meio do caminho, em vez de ondularem grudados.
+   */
   const camadas = [
-    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 294, larg: 132, dur: 2.6 },
-    { cor: colors[0], op: 0.78, blur: 2.6, alt: 237, larg: 96, dur: 2.1 },
-    { cor: colors[1], op: 0.9, blur: 1.3, alt: 168, larg: 57, dur: 1.6 },
+    { cor: '#b81c06', op: 0.5, blur: 4.5, alt: 294, larg: 132, amp: 44, dur: 3.4 },
+    { cor: colors[0], op: 0.78, blur: 2.6, alt: 237, larg: 96, amp: 34, dur: 2.8 },
+    { cor: colors[1], op: 0.9, blur: 1.3, alt: 168, larg: 57, amp: 24, dur: 2.2 },
   ];
   /*
    * A dança é de cada carta.
@@ -164,6 +186,10 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
             * ruído **descer** com o tempo, e é daí que vem a onda de cima para baixo: a mesma ruga
             * aparece no alto e vai escorrendo até o pé.
             *
+            * Ela é discreta de propósito: quem faz a onda é o contorno, redesenhado quadro a quadro
+            * (veja `labareda`). O ruído aqui só tira o acabamento liso demais das bordas — forte, ele
+            * embaralhava o S em vez de enfeitá-lo.
+            *
             * A frequência é **mais curta na vertical** (0,04 contra 0,02): assim há várias ondas ao
             * longo da altura, em vez de uma única curva mansa, e dá para ver a ruga descer. O ruído
             * é costurado e o deslocamento percorre exatamente um ladrilho (25 = 1/0,04), então a
@@ -176,7 +202,7 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
             <feOffset in="ruido" result="descendo">
               <animate attributeName="dy" from="-25" to="0" dur={`${(2.6 * compasso).toFixed(2)}s`} repeatCount="indefinite" />
             </feOffset>
-            <feDisplacementMap in="SourceGraphic" in2="descendo" scale={16} xChannelSelector="R" yChannelSelector="G" />
+            <feDisplacementMap in="SourceGraphic" in2="descendo" scale={6} xChannelSelector="R" yChannelSelector="G" />
           </filter>
           <radialGradient id={`brasa${uid}`} cx="50%" cy="100%" r="70%">
             <stop offset="0" stopColor={colors[1]} stopOpacity="0.6" />
@@ -194,22 +220,40 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
         <ellipse className="fx-brasa" cx={50} cy={140} rx={48} ry={22} fill={`url(#brasa${uid})`} />
 
         <g filter={`url(#onda${uid})`}>
-        {camadas.map((c, i) => (
-          <path
-            key={c.cor}
-            className="fx-labareda"
-            style={{
-              filter: `blur(${c.blur}px)`,
-              opacity: c.op,
-              // cada corpo no seu tempo, e o tempo de cada carta é o dela: juntos, eles pulsariam
-              // como uma coisa só, que é o que faz uma chama grande parecer um balão inflando
-              animationDuration: `${(c.dur * compasso).toFixed(2)}s`,
-              animationDelay: `-${(partida + i * 0.7 + r() * 0.6).toFixed(2)}s`,
-            }}
-            fill={c.cor}
-            d={labareda(50 + (r() - 0.5) * 6, 152, c.alt, c.larg, (r() - 0.5) * 18)}
-          />
-        ))}
+        {camadas.map((c, i) => {
+          const cx = 50 + (r() - 0.5) * 6;
+          const quadros = ondaDe(cx, 152, c.alt, c.larg, c.amp, r() * Math.PI * 2);
+          return (
+            <path
+              key={c.cor}
+              className="fx-labareda"
+              style={{
+                filter: `blur(${c.blur}px)`,
+                opacity: c.op,
+                // a respiração é da camada; o serpenteio é do contorno, logo abaixo
+                animationDuration: `${(c.dur * compasso * 0.7).toFixed(2)}s`,
+                animationDelay: `-${(partida + i * 0.7 + r() * 0.6).toFixed(2)}s`,
+              }}
+              fill={c.cor}
+              d={quadros.slice(0, quadros.indexOf(';'))}
+            >
+              {/*
+                * A onda percorrendo o corpo.
+                *
+                * É o **contorno** que muda de desenho, quadro a quadro — não a forma inteira sendo
+                * entortada por uma transformação. Cisalhar a chama dá um talho reto e igual em toda
+                * a altura; aqui cada altura anda o seu tanto, e é isso que faz o S.
+                */}
+              <animate
+                attributeName="d"
+                values={quadros}
+                dur={`${(c.dur * compasso).toFixed(2)}s`}
+                calcMode="linear"
+                repeatCount="indefinite"
+              />
+            </path>
+          );
+        })}
         </g>
       </g>
   );

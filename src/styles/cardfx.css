@@ -126,33 +126,25 @@
  * encolhe, entorta para o outro —, e os três corpos correm em tempos diferentes, o que faz a
  * silhueta mudar de forma o tempo todo em vez de inflar e desinflar junto.
  */
+/*
+ * A labareda: só a respiração.
+ *
+ * O serpenteio não está aqui — ele é do contorno, que é redesenhado quadro a quadro
+ * (src/render/cardfx.tsx). Cisalhar e girar a forma inteira, que era o que estava aqui, dá um
+ * talho reto e igual em toda a altura: a chama tombava como um poste, em vez de ondular. O que
+ * sobra é a chama subindo e descendo um pouco, como quem puxa o ar.
+ */
 .fx-labareda {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: fx-labareda 2.4s ease-in-out infinite;
+  animation: fx-labareda 2.4s ease-in-out infinite alternate;
 }
-/*
- * O serpenteio.
- *
- * A volta inteira num ciclo só (sem `alternate`): o corpo tomba para um lado, cruza o meio e tomba
- * para o outro, com a rotação indo ao contrário do cisalhamento. É esse contrapé que desenha o S —
- * skew e rotação no mesmo sentido só entortariam a chama para um lado.
- */
 @keyframes fx-labareda {
-  0% {
-    transform: scale(0.92, 0.9) skewX(7deg) rotate(-2deg) translateX(-2px);
+  from {
+    transform: scale(0.97, 0.93);
   }
-  25% {
-    transform: scale(1, 1.02) skewX(-3deg) rotate(1.5deg) translateX(1px);
-  }
-  50% {
-    transform: scale(0.96, 1.1) skewX(-8deg) rotate(2.5deg) translateX(2px);
-  }
-  75% {
-    transform: scale(1.03, 1) skewX(3deg) rotate(-1deg) translateX(0);
-  }
-  100% {
-    transform: scale(0.92, 0.9) skewX(7deg) rotate(-2deg) translateX(-2px);
+  to {
+    transform: scale(1.02, 1.07);
   }
 }
 
