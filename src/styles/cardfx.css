@@ -129,17 +129,30 @@
 .fx-labareda {
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: fx-labareda 2.4s ease-in-out infinite alternate;
+  animation: fx-labareda 2.4s ease-in-out infinite;
 }
+/*
+ * O serpenteio.
+ *
+ * A volta inteira num ciclo só (sem `alternate`): o corpo tomba para um lado, cruza o meio e tomba
+ * para o outro, com a rotação indo ao contrário do cisalhamento. É esse contrapé que desenha o S —
+ * skew e rotação no mesmo sentido só entortariam a chama para um lado.
+ */
 @keyframes fx-labareda {
   0% {
-    transform: scale(0.88, 0.82) skewX(6deg) translateX(-2px);
+    transform: scale(0.92, 0.9) skewX(7deg) rotate(-2deg) translateX(-2px);
+  }
+  25% {
+    transform: scale(1, 1.02) skewX(-3deg) rotate(1.5deg) translateX(1px);
   }
   50% {
-    transform: scale(1.04, 1.06) skewX(-2deg) translateX(1px);
+    transform: scale(0.96, 1.1) skewX(-8deg) rotate(2.5deg) translateX(2px);
+  }
+  75% {
+    transform: scale(1.03, 1) skewX(3deg) rotate(-1deg) translateX(0);
   }
   100% {
-    transform: scale(0.96, 1.14) skewX(-7deg) translateX(2px);
+    transform: scale(0.92, 0.9) skewX(7deg) rotate(-2deg) translateX(-2px);
   }
 }
 

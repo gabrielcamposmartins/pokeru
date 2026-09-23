@@ -156,6 +156,28 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
   return (
       <g className="fx-hot">
         <defs>
+          {/*
+            * A distorção: ruído deslocando o contorno, e o ruído desce.
+            *
+            * `feTurbulence` faz a mancha de ruído e `feDisplacementMap` empurra cada ponto da chama
+            * segundo ela — é isso que enruga a silhueta em vez de só entortá-la. O `feOffset` faz o
+            * ruído **descer** com o tempo, e é daí que vem a onda de cima para baixo: a mesma ruga
+            * aparece no alto e vai escorrendo até o pé.
+            *
+            * A frequência é **mais curta na vertical** (0,04 contra 0,02): assim há várias ondas ao
+            * longo da altura, em vez de uma única curva mansa, e dá para ver a ruga descer. O ruído
+            * é costurado e o deslocamento percorre exatamente um ladrilho (25 = 1/0,04), então a
+            * volta fecha sem emenda — e a frequência fica **fixa** por isso: se ela respirasse, o
+            * ladrilho mudaria de tamanho e a emenda apareceria. A variedade entre cartas vem da
+            * semente.
+            */}
+          <filter id={`onda${uid}`} x="-60%" y="-25%" width="220%" height="160%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02 0.04" numOctaves={2} seed={seed} stitchTiles="stitch" result="ruido" />
+            <feOffset in="ruido" result="descendo">
+              <animate attributeName="dy" from="-25" to="0" dur={`${(2.6 * compasso).toFixed(2)}s`} repeatCount="indefinite" />
+            </feOffset>
+            <feDisplacementMap in="SourceGraphic" in2="descendo" scale={16} xChannelSelector="R" yChannelSelector="G" />
+          </filter>
           <radialGradient id={`brasa${uid}`} cx="50%" cy="100%" r="70%">
             <stop offset="0" stopColor={colors[1]} stopOpacity="0.6" />
             <stop offset="0.4" stopColor={colors[0]} stopOpacity="0.28" />
@@ -171,6 +193,7 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
           */}
         <ellipse className="fx-brasa" cx={50} cy={140} rx={48} ry={22} fill={`url(#brasa${uid})`} />
 
+        <g filter={`url(#onda${uid})`}>
         {camadas.map((c, i) => (
           <path
             key={c.cor}
@@ -187,6 +210,7 @@ function FlamesBack({ seed, colors }: { seed: number; colors: [string, string] }
             d={labareda(50 + (r() - 0.5) * 6, 152, c.alt, c.larg, (r() - 0.5) * 18)}
           />
         ))}
+        </g>
       </g>
   );
 }
