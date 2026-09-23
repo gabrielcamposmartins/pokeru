@@ -34,11 +34,13 @@ import { ChipStack, ChipSvg } from '../render/Chip';
 import { BackPreview, FacePreview, TablePreview, ThemeSample } from '../render/StylePreview';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { findWinFx } from '../render/cardfx';
-import { useProfile } from '../store/profile';
+import { useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { buyItem, pedeSaldo, spinRoulette, useCanShop, useGifts, useOwned, usePado } from '../store/shop';
 import { useRoleta } from '../store/roleta';
 import { Sparks } from '../render/Sparks';
+import { AuraAmostra, findAura } from '../render/aura';
+import { PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { rarityColor } from '../render/rarity';
 import { useChips } from '../ui/Wallet';
 import { ScreenHeader } from '../ui/controls';
@@ -49,9 +51,12 @@ import { Petals } from './MainMenu';
 /**
  * A loja.
  *
- * Três abas, três coisas à venda: **presentes** (que o vínculo com os personagens consome),
- * **tickets** (de onde vêm os cosméticos) e a **aparência da interface**. O resto do catálogo é
+ * Três abas, três coisas à venda: **tickets** (de onde vêm os cosméticos), **presentes** (que o
+ * vínculo com os personagens consome) e a **aparência da interface**. O resto do catálogo é
  * coleção e mora na Galeria, com botão próprio no menu (src/screens/Gallery.tsx).
+ *
+ * Os tickets vêm primeiro — e é a aba que abre — porque é o que se vem fazer aqui: presente é
+ * compra de reposição e aparência se compra uma vez. Quem entra na loja está atrás de sorteio.
  *
  * Presente é compra miúda e repetida, então a aba é uma prateleira de cartõezinhos. Ticket e
  * aparência são decisão, e poucas: as abas viram **carrossel**, uma peça grande por vez.
@@ -68,8 +73,8 @@ import { Petals } from './MainMenu';
 type Aba = 'gift' | 'ticket' | 'ui';
 
 const ABAS: { key: Aba; label: string }[] = [
-  { key: 'gift', label: 'Presentes' },
   { key: 'ticket', label: 'Tickets' },
+  { key: 'gift', label: 'Presentes' },
   { key: 'ui', label: 'Aparências' },
 ];
 
@@ -94,6 +99,8 @@ function quemGosta(id: string): string[] {
 
 /** Uma miniatura do que se está comprando. Cada tipo mostra a própria peça, não um ícone. */
 export function Preview({ item }: { item: CatalogItem }) {
+  // a moldura se vê num retrato, e o retrato que interessa é o seu
+  const eu = useCharacter();
   switch (item.kind) {
     case 'character': {
       const c = findCharacter(item.id);
@@ -153,6 +160,20 @@ export function Preview({ item }: { item: CatalogItem }) {
         </div>
       );
     }
+    case 'aura':
+      // a aura de verdade, rodando: é o que a pessoa está olhando
+      return (
+        <div className="shop-art shop-aura">
+          <AuraAmostra aura={findAura(item.id)} />
+        </div>
+      );
+    case 'frame':
+      return (
+        <div className="shop-art char-info-portrait com-moldura" style={{ background: `linear-gradient(160deg, ${eu.bg}, ${eu.bg2})` }}>
+          <CharacterPortrait st={eu} size={104} />
+          <PortraitFrame frame={findFrame(item.id)} size={104} />
+        </div>
+      );
     case 'gift': {
       const g = findGift(item.id);
       return <div className="shop-art">{g ? <GiftArt gift={g} size={66} /> : null}</div>;
@@ -170,6 +191,7 @@ export function Preview({ item }: { item: CatalogItem }) {
  * para que o que se compra aqui seja exatamente o que se vê lá.
  */
 export function Grande({ item }: { item: CatalogItem }) {
+  const eu = useCharacter();
   switch (item.kind) {
     case 'character':
       // fundo comum, escuro e discreto: a cor de cada personagem brigava com a arte e mudava o
@@ -195,6 +217,27 @@ export function Grande({ item }: { item: CatalogItem }) {
       return <TablePreview st={TABLE_PRESETS.find((x) => x.id === item.id) ?? TABLE_PRESETS[0]} />;
     case 'ui':
       return <TemaGrande t={UI_THEMES.find((x) => x.id === item.id) ?? UI_THEMES[0]} />;
+    case 'aura': {
+      const a = findAura(item.id);
+      return (
+        <div className="shop-grande">
+          <AuraAmostra aura={a} className="aura-amostra-grande" />
+          <p className="shop-sobre">{a.description}</p>
+        </div>
+      );
+    }
+    case 'frame': {
+      const f = findFrame(item.id);
+      return (
+        <div className="shop-grande">
+          <div className="shop-moldura com-moldura" style={{ background: `linear-gradient(160deg, ${eu.bg}, ${eu.bg2})` }}>
+            <CharacterPortrait st={eu} size={200} />
+            <PortraitFrame frame={f} size={200} />
+          </div>
+          <p className="shop-sobre">{f.description}</p>
+        </div>
+      );
+    }
     case 'gift': {
       const g = findGift(item.id);
       if (!g) return null;
@@ -320,8 +363,17 @@ function TemaGrande({ t }: { t: UiTheme }) {
 }
 
 /** O nome que o jogador lê (os efeitos têm nome próprio no catálogo do cliente). */
+/*
+ * O nome que se lê.
+ *
+ * Três tipos entram no catálogo pelo id, porque o nome bonito deles mora junto com o desenho (o
+ * catálogo é compartilhado com o servidor, que não desenha nada). É aqui que ele é buscado.
+ */
 export function labelOf(item: CatalogItem): string {
-  return item.kind === 'winfx' ? findWinFx(item.id).name : item.name;
+  if (item.kind === 'winfx') return findWinFx(item.id).name;
+  if (item.kind === 'aura') return findAura(item.id).name;
+  if (item.kind === 'frame') return findFrame(item.id).name;
+  return item.name;
 }
 
 /** O cartão de um item. Sem estado de loja: recebe tudo por prop, e é o que os testes desenham. */
@@ -628,7 +680,7 @@ function PalcoRoleta({ r, chips, pado, canShop }: { r: Roulette; chips: number; 
 
 export function StoreScreen({
   onBack,
-  initial = 'gift',
+  initial = 'ticket',
   verInicial,
 }: {
   onBack: () => void;
@@ -772,6 +824,7 @@ export function StoreScreen({
  * não reaproveita `Grande`: o palco é para decidir, esta arte é para comemorar.
  */
 function PremioArte({ item }: { item: CatalogItem }) {
+  const eu = useCharacter();
   switch (item.kind) {
     case 'character': {
       const c = findCharacter(item.id);
@@ -793,6 +846,16 @@ function PremioArte({ item }: { item: CatalogItem }) {
       return <ChipSvg value={100} size={190} style={CHIP_PRESETS.find((x) => x.id === item.id) ?? CHIP_PRESETS[0]} />;
     case 'winfx':
       return <CardView card={{ r: 14, s: 's' }} width={200} highlight winFx={findWinFx(item.id)} />;
+    case 'aura':
+      // sem a caixa preta da vitrine: aqui o fundo é a luz do prêmio, e ela não se cobre
+      return <AuraAmostra aura={findAura(item.id)} className="premio-aura" />;
+    case 'frame':
+      return (
+        <span className="shop-moldura com-moldura" style={{ background: `linear-gradient(160deg, ${eu.bg}, ${eu.bg2})` }}>
+          <CharacterPortrait st={eu} size={200} />
+          <PortraitFrame frame={findFrame(item.id)} size={200} />
+        </span>
+      );
     case 'table':
     case 'ui':
       // mesa e interface não cabem numa peça: o quadro do palco já é a imagem certa deles

@@ -9,6 +9,7 @@ import { findCharacter } from '../../shared/styles';
 import { prettyFriendCode } from '../../shared/friends';
 import { ScreenHeader, Section, Field } from '../ui/controls';
 import { CharacterPortrait } from '../render/CharacterArt';
+import { PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { LevelNumber } from '../render/Level';
 import { Petals } from './MainMenu';
 
@@ -110,8 +111,10 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
             * reconhece o verde antes de ler o algarismo.
             */}
           <div className="profile-cab">
-            <div className="char-info-portrait" style={{ background: `linear-gradient(160deg, ${character.bg}, ${character.bg2})` }}>
+            {/* o retrato do perfil é a sua foto: leva a moldura que você escolheu */}
+            <div className="char-info-portrait com-moldura" style={{ background: `linear-gradient(160deg, ${character.bg}, ${character.bg2})` }}>
               <CharacterPortrait st={character} size={96} />
+              <PortraitFrame frame={findFrame(p.frame)} size={96} />
             </div>
             <div className="profile-cab-meta">
               <Field label="Nome">

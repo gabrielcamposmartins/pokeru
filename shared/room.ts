@@ -31,6 +31,9 @@ import {
   CHIP_PRESETS,
   FACE_PRESETS,
   TABLE_PRESETS,
+  AURA_IDS,
+  sanitizeAuras,
+  FRAME_IDS,
   WIN_FX_IDS,
   type AvatarInfo,
   type PlayerCosmetics,
@@ -568,6 +571,17 @@ export class Room {
         table: pick(TABLE_PRESETS),
         character,
         winFx: pick(WIN_FX_IDS),
+        /*
+         * Bot também tem auras e moldura, sorteadas.
+         *
+         * Mesa de bots com todos de moldura dourada parecia uma equipe uniformizada; sorteadas, os
+         * assentos ficam diferentes uns dos outros como numa mesa de gente. São duas auras
+         * sorteadas, e quando as duas caem no mesmo lugar `sanitizeAuras` fica com uma — então
+         * alguns bots vêm com uma e outros com duas, que é a variedade que se quer. A aura só
+         * aparece no cut-in de quem ganha a mão: ela não polui a mesa, ela dá o momento.
+         */
+        auras: sanitizeAuras([pick(AURA_IDS), pick(AURA_IDS)]),
+        frame: pick(FRAME_IDS),
       },
       seat,
       stack: this.settings.startingStack,

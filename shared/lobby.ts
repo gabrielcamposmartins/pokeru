@@ -21,6 +21,8 @@ import {
 import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
+  DEFAULT_AURAS,
+  DEFAULT_FRAME,
   DEFAULT_WIN_FX,
   sanitizeAvatar,
   sanitizeCosmetics,
@@ -402,6 +404,8 @@ export class Connection implements ClientHandle {
     table: TABLE_PRESETS[0],
     character: CHARACTER_PRESETS[0],
     winFx: DEFAULT_WIN_FX,
+    auras: [...DEFAULT_AURAS],
+    frame: DEFAULT_FRAME,
   };
   /** Titulo de conquista da conta (null sem conta ou sem titulo escolhido). */
   title: string | null = null;

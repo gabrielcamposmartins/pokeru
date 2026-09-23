@@ -45,14 +45,14 @@ export const ROULETTES: Roulette[] = [
   {
     id: 'flores',
     name: 'Roleta das Flores',
-    about: 'Presentes, peças de mesa e personagens femininas.',
+    about: 'Presentes, peças de mesa, auras, molduras e personagens femininas.',
     gender: 'f',
     chips: 2500,
   },
   {
     id: 'dragao',
     name: 'Roleta do Dragão',
-    about: 'Presentes, peças de mesa e personagens masculinos.',
+    about: 'Presentes, peças de mesa, auras, molduras e personagens masculinos.',
     gender: 'm',
     chips: 2500,
   },
@@ -74,10 +74,10 @@ export function ticketPrice(r: Roulette, currency: Currency): number {
  * mesas do mesmo degrau e não mexe nos degraus de cima.
  *
  * Um detalhe honesto: a fatia de um degrau é **fixa** e se reparte entre as peças dele, então cada
- * lendário novo dilui os outros. Hoje o degrau lendário de cada roleta tem quatro peças — o
- * personagem do gênero dela, o kimono e as duas frentes de material —, o que dá pouco mais de
- * 0,6% para cada uma. Para o personagem valer mais que uma frente, o caminho é dar fatia própria a
- * ele, e não mexer nesta tabela.
+ * lendário novo dilui os outros. Hoje o degrau lendário de cada roleta tem seis peças — o
+ * personagem do gênero dela, o kimono, as duas frentes de material, as asas de dragão e a moldura
+ * de dragão —, o que dá pouco mais de 0,4% para cada uma. Para o personagem valer mais que uma
+ * frente, o caminho é dar fatia própria a ele, e não mexer nesta tabela.
  */
 const PESOS: Record<Raridade, number> = {
   lendario: 2.5,
@@ -103,7 +103,7 @@ export interface Drop {
 }
 
 /** Tipos que a roleta sorteia: cosmético e presente. Aparência da interface se compra, não se tira. */
-const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'back', 'face', 'chip', 'table', 'gift'];
+const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'aura', 'frame', 'back', 'face', 'chip', 'table', 'gift'];
 
 /** Entra na roleta? O que já vem com o jogo não entra, e personagem só do gênero dela. */
 function cabe(item: CatalogItem, r: Roulette): boolean {

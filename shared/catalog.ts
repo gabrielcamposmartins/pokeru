@@ -1,12 +1,15 @@
 import {
+  AURA_IDS,
   BACK_PRESETS,
   CHARACTER_PRESETS,
   CHIP_PRESETS,
   FACE_PRESETS,
+  FRAME_IDS,
   TABLE_PRESETS,
   WIN_FX_IDS,
   findCharacter,
   type CardBackStyle,
+  type FrameId,
   type PlayerCosmetics,
   type WinFxId,
 } from './styles';
@@ -27,7 +30,7 @@ import {
  * Discord vinculado à conta.
  */
 
-export type ItemKind = 'character' | 'face' | 'back' | 'chip' | 'table' | 'winfx' | 'ui' | 'gift';
+export type ItemKind = 'character' | 'face' | 'back' | 'chip' | 'table' | 'winfx' | 'aura' | 'frame' | 'ui' | 'gift';
 
 export const KIND_LABELS: Record<ItemKind, string> = {
   character: 'Personagens',
@@ -36,6 +39,8 @@ export const KIND_LABELS: Record<ItemKind, string> = {
   chip: 'Fichas',
   table: 'Mesas',
   winfx: 'Efeitos de vitória',
+  aura: 'Auras',
+  frame: 'Molduras do retrato',
   ui: 'Aparência da interface',
   gift: 'Presentes',
 };
@@ -51,7 +56,7 @@ export const KIND_LABELS: Record<ItemKind, string> = {
  * Quem decide isto é o servidor: `buy` recusa chave de tipo que não esteja em VENDIDOS.
  */
 export const VENDIDOS: readonly ItemKind[] = ['gift', 'ui'];
-export const GALERIA: readonly ItemKind[] = ['character', 'winfx', 'back', 'face', 'chip', 'table'];
+export const GALERIA: readonly ItemKind[] = ['character', 'aura', 'frame', 'winfx', 'back', 'face', 'chip', 'table'];
 
 export const isSold = (kind: ItemKind): boolean => VENDIDOS.includes(kind);
 
@@ -109,8 +114,32 @@ const RARIDADE_DE: Record<string, Raridade> = {
    */
   'face:face-glass': 'lendario',
   'face:face-rainbow': 'lendario',
+  /*
+   * As duas peças de dragão.
+   *
+   * Lendárias porque são as únicas que **acrescentam um bicho** ao jogador: as asas abrem o dobro
+   * da largura do personagem e a moldura fecha o retrato entre garras. As outras auras e molduras
+   * enfeitam quem já está lá; estas duas mudam o que a pessoa é na mesa.
+   */
+  'aura:asas-dragao': 'lendario',
+  'frame:dragao': 'lendario',
   // épico: o presente que se guarda
   'gift:joia': 'epico',
+  /*
+   * Épico: as auras com cena própria, como os efeitos de vitória.
+   *
+   * Fogo que arde quadro a quadro, asas que batem e a auréola que escureceu em vez de brilhar —
+   * são as que se movem por conta, e não as que só giram devagar.
+   */
+  'aura:labaredas': 'epico',
+  'aura:fogo-fatuo': 'epico',
+  'aura:aureola-negra': 'epico',
+  'aura:asas-anjo': 'epico',
+  'aura:asas-morcego': 'epico',
+  // épico: as molduras que não ficam paradas
+  'frame:gelo': 'epico',
+  'frame:chama': 'epico',
+  'frame:anjinho': 'epico',
   // épico: os efeitos de vitória com cena própria
   'winfx:prism': 'epico',
   'winfx:lightning': 'epico',
@@ -118,6 +147,19 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'winfx:ice': 'epico',
   'winfx:holy': 'epico',
   'winfx:void': 'epico',
+  /*
+   * Raro: os círculos escritos e o que os acompanha.
+   *
+   * Cada um é uma escrita diferente — latim, grego, japonês e cirílico —, e é isso que os põe
+   * acima de um anel de luz: quem vê reconhece a língua antes de reconhecer o círculo.
+   */
+  'aura:circulo-arcano': 'raro',
+  'aura:circulo-oracular': 'raro',
+  'aura:selo-onmyoji': 'raro',
+  'aura:circulo-boreal': 'raro',
+  'aura:aureola-radiante': 'raro',
+  'aura:espadas': 'raro',
+  'frame:neon': 'raro',
   // raro: o conjunto vitoriano, o mais trabalhado de cada tipo
   'table:table-victorian': 'raro',
   'table:table-victorian-wine': 'raro',
@@ -125,6 +167,7 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'back:back-victorian-green': 'raro',
   'face:face-victorian': 'raro',
   'chip:chip-victorian': 'raro',
+  'frame:vitoriana': 'raro',
   'gift:leque': 'raro',
   'gift:fone': 'raro',
   // incomum: os brilhos de uma cor e as peças de acabamento mais rico
@@ -132,6 +175,11 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'winfx:rose': 'incomum',
   'winfx:emerald': 'incomum',
   'winfx:violet': 'incomum',
+  'aura:aureola': 'incomum',
+  'aura:naipes': 'incomum',
+  'aura:shurikens': 'incomum',
+  'frame:sakura': 'incomum',
+  'frame:obsidiana': 'incomum',
   'table:table-royal': 'incomum',
   'table:table-wine': 'incomum',
   'table:table-night': 'incomum',
@@ -142,7 +190,8 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'face:face-jade': 'incomum',
   'gift:incenso': 'incomum',
   'gift:livro': 'incomum',
-  // comum, por omissão: flor, chá e bolo — os presentes do primeiro coração
+  // comum, por omissão: flor, chá e bolo — os presentes do primeiro coração — e a Poeira de Luz,
+  // que é o brilho de graça com partículas: o primeiro degrau acima do que já vem com o jogo
 };
 
 export function rarityOf(key: string): Raridade {
@@ -189,6 +238,18 @@ export const PRICES = {
   /** Os brilhos de uma cor só; os efeitos com cena própria custam `winfxSpecial`. */
   winfx: 3000,
   winfxSpecial: 8000,
+  /** Auras: o que gira atrás do personagem. As asas custam `auraWings`. */
+  aura: 4000,
+  /**
+   * Asas.
+   *
+   * Custam o dobro de uma aura porque não são um enfeite atrás do personagem: elas **crescem** a
+   * silhueta dele, e são a única peça do jogo que muda o tamanho que a pessoa ocupa na tela.
+   */
+  auraWings: 9000,
+  /** Molduras do retrato; as que não ficam paradas custam `frameSpecial`. */
+  frame: 2500,
+  frameSpecial: 6000,
   face: 2500,
   /** Frentes de material (vidro, arco-íris): não saem de uma combinação de campos, e valem mais. */
   faceSpecial: 9000,
@@ -200,6 +261,12 @@ export const PRICES = {
 
 /** Efeitos com animação própria (fogo, relâmpago…) valem mais que um brilho de cor. */
 const SPECIAL_FX = new Set(['prism', 'lightning', 'fire', 'ice', 'holy', 'void']);
+
+/** As auras que abrem asas — veja `PRICES.auraWings`. */
+const ASAS = new Set<string>(['asas-anjo', 'asas-morcego', 'asas-dragao']);
+
+/** Molduras que não ficam paradas: brilham, congelam, queimam ou têm lavor de ourives. */
+const MOLDURAS_VIVAS = new Set<string>(['neon', 'gelo', 'chama', 'anjinho', 'dragao', 'vitoriana']);
 
 /**
  * O que o jogador já tem ao criar a conta: dois personagens (Marina e Tobi) e um conjunto
@@ -213,6 +280,9 @@ export const FREE_KEYS: readonly string[] = [
   itemKey('chip', 'chip-casino'),
   itemKey('table', 'table-soul'),
   itemKey('winfx', 'gold'),
+  // o brilho que o menu sempre teve atrás do personagem, e a moldura dourada de sempre na mesa
+  itemKey('aura', 'brilho'),
+  itemKey('frame', 'ouro'),
   itemKey('ui', 'default'),
 ];
 
@@ -253,16 +323,32 @@ const UI_THEMES: { id: string; name: string }[] = [
   { id: 'victorian', name: 'Vitoriano' },
 ];
 
+/** O preço de tabela de uma peça: o do tipo, com as exceções declaradas acima. */
+function precoDe(kind: ItemKind, id: string): number {
+  if (kind === 'winfx' && SPECIAL_FX.has(id)) return PRICES.winfxSpecial;
+  if (kind === 'aura' && ASAS.has(id)) return PRICES.auraWings;
+  if (kind === 'frame' && MOLDURAS_VIVAS.has(id)) return PRICES.frameSpecial;
+  return PRICES[kind];
+}
+
 function entry(kind: ItemKind, id: string, name: string, chips?: number): CatalogItem {
   const key = itemKey(kind, id);
-  const price = chips ?? (kind === 'winfx' && SPECIAL_FX.has(id) ? PRICES.winfxSpecial : PRICES[kind]);
-  return { key, kind, id, name, chips: free.has(key) ? 0 : price };
+  return { key, kind, id, name, chips: free.has(key) ? 0 : (chips ?? precoDe(kind, id)) };
 }
 
 /** Tudo que existe no jogo, grátis ou não, na ordem em que a loja mostra. */
 export const CATALOG: CatalogItem[] = [
   ...CHARACTER_PRESETS.map((c) => entry('character', c.id, c.name)),
   ...WIN_FX_IDS.map((id) => entry('winfx', id, id)),
+  /*
+   * Aura e moldura entram pelo id, como os efeitos de vitória.
+   *
+   * O nome bonito de cada uma mora junto com o desenho (src/render/aura.tsx e PortraitFrame.tsx),
+   * que é onde ele é escrito junto com a peça; quem monta a vitrine resolve pelo `labelOf` da
+   * loja. Este arquivo é do servidor também, e o servidor não desenha nada.
+   */
+  ...AURA_IDS.map((id) => entry('aura', id, id)),
+  ...FRAME_IDS.map((id) => entry('frame', id, id)),
   ...FACE_PRESETS.map((s) => entry('face', s.id, s.name, s.special ? PRICES.faceSpecial : undefined)),
   ...BACK_PRESETS.map((s) => entry('back', s.id, s.name)),
   ...CHIP_PRESETS.map((s) => entry('chip', s.id, s.name)),
@@ -326,9 +412,20 @@ export function freeIdOf(kind: ItemKind): string {
 export function clampCosmetics(c: PlayerCosmetics, owned: readonly string[] | undefined): PlayerCosmetics {
   const character = ownsItem(owned, 'character', c.character.id) ? c.character : findCharacter(freeIdOf('character'));
   const winFx = ownsItem(owned, 'winfx', c.winFx) ? c.winFx : (freeIdOf('winfx') as WinFxId);
+  /*
+   * Aura e moldura são vistas pelos outros (o cut-in e o retrato na mesa), então passam pela trava.
+   *
+   * As auras são uma lista, e a trava só **tira** da lista o que não é da conta — não põe o brilho
+   * no lugar. Quem escolheu ficar sem aura continua sem aura; quem mandou uma que não tem perde só
+   * aquela.
+   */
+  const auras = c.auras.filter((id) => ownsItem(owned, 'aura', id));
+  const frame = ownsItem(owned, 'frame', c.frame) ? c.frame : (freeIdOf('frame') as FrameId);
   return {
     character,
     winFx,
+    auras,
+    frame,
     // Estes tres agora vao para a mesa dos outros (frente no showdown, fichas da
     // aposta, mesa quando o jogador e' o dealer), entao passam pela mesma trava.
     face: ownsItem(owned, 'face', c.face.id) ? c.face : freePreset('face', FACE_PRESETS),

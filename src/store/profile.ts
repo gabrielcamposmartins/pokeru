@@ -5,20 +5,26 @@ import {
   BACK_PRESETS,
   PERSONAGEM_PADRAO,
   CHIP_PRESETS,
+  DEFAULT_AURAS,
+  DEFAULT_FRAME,
   DEFAULT_WIN_FX,
   FACE_PRESETS,
   TABLE_PRESETS,
   findCharacter,
+  sanitizeAuras,
   sanitizeBack,
   sanitizeChip,
   sanitizeFace,
+  sanitizeFrame,
   sanitizeTable,
   sanitizeWinFx,
+  type AuraId,
   type AvatarInfo,
   type CardBackStyle,
   type CardFaceStyle,
   type CharacterStyle,
   type ChipStyle,
+  type FrameId,
   type PlayerCosmetics,
   type TableStyle,
   type WinFxId,
@@ -93,6 +99,10 @@ interface ProfileState {
   character: string;
   /** Id do efeito das cartas quando você ganha (catálogo em src/render/cardfx.tsx). */
   winFx: WinFxId;
+  /** Auras atrás do personagem, uma por lugar (catálogo em src/render/aura.tsx; regra em AURA_SLOT). */
+  auras: AuraId[];
+  /** Id da moldura do seu retrato (catálogo em src/render/PortraitFrame.tsx). */
+  frame: FrameId;
   custom: { [K in StyleKind]: StyleMap[K][] };
   equipped: Record<StyleKind, string>;
   /** Conta em cada servidor (endereço → credenciais), para voltar com o mesmo saldo e vínculo. */
@@ -102,6 +112,8 @@ interface ProfileState {
   setAvatar(a: AvatarInfo): void;
   setCharacter(id: string): void;
   setWinFx(id: WinFxId): void;
+  setAuras(ids: AuraId[]): void;
+  setFrame(id: FrameId): void;
   setAccount(server: string, account: ServerAccount): void;
   /** Esquece a conta guardada de um servidor (ao sair, ou ao desmarcar "lembrar-me"). */
   forgetAccount(server: string): void;
@@ -146,6 +158,8 @@ const initial = {
   // o padrão é o Tobi (veja PERSONAGEM_PADRAO, em shared/styles.ts)
   character: PERSONAGEM_PADRAO,
   winFx: DEFAULT_WIN_FX,
+  auras: [...DEFAULT_AURAS],
+  frame: DEFAULT_FRAME,
   custom: { face: [], back: [], chip: [], table: [] },
   accounts: {} as Record<string, ServerAccount>,
   equipped: {
@@ -184,6 +198,8 @@ export const useProfile = create<ProfileState>()(
       setAvatar: (avatar) => set({ avatar }),
       setCharacter: (character) => set({ character }),
       setWinFx: (winFx) => set({ winFx }),
+      setAuras: (ids) => set({ auras: sanitizeAuras(ids) }),
+      setFrame: (frame) => set({ frame }),
       setAccount: (server, account) => set((s) => ({ accounts: { ...s.accounts, [server]: account } })),
       forgetAccount: (server) =>
         set((s) => {
@@ -219,6 +235,8 @@ export const useProfile = create<ProfileState>()(
           ...p,
           accounts: { ...current.accounts, ...(p.accounts ?? {}) },
           custom: known(current.custom, p.custom),
+          // perfil de antes das auras não tem o campo: fica o padrão; o que tem passa pela regra
+          auras: p.auras === undefined ? current.auras : sanitizeAuras(p.auras),
           equipped: known(current.equipped, p.equipped),
           settings: known(current.settings, p.settings),
         };
@@ -264,5 +282,7 @@ export function myCosmetics(): PlayerCosmetics {
     table: sanitizeTable(findStyle(s, 'table', s.equipped.table)),
     character: findCharacter(s.character),
     winFx: sanitizeWinFx(s.winFx),
+    auras: sanitizeAuras(s.auras),
+    frame: sanitizeFrame(s.frame),
   };
 }

@@ -9,6 +9,7 @@ import type { BotDifficulty, Currency } from '../../shared/protocol';
 import { useCharacter, useEquipped, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
+import { CharacterAura } from '../render/aura';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
 import { HandGuideButton } from '../game/HandGuide';
@@ -51,6 +52,7 @@ export function Petals() {
 /** Personagem grande e interativo (clique para ouvir uma fala). */
 export function CharacterStageView({ heightVh = 92, className }: { heightVh?: number; className?: string }) {
   const st = useCharacter();
+  const auras = useProfile((s) => s.auras);
   // a placa mostra o titulo do JOGADOR (conquista), nao do personagem
   const myTitle = useMyTitle();
   const [talk, setTalk] = useState<string | null>(null);
@@ -75,12 +77,22 @@ export function CharacterStageView({ heightVh = 92, className }: { heightVh?: nu
   };
   return (
     <div className={`char-stage ${className ?? ''}`}>
-      <div className="char-glow" style={{ background: `radial-gradient(ellipse at 50% 55%, ${st.bg}88, transparent 65%)` }} />
+      {/*
+        * As auras, em volta da ilustração.
+        *
+        * Era um brilho fixo na cor do personagem, e continua sendo — a aura `brilho`, que vem com o
+        * jogo (src/render/aura.tsx). Quem tem outras vê outras, várias de uma vez: um círculo
+        * escrito girando, asas abrindo, labaredas subindo. São dois desenhos, um atrás da
+        * ilustração e outro na frente, para o que orbita dar a volta **no** personagem. O `tint` é
+        * a cor dele, e só o brilho a usa.
+        */}
+      <CharacterAura auras={auras} tint={st.bg} />
       <motion.div key={st.id} className="char-figure" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <motion.div animate={hop}>
           <CharacterFull st={st} height={h} animate onClick={onClick} className="clickable" />
         </motion.div>
       </motion.div>
+      <CharacterAura auras={auras} tint={st.bg} plano="frente" />
       <AnimatePresence>
         {talk && (
           <motion.div className="speech" initial={{ opacity: 0, scale: 0.6, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8 }}>

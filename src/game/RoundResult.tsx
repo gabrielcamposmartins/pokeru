@@ -5,6 +5,7 @@ import { useTable, type RoundResult as Result } from '../store/table';
 import { CardView } from '../render/CardArt';
 import { findWinFx } from '../render/cardfx';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
+import { CharacterAura } from '../render/aura';
 import { ChipSvg } from '../render/Chip';
 import { useUiTheme } from '../ui/themes';
 import { fmt } from '../util/format';
@@ -73,7 +74,10 @@ export function RoundResultPanel({ r }: { r: Result }) {
         animate={{ x: 0, opacity: 1 }}
         transition={{ delay: 0.06, type: 'spring', stiffness: 150, damping: 20 }}
       >
+        {/* as auras de quem ganhou, em volta dele: é o momento em que elas existem para os outros verem */}
+        <CharacterAura auras={r.auras} tint={r.character.bg} className="rr-aura" />
         <CharacterFull st={r.character} height={880} />
+        <CharacterAura auras={r.auras} tint={r.character.bg} plano="frente" className="rr-aura" />
         <div className="rr-plate">
           {r.title && <small>{r.title}</small>}
           <b>{r.name}</b>

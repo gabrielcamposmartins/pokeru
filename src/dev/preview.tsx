@@ -68,7 +68,8 @@ import '@fontsource/playfair-display/900-italic.css';
 import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
-import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, findCharacter } from '../../shared/styles';
+import '../styles/persona.css';
+import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, findCharacter } from '../../shared/styles';
 import type { Opening, SeatView } from '../../shared/protocol';
 import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
@@ -162,6 +163,7 @@ const base: RoundResult = {
   stack: 3240,
   split: [],
   winFx: 'fire',
+  auras: ['brilho', 'circulo-arcano', 'asas-anjo', 'aureola'],
 };
 
 const SCENES: Record<string, RoundResult> = {
@@ -212,6 +214,8 @@ function rows(n: number, mePlace: number): MatchRow[] {
     const stack = 6400 - i * 1100;
     return {
       place: p,
+      // uma moldura por linha: o placar é onde se compara uma com a outra
+      frame: FRAME_IDS[i % FRAME_IDS.length],
       name: p === mePlace ? 'Jogador' : NAMES[(i + 1) % NAMES.length],
       character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
       stack: Math.max(0, stack),
@@ -315,6 +319,9 @@ function Placas() {
       table: TABLE_PRESETS[0],
       character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
       winFx: 'gold',
+      auras: ['brilho'],
+      // uma moldura diferente por assento: é assim que se confere as dez de uma vez
+      frame: FRAME_IDS[i % FRAME_IDS.length],
     },
     title: null,
     stack: 3240,

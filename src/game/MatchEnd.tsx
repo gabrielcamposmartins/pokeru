@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { TableView } from '../../shared/protocol';
-import { findCharacter, type CharacterStyle } from '../../shared/styles';
+import { findCharacter, type CharacterStyle, type FrameId } from '../../shared/styles';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { useTable, type MatchEnd, type Ranking } from '../store/table';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
+import { PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { BondGain } from './BondBar';
 import { ChipSvg } from '../render/Chip';
 import { useUiTheme } from '../ui/themes';
@@ -17,6 +18,8 @@ export interface MatchRow {
   place: number;
   name: string;
   character: CharacterStyle;
+  /** Moldura do retrato desta linha (a de cada jogador, veja src/render/PortraitFrame.tsx). */
+  frame: FrameId;
   stack: number;
   /** Resultado em relação às fichas iniciais. */
   delta: number;
@@ -39,6 +42,7 @@ const place = (n: number) => ORDINAL[n - 1] ?? `${n}º`;
  */
 export function buildMatchRows(view: TableView, ranking: Ranking[] | null, startingStack: number): MatchRow[] {
   const myCharacter = findCharacter(useProfile.getState().character);
+  const myFrame = useProfile.getState().frame;
   const row = (seat: number, placeNo: number, name?: string): MatchRow => {
     const s = view.seats[seat];
     const isMe = seat === view.mySeat;
@@ -46,6 +50,7 @@ export function buildMatchRows(view: TableView, ranking: Ranking[] | null, start
       place: placeNo,
       name: name ?? s?.name ?? `Assento ${seat + 1}`,
       character: isMe ? myCharacter : (s?.cosmetics.character ?? findCharacter('')),
+      frame: isMe ? myFrame : (s?.cosmetics.frame ?? 'ouro'),
       stack: s?.stack ?? 0,
       delta: (s?.stack ?? 0) - startingStack,
       isMe,
@@ -86,8 +91,9 @@ function Row({ r, i }: { r: MatchRow; i: number }) {
     >
       <div className="me-row-in">
         <span className="me-place">{place(r.place)}</span>
-        <span className="me-portrait" style={{ background: `linear-gradient(160deg, ${r.character.bg}, ${r.character.bg2})` }}>
+        <span className="me-portrait com-moldura" style={{ background: `linear-gradient(160deg, ${r.character.bg}, ${r.character.bg2})` }}>
           <CharacterPortrait st={r.character} size={72} />
+          <PortraitFrame frame={findFrame(r.frame)} size={72} />
         </span>
         <span className="me-who">
           <span className="me-name">

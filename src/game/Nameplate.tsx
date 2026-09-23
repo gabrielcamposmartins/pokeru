@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import type { SeatView } from '../../shared/protocol';
 import { useTable } from '../store/table';
-import { useCharacter } from '../store/profile';
+import { useCharacter, useProfile } from '../store/profile';
 import { ACTION_LABEL, fmt } from '../util/format';
 import type { SeatGeo } from './layout';
 import { ChipSvg } from '../render/Chip';
 import { CharacterPortrait } from '../render/CharacterArt';
+import { PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { CountdownDigits, useSecondsLeft } from './Countdown';
 
 /** Cartão do jogador na mesa: retrato do personagem em moldura, nome e fichas. */
@@ -28,7 +29,15 @@ export function Nameplate({
   const allEmotes = useTable((s) => s.emotes);
   const allCallouts = useTable((s) => s.callouts);
   const mine = useCharacter();
+  const minhaMoldura = useProfile((s) => s.frame);
   const st = isMe ? mine : seat.cosmetics.character;
+  /*
+   * A moldura é de quem está sentado, e a minha sai do perfil, não da mesa.
+   *
+   * O servidor devolve nos cosméticos do assento o que ele aceitou; para o meu assento vale o que
+   * eu acabei de escolher, para eu ver a troca na hora em vez de na próxima entrada.
+   */
+  const moldura = findFrame(isMe ? minhaMoldura : seat.cosmetics.frame);
   const secs = useSecondsLeft(acting && !isMe ? deadline : null);
   const emotes = allEmotes.filter((e) => e.seat === seat.seat);
   const callouts = allCallouts.filter((c) => c.seat === seat.seat);
@@ -41,7 +50,7 @@ export function Nameplate({
     <div className={cls} style={{ left: geo.plate.x, top: geo.plate.y }}>
       <div className="seat-portrait" style={{ background: `linear-gradient(160deg, ${st.bg}, ${st.bg2})`, width: size, height: size }}>
         <CharacterPortrait st={st} size={size} />
-        <div className="seat-frame" />
+        <PortraitFrame frame={moldura} size={size} />
         {badge && <div className={`plate-pos pos-${badge}`}>{badge}</div>}
         {secs !== null && (
           <div className="seat-count">

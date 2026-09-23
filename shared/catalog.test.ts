@@ -13,7 +13,7 @@ import {
   priceOf,
 } from './catalog';
 import { GALERIA, GIFTS, VENDIDOS, isSold } from './catalog';
-import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, WIN_FX_IDS } from './styles';
+import { AURA_IDS, BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, WIN_FX_IDS } from './styles';
 
 describe('catálogo da loja', () => {
   it('cobre tudo que existe no jogo, uma vez cada', () => {
@@ -24,6 +24,8 @@ describe('catálogo da loja', () => {
       BACK_PRESETS.length +
       CHIP_PRESETS.length +
       TABLE_PRESETS.length +
+      AURA_IDS.length +
+      FRAME_IDS.length +
       GIFTS.length +
       2;
     expect(CATALOG).toHaveLength(esperado);
@@ -44,8 +46,8 @@ describe('catálogo da loja', () => {
     expect(owns([], 'character:tobi')).toBe(true);
     expect(owns([], 'character:ren')).toBe(false);
     expect(owns([], 'character:yukina')).toBe(false);
-    // e o suficiente para sentar: carta, verso, ficha, mesa, efeito e interface
-    for (const kind of ['face', 'back', 'chip', 'table', 'winfx', 'ui'] as const) {
+    // e o suficiente para sentar: carta, verso, ficha, mesa, efeito, aura, moldura e interface
+    for (const kind of ['face', 'back', 'chip', 'table', 'winfx', 'aura', 'frame', 'ui'] as const) {
       expect(freeIdOf(kind), kind).toBeTruthy();
       expect(isFree(itemKey(kind, freeIdOf(kind))), kind).toBe(true);
     }
@@ -92,7 +94,7 @@ describe('catálogo da loja', () => {
   });
 
   it('cada tipo tem pelo menos um item à venda', () => {
-    for (const kind of ['character', 'face', 'back', 'chip', 'table', 'winfx', 'ui'] as const) {
+    for (const kind of ['character', 'face', 'back', 'chip', 'table', 'winfx', 'aura', 'frame', 'ui'] as const) {
       const pagos = itemsOfKind(kind).filter((i) => i.chips > 0);
       expect(pagos.length, kind).toBeGreaterThan(0);
     }

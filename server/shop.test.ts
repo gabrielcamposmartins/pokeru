@@ -9,6 +9,8 @@ import {
   BACK_PRESETS,
   CHARACTER_PRESETS,
   CHIP_PRESETS,
+  DEFAULT_AURAS,
+  DEFAULT_FRAME,
   DEFAULT_WIN_FX,
   FACE_PRESETS,
   TABLE_PRESETS,
@@ -43,6 +45,8 @@ const profile = (character = 'marina'): AccountProfile => ({
     table: TABLE_PRESETS[0],
     character: findCharacter(character),
     winFx: DEFAULT_WIN_FX,
+    auras: [...DEFAULT_AURAS],
+    frame: DEFAULT_FRAME,
   },
 });
 

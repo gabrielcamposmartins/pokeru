@@ -19,6 +19,8 @@ function cosmetics(i: number): PlayerCosmetics {
     table: TABLE_PRESETS[i % TABLE_PRESETS.length],
     character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
     winFx: 'gold',
+    auras: ['brilho'],
+    frame: 'ouro',
   };
 }
 

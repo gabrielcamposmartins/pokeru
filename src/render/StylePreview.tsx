@@ -5,6 +5,7 @@ import type { CardBackStyle, CardFaceStyle, ChipStyle, TableStyle } from '../../
 import { CHIP_VALUES } from '../../shared/styles';
 import { CardBackSvg, CardFaceSvg, CardView } from './CardArt';
 import { CharacterPortrait } from './CharacterArt';
+import { PortraitFrame, findFrame } from './PortraitFrame';
 import { ChipStack, ChipSvg } from './Chip';
 import { TableFelt } from './TableFelt';
 import { CARD_H, CARD_W, boardSlot, planeStyle, project } from '../game/layout';
@@ -149,13 +150,14 @@ export function TablePreview({ st }: { st: TableStyle }) {
 export function ThemeSample() {
   const character = useCharacter();
   const name = useProfile((s) => s.name);
+  const moldura = useProfile((s) => s.frame);
   return (
     <div className="theme-sample">
       <div className="theme-sample-row">
         <div className="plate seat-card is-me theme-sample-plate">
           <div className="seat-portrait" style={{ background: `linear-gradient(160deg, ${character.bg}, ${character.bg2})`, width: 76, height: 76 }}>
             <CharacterPortrait st={character} size={76} />
-            <div className="seat-frame" />
+            <PortraitFrame frame={findFrame(moldura)} size={76} />
             <div className="plate-pos pos-D">D</div>
           </div>
           <div className="seat-info">

@@ -1,0 +1,330 @@
+/* =====================================================================
+ * Aura e moldura — os dois cosméticos da pessoa.
+ *
+ * A **aura** é o que fica atrás do personagem (src/render/aura.tsx); a **moldura** é a borda do
+ * retrato (src/render/PortraitFrame.tsx). O desenho de cada peça está no TSX: aqui ficam a caixa em
+ * que ela mora e o movimento que é mais simples de escrever em CSS do que em SMIL — a respiração,
+ * o flutuar, o pisca do neon.
+ * ===================================================================== */
+
+/*
+ * A caixa da aura: um quadrado com a **altura** do personagem, centrado nele.
+ *
+ * É por causa desta caixa que o desenho da aura pode usar coordenadas de 0 a 100 falando de
+ * cabeça, ombro e pé (veja o cabeçalho de aura.tsx): a altura do quadrado é a da ilustração, então
+ * y=6 é sempre o alto da cabeça, em qualquer tamanho de janela. A largura sai da altura, e por isso
+ * a aura passa dos dois lados do corpo — que é onde ela precisa ser vista.
+ */
+.char-aura {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  aspect-ratio: 1;
+  translate: -50%;
+  z-index: -1;
+  pointer-events: none;
+  /* os desfoques das labaredas passam da borda do viewBox; sem isto eles são cortados em reta */
+  overflow: visible;
+}
+
+/*
+ * O plano da frente: a mesma caixa, pintada **depois** da ilustração.
+ *
+ * Sem `z-index` (em vez do -1 de trás), ele entra na ordem do documento: fica por cima do
+ * personagem, que vem antes dele, e por baixo do balão de fala e da placa do nome, que vêm depois.
+ * Um `z-index: 1` passaria por cima dos dois.
+ */
+.char-aura.frente {
+  z-index: auto;
+}
+
+/*
+ * A aura sozinha numa caixa, para a vitrine (veja `AuraAmostra`).
+ *
+ * Só a aura, sem boneco nenhum na frente: quem enquadra a peça é o recorte dela (`vitrine`, no
+ * catálogo), que o SVG usa como `viewBox`.
+ */
+.aura-amostra {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 60%, #241a33, #0c0a14 72%);
+}
+.aura-amostra-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * O palco do Estúdio: as auras em volta do **personagem de verdade**.
+ *
+ * Na vitrine a aura aparece sozinha; aqui é onde se escolhe, e escolher é ver as auras em volta de
+ * quem vai andar com elas. O `z-index: 0` é pelo mesmo motivo do `.aura-amostra`.
+ */
+.aura-palco {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  min-height: 260px;
+}
+
+/*
+ * A caixa do tamanho da ilustração, onde palco é maior que o personagem.
+ *
+ * A aura mede cabeça, ombro e pé pela altura da caixa em que está (veja `.char-aura`); num palco
+ * mais alto que a figura, ela ficava com a auréola no teto. Esta caixa encolhe até a ilustração e
+ * dá à aura a medida certa.
+ */
+.char-palco {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: fit-content;
+}
+
+/* As auras em uso, no painel do Estúdio: uma etiqueta por aura, com o lugar em cima do nome. */
+.aura-em-uso {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.aura-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.aura-chip small {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.aura-chip.on {
+  border-color: var(--gold);
+  background: rgba(255, 209, 102, 0.12);
+}
+
+/* As duas molduras do palco do Estúdio: uma grande e uma do tamanho da mesa. */
+.moldura-palco {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.moldura-palco > span {
+  position: relative;
+  border-radius: 14px;
+  flex: none;
+}
+
+/*
+ * A aura na revelação do prêmio.
+ *
+ * Sem o fundo da vitrine: atrás dela está a Luz Sagrada do prêmio, e uma caixa preta por cima
+ * apagaria justamente a cena que anuncia o que saiu.
+ */
+.premio-aura {
+  width: min(70vw, 290px);
+  background: none;
+  overflow: visible;
+}
+
+/* A peça grande da vitrine de auras: grande, mas não do tamanho do monitor. */
+.aura-amostra-grande {
+  width: min(60vh, 420px);
+}
+
+/* O retrato grande da vitrine de molduras. */
+.shop-moldura {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  border-radius: 14px;
+  flex: none;
+}
+
+/* Respiração: infla e clareia. Serve às espadas, à coroa de espinhos e ao brilho. */
+.aura-respira {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aura-respira 3.6s ease-in-out infinite alternate;
+}
+@keyframes aura-respira {
+  from {
+    opacity: 0.72;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+/* A respiração lenta do miolo do brilho: fora de compasso com a de fora, para a luz não pulsar em bloco. */
+.aura-respira-lenta {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aura-respira 5.3s ease-in-out infinite alternate-reverse;
+}
+
+/* A auréola sobe e desce de leve, como coisa que não tem peso. */
+.aura-flutua {
+  animation: aura-flutua 4.2s ease-in-out infinite alternate;
+}
+@keyframes aura-flutua {
+  from {
+    transform: translateY(-1px);
+  }
+  to {
+    transform: translateY(1.6px);
+  }
+}
+
+/* A auréola de raios não se mexe de lugar: ela acende e apaga. */
+.aura-brilha {
+  animation: aura-brilha 2.8s ease-in-out infinite alternate;
+}
+@keyframes aura-brilha {
+  from {
+    opacity: 0.68;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * Os círculos ganham um halo.
+ *
+ * São feitos de linhas de meio ponto de espessura; contra a ilustração, sem halo, elas sumiam nos
+ * lugares claros do desenho. O borrão é da cor da própria linha, então nenhum círculo precisa
+ * declarar a sua sombra.
+ */
+.aura-circulo {
+  filter: drop-shadow(0 0 1.5px currentColor);
+  animation: aura-brilha 5.5s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ moldura */
+
+/*
+ * A moldura cobre o retrato e mais um décimo para cada lado.
+ *
+ * O `viewBox` é `-10 -10 120 120` e esta caixa é 120% do retrato: as duas coisas combinadas fazem
+ * o quadrado de 0 a 100 do desenho cair exatamente sobre a foto, sobrando a margem de fora para os
+ * losangos, as garras e as chamas.
+ */
+.moldura {
+  position: absolute;
+  left: -10%;
+  top: -10%;
+  width: 120%;
+  height: 120%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/*
+ * Um retrato que leva moldura.
+ *
+ * Alguns retratos já vinham com borda e `overflow: hidden` no CSS — era assim que eles ficavam
+ * redondos. Com uma moldura em cima, a borda do CSS vira uma segunda moldura por baixo da
+ * primeira, e o `overflow` corta os enfeites que passam de fora. Esta classe desfaz as duas
+ * coisas: a borda passa a ser a peça escolhida, e o arredondado fica com a imagem.
+ *
+ * As duas últimas linhas existem só por causa da conta de especificidade: `.char-info-portrait > *`
+ * estica todo filho para 100%, e sem um seletor mais específico a moldura encolheria para o
+ * tamanho do retrato, perdendo a margem em que ela desenha os losangos e as garras.
+ */
+.com-moldura {
+  position: relative;
+  overflow: visible;
+  border: none;
+}
+.com-moldura > img {
+  border-radius: inherit;
+}
+.com-moldura > .moldura {
+  width: 120%;
+  height: 120%;
+}
+
+/*
+ * A aura no cut-in de quem ganha a mão.
+ *
+ * A caixa tem a altura da ilustração, como no menu, e é isso que faz a aura acertar o corpo: o
+ * desenho fala em cabeça, ombro e pé (veja aura.tsx), e essas alturas só existem se a caixa for a
+ * figura inteira. Encolhida, a auréola ficava no peito e as asas na cintura.
+ *
+ * O que muda aqui é a opacidade: a cena já tem cartas, nome da mão e o valor do pote, e uma aura
+ * a plena luz brigava com tudo isso.
+ */
+.rr-aura {
+  opacity: 0.85;
+}
+
+/*
+ * O texto ao lado do retrato fica por cima da moldura.
+ *
+ * Algumas molduras passam bem da borda do retrato — as asas da de anjinho abrem mais de um terço
+ * dele para fora —, e a moldura é posicionada, então sem isto ela seria pintada por cima do nome,
+ * das fichas e do campo de nome do perfil. Com o texto numa camada acima, a asa passa por trás.
+ */
+.seat-info,
+.me-who,
+.profile-cab-meta {
+  position: relative;
+  z-index: 1;
+}
+
+/* O letreiro de neon respira; a geada passeia. */
+.moldura-pisca {
+  animation: aura-brilha 1.9s ease-in-out infinite alternate;
+}
+.moldura-geada {
+  stroke-dasharray: 18 26;
+  animation: moldura-geada 5s linear infinite;
+}
+@keyframes moldura-geada {
+  to {
+    stroke-dashoffset: -44;
+  }
+}
+
+/*
+ * O estado do assento troca a cor da moldura, e só a cor.
+ *
+ * Quem está pensando fica verde-menta e quem ganhou fica dourado — é a sinalização que a mesa
+ * sempre teve. O lavor da peça (os losangos, as escamas, a coroa) continua no lugar: mudar a
+ * moldura de quem está jogando seria trocar a identidade dele a cada rodada.
+ */
+.plate.acting .moldura {
+  --moldura-cor: var(--mint);
+  --moldura-cor2: #eafff7;
+  filter: drop-shadow(0 0 5px rgba(107, 242, 193, 0.9));
+}
+.plate.winner .moldura {
+  --moldura-cor: #ffd166;
+  --moldura-cor2: #fff6d6;
+  filter: drop-shadow(0 0 7px rgba(255, 209, 102, 0.95));
+}

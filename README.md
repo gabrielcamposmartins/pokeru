@@ -596,7 +596,7 @@ server/
   store.ts         Arquivo JSON com gravação atômica e em bloco
 src/
   game/            Mesa: layout, diretor de animações, placas, painel de ações
-  render/          Arte SVG: cartas (frente/verso), fichas, mesa, personagens
+  render/          Arte SVG: cartas (frente/verso), fichas, mesa, personagens, auras, molduras
   screens/         Menu, Partida Rápida, Online, Sala, Estúdio, Configurações
   store/           Estado (zustand): perfil/estilos persistidos, sessão, mesa
   net/transport.ts WebSocket ou Lobby local (modo offline)
@@ -966,6 +966,58 @@ Cada efeito também tem um som (sino, descarga, labareda, congelamento, coral, s
 
 O efeito aparece sozinho no Estúdio; o teste `src/render/cardfx.test.ts` cobra que todo id tenha entrada.
 Efeitos "só de cor" saem de uma linha: a função `glow(id, nome, descrição, cores)`.
+
+## Auras e molduras do retrato
+
+Duas famílias de cosméticos que são da **pessoa**, e não da mesa: a **aura**, que fica atrás do seu
+personagem, e a **moldura**, que é a borda do seu retrato. As duas viajam pela rede, então os outros
+jogadores veem as suas.
+
+**Auras** (catálogo em `src/render/aura.tsx`, dezessete peças). Aparecem em volta da ilustração no
+menu, na tela de Personagens e no **cut-in de quem ganha a mão**.
+
+Dá para usar **várias ao mesmo tempo, uma por lugar** (`AURA_SLOT`, em `shared/styles.ts`): a luz de
+fundo, um círculo, um arsenal, um par de asas, um fogo no chão, uma auréola e uma órbita. Duas do mesmo
+lugar ocupariam o mesmo espaço — dois pares de asas no mesmo ombro —, então vestir uma aura num lugar
+ocupado troca a que estava lá. A regra vale na rede também: `sanitizeAuras` corta a segunda de um mesmo
+lugar, e a trava do servidor só tira da lista as que a conta não tem. Ficar sem nenhuma é permitido.
+
+| Aura | Lugar | O que faz |
+|---|---|---|
+| Brilho | luz | a luz parada que o menu sempre teve; pega a cor do personagem (vem com o jogo) |
+| Poeira de Luz | luz | o brilho vivo: respira, acende um miolo e solta poeira de luz subindo (comum, sai da roleta) |
+| Círculo Arcano / Oracular / Selo do Onmyōji / Círculo Boreal | círculo | selo mágico em latim, grego, japonês e cirílico: aro escrito, anel de sinais e estrela girando em sentidos opostos |
+| Auréola / Auréola Radiante / Auréola Negra | cabeça | o anel dourado deitado sobre a cabeça, com cone de luz; o nimbo de raios atrás dela; a coroa de espinhos curvos com chamas roxas |
+| Naipes em Órbita / Shurikens | órbita | figuras dando a volta na cintura, passando por trás e pela frente do corpo |
+| Espadas Suspensas | arsenal | seis silhuetas de espada acesas, em leque atrás, pairando |
+| Labaredas / Fogo-Fátuo | chão | fogo subindo do chão com brasas (e línguas baixas diante dos pés), ou chamas azuis com luzes frias vagando |
+| Asas de Anjo / Morcego / Dragão | asas | a asa clássica erguida — ponta no alto, rêmiges em leque para baixo, escamas junto do braço — em penas (com penas soltas caindo) ou em couro entre dedos que saem do pulso; o dragão com espinhos, garras e veias acesas |
+
+Cada aura é desenhada em **dois planos**: um SVG atrás da ilustração e outro na frente. Na frente fica
+só o que precisa passar pela frente do corpo para ter volume — a metade de perto da órbita, a metade
+de baixo da auréola deitada, as línguas de fogo baixas diante dos pés. Na vitrine (loja, Galeria, Estúdio) a
+aura aparece sozinha, sem boneco, enquadrada pelo próprio recorte (`vitrine`).
+
+**Molduras do retrato** (catálogo em `src/render/PortraitFrame.tsx`, onze peças). Valem no assento da
+mesa, no placar do fim da partida e no perfil — em todo lugar onde o retrato é a pessoa e não o
+personagem. A `Ouro` é a moldura dourada de losangos que a mesa sempre teve, e vem com o jogo; as
+outras vão de prata, jade, obsidiana e sakura a neon, vitoriana, gelo, chama, anjinho (asinhas
+batendo dos lados e auréola dourada em cima) e dragão.
+
+O **estado do assento** continua sinalizado pela cor: quem está pensando fica verde-menta e o
+vencedor fica dourado. Isso é uma variável CSS (`--moldura-cor`) trocada por fora, então o lavor da
+peça — os losangos, as escamas, a coroa — fica onde está enquanto a cor muda.
+
+**Para criar uma aura ou uma moldura nova:**
+
+1. acrescente o id em `AURA_IDS` (e o lugar dela em `AURA_SLOT`) ou em `FRAME_IDS` (`shared/styles.ts`) — é o que viaja na rede e é sanitizado;
+2. acrescente a entrada em `AURAS` / `FRAMES`, com nome, descrição, as duas cores e a forma (a aura, também o recorte da vitrine);
+3. se a forma for nova, escreva o desenho dela no mesmo arquivo.
+
+A peça aparece sozinha no Estúdio, na Galeria e nas roletas; o teste `src/render/aura.test.ts` cobra
+que todo id tenha entrada. A aura é desenhada num quadrado com a **altura do personagem** (cabeça em
+y≈6, ombros em 32, pés em 100) e a moldura num quadrado de 0 a 100 com dez unidades de margem em
+volta, que é por onde os enfeites passam da borda.
 
 ## Aparência da interface (temas de UI)
 

@@ -38,6 +38,7 @@ const result: RoundResult = {
   stack: 3540,
   split: ['Ren'],
   winFx: 'fire',
+  auras: ['labaredas', 'aureola'],
 };
 
 describe('tela de fim de round', () => {

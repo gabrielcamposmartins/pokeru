@@ -145,6 +145,121 @@ export const WIN_FX_IDS = ['gold', 'azure', 'rose', 'emerald', 'violet', 'prism'
 export type WinFxId = (typeof WIN_FX_IDS)[number];
 export const DEFAULT_WIN_FX: WinFxId = 'gold';
 
+/**
+ * Aura: o que arde, gira ou se abre **atrás** do personagem.
+ *
+ * Como os efeitos de vitória, aqui ficam só os ids — é o que viaja na rede. O desenho de cada uma
+ * está em src/render/aura.tsx, e o teste de lá garante que todo id tenha entrada.
+ *
+ * O jogo já tinha um brilho fixo atrás do personagem no menu; ele virou a aura `brilho`, que vem
+ * com o jogo. As outras saem de roleta.
+ */
+export const AURA_IDS = [
+  'brilho',
+  'poeira-de-luz',
+  'circulo-arcano',
+  'circulo-oracular',
+  'selo-onmyoji',
+  'circulo-boreal',
+  'aureola',
+  'aureola-radiante',
+  'aureola-negra',
+  'naipes',
+  'shurikens',
+  'espadas',
+  'labaredas',
+  'fogo-fatuo',
+  'asas-anjo',
+  'asas-morcego',
+  'asas-dragao',
+] as const;
+export type AuraId = (typeof AURA_IDS)[number];
+export const DEFAULT_AURA: AuraId = 'brilho';
+
+/**
+ * O lugar que cada aura ocupa em volta do personagem.
+ *
+ * Dá para usar **várias auras ao mesmo tempo, uma por lugar**: um círculo, uma auréola, um par de
+ * asas, um fogo no chão… Duas do mesmo lugar não combinam porque ocupam o mesmo espaço — dois pares
+ * de asas saem do mesmo ombro, duas auréolas ficam na mesma cabeça, dois círculos giram um em cima
+ * do outro. Vestir uma aura num lugar ocupado troca a que estava lá.
+ *
+ * A regra mora aqui, e não no desenho, porque ela vale para a rede também: o que chega de outro
+ * jogador passa por `sanitizeAuras`, que corta a segunda aura de um mesmo lugar.
+ */
+export type AuraSlot = 'luz' | 'circulo' | 'leque' | 'asas' | 'chao' | 'cabeca' | 'orbita';
+
+/**
+ * Os lugares, do mais fundo para o mais raso — é a ordem em que as auras se empilham.
+ *
+ * A luz fica no fundo de tudo; o círculo atrás das asas; as espadas atrás das asas também, porque
+ * estão fincadas mais longe do corpo; o fogo sobe do chão na frente delas; a auréola e o que
+ * orbita ficam por cima, perto do personagem.
+ */
+export const AURA_SLOTS: readonly AuraSlot[] = ['luz', 'circulo', 'leque', 'asas', 'chao', 'cabeca', 'orbita'];
+
+export const AURA_SLOT: Record<AuraId, AuraSlot> = {
+  brilho: 'luz',
+  'poeira-de-luz': 'luz',
+  'circulo-arcano': 'circulo',
+  'circulo-oracular': 'circulo',
+  'selo-onmyoji': 'circulo',
+  'circulo-boreal': 'circulo',
+  aureola: 'cabeca',
+  'aureola-radiante': 'cabeca',
+  'aureola-negra': 'cabeca',
+  naipes: 'orbita',
+  shurikens: 'orbita',
+  espadas: 'leque',
+  labaredas: 'chao',
+  'fogo-fatuo': 'chao',
+  'asas-anjo': 'asas',
+  'asas-morcego': 'asas',
+  'asas-dragao': 'asas',
+};
+
+/** Com o que um perfil novo começa: o brilho que o menu sempre teve. */
+export const DEFAULT_AURAS: readonly AuraId[] = [DEFAULT_AURA];
+
+/** Da mais funda para a mais rasa (veja AURA_SLOTS). */
+export function ordenarAuras(ids: readonly AuraId[]): AuraId[] {
+  return [...ids].sort((a, b) => AURA_SLOTS.indexOf(AURA_SLOT[a]) - AURA_SLOTS.indexOf(AURA_SLOT[b]));
+}
+
+/** Veste uma aura: ela entra, e a que ocupava o mesmo lugar sai. */
+export function vestirAura(atuais: readonly AuraId[], id: AuraId): AuraId[] {
+  return ordenarAuras([id, ...atuais.filter((a) => AURA_SLOT[a] !== AURA_SLOT[id])]);
+}
+
+/** Tira uma aura. Ficar sem nenhuma é permitido: é escolha, não defeito. */
+export function tirarAura(atuais: readonly AuraId[], id: AuraId): AuraId[] {
+  return atuais.filter((a) => a !== id);
+}
+
+/**
+ * Moldura do retrato — a borda da foto de perfil.
+ *
+ * Vale em toda parte onde o retrato é a **pessoa** e não o personagem: o assento na mesa, o
+ * placar do fim da partida e o perfil. O desenho está em src/render/PortraitFrame.tsx.
+ *
+ * A `ouro` é a moldura dourada de losangos que a mesa sempre teve, agora com nome e com irmãs.
+ */
+export const FRAME_IDS = [
+  'ouro',
+  'prata',
+  'jade',
+  'obsidiana',
+  'sakura',
+  'neon',
+  'vitoriana',
+  'gelo',
+  'chama',
+  'anjinho',
+  'dragao',
+] as const;
+export type FrameId = (typeof FRAME_IDS)[number];
+export const DEFAULT_FRAME: FrameId = 'ouro';
+
 /** Cosméticos que os outros jogadores veem (enviados pela rede). */
 export interface PlayerCosmetics {
   /** Frente das cartas: usada quando ESTE jogador abre a mão no showdown. */
@@ -157,6 +272,15 @@ export interface PlayerCosmetics {
   character: CharacterStyle;
   /** Id do efeito das cartas quando o jogador ganha (veja WIN_FX_IDS). */
   winFx: WinFxId;
+  /**
+   * Auras atrás do personagem — no menu, e no cut-in de quem ganha a mão (veja AURA_IDS).
+   *
+   * Uma lista, uma por lugar (veja AURA_SLOT), da mais funda para a mais rasa. Vazia vale: é quem
+   * preferiu o personagem sem nada atrás.
+   */
+  auras: AuraId[];
+  /** Moldura do retrato do jogador na mesa e no placar (veja FRAME_IDS). */
+  frame: FrameId;
 }
 
 // ---------------------------------------------------------------------
@@ -840,6 +964,29 @@ export function sanitizeWinFx(v: unknown): WinFxId {
   return oneOf(v, WIN_FX_IDS, DEFAULT_WIN_FX);
 }
 
+/**
+ * As auras que chegaram de fora: só ids que existem, sem repetição e uma por lugar.
+ *
+ * Quando dois ids disputam o mesmo lugar, fica o **primeiro** — que é o que a lista trazia na
+ * frente. Um valor que nem é lista (um cliente antigo que não manda o campo) vira o padrão; uma
+ * lista vazia continua vazia, porque sem aura é uma escolha possível.
+ */
+export function sanitizeAuras(v: unknown): AuraId[] {
+  if (!Array.isArray(v)) return [...DEFAULT_AURAS];
+  const out: AuraId[] = [];
+  for (const x of v) {
+    if (typeof x !== 'string' || !(AURA_IDS as readonly string[]).includes(x)) continue;
+    const id = x as AuraId;
+    if (out.some((o) => AURA_SLOT[o] === AURA_SLOT[id])) continue;
+    out.push(id);
+  }
+  return ordenarAuras(out);
+}
+
+export function sanitizeFrame(v: unknown): FrameId {
+  return oneOf(v, FRAME_IDS, DEFAULT_FRAME);
+}
+
 export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
   const o = obj(v);
   return {
@@ -849,6 +996,8 @@ export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
     table: sanitizeTable(o.table),
     character: sanitizeCharacter(o.character),
     winFx: sanitizeWinFx(o.winFx),
+    auras: sanitizeAuras(o.auras),
+    frame: sanitizeFrame(o.frame),
   };
 }
 

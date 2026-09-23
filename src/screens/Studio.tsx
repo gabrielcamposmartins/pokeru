@@ -7,6 +7,11 @@ import {
   EMBLEMS,
   FONT_KEYS,
   TABLE_PATTERNS,
+  AURA_SLOT,
+  DEFAULT_AURA,
+  tirarAura,
+  vestirAura,
+  type AuraId,
   type BackPattern,
   type CardBackStyle,
   type CardFaceStyle,
@@ -16,7 +21,7 @@ import {
   type TableStyle,
   type WinFxId,
 } from '../../shared/styles';
-import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useProfile, type StyleKind, type StyleMap } from '../store/profile';
+import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
 import { useMyStyles, useOwned, useOwns } from '../store/shop';
 import { itemKey, ownsItem, padoPrice, priceOf } from '../../shared/catalog';
 import { useSession } from '../store/session';
@@ -28,6 +33,9 @@ import { rgbToHex } from '../util/color';
 import { parseJsonc } from '../../shared/jsonc';
 import { sfx, type FxSound } from '../audio/sfx';
 import { CardWinFx, WIN_FX, findWinFx, type FxFrame } from '../render/cardfx';
+import { AURAS, AuraAmostra, CharacterAura, SLOT_LABEL, findAura } from '../render/aura';
+import { FRAMES, PortraitFrame, findFrame } from '../render/PortraitFrame';
+import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
 
 // ------------------------------------------------------------------ util
@@ -746,9 +754,282 @@ function WinFxStudio() {
   );
 }
 
+// ------------------------------------------------------------------ aura e moldura
+
+/**
+ * Aba de coleção: a lista do que é seu, a peça grande e o botão de equipar — uma de cada vez.
+ *
+ * É a aba das molduras. Moldura não se edita — não é feita de campos como uma carta ou um feltro,
+ * e sim desenhada uma a uma —, então o que a pessoa faz aqui é **escolher**. As auras têm aba
+ * própria (`AuraStudio`) porque ali se escolhe mais de uma.
+ *
+ * Como na aba de efeitos, a lista mostra só o que é da conta. O que falta tem lugar próprio (Loja
+ * → Tickets, e a Galeria para ver de perto); uma prateleira de cadeados no meio da oficina é
+ * propaganda no lugar da ferramenta.
+ */
+function ColecaoStudio<T extends { id: string; name: string; description: string }>({
+  kind,
+  label,
+  todas,
+  equipada,
+  equipar,
+  nota,
+  mini,
+  palco,
+}: {
+  kind: 'aura' | 'frame';
+  /** Como a peça se chama numa frase ("Aura", "Moldura") — entra no aviso de equipado. */
+  label: string;
+  todas: readonly T[];
+  equipada: string;
+  equipar: (id: string) => void;
+  /** Uma linha embaixo do palco dizendo onde a peça aparece no jogo. */
+  nota: string;
+  mini: (x: T) => React.ReactNode;
+  palco: (x: T) => React.ReactNode;
+}) {
+  const toast = useSession((s) => s.toast);
+  const owned = useOwned();
+  const meu = (id: string) => ownsItem(owned, kind, id);
+  const meus = todas.filter((x) => meu(x.id));
+  const trancadas = todas.length - meus.length;
+  // conta antiga com uma peça equipada que ela não tem: cai na primeira que é dela
+  const [sel, setSel] = useState<string>(meu(equipada) ? equipada : (meus[0]?.id ?? todas[0].id));
+  const atual = meus.find((x) => x.id === sel) ?? meus[0] ?? todas[0];
+  const posta = atual.id === equipada;
+  return (
+    <div className="studio-body">
+      <div className="panel style-list">
+        {meus.map((x) => (
+          <button
+            key={x.id}
+            className={`style-item ${x.id === atual.id ? 'on' : ''}`}
+            onClick={() => {
+              setSel(x.id);
+              sfx.hover();
+            }}
+          >
+            <span className="thumb">{mini(x)}</span>
+            <span className="style-name">
+              {x.name}
+              <span className="badges">{x.id === equipada && <span className="badge eq">Equipado</span>}</span>
+            </span>
+          </button>
+        ))}
+        {trancadas > 0 && (
+          <div className="field-hint style-locked">
+            {trancadas === 1 ? 'Mais 1 sai' : `Mais ${trancadas} saem`} das roletas (<b>Loja → Tickets</b>). Aqui aparece o que é seu.
+          </div>
+        )}
+      </div>
+      <div className="panel preview-area">
+        <div className="preview-head">
+          <h2 className="title-deco theme-title">{atual.name}</h2>
+          <div className="row gap">
+            <button
+              className={`btn ${posta ? 'btn-ghost' : 'btn-gold'} small`}
+              disabled={posta}
+              onClick={() => {
+                equipar(atual.id);
+                sfx.pop();
+                toast(`${label}: “${atual.name}” equipada!`);
+              }}
+            >
+              {posta ? '✓ Equipada' : 'Equipar'}
+            </button>
+          </div>
+        </div>
+        <div className="preview-stage">{palco(atual)}</div>
+        <div className="preset-note">{nota}</div>
+      </div>
+      <div className="panel editor">
+        <Section title="Sobre">
+          <p className="theme-desc">{atual.description}</p>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Aba "Auras": as que ficam em volta do seu personagem — várias de uma vez, uma por lugar.
+ *
+ * Clicar numa aura da lista **prova** a aura: o palco mostra o personagem com ela junto das que já
+ * estão vestidas, antes de equipar. Se ela ocupa um lugar tomado (duas asas, duas auréolas), a
+ * prova já mostra a troca, e o botão diz "Trocar" e o aviso diz quem sai. É a regra de
+ * `AURA_SLOT` (shared/styles.ts) aparecendo na tela antes de a pessoa descobrir por acidente.
+ *
+ * A lista mostra só as auras da conta, como as outras abas; o catálogo está em src/render/aura.tsx.
+ */
+function AuraStudio() {
+  const equipadas = useProfile((s) => s.auras);
+  const setAuras = useProfile((s) => s.setAuras);
+  const toast = useSession((s) => s.toast);
+  const owned = useOwned();
+  const char = useCharacter();
+  const minha = (id: AuraId) => ownsItem(owned, 'aura', id);
+  const minhas = AURAS.filter((a) => minha(a.id));
+  const trancadas = AURAS.length - minhas.length;
+  // o que aparece de verdade: conta com uma aura equipada que ela não tem perde só aquela
+  const vestidas = equipadas.filter(minha);
+  const [sel, setSel] = useState<AuraId>(vestidas[vestidas.length - 1] ?? minhas[0]?.id ?? DEFAULT_AURA);
+  const atual = findAura(sel);
+  const vestida = vestidas.includes(atual.id);
+  const provando = vestida ? vestidas : vestirAura(vestidas, atual.id);
+  const sai = vestida ? undefined : vestidas.find((v) => AURA_SLOT[v] === atual.slot);
+  const nota = vestida
+    ? 'É assim que ela fica junto das outras que você usa — no menu, e no cut-in quando você ganha a mão.'
+    : sai
+      ? `Equipar tira “${findAura(sai).name}”: as duas ocupam o mesmo lugar (${SLOT_LABEL[atual.slot]}).`
+      : 'O palco já mostra como ela fica junto das que você usa.';
+  return (
+    <div className="studio-body">
+      <div className="panel style-list">
+        {minhas.map((a) => (
+          <button
+            key={a.id}
+            className={`style-item ${a.id === atual.id ? 'on' : ''}`}
+            onClick={() => {
+              setSel(a.id);
+              sfx.hover();
+            }}
+          >
+            <span className="thumb">
+              <AuraAmostra aura={a} />
+            </span>
+            <span className="style-name">
+              {a.name}
+              <span className="badges">
+                <span className="badge">{SLOT_LABEL[a.slot]}</span>
+                {vestidas.includes(a.id) && <span className="badge eq">Equipada</span>}
+              </span>
+            </span>
+          </button>
+        ))}
+        {trancadas > 0 && (
+          <div className="field-hint style-locked">
+            {trancadas === 1 ? 'Mais 1 sai' : `Mais ${trancadas} saem`} das roletas (<b>Loja → Tickets</b>). Aqui aparece o que é seu.
+          </div>
+        )}
+      </div>
+      <div className="panel preview-area">
+        <div className="preview-head">
+          <h2 className="title-deco theme-title">{atual.name}</h2>
+          <div className="row gap">
+            {vestidas.length > 0 && (
+              <button
+                className="btn btn-ghost small"
+                onClick={() => {
+                  setAuras([]);
+                  sfx.click();
+                  toast('Auras tiradas: o personagem fica sem nada em volta.');
+                }}
+              >
+                Tirar todas
+              </button>
+            )}
+            <button
+              className={`btn ${vestida ? 'btn-ghost' : 'btn-gold'} small`}
+              onClick={() => {
+                if (vestida) {
+                  setAuras(tirarAura(vestidas, atual.id));
+                  sfx.click();
+                  toast(`Aura “${atual.name}” tirada.`);
+                } else {
+                  setAuras(vestirAura(vestidas, atual.id));
+                  sfx.pop();
+                  toast(sai ? `“${atual.name}” no lugar de “${findAura(sai).name}”.` : `Aura “${atual.name}” equipada!`);
+                }
+              }}
+            >
+              {vestida ? 'Tirar' : sai ? 'Trocar' : 'Equipar'}
+            </button>
+          </div>
+        </div>
+        <div className="preview-stage">
+          <div className="aura-palco">
+            <CharacterAura auras={provando} tint={char.bg} />
+            <CharacterFull st={char} height="100%" />
+            <CharacterAura auras={provando} tint={char.bg} plano="frente" />
+          </div>
+        </div>
+        <div className="preset-note">{nota}</div>
+      </div>
+      <div className="panel editor">
+        <Section title="Sobre">
+          <p className="theme-desc">{atual.description}</p>
+        </Section>
+        <Section title="Em uso">
+          {vestidas.length ? (
+            <div className="aura-em-uso">
+              {vestidas.map((id) => {
+                const a = findAura(id);
+                return (
+                  <button key={id} className={`aura-chip ${id === atual.id ? 'on' : ''}`} onClick={() => setSel(id)}>
+                    <small>{SLOT_LABEL[a.slot]}</small>
+                    {a.name}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="field-hint">Nenhuma: o personagem fica sem nada em volta.</p>
+          )}
+          <p className="field-hint">
+            Dá para usar várias ao mesmo tempo, <b>uma por lugar</b>: a luz de fundo, um círculo, um arsenal, um par de asas, um fogo no chão, uma
+            auréola e uma órbita. Equipar uma aura num lugar ocupado troca a que estava lá.
+          </p>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+/** Aba "Molduras": a borda do seu retrato. O catálogo está em src/render/PortraitFrame.tsx. */
+function MolduraStudio() {
+  const escolhida = useProfile((s) => s.frame);
+  const setFrame = useProfile((s) => s.setFrame);
+  const char = useCharacter();
+  const fundo = { background: `linear-gradient(160deg, ${char.bg}, ${char.bg2})` };
+  return (
+    <ColecaoStudio
+      kind="frame"
+      label="Moldura"
+      todas={FRAMES}
+      equipada={escolhida}
+      equipar={(id) => setFrame(findFrame(id).id)}
+      nota="É a borda do seu retrato na mesa, no placar do fim da partida e no perfil — todo mundo vê."
+      mini={(f) => (
+        <span className="com-moldura" style={{ ...fundo, display: 'block', width: 34, height: 34, borderRadius: 8 }}>
+          <CharacterPortrait st={char} size={34} />
+          <PortraitFrame frame={f} size={34} />
+        </span>
+      )}
+      palco={(f) => (
+        <div className="moldura-palco">
+          {/* os dois tamanhos que existem no jogo: o seu assento na mesa e o dos outros */}
+          <span className="com-moldura" style={{ ...fundo, width: 200, height: 200 }}>
+            <CharacterPortrait st={char} size={200} />
+            <PortraitFrame frame={f} size={200} />
+          </span>
+          <span className="com-moldura" style={{ ...fundo, width: 76, height: 76 }}>
+            <CharacterPortrait st={char} size={76} />
+            <PortraitFrame frame={f} size={76} />
+          </span>
+        </div>
+      )}
+    />
+  );
+}
+
 // ------------------------------------------------------------------ tela
 
-type Tab = StyleKind | 'ui' | 'fx';
+/** As abas que **não** editam um estilo: escolhem uma peça pronta. */
+const AVULSAS = ['ui', 'fx', 'aura', 'frame'] as const;
+type Avulsa = (typeof AVULSAS)[number];
+type Tab = StyleKind | Avulsa;
+
+const ehAvulsa = (t: Tab): t is Avulsa => (AVULSAS as readonly string[]).includes(t);
 
 const TABS: { tab: Tab; icon: string; label: string }[] = [
   { tab: 'face', icon: '🂡', label: KIND_LABEL.face },
@@ -756,6 +1037,8 @@ const TABS: { tab: Tab; icon: string; label: string }[] = [
   { tab: 'chip', icon: '◉', label: KIND_LABEL.chip },
   { tab: 'table', icon: '⬭', label: KIND_LABEL.table },
   { tab: 'fx', icon: '✦', label: 'Efeitos' },
+  { tab: 'aura', icon: '❂', label: 'Auras' },
+  { tab: 'frame', icon: '▣', label: 'Molduras' },
   { tab: 'ui', icon: '❖', label: 'UI' },
 ];
 
@@ -800,8 +1083,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
   const [tab, setTab] = useState<Tab>('face');
-  /** Estilo das abas de estilos (as abas Efeitos e UI não editam estilos). */
-  const kind: StyleKind = tab === 'ui' || tab === 'fx' ? 'face' : tab;
+  /** Estilo das abas de estilos (as abas avulsas — efeitos, aura, moldura, UI — não editam nada). */
+  const kind: StyleKind = ehAvulsa(tab) ? 'face' : tab;
   const [selected, setSelected] = useState<Record<StyleKind, string>>(() => ({ ...profile.equipped }));
   const [importing, setImporting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -892,7 +1175,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
     <div className="screen studio">
       <div className="menu-bg" />
       <ScreenHeader title="Estúdio de Estilos" onBack={onBack}>
-        {tab !== 'ui' && tab !== 'fx' && (
+        {!ehAvulsa(tab) && (
           <button className="btn btn-ghost small" onClick={() => setImporting(true)}>
             ⤓ Importar
           </button>
@@ -918,6 +1201,10 @@ export function Studio({ onBack }: { onBack: () => void }) {
         <UiThemeStudio />
       ) : tab === 'fx' ? (
         <WinFxStudio />
+      ) : tab === 'aura' ? (
+        <AuraStudio />
+      ) : tab === 'frame' ? (
+        <MolduraStudio />
       ) : (
         <div className="studio-body">
           <div className="panel style-list">

@@ -7,6 +7,7 @@ import { ROULETTES } from '../../shared/roulette';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
+import { CharacterAura } from '../render/aura';
 import { BondBar, BondHearts } from '../game/BondBar';
 import { TagsPersonalidade } from '../game/Personality';
 import { personalidadeDoPersonagem } from '../../shared/personality';
@@ -65,12 +66,21 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
       <ScreenHeader title="Personagens" onBack={onBack} />
       <div className="chars-body">
         <div className="chars-stage">
-          <div className="char-glow" style={{ background: `radial-gradient(ellipse at 50% 55%, ${current.bg}99, transparent 65%)` }} />
-          <motion.div key={current.id} className="char-figure" initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
-            <motion.div animate={hop}>
-              <CharacterFull st={current} height={Math.min(780, window.innerHeight * 0.8)} animate onClick={say} className="clickable" />
+          {/*
+            * As suas auras em volta de quem você está olhando (veja CharacterStageView, no menu).
+            *
+            * Numa caixa do tamanho da ilustração: o palco desta tela é mais alto que o personagem,
+            * e a aura mede cabeça, ombro e pé pela altura da caixa em que está.
+            */}
+          <div className="char-palco">
+            <CharacterAura auras={profile.auras} tint={current.bg} />
+            <motion.div key={current.id} className="char-figure" initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
+              <motion.div animate={hop}>
+                <CharacterFull st={current} height={Math.min(780, window.innerHeight * 0.8)} animate onClick={say} className="clickable" />
+              </motion.div>
             </motion.div>
-          </motion.div>
+            <CharacterAura auras={profile.auras} tint={current.bg} plano="frente" />
+          </div>
           {talk && (
             <motion.div className="speech" initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }}>
               {talk}

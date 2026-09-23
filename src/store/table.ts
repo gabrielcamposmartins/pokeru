@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Card } from '../../shared/cards';
 import type { Opening, SeatView, TableView } from '../../shared/protocol';
-import type { CardBackStyle, CharacterStyle, WinFxId } from '../../shared/styles';
+import type { AuraId, CardBackStyle, CharacterStyle, WinFxId } from '../../shared/styles';
 import type { Pt } from '../game/layout';
 
 export interface Flyer {
@@ -66,6 +66,8 @@ export interface RoundResult {
   split: string[];
   /** Efeito das cartas do vencedor. */
   winFx: WinFxId;
+  /** Auras do vencedor: são elas que abrem atrás dele no cut-in. */
+  auras: AuraId[];
 }
 
 /**

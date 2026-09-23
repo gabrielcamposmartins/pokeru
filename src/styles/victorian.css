@@ -634,9 +634,8 @@
   }
 
   /* personagem: placa de museu e cartão de visita */
-  .char-glow {
-    opacity: 0.55;
-    mix-blend-mode: screen;
+  .char-aura {
+    opacity: 0.62;
   }
   .char-figure {
     filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.7)) sepia(0.08);
@@ -882,33 +881,26 @@
   .seat-portrait > img {
     border-radius: 2px;
   }
-  .seat-frame {
-    inset: -5px;
-    border-radius: 2px;
-    border: 3px solid #d0aa60;
+  /*
+   * Aqui o retrato é quadrado, e a moldura acompanha.
+   *
+   * O canto redondo é do sakura; neste tema o retrato é uma placa de latão pregada na madeira. O
+   * raio da moldura vem do atributo `rx` (calculado em pixels, para casar com a imagem), e estas
+   * duas linhas o substituem pela propriedade CSS de mesmo nome — que ganha do atributo.
+   *
+   * A moldura em si é a que o jogador escolheu: o tema muda o feitio do retrato, não a peça de
+   * coleção que está nele.
+   */
+  .moldura rect {
+    rx: 2px;
+    ry: 2px;
+  }
+  .seat-portrait {
     box-shadow:
       inset 0 0 0 1px #3a200e,
       inset 0 0 12px rgba(0, 0, 0, 0.5),
       0 0 0 1px #3a200e,
-      0 0 0 3px #8a6a2e,
       0 4px 12px rgba(0, 0, 0, 0.6);
-  }
-  .seat-frame::before,
-  .seat-frame::after {
-    width: 12px;
-    height: 12px;
-    background: radial-gradient(circle at 35% 35%, #fff4d0, #c9a25a 55%, #6a4a1c);
-    border: 1px solid #3a200e;
-    border-radius: 50%;
-    transform: none;
-  }
-  .seat-frame::before {
-    top: -9px;
-    left: calc(50% - 6px);
-  }
-  .seat-frame::after {
-    bottom: -9px;
-    left: calc(50% - 6px);
   }
   .seat-name {
     font-size: 17px;
@@ -930,12 +922,15 @@
       0 0 0 3px rgba(255, 210, 122, 0.45),
       0 0 30px rgba(255, 180, 80, 0.55);
   }
-  .plate.acting .seat-frame {
-    border-color: var(--candle);
+  .plate.acting .moldura {
+    --moldura-cor: var(--candle);
+    --moldura-cor2: #fff0c8;
+    filter: drop-shadow(0 0 5px rgba(255, 190, 90, 0.9));
+  }
+  .plate.acting .seat-portrait {
     box-shadow:
       inset 0 0 0 1px #3a200e,
       0 0 0 1px #3a200e,
-      0 0 0 3px #b08d4a,
       0 0 22px rgba(255, 190, 90, 0.9);
   }
   .plate.folded {
@@ -944,9 +939,12 @@
   .plate.busted {
     filter: grayscale(1) sepia(0.4);
   }
-  .plate.winner,
-  .plate.winner .seat-frame {
+  .plate.winner {
     border-color: #ffe39a;
+  }
+  .plate.winner .moldura {
+    --moldura-cor: #ffe39a;
+    --moldura-cor2: #fff8e0;
   }
   .plate.winner {
     box-shadow:
@@ -1421,11 +1419,10 @@
   .plate.winner {
     animation-name: vicWinPulse;
   }
-  .plate.winner .seat-frame {
+  .plate.winner .seat-portrait {
     box-shadow:
       inset 0 0 0 1px #3a200e,
       0 0 0 1px #3a200e,
-      0 0 0 3px #b08d4a,
       0 0 26px rgba(255, 205, 110, 0.95);
   }
   .pre-btn.on {
