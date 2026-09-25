@@ -230,6 +230,8 @@ export interface AccountService extends TableBank {
   loginAuth(identity: AuthIdentity, profile: AccountProfile): Promise<AccountInfo | null>;
   /** Foto atual da conta, sem o token. */
   info(accountId: string): AccountInfo | null;
+  /** Troca o nome guardado da conta (o grupo e a lista de amigos leem daqui). */
+  rename?(accountId: string, name: string): void;
   /** O que a conta tem (chaves do catálogo; o que é grátis não está aqui). */
   owned(accountId: string): readonly string[];
   /**

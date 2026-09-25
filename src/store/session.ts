@@ -14,7 +14,7 @@ import {
   type ServerMsg,
 } from '../../shared/protocol';
 import { connectLocal, connectWs, type Transport } from '../net/transport';
-import { SERVER_URL, findStyle, myCosmetics, useProfile } from './profile';
+import { SERVER_URL, ajustarAoQueTem, findStyle, myCosmetics, useProfile } from './profile';
 import { useAuth } from './auth';
 import { findGift, findItem } from '../../shared/catalog';
 import { findCharacter } from '../../shared/styles';
@@ -69,6 +69,8 @@ interface SessionState {
   account: AccountInfo | null;
   playerId: string | null;
   rooms: RoomSummary[];
+  /** Pessoas jogando nas mesas da fila agora (null = sem servidor, ou ainda não chegou). */
+  fila: number | null;
   room: RoomInfo | null;
   chat: ChatLine[];
   toasts: Toast[];
@@ -232,6 +234,8 @@ function handle(m: ServerMsg): void {
       break;
     case 'account': {
       // o servidor é o dono do saldo, dos itens e do vínculo quando se joga online
+      // e o que está equipado neste computador tem de ser da conta (veja ajustarAoQueTem)
+      ajustarAoQueTem(m.account.owned ?? []);
       const server = useSession.getState().serverUrl;
       if (server) {
         const known = useProfile.getState().accounts[server];
@@ -273,6 +277,9 @@ function handle(m: ServerMsg): void {
     }
     case 'rooms':
       set({ rooms: m.rooms });
+      break;
+    case 'fila':
+      set({ fila: m.jogadores });
       break;
     case 'room':
       // Entrar numa sala é o que põe o jogador "em jogo" — conectado, por si, é só estar no lobby.
@@ -387,6 +394,7 @@ export const useSession = create<SessionState>()((set, get) => ({
   account: null,
   playerId: null,
   rooms: [],
+  fila: null,
   room: null,
   chat: [],
   toasts: [],
@@ -410,7 +418,7 @@ export const useSession = create<SessionState>()((set, get) => ({
         const emJogo = !!get().room;
         transport = null;
         director.reset();
-        set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], connError: reason });
+        set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], fila: null, connError: reason });
         // cair no meio de uma partida é notícia; não achar o servidor no menu, não — a tela de
         // Salas mostra o motivo e oferece tentar de novo, e a barra de moedas se marca como velha
         if (emJogo) get().toast(reason, 'error');
@@ -515,7 +523,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     director.serverBond = false;
     useBond.getState().clearServer();
     useFriends.getState().limpar();
-    set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], chat: [], account: null, offline: false, botsPending: false });
+    set({ mode: 'none', status: 'idle', room: null, playerId: null, rooms: [], fila: null, chat: [], account: null, offline: false, botsPending: false });
   },
 
   toast(text, kind = 'info') {
@@ -532,10 +540,15 @@ export const useSession = create<SessionState>()((set, get) => ({
 /** Reenvia o perfil quando nome/personagem/cosméticos mudam durante uma conexão. */
 let lastSig = '';
 useProfile.subscribe((p) => {
+  // tudo o que vai na rede: a aura, a moldura e o efeito não reenviavam, e só mudavam para os outros ao reconectar
   const sig = JSON.stringify([
     p.name,
     p.avatar,
     p.character,
+    p.winFx,
+    p.auras,
+    p.frame,
+    p.equipped,
     findStyle(p, 'back', p.equipped.back).id,
   ]);
   if (sig === lastSig) return;

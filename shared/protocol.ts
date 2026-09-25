@@ -137,6 +137,19 @@ export function blindStep(bb: number): { sb: number; bb: number } {
  * escolhe pilha nem blind: mil fichas e 50/100 para todo mundo, e a partida se decide jogando.
  */
 export const NORMAL_STACK = 1000;
+
+/** O menor buy-in de uma mesa Custom em padocoin. */
+export const CUSTOM_PADO_MIN = 500;
+
+/**
+ * A mesa Custom do recomeço: em fichas, com buy-in de exatamente este valor.
+ *
+ * Quem não tem fichas para pagar senta nela **de graça**, com esta pilha — quebrar não pode ser o
+ * fim do jogo. A pilha é um adiantamento da casa: ao levantar (ou no fim da partida), a pessoa leva
+ * só o que passou dele. Sem essa conta, bastaria sentar de graça e levantar na hora para ganhar mil
+ * fichas, quantas vezes quisesse.
+ */
+export const RECOMECO_CUSTOM = 1000;
 export const NORMAL_BLINDS = { sb: 50, bb: 100 };
 
 /**
@@ -525,6 +538,13 @@ export type ServerMsg =
   /** Servidor hospedado: a conta do jogador (saldo, vínculo e números). */
   | { type: 'account'; account: AccountInfo }
   | { type: 'rooms'; rooms: RoomSummary[] }
+  /**
+   * Quantas pessoas estão jogando nas mesas da fila rápida agora (as duas moedas; bot não conta).
+   *
+   * Não existe fila de espera: quem entra na fila senta na hora numa mesa dela. O número é o que
+   * responde "tem gente jogando?", e vai para o card do PvP Queue no menu.
+   */
+  | { type: 'fila'; jogadores: number }
   | { type: 'room'; room: RoomInfo }
   | { type: 'left' }
   /** A mesa está montada e conferindo os jogadores (veja `Opening`). */

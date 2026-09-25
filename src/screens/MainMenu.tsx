@@ -362,7 +362,24 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
   );
 }
 
-function ModeCard({ title, sub, glyph, cls, onClick, delay }: { title: string; sub: string; glyph: string; cls: string; onClick: () => void; delay: number }) {
+function ModeCard({
+  title,
+  sub,
+  glyph,
+  cls,
+  onClick,
+  delay,
+  badge,
+}: {
+  title: string;
+  sub: string;
+  glyph: string;
+  cls: string;
+  onClick: () => void;
+  delay: number;
+  /** Uma etiqueta no alto do card (o PvP Queue mostra quantos estão na fila). */
+  badge?: string;
+}) {
   const face = useEquipped('face');
   return (
     <motion.button
@@ -378,6 +395,12 @@ function ModeCard({ title, sub, glyph, cls, onClick, delay }: { title: string; s
       }}
     >
       <span className="mode-glyph">{glyph}</span>
+      {badge && (
+        <span className="mode-badge">
+          <i />
+          {badge}
+        </span>
+      )}
       <span className="mode-cards-deco">
         <span style={{ transform: 'rotate(-14deg) translateX(-26px)' }}>
           <CardFaceSvg card={{ r: 14, s: glyph === '♥' ? 'h' : 's' }} style={face} width={64} />
@@ -397,6 +420,7 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
   const [quick, setQuick] = useState(false);
   // `openQueue` existe para a página de pré-visualização poder abrir a fila (veja src/dev/preview.tsx)
   const [queue, setQueue] = useState(openQueue);
+  const naFila = useSession((s) => s.fila);
   const queueing = useSession((s) => s.queueing);
   const pedidos = usePedidos();
   const { menu } = useUiTheme();
@@ -431,7 +455,16 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
       </motion.div>
       <div className="mode-area">
         <div className="mode-cards">
-          <ModeCard title="PvP Queue" sub="Mesa com gente, na hora" glyph="⚡" cls="gold" onClick={() => setQueue(true)} delay={0.12} />
+          <ModeCard
+            title="PvP Queue"
+            sub="Mesa com gente, na hora"
+            glyph="⚡"
+            cls="gold"
+            onClick={() => setQueue(true)}
+            delay={0.12}
+            // sem servidor não há fila: a etiqueta só aparece quando o número chegou
+            badge={naFila !== null ? `Players na fila: ${naFila}` : undefined}
+          />
           <ModeCard title="Contra Bots" sub="No servidor, valendo fichas" glyph="♠" cls="blue" onClick={() => setQuick(true)} delay={0.2} />
           <ModeCard title="Custom" sub="Escolher ou criar a mesa" glyph="♥" cls="pink" onClick={() => go('online')} delay={0.28} />
         </div>

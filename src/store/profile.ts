@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { migrateStorageKey } from '../util/storage';
+import { freeIdOf, ownsItem } from '../../shared/catalog';
 import {
   BACK_PRESETS,
   PERSONAGEM_PADRAO,
@@ -270,6 +271,29 @@ export function useCharacter(): CharacterStyle {
 
 export function isPreset(kind: StyleKind, id: string): boolean {
   return (PRESETS[kind] as { id: string }[]).some((x) => x.id === id);
+}
+
+/**
+ * Tira do que está equipado o que a conta não tem — quando a lista de itens da conta chega.
+ *
+ * O perfil é **deste computador**, não da conta: o personagem, o efeito, as auras e a moldura
+ * escolhidos ficam guardados aqui. Num computador que já teve outra conta (ou uma versão antiga do
+ * jogo, em que dava para escolher qualquer personagem), o menu mostrava como seu um personagem que
+ * a conta nunca ganhou. Na mesa o servidor cortava; no menu, ninguém.
+ *
+ * O que não é da conta volta para o que vem com o jogo. Estilos de carta, ficha e mesa ficam como
+ * estão: o Estúdio só lista os da conta e a trava do servidor cuida da mesa.
+ */
+export function ajustarAoQueTem(owned: readonly string[]): void {
+  const s = useProfile.getState();
+  const tem = (kind: 'character' | 'winfx' | 'aura' | 'frame', id: string) => ownsItem(owned, kind, id);
+  const patch: Partial<Pick<ProfileState, 'character' | 'winFx' | 'auras' | 'frame'>> = {};
+  if (!tem('character', s.character)) patch.character = tem('character', PERSONAGEM_PADRAO) ? PERSONAGEM_PADRAO : freeIdOf('character');
+  if (!tem('winfx', s.winFx)) patch.winFx = DEFAULT_WIN_FX;
+  const auras = s.auras.filter((a) => tem('aura', a));
+  if (auras.length !== s.auras.length) patch.auras = auras;
+  if (!tem('frame', s.frame)) patch.frame = DEFAULT_FRAME;
+  if (Object.keys(patch).length) useProfile.setState(patch);
 }
 
 /** Cosméticos que vão para a rede. */

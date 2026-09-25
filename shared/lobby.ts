@@ -142,12 +142,29 @@ export class Lobby {
     return room;
   }
 
+  /** Pessoas sentadas nas mesas da fila rápida, nas duas moedas (bot não conta). */
+  filaJogadores(): number {
+    let n = 0;
+    for (const r of this.rooms.values()) {
+      if (!r.settings.queue || r.status === 'finished') continue;
+      const s = r.summary();
+      n += s.players - s.bots;
+    }
+    return n;
+  }
+
   roomsChanged(): void {
     if (this.listTimer) return;
     this.listTimer = setTimeout(() => {
       this.listTimer = null;
       const rooms = this.list();
-      for (const c of this.conns) if (c.greeted && !c.room) c.send({ type: 'rooms', rooms });
+      // a contagem da fila vai junto: é a mesma mudança (alguém sentou ou levantou) que muda a lista
+      const fila = { type: 'fila' as const, jogadores: this.filaJogadores() };
+      for (const c of this.conns) {
+        if (!c.greeted || c.room) continue;
+        c.send({ type: 'rooms', rooms });
+        c.send(fila);
+      }
     }, 250);
   }
 
@@ -213,6 +230,19 @@ export class Lobby {
   entrou(accountId: string, name: string): void {
     this.avisaAmigos(accountId, true, name);
     this.sendFriends(accountId);
+  }
+
+  /**
+   * @internal O perfil de uma conta mudou no meio da sessão (nome, personagem).
+   *
+   * O grupo mostra nome e personagem de cada um, e a lista de amigos mostra o nome: os dois são
+   * reenviados, para ninguém ficar vendo o nome antigo até a pessoa sair e entrar de novo.
+   */
+  mudouPerfil(accountId: string, nomeMudou: boolean): void {
+    const p = this.partyOf(accountId);
+    if (p) this.broadcastParty(p);
+    if (!nomeMudou) return;
+    for (const amigo of this.accounts?.friends(accountId).friends ?? []) this.sendFriends(amigo.id);
   }
 
   /** @internal Uma conta saiu: os amigos perdem a bolinha verde, e o grupo perde um membro. */
@@ -390,6 +420,9 @@ export class Lobby {
 }
 
 
+/** Quanto a fila espera a mão acabar para um bot ceder a cadeira, antes de abrir outra mesa. */
+const ESPERA_DA_VAGA = 90_000;
+
 export class Connection implements ClientHandle {
   readonly id = 'p-' + makeId(10);
   /** Conta do servidor hospedado (undefined quando o servidor não guarda contas). */
@@ -503,6 +536,7 @@ export class Connection implements ClientHandle {
       this.lobby.entrou(account.id, account.name);
     }
     this.send({ type: 'rooms', rooms: this.lobby.list() });
+    this.send({ type: 'fila', jogadores: this.lobby.filaJogadores() });
   }
 
   handle(raw: unknown): void {
@@ -550,8 +584,14 @@ export class Connection implements ClientHandle {
         break;
       }
       case 'updateProfile': {
+        const nomeAntes = this.name;
         this.setProfile(msg);
         this.room?.updateProfile(this);
+        if (this.accountId) {
+          const nomeMudou = this.name !== nomeAntes;
+          if (nomeMudou) this.lobby.accounts?.rename?.(this.accountId, this.name);
+          this.lobby.mudouPerfil(this.accountId, nomeMudou);
+        }
         break;
       }
       case 'setTitle': {
@@ -668,6 +708,7 @@ export class Connection implements ClientHandle {
       }
       case 'listRooms':
         this.send({ type: 'rooms', rooms: this.lobby.list() });
+        this.send({ type: 'fila', jogadores: this.lobby.filaJogadores() });
         break;
       case 'createRoom': {
         if (this.room) this.leave();
@@ -709,6 +750,7 @@ export class Connection implements ClientHandle {
       case 'leaveRoom':
         this.leave();
         this.send({ type: 'rooms', rooms: this.lobby.list() });
+        this.send({ type: 'fila', jogadores: this.lobby.filaJogadores() });
         break;
 
       // ---------------------------------------------------------------- amizades
@@ -867,6 +909,17 @@ export class Connection implements ClientHandle {
     if (this.room) this.leave();
     const candidatas = this.lobby.queueRooms(currency);
     for (const room of candidatas) {
+      /*
+       * Mesa lotada no meio de uma mão: um bot levanta quando ela acabar, e a cadeira é desta pessoa.
+       *
+       * O bot só saía na hora se não estivesse jogando a mão — e no meio da mão todos estão. Era
+       * assim que o quarto amigo de um grupo caía numa mesa separada: a dos outros três estava
+       * lotada de bots em plena mão. Agora ele espera a mão acabar (até ESPERA_DA_VAGA) e senta.
+       */
+      if (room.cederCadeiraDeBot()) {
+        await room.esperaVaga(ESPERA_DA_VAGA);
+        if (this.closed) return;
+      }
       if (await this.sit(room)) return;
       if (this.closed) return;
     }

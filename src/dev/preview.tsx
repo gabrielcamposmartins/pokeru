@@ -567,6 +567,8 @@ if (cena === 'config-logado') useAuth.setState({ status: 'logged', user: 'marina
 // o menu com a Partida Rápida esperando o servidor montar a mesa
 if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'connecting', botsPending: true });
 if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queueing: true });
+// o card do PvP Queue com gente na fila: no menu de exemplo há três pessoas jogando
+if (cena === 'menu') useSession.setState({ fila: 3 });
 /**
  * A cena do giro, parada para a foto.
  *

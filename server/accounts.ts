@@ -21,7 +21,7 @@ import {
   type BondEvent,
   type BondStats,
 } from '../shared/bond';
-import { findItem, isFree, isSold, priceOf, type Currency } from '../shared/catalog';
+import { findItem, freeIdOf, isFree, isSold, ownsItem, priceOf, type Currency } from '../shared/catalog';
 import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
 import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
 import { MAX_REQUESTS, isFriendCode, makeFriendCode, normalizeFriendCode, podeMaisAmigos } from '../shared/friends';
@@ -149,6 +149,17 @@ const emDias = (dias: number): string => new Date(Date.now() + dias * 86_400_000
  *   - **sem login** (`login`): o servidor sorteia um token na primeira vez e o cliente o guarda.
  *     Serve para jogar na hora; o que se compra fica preso àquele aparelho.
  */
+/**
+ * O personagem que a conta guarda: o que o cliente diz estar usando, **se for dela**.
+ *
+ * Era gravado cru, do jeito que chegava no `hello`. Na mesa isso não passava (a trava corta), mas
+ * a conta ficava dizendo que a pessoa joga com um personagem que ela não tem — e é daí que a lista
+ * de amigos e o resto leem.
+ */
+function personagemDe(owned: readonly string[] | undefined, id: string): string {
+  return ownsItem(owned, 'character', id) ? id : freeIdOf('character');
+}
+
 export class Accounts implements AccountService {
   private store: JsonStore<File>;
   onChange?: (accountId: string) => void;
@@ -268,7 +279,7 @@ export class Accounts implements AccountService {
         return known.sub ? null : this.novaSemLogin(name, profile);
       }
       known.name = name;
-      known.character = profile.cosmetics.character.id;
+      known.character = personagemDe(known.owned, profile.cosmetics.character.id);
       known.seen = new Date().toISOString();
       this.store.touch();
       if (known.sub) console.log(`[conta] ${known.user ?? known.name} voltou pela sessão guardada`);
@@ -283,7 +294,7 @@ export class Accounts implements AccountService {
   private novaSemLogin(name: string, profile: AccountProfile): AccountInfo | null {
     const token = randomBytes(24).toString('base64url');
     const until = emDias(SESSION_DAYS);
-    const acc = this.create(name, profile.cosmetics.character.id, { token: hash(token), tokenUntil: until });
+    const acc = this.create(name, personagemDe([], profile.cosmetics.character.id), { token: hash(token), tokenUntil: until });
     if (!acc) return null;
     console.log(`[conta] nova sem login: ${acc.name} (${acc.id})`);
     // o token só vai nesta resposta: é o que o cliente guarda
@@ -294,14 +305,14 @@ export class Accounts implements AccountService {
     const name = sanitizeName(profile.name);
     let acc = this.bySub(identity.sub);
     if (!acc) {
-      const nova = this.create(name, profile.cosmetics.character.id, { sub: identity.sub, user: identity.username });
+      const nova = this.create(name, personagemDe([], profile.cosmetics.character.id), { sub: identity.sub, user: identity.username });
       if (!nova) return null;
       acc = nova;
       console.log(`[conta] nova com login: ${identity.username} (${acc.id})`);
     }
     acc.name = name;
     acc.user = identity.username;
-    acc.character = profile.cosmetics.character.id;
+    acc.character = personagemDe(acc.owned, profile.cosmetics.character.id);
     acc.seen = new Date().toISOString();
     // o vínculo nunca vem do cliente: ou das claims, ou perguntando ao serviço
     const link = await this.resolveDiscord(identity, acc);
@@ -873,6 +884,21 @@ export class Accounts implements AccountService {
     acc.stats[what]++;
     // um titulo pode ter deixado de valer (ou o contador acabou de liberar outro)
     acc.title = sanitizeTitle(acc.title, acc.stats);
+    this.changed(acc.id);
+  }
+
+  /**
+   * Troca o nome da conta no meio da sessão.
+   *
+   * O nome só era gravado ao entrar, e o grupo e a lista de amigos leem o nome **da conta**: quem
+   * mudava de nome no perfil continuava com o antigo para todo mundo até sair e entrar de novo.
+   */
+  rename(accountId: string, name: string): void {
+    const acc = this.byId(accountId);
+    const novo = sanitizeName(name);
+    if (!acc || acc.name === novo) return;
+    acc.name = novo;
+    this.store.touch();
     this.changed(acc.id);
   }
 

@@ -37,7 +37,8 @@ export function Nameplate({
    * O servidor devolve nos cosméticos do assento o que ele aceitou; para o meu assento vale o que
    * eu acabei de escolher, para eu ver a troca na hora em vez de na próxima entrada.
    */
-  const moldura = findFrame(isMe ? minhaMoldura : seat.cosmetics.frame);
+  // bot não tem moldura própria (veja o sorteio dos bots em shared/room.ts): fica a dourada de sempre
+  const moldura = findFrame(isMe ? minhaMoldura : seat.isBot ? null : seat.cosmetics.frame);
   const secs = useSecondsLeft(acting && !isMe ? deadline : null);
   const emotes = allEmotes.filter((e) => e.seat === seat.seat);
   const callouts = allCallouts.filter((c) => c.seat === seat.seat);

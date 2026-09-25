@@ -13,6 +13,8 @@ import {
 } from './personality';
 import {
   CONSOLACAO_BOTS,
+  CUSTOM_PADO_MIN,
+  RECOMECO_CUSTOM,
   DIFFICULTIES,
   EMOTES,
   bonusPado,
@@ -34,9 +36,7 @@ import {
   CHIP_PRESETS,
   FACE_PRESETS,
   TABLE_PRESETS,
-  AURA_IDS,
-  sanitizeAuras,
-  FRAME_IDS,
+  DEFAULT_FRAME,
   WIN_FX_IDS,
   type AvatarInfo,
   type PlayerCosmetics,
@@ -91,6 +91,8 @@ interface Member {
   busted: boolean;
   /** Pagou buy-in nesta partida (quem sentou de graça no recomeço, não). A consolação depende disto. */
   pagou?: boolean;
+  /** Fichas que a casa adiantou no recomeço da Custom: saem da pilha antes de ela voltar ao saldo. */
+  adiantamento?: number;
   /** Mãos jogadas e ganhas nesta partida — o xp da partida sai daqui. */
   naPartida?: { maos: number; ganhas: number };
   /** Fichas de consolação que recebeu ao ser eliminado nesta partida. */
@@ -172,7 +174,8 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
     mode: o.mode === 'sitgo' ? 'sitgo' : o.mode === 'normal' ? 'normal' : 'cash',
     variant: o.variant === 'draw5' ? 'draw5' : 'holdem',
     rounds: n(o.rounds, 1, 100, 8),
-    buyIn: n(o.buyIn, 0, 10_000_000, 0),
+    // mesa Custom em padocoin custa pelo menos CUSTOM_PADO_MIN: de graça, ela seria uma mesa de fichas com outro nome
+    buyIn: o.currency === 'pado' && o.custom !== false && o.queue !== true ? n(o.buyIn, CUSTOM_PADO_MIN, 10_000_000, CUSTOM_PADO_MIN) : n(o.buyIn, 0, 10_000_000, 0),
     turnTime: n(o.turnTime, 5, 120, 20),
     blindLevelHands: n(o.blindLevelHands, 2, 50, 8),
     password: typeof o.password === 'string' && o.password ? o.password.slice(0, 32) : undefined,
@@ -425,6 +428,37 @@ export class Room {
     return null;
   }
 
+  /**
+   * Mesa da fila sem cadeira livre: um bot levanta para dar lugar a quem está chegando.
+   *
+   * Se o bot não está numa mão, ele sai na hora; se está, ele larga a mão e levanta quando ela
+   * acabar (o mesmo caminho de quem sai no meio). Devolve se uma cadeira vai vagar — já havendo
+   * um bot de saída, conta ele, e nenhum segundo bot é mandado embora.
+   */
+  cederCadeiraDeBot(): boolean {
+    if (!this.settings.queue || this.status === 'finished' || this.seats.some((s) => s === null)) return false;
+    if (this.members().some((m) => m.isBot && m.leaving)) return true;
+    const bot = this.members().find((m) => m.isBot && !m.leaving && !this.naMao(m)) ?? this.members().find((m) => m.isBot && !m.leaving);
+    if (!bot) return false;
+    this.system(`${bot.name} vai levantar para dar lugar a um jogador.`);
+    this.removeOrMark(bot);
+    return true;
+  }
+
+  /** Espera uma cadeira ficar livre (ou o tempo acabar). Devolve se ela vagou. */
+  esperaVaga(ms: number): Promise<boolean> {
+    return new Promise((pronto) => {
+      const inicio = Date.now();
+      const confere = () => {
+        if (this.destroyed) return pronto(false);
+        if (this.seats.some((s) => s === null)) return pronto(true);
+        if (Date.now() - inicio >= ms) return pronto(false);
+        setTimeout(confere, 250);
+      };
+      confere();
+    });
+  }
+
   join(client: ClientHandle, password?: string): string | null {
     if (this.memberById(client.id)) return null;
     const check = this.checkJoin(client, password);
@@ -441,9 +475,15 @@ export class Room {
        * olhando um menu em que nenhum botão funciona. Aqui ele senta com a pilha do degrau fácil e
        * joga para voltar — e como é partida normal, só leva as fichas se terminar.
        */
-      if (!paid && !this.settings.recomeco) return 'Saldo insuficiente para o buy-in desta mesa';
+      const recomecoCustom = !paid && this.recomecoCustom();
+      if (!paid && !this.settings.recomeco && !recomecoCustom) return 'Saldo insuficiente para o buy-in desta mesa';
       stack = paid || this.settings.startingStack;
       this.seatAt(client, seat, stack, paid > 0);
+      if (recomecoCustom) {
+        const m = this.memberById(client.id);
+        if (m) m.adiantamento = RECOMECO_CUSTOM;
+        this.system(`${client.name} sentou de graça com ${RECOMECO_CUSTOM} para recomeçar: leva o que passar disso.`);
+      }
       return null;
     }
     this.seatAt(client, seat, stack, false);
@@ -506,11 +546,28 @@ export class Room {
       if (next) this.hostId = next.id;
     }
     if (this.humanCount === 0) {
+      /*
+       * A última pessoa saiu — e pode ter saído no meio de uma mão.
+       *
+       * Quem sai no meio da mão fica marcado e só acerta as fichas quando a mão acaba. Mas sem
+       * ninguém a mesa é desfeita aqui mesmo, e a mão nunca acabava: as fichas de quem saiu
+       * sumiam com ela. Na fila, que é uma pessoa e três bots, isso era a regra. Agora ela leva o
+       * que tinha atrás (o que já estava no pote fica na mão que ela abandonou).
+       */
+      for (const h of this.members()) if (!h.isBot && h.leaving) this.acertaQuemSaiu(h);
       this.destroy();
       this.onEmpty();
       return;
     }
     this.broadcastRoom();
+  }
+
+  /** Acerta as fichas de quem saiu no meio de uma mão que não vai terminar. */
+  private acertaQuemSaiu(m: Member): void {
+    const hp = this.hand && !this.hand.finished ? this.hand.players.find((p) => p.id === m.id) : undefined;
+    if (hp) m.stack = hp.stack;
+    m.leaving = false;
+    this.saiDaMesa(m);
   }
 
   /** Alguém entrou ou saiu durante a abertura: o retrato mudou, e a espera pode ter acabado. */
@@ -545,6 +602,17 @@ export class Room {
       // se for a vez dele, desiste imediatamente
       if (this.hand!.toActSeat === m.seat && this.turnKey === this.currentTurnKey()) this.autoAct(m.seat);
     } else {
+      /*
+       * Já tinha desistido da mão: levanta agora, levando o que tinha atrás.
+       *
+       * Este caminho liberava a cadeira sem acertar nada — a pessoa que desistia e levantava antes
+       * de a mão acabar perdia a pilha inteira, em qualquer mesa a dinheiro. O que ela já tinha
+       * posto no pote fica na mão; o resto volta.
+       */
+      if (hp) {
+        m.stack = hp.stack;
+        this.saiDaMesa(m);
+      }
       this.seats[m.seat] = null;
       if (this.status === 'playing') this.emit({ t: 'seatLeave', seat: m.seat });
     }
@@ -584,16 +652,14 @@ export class Room {
         character,
         winFx: pick(WIN_FX_IDS),
         /*
-         * Bot também tem auras e moldura, sorteadas.
+         * Bot não tem aura nem moldura.
          *
-         * Mesa de bots com todos de moldura dourada parecia uma equipe uniformizada; sorteadas, os
-         * assentos ficam diferentes uns dos outros como numa mesa de gente. São duas auras
-         * sorteadas, e quando as duas caem no mesmo lugar `sanitizeAuras` fica com uma — então
-         * alguns bots vêm com uma e outros com duas, que é a variedade que se quer. A aura só
-         * aparece no cut-in de quem ganha a mão: ela não polui a mesa, ela dá o momento.
+         * Aura e moldura são o que a **pessoa** conquistou nas roletas; num bot, elas diziam
+         * "este aqui tem asas de dragão" sem ninguém ter ganhado nada, e desvalorizavam a peça de
+         * quem ganhou. Sem aura, e com a moldura dourada de sempre — a que todo assento tem.
          */
-        auras: sanitizeAuras([pick(AURA_IDS), pick(AURA_IDS)]),
-        frame: pick(FRAME_IDS),
+        auras: [],
+        frame: DEFAULT_FRAME,
       },
       seat,
       stack: this.settings.startingStack,
@@ -789,8 +855,24 @@ export class Room {
     return this.settings.mode === 'normal' && this.settings.custom === false;
   }
 
+  /**
+   * A mesa Custom do recomeço: fichas, buy-in de RECOMECO_CUSTOM — quem não pode pagar senta de graça.
+   *
+   * Só nas mesas Custom (as partidas contra bots têm o seu recomeço, no fácil). O valor exato é de
+   * propósito: é um recomeço, não um empréstimo do tamanho que a pessoa quiser.
+   */
+  private recomecoCustom(): boolean {
+    return this.settings.custom !== false && !this.settings.queue && this.settings.currency === 'chips' && this.settings.buyIn === RECOMECO_CUSTOM;
+  }
+
   /** Devolve as fichas da mesa ao saldo do jogador e zera a pilha (ele não leva duas vezes). */
   private cashOut(m: Member): void {
+    // quem sentou de graça no recomeço devolve o adiantamento primeiro: leva só o que ganhou
+    if (m.adiantamento) {
+      const devolve = Math.min(m.adiantamento, m.stack);
+      m.stack -= devolve;
+      m.adiantamento = 0;
+    }
     if (!this.paid() || !m.accountId || m.stack <= 0) return;
     if (this.settings.currency === 'pado') {
       // padocoin volta para o bot: é rede, então não dá para esperar aqui. O banco registra falha.

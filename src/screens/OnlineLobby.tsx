@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_SETTINGS, NORMAL_BLINDS, NORMAL_STACK, blindStep, type GameMode, type GameVariant, type RoomSummary } from '../../shared/protocol';
+import {
+  BLIND_STEPS,
+  CUSTOM_PADO_MIN,
+  DEFAULT_SETTINGS,
+  NORMAL_BLINDS,
+  NORMAL_STACK,
+  RECOMECO_CUSTOM,
+  blindStep,
+  type Currency,
+  type GameMode,
+  type GameVariant,
+  type RoomSummary,
+} from '../../shared/protocol';
+import { usePado } from '../store/shop';
+import { PadoCoinSvg } from '../render/PadoCoin';
 import { useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { BlindPicker, Field, ScreenHeader, Segmented } from '../ui/controls';
@@ -107,8 +121,30 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const [turnTime, setTurnTime] = useState(25);
   const [password, setPassword] = useState('');
   const chips = useChips();
+  const pado = usePado();
+  const [moeda, setMoeda] = useState<Currency>('chips');
+  const emPado = moeda === 'pado' && pado !== null;
+  const saldo = emPado ? (pado ?? 0) : chips;
   const fixa = mode === 'normal';
   const pilha = fixa ? NORMAL_STACK : stack;
+  /*
+   * O recomeço: mesa em fichas de exatamente RECOMECO_CUSTOM, e a pessoa sem fichas para pagar.
+   *
+   * Ela senta de graça (quem confere é o servidor), e a pilha é um adiantamento — ao levantar,
+   * leva só o que passou dele. É o que impede o recomeço de virar uma torneira de fichas.
+   */
+  const recomeco = !!account && !emPado && pilha === RECOMECO_CUSTOM && chips < RECOMECO_CUSTOM;
+  const falta = !!account && saldo < pilha && !recomeco;
+  // as pilhas que se pode escolher: em padocoin a menor é CUSTOM_PADO_MIN
+  const pilhas = emPado ? [CUSTOM_PADO_MIN, 1000, 2000, 5000, 10000] : [1000, 2000, 5000, 10000];
+  /*
+   * O blind cabe na pilha: o big blind é no máximo metade dela.
+   *
+   * O seletor sobe até blinds de dez mil, e numa mesa de quinhentos isso fazia a mão começar com
+   * todo mundo em all-in forçado. O que se escolheu acima do teto fica guardado, mas vale o teto.
+   */
+  const tetoBb = [...BLIND_STEPS].reverse().find((d) => d.bb * 2 <= pilha)?.bb ?? BLIND_STEPS[0].bb;
+  const bbMesa = Math.min(bb, tetoBb);
 
   // entrar nesta tela já é pedir a lista: conecta sozinho
   useEffect(() => {
@@ -171,6 +207,22 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
               <input className="input" value={name} maxLength={32} onChange={(e) => setName(e.target.value)} />
             </Field>
             <Segmented label="Jogadores" value={maxPlayers} onChange={setMaxPlayers} options={[2, 3, 4, 5, 6].map((n) => ({ value: n, label: `${n}` }))} />
+            {/* padocoin só existe para quem tem o Discord vinculado */}
+            {pado !== null && (
+              <Segmented
+                label="Moeda"
+                value={moeda}
+                onChange={(v: Currency) => {
+                  setMoeda(v);
+                  // trocando de moeda, a pilha escolhida pode não existir na outra: volta para a primeira que existe
+                  if (v === 'chips' && stack < 1000) setStack(1000);
+                }}
+                options={[
+                  { value: 'chips', label: 'Fichas' },
+                  { value: 'pado', label: 'Padocoins' },
+                ]}
+              />
+            )}
             <Segmented
               label="Jogo"
               value={variant}
@@ -205,19 +257,23 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
               </>
             ) : (
               <>
-                {/* só o que o saldo paga: a mesa cobra o buy-in da conta de quem senta */}
+                {/* só o que o saldo paga (a mesa cobra o buy-in de quem senta), mais o recomeço de mil em fichas */}
                 <Segmented
-                  label="Fichas iniciais"
+                  label={emPado ? 'Buy-in em padocoins' : 'Fichas iniciais'}
                   value={stack}
                   onChange={setStack}
-                  options={[1000, 2000, 5000, 10000].map((v) => ({
-                    value: v,
-                    label: v.toLocaleString('pt-BR'),
-                    disabled: !!account && chips < v,
-                    title: account && chips < v ? `Faltam ${fmt(v - chips)} fichas` : undefined,
-                  }))}
+                  options={pilhas.map((v) => {
+                    const livre = !emPado && v === RECOMECO_CUSTOM && chips < RECOMECO_CUSTOM;
+                    const curto = !!account && saldo < v && !livre;
+                    return {
+                      value: v,
+                      label: v.toLocaleString('pt-BR'),
+                      disabled: curto,
+                      title: curto ? `Faltam ${fmt(v - saldo)} ${emPado ? 'padocoins' : 'fichas'}` : livre ? 'Recomeço: senta de graça' : undefined,
+                    };
+                  })}
                 />
-                <BlindPicker value={bb} onChange={setBb} />
+                <BlindPicker value={bbMesa} onChange={setBb} />
               </>
             )}
             <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[15, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
@@ -225,9 +281,14 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
               <input className="input" type="password" value={password} maxLength={32} onChange={(e) => setPassword(e.target.value)} />
             </Field>
           </div>
+          {recomeco && (
+            <div className="field-hint">
+              Sem fichas? Esta mesa é o <b>recomeço</b>: você senta de graça com {fmt(RECOMECO_CUSTOM)}. Ao levantar, leva o que passar disso.
+            </div>
+          )}
           <button
             className="btn btn-gold big wide"
-            disabled={!connected || (!!account && chips < pilha)}
+            disabled={!connected || falta}
             onClick={() =>
               send({
                 type: 'createRoom',
@@ -247,15 +308,25 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                    */
                   buyIn: pilha,
                   startingStack: pilha,
-                  smallBlind: fixa ? NORMAL_BLINDS.sb : blindStep(bb).sb,
-                  bigBlind: fixa ? NORMAL_BLINDS.bb : bb,
+                  currency: emPado ? 'pado' : 'chips',
+                  smallBlind: fixa ? NORMAL_BLINDS.sb : blindStep(bbMesa).sb,
+                  bigBlind: fixa ? NORMAL_BLINDS.bb : bbMesa,
                   turnTime,
                   password: password || undefined,
                 },
               })
             }
           >
-            {account && chips < pilha ? `Faltam ${fmt(pilha - chips)} fichas` : `Criar e sentar por ${fmt(pilha)}`}
+            {falta ? (
+              `Faltam ${fmt(pilha - saldo)} ${emPado ? 'padocoins' : 'fichas'}`
+            ) : recomeco ? (
+              `Recomeçar: sentar de graça com ${fmt(RECOMECO_CUSTOM)}`
+            ) : (
+              <>
+                Criar e sentar por {emPado && <PadoCoinSvg size={18} />}
+                {fmt(pilha)}
+              </>
+            )}
           </button>
         </div>
       </div>

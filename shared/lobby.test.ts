@@ -90,3 +90,46 @@ describe('lista de salas do servidor', () => {
     vi.useRealTimers();
   });
 });
+
+describe('quantos estão na fila', () => {
+  it('conta as pessoas nas mesas da fila, sem os bots, e avisa quem está no menu', async () => {
+    vi.useFakeTimers();
+    const lobby = new Lobby('teste');
+    const menu = client(lobby, 'Quem olha');
+    const fila = () => [...menu.got].reverse().find((m) => m.type === 'fila') as { jogadores: number } | undefined;
+    // quem acabou de entrar já recebe o número
+    expect(fila()?.jogadores).toBe(0);
+
+    // uma mesa da fila com uma pessoa e dois bots: conta um
+    const ana = client(lobby, 'Ana');
+    ana.conn.handle({ type: 'createRoom', settings: settings({ name: 'Fila', queue: true, maxPlayers: 6 }) });
+    ana.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    ana.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    // uma mesa comum não é fila: quem está nela não conta
+    const bruno = client(lobby, 'Bruno');
+    bruno.conn.handle({ type: 'createRoom', settings: settings({ name: 'Mesa do Bruno' }) });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(lobby.filaJogadores()).toBe(1);
+    expect(fila()?.jogadores).toBe(1);
+
+    // alguém levanta da fila e o menu fica sabendo
+    ana.conn.handle({ type: 'leaveRoom' });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(fila()?.jogadores).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('bot senta sem aura e com a moldura de sempre', () => {
+    const lobby = new Lobby('teste');
+    const ana = client(lobby, 'Ana');
+    ana.conn.handle({ type: 'createRoom', settings: settings({ name: 'Mesa', maxPlayers: 6 }) });
+    for (let i = 0; i < 5; i++) ana.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    const room = [...lobby.rooms.values()][0];
+    const bots = (room as unknown as { members(): { isBot: boolean; cosmetics: { auras: string[]; frame: string } }[] }).members().filter((m) => m.isBot);
+    expect(bots).toHaveLength(5);
+    for (const b of bots) {
+      expect(b.cosmetics.auras).toEqual([]);
+      expect(b.cosmetics.frame).toBe('ouro');
+    }
+  });
+});

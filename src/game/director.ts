@@ -344,7 +344,8 @@ class Director {
       split: others.map((x) => this.seatName(view, x)),
       winFx: seat === view.mySeat ? useProfile.getState().winFx : s.cosmetics.winFx,
       // servidor de antes das auras não manda o campo: aí o vencedor fica sem aura, e nada quebra
-      auras: seat === view.mySeat ? useProfile.getState().auras : (s.cosmetics.auras ?? []),
+      // bot não tem aura (e servidor de antes das auras não manda o campo)
+      auras: seat === view.mySeat ? useProfile.getState().auras : s.isBot ? [] : (s.cosmetics.auras ?? []),
     };
   }
 

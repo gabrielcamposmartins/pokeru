@@ -7,7 +7,8 @@ import type { AccountProfile } from '../shared/accounts';
 import { Lobby } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type AccountInfo, type ServerMsg, type TableView } from '../shared/protocol';
 import { BOND_POINTS } from '../shared/bond';
-import { BOT_MATCH, CONSOLACAO_BOTS, type GanhoDaPartida } from '../shared/protocol';
+import { BOT_MATCH, CONSOLACAO_BOTS, CUSTOM_PADO_MIN, QUEUE_STAKES, RECOMECO_CUSTOM, type GanhoDaPartida } from '../shared/protocol';
+import { sanitizeSettings } from '../shared/room';
 import { playerLevel, xpForLevel } from '../shared/achievements';
 import { personalidadeDe } from '../shared/personality';
 import { Accounts } from './accounts';
@@ -560,6 +561,96 @@ describe('partida contra bots no servidor', () => {
     p.conn.handle({ type: 'leaveRoom' });
     await vi.advanceTimersByTimeAsync(200);
     expect(accounts.money(id)).toBe(5000);
+    accounts.close();
+  });
+});
+
+describe('mesa Custom: padocoin e recomeço', () => {
+  it('Custom em padocoin custa pelo menos o piso, e a da fila não é afetada', () => {
+    expect(sanitizeSettings({ currency: 'pado', buyIn: 100 }).buyIn).toBe(CUSTOM_PADO_MIN);
+    expect(sanitizeSettings({ currency: 'pado', buyIn: 0 }).buyIn).toBe(CUSTOM_PADO_MIN);
+    expect(sanitizeSettings({ currency: 'pado', buyIn: 5000 }).buyIn).toBe(5000);
+    // fichas continuam podendo ser livres
+    expect(sanitizeSettings({ currency: 'chips', buyIn: 0 }).buyIn).toBe(0);
+  });
+
+  it('sem fichas, senta de graça na Custom de mil — e levantar na hora não rende nada', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 0, faucet: 0 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Sem Fichas');
+    const id = p.account!.id;
+    p.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'cash', buyIn: RECOMECO_CUSTOM, startingStack: RECOMECO_CUSTOM } });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(p.errors).toEqual([]);
+    const room = [...lobby.rooms.values()][0];
+    expect(room.chipsOf(id)).toBe(RECOMECO_CUSTOM);
+
+    // a pilha é adiantamento: levantando sem ter ganhado nada, o saldo continua zero
+    p.conn.handle({ type: 'leaveRoom' });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(accounts.money(id)).toBe(0);
+    accounts.close();
+  });
+
+  it('o recomeço é só na mesa de mil: numa de dois mil, sem fichas, não senta', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 0, faucet: 0 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Sem Fichas');
+    p.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'cash', buyIn: 2000, startingStack: 2000 } });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(p.errors.join(' ')).toMatch(/[Ss]aldo insuficiente/);
+    accounts.close();
+  });
+});
+
+describe('fila rápida', () => {
+  it('sair da fila no meio da mão leva as fichas que estavam atrás', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 10_000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Gabi');
+    const id = p.account!.id;
+    p.conn.handle({ type: 'quickMatch', currency: 'chips' });
+    await runUntil(() => p.events.includes('handStart'));
+    expect(accounts.money(id)).toBe(10_000 - QUEUE_STAKES.chips.buyIn);
+
+    // levanta com a mão rolando: a mesa (só ela e bots) some, mas as fichas voltam
+    p.conn.handle({ type: 'leaveRoom' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(lobby.rooms.size).toBe(0);
+    // perde no máximo o que já tinha posto no pote da mão
+    expect(accounts.money(id)).toBeGreaterThan(10_000 - QUEUE_STAKES.chips.buyIn);
+    accounts.close();
+  }, 60_000);
+
+  it('quatro amigos entrando um depois do outro caem na mesma mesa', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 10_000 });
+    const lobby = new Lobby('teste', accounts);
+    const amigos = ['Ana', 'Bia', 'Cau', 'Duda'].map((n) => client(lobby, n));
+    for (const a of amigos) {
+      a.conn.handle({ type: 'quickMatch', currency: 'chips' });
+      // cada um entra com a mesa já jogando (a mão em andamento é o que prendia os bots)
+      await runUntil(() => a.events.includes('handStart'), 200_000);
+    }
+    const salas = new Set([...lobby.rooms.values()].filter((r) => amigos.some((a) => r.chipsOf(a.account!.id) > 0)).map((r) => r.id));
+    expect(salas.size).toBe(1);
+    accounts.close();
+  }, 120_000);
+});
+
+describe('nome', () => {
+  it('mudar de nome no meio da sessão grava na conta', async () => {
+    vi.useFakeTimers();
+    const accounts = new Accounts({ file: newFile(), startingMoney: 1000 });
+    const lobby = new Lobby('teste', accounts);
+    const p = client(lobby, 'Antigo');
+    const id = p.account!.id;
+    p.conn.handle({ type: 'updateProfile', name: 'Novo Nome', avatar: {}, cosmetics: {} });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(accounts.info(id)!.name).toBe('Novo Nome');
     accounts.close();
   });
 });

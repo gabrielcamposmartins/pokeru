@@ -56,9 +56,9 @@ export function buildMatchRows(view: TableView, ranking: Ranking[] | null, start
       place: placeNo,
       name: name ?? s?.name ?? `Assento ${seat + 1}`,
       character: isMe ? myCharacter : (s?.cosmetics.character ?? findCharacter('')),
-      frame: isMe ? myFrame : (s?.cosmetics.frame ?? 'ouro'),
-      // servidor de antes das auras não manda o campo: aí o campeão fica sem aura, e nada quebra
-      auras: isMe ? myAuras : (s?.cosmetics.auras ?? []),
+      // bot não tem aura nem moldura própria; e servidor de antes das auras não manda o campo
+      frame: isMe ? myFrame : s?.isBot ? 'ouro' : (s?.cosmetics.frame ?? 'ouro'),
+      auras: isMe ? myAuras : s?.isBot ? [] : (s?.cosmetics.auras ?? []),
       stack: s?.stack ?? 0,
       delta: (s?.stack ?? 0) - startingStack,
       isMe,

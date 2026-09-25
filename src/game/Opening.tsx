@@ -49,7 +49,8 @@ function PlayerCard({ p, isMe, delay }: { p: OpeningPlayer; isMe: boolean; delay
   const cls = ['pm-slot', p.ready && 'ready', isMe && 'me'].filter(Boolean).join(' ');
   // as minhas auras saem do perfil (a troca mais recente vale na hora); as dos outros, do servidor
   const minhas = useProfile((s) => s.auras);
-  const auras = isMe ? minhas : p.auras;
+  // bot não tem aura (veja o sorteio dos bots em shared/room.ts)
+  const auras = isMe ? minhas : p.isBot ? [] : p.auras;
   return (
     <motion.div className={cls} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay, duration: 0.35 }}>
       {/* nome e título ficam fora do card: dentro dele é lugar do personagem */}
