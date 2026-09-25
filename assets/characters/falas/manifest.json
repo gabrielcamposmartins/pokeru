@@ -1,162 +1,154 @@
 [
   {
-    "arquivo": "001_Marina_フラッシュ！.wav",
+    "arquivo": "001_Violetta_チェック。.wav",
+    "tipo": "audio",
+    "texto": "チェック。",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_Violetta_ベット。.wav",
+    "tipo": "audio",
+    "texto": "ベット。",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_Violetta_コール。.wav",
+    "tipo": "audio",
+    "texto": "コール。",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_Violetta_レイズ！.wav",
+    "tipo": "audio",
+    "texto": "レイズ！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_Violetta_リレイズ！.wav",
+    "tipo": "audio",
+    "texto": "リレイズ！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_Violetta_オールイン！.wav",
+    "tipo": "audio",
+    "texto": "オールイン！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_Violetta_フォールド。.wav",
+    "tipo": "audio",
+    "texto": "フォールド。",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_Violetta_オープン！.wav",
+    "tipo": "audio",
+    "texto": "オープン！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_Violetta_マック。.wav",
+    "tipo": "audio",
+    "texto": "マック。",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_Violetta_ハイカード。.wav",
+    "tipo": "audio",
+    "texto": "ハイカード。",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_Violetta_ワンペア！.wav",
+    "tipo": "audio",
+    "texto": "ワンペア！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_Violetta_ツーペア！.wav",
+    "tipo": "audio",
+    "texto": "ツーペア！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_Violetta_スリーカード！.wav",
+    "tipo": "audio",
+    "texto": "スリーカード！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_Violetta_ストレート！.wav",
+    "tipo": "audio",
+    "texto": "ストレート！",
+    "seed": 42,
+    "voice": "Violetta",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_Violetta_フラッシュ！.wav",
     "tipo": "audio",
     "texto": "フラッシュ！",
     "seed": 42,
-    "voice": "Marina",
-    "language": "Portuguese"
+    "voice": "Violetta",
+    "language": "Japanese"
   },
   {
-    "arquivo": "002_Ren_フラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "フラッシュ！",
-    "seed": 10,
-    "voice": "Ren",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "003_Tobi_フラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "フラッシュ！",
-    "seed": 42,
-    "voice": "Tobi",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "004_Yukina_フラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "フラッシュ！",
-    "seed": 42,
-    "voice": "Yukina",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "005_Marina_フルハウス！.wav",
+    "arquivo": "016_Violetta_フルハウス！.wav",
     "tipo": "audio",
     "texto": "フルハウス！",
     "seed": 42,
-    "voice": "Marina",
-    "language": "Portuguese"
+    "voice": "Violetta",
+    "language": "Japanese"
   },
   {
-    "arquivo": "006_Ren_フルハウス！.wav",
-    "tipo": "audio",
-    "texto": "フルハウス！",
-    "seed": 10,
-    "voice": "Ren",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "007_Tobi_フルハウス！.wav",
-    "tipo": "audio",
-    "texto": "フルハウス！",
-    "seed": 42,
-    "voice": "Tobi",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "008_Yukina_フルハウス！.wav",
-    "tipo": "audio",
-    "texto": "フルハウス！",
-    "seed": 42,
-    "voice": "Yukina",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "009_Marina_フォーカード！.wav",
+    "arquivo": "017_Violetta_フォーカード！.wav",
     "tipo": "audio",
     "texto": "フォーカード！",
     "seed": 42,
-    "voice": "Marina",
-    "language": "Portuguese"
+    "voice": "Violetta",
+    "language": "Japanese"
   },
   {
-    "arquivo": "010_Ren_フォーカード！.wav",
-    "tipo": "audio",
-    "texto": "フォーカード！",
-    "seed": 10,
-    "voice": "Ren",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "011_Tobi_フォーカード！.wav",
-    "tipo": "audio",
-    "texto": "フォーカード！",
-    "seed": 42,
-    "voice": "Tobi",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "012_Yukina_フォーカード！.wav",
-    "tipo": "audio",
-    "texto": "フォーカード！",
-    "seed": 42,
-    "voice": "Yukina",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "013_Marina_ストレートフラッシュ！.wav",
+    "arquivo": "018_Violetta_ストレートフラッシュ！.wav",
     "tipo": "audio",
     "texto": "ストレートフラッシュ！",
     "seed": 42,
-    "voice": "Marina",
-    "language": "Portuguese"
+    "voice": "Violetta",
+    "language": "Japanese"
   },
   {
-    "arquivo": "014_Ren_ストレートフラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "ストレートフラッシュ！",
-    "seed": 10,
-    "voice": "Ren",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "015_Tobi_ストレートフラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "ストレートフラッシュ！",
-    "seed": 42,
-    "voice": "Tobi",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "016_Yukina_ストレートフラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "ストレートフラッシュ！",
-    "seed": 42,
-    "voice": "Yukina",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "017_Marina_ロイヤルストレートフラッシュ！.wav",
+    "arquivo": "019_Violetta_ロイヤルストレートフラッシュ！.wav",
     "tipo": "audio",
     "texto": "ロイヤルストレートフラッシュ！",
     "seed": 42,
-    "voice": "Marina",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "018_Ren_ロイヤルストレートフラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "ロイヤルストレートフラッシュ！",
-    "seed": 10,
-    "voice": "Ren",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "019_Tobi_ロイヤルストレートフラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "ロイヤルストレートフラッシュ！",
-    "seed": 42,
-    "voice": "Tobi",
-    "language": "Portuguese"
-  },
-  {
-    "arquivo": "020_Yukina_ロイヤルストレートフラッシュ！.wav",
-    "tipo": "audio",
-    "texto": "ロイヤルストレートフラッシュ！",
-    "seed": 42,
-    "voice": "Yukina",
-    "language": "Portuguese"
+    "voice": "Violetta",
+    "language": "Japanese"
   }
 ]
