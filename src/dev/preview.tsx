@@ -71,6 +71,7 @@ import '../styles/victorian.css';
 import '../styles/persona.css';
 import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, findCharacter, type AuraId } from '../../shared/styles';
 import type { GanhoDaPartida, Opening, SeatView } from '../../shared/protocol';
+import { DEFAULT_SETTINGS } from '../../shared/protocol';
 import { CARD_W, STAGE_H, STAGE_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout } from '../game/layout';
 import { CardView } from '../render/CardArt';
 import { ChipStack } from '../render/Chip';
@@ -102,8 +103,12 @@ import { nextId, useTable, type RoundResult } from '../store/table';
 import { WinSplash } from '../game/Overlays';
 import type { ResumoDaPartida } from '../../shared/personality';
 import { MinhaPersonalidade, PersonalidadeDoPersonagem } from '../game/Personality';
-import { ProfileScreen } from '../screens/Profile';
-import { ConviteDeGrupo, FriendsScreen } from '../screens/Friends';
+import { PerfilAmigo, ProfileScreen } from '../screens/Profile';
+import { RoomLobby } from '../screens/RoomLobby';
+import { GameScreen } from '../screens/GameScreen';
+import { NivelNovoView } from '../game/NivelNovo';
+import type { CartaoJogador } from '../../shared/friends';
+import { ConviteDeGrupo, ConviteDeSala, FriendsScreen } from '../screens/Friends';
 import { useFriends } from '../store/friends';
 
 const q = new URLSearchParams(location.search);
@@ -641,15 +646,161 @@ function statsDoNivel(nivel: number) {
 // o menu com pedido esperando: é onde se confere a bolinha vermelha do botão de Amigos
 if (cena === 'menu') useFriends.setState(AMIGOS_DE_EXEMPLO);
 
-if (cena === 'amigos') {
+/** O card de alguém de mentira, com auras e cartas: é o que o grupo, a sala e o perfil de amigo mostram. */
+function cartaoDeExemplo(name: string, character: string, level: number, title: string | null, i: number): CartaoJogador {
+  return {
+    name,
+    level,
+    title,
+    character: findCharacter(character),
+    auras: AURAS_DE_EXEMPLO[i % AURAS_DE_EXEMPLO.length],
+    frame: FRAME_IDS[(i * 3 + 1) % FRAME_IDS.length],
+    face: FACE_PRESETS[i % FACE_PRESETS.length],
+    back: BACK_PRESETS[(i + 2) % BACK_PRESETS.length],
+  };
+}
+const GRUPO_DE_EXEMPLO = {
+  id: 'g-1',
+  leader: 'a-1',
+  members: [
+    { id: 'a-1', name: 'Gabi', character: 'marina', level: 23, leader: true, online: true },
+    { id: 'a-2', name: 'Leo', character: 'ren', level: 31, leader: false, online: true, cartao: cartaoDeExemplo('Leo', 'ren', 31, 'Colecionador de Potes', 1) },
+    { id: 'a-3', name: 'Bia', character: 'yukina', level: 12, leader: false, online: true, cartao: cartaoDeExemplo('Bia', 'yukina', 12, null, 2) },
+  ],
+};
+
+if (cena === 'amigos' || cena === 'menu-grupo') {
+  useFriends.setState({ ...AMIGOS_DE_EXEMPLO, party: GRUPO_DE_EXEMPLO });
+}
+
+// o perfil de um amigo aberto por cima do meu
+if (cena === 'perfil-amigo') {
   useFriends.setState({
     ...AMIGOS_DE_EXEMPLO,
-    party: {
-      id: 'g-1',
-      leader: 'a-1',
+    perfilDe: 'a-2',
+    perfil: {
+      id: 'a-2',
+      code: 'RJ4K7P',
+      online: true,
+      playing: false,
+      cartao: cartaoDeExemplo('Leo', 'ren', 31, 'Colecionador de Potes', 1),
+      stats: statsDoNivel(31),
+      play: PARTIDAS_DE_EXEMPLO,
+    },
+  });
+}
+
+/*
+ * A partida de verdade (a GameScreen inteira): seis na mesa, emotes nos de cima.
+ *
+ * É onde se confere o HUD — os botões da direita, a descrição da sala — contra os balões de
+ * emote dos assentos do alto, que eram os que ficavam escondidos.
+ */
+if (cena === 'partida') {
+  const assento = (i: number, name: string, over: Partial<SeatView> = {}): SeatView => ({
+    seat: i,
+    id: `p${i}`,
+    name,
+    isBot: false,
+    avatar: { color: '#7c5cff', icon: '♠' },
+    cosmetics: {
+      face: FACE_PRESETS[0],
+      back: BACK_PRESETS[i % BACK_PRESETS.length],
+      chip: CHIP_PRESETS[0],
+      // `?table=` troca a mesa de todo mundo: com gente, o feltro (e o chão) são os do dealer
+      table: TABLE_PRESETS.find((t) => t.id === q.get('table')) ?? TABLE_PRESETS[0],
+      character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
+      winFx: 'gold',
+      auras: [],
+      frame: FRAME_IDS[i % FRAME_IDS.length],
+    },
+    title: null,
+    stack: 3240,
+    bet: 0,
+    inHand: true,
+    folded: false,
+    allIn: false,
+    cards: [],
+    lastAction: null,
+    connected: true,
+    busted: false,
+    ...over,
+  });
+  const nomes = ['Você', 'Marina', 'dokidoki_tt', 'Leo', 'berlineta', 'Bia'];
+  useSession.setState({
+    mode: 'online',
+    status: 'connected',
+    playerId: 'p0',
+    room: {
+      id: 'k3x9q',
+      hostId: 'p0',
+      status: 'playing',
+      settings: { ...DEFAULT_SETTINGS, name: 'Mesa da Gabi', maxPlayers: 6, mode: 'normal', rounds: 10 } as never,
+      members: [],
+    },
+  });
+  useTable.setState({
+    display: {
+      roomId: 'k3x9q',
+      handNo: 4,
+      rounds: 10,
+      status: 'playing',
+      variant: 'holdem',
+      maxPlayers: 6,
+      seats: nomes.map((n, i) => assento(i, n, { cards: i === 0 ? [{ r: 14, s: 's' }, { r: 13, s: 'h' }] : [] })),
+      board: [{ r: 12, s: 'd' }, { r: 7, s: 'c' }, { r: 2, s: 'h' }],
+      pot: 840,
+      street: 'flop',
+      dealerSeat: 2,
+      sbSeat: 3,
+      bbSeat: 4,
+      toAct: 1,
+      timeLeftMs: 18_000,
+      turnTimeMs: 25_000,
+      currentBet: 0,
+      smallBlind: 50,
+      bigBlind: 100,
+      mySeat: 0,
+      legal: null,
+      highlight: [],
+    } as never,
+    // um balão em cada assento: os do alto são os que o HUD cobria
+    emotes: nomes.map((_, i) => ({ id: 900 + i, seat: i, emote: ['😎', '🔥', '😭', 'GG', '🤔', '💖'][i] })),
+  });
+}
+
+// a sala de espera da Custom: três pessoas, um bot e duas cadeiras vagas, com um convite chegando
+if (cena === 'sala') {
+  useFriends.setState({ ...AMIGOS_DE_EXEMPLO, conviteSala: null });
+  const membro = (id: string, seat: number, c: CartaoJogador, isBot = false, conta?: string) => ({
+    id,
+    seat,
+    name: c.name,
+    isBot,
+    avatar: { color: '#7c5cff', icon: '♠' },
+    character: c.character,
+    title: c.title,
+    stack: 2000,
+    connected: true,
+    level: isBot ? 0 : c.level,
+    auras: isBot ? [] : c.auras,
+    frame: c.frame,
+    face: c.face,
+    back: c.back,
+    conta,
+  });
+  useSession.setState({
+    playerId: 'p-eu',
+    room: {
+      id: 'k3x9q',
+      hostId: 'p-eu',
+      status: 'waiting',
+      settings: { ...DEFAULT_SETTINGS, name: 'Mesa da Gabi', maxPlayers: 6, buyIn: 2000, startingStack: 2000, hasPassword: true } as never,
       members: [
-        { id: 'a-1', name: 'Gabi', character: 'marina', level: 23, leader: true, online: true },
-        { id: 'a-2', name: 'Leo', character: 'ren', level: 31, leader: false, online: true },
+        membro('p-eu', 0, cartaoDeExemplo('Gabi', 'marina', 23, 'Colecionador de Potes', 0), false, 'a-1'),
+        membro('p-leo', 1, cartaoDeExemplo('Leo', 'ren', 31, null, 1), false, 'a-2'),
+        membro('p-x', 2, cartaoDeExemplo('dokidoki_tt', 'tobi', 5, 'Novato da Mesa', 3), false, 'a-9'),
+        membro('p-bot', 3, cartaoDeExemplo('Bot Yukina', 'yukina', 0, null, 4), true),
       ],
     },
   });
@@ -675,6 +826,9 @@ if (
   cena === 'perfil' ||
   cena === 'amigos' ||
   cena === 'amigos-vazio' ||
+  cena === 'menu-grupo' ||
+  cena === 'perfil-amigo' ||
+  cena === 'sala' ||
   // o Estúdio com conta: é onde se confere que a lista mostra o que é do jogador, e só isso
   cena === 'estudio'
 ) {
@@ -734,7 +888,7 @@ const ABERTURA: Opening = {
  * carta atrás de carta. O Estúdio mostra a carta sobre um fundo neutro, e é justamente o fundo que
  * decide se uma carta de vidro funciona.
  */
-for (const kind of ['face', 'back'] as const) {
+for (const kind of ['face', 'back', 'table'] as const) {
   const id = q.get(kind);
   if (id) useProfile.getState().equip(kind, id);
 }
@@ -775,11 +929,25 @@ createRoot(document.getElementById('root')!).render(
         </>
       ) : cena === 'perfil' || cena === 'titulos' ? (
         <ProfileScreen onBack={() => {}} />
+      ) : cena === 'perfil-amigo' ? (
+        <>
+          <FriendsScreen onBack={() => {}} />
+          <PerfilAmigo />
+        </>
+      ) : cena === 'sala' ? (
+        <>
+          <RoomLobby />
+          <ConviteDeSala />
+        </>
+      ) : cena === 'partida' ? (
+        <GameScreen />
+      ) : cena === 'nivel' ? (
+        <NivelNovoView de={Number(q.get('de') ?? 4)} para={Number(q.get('para') ?? 5)} onClose={() => {}} />
       ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' ? (
         <SettingsScreen onBack={() => {}} />
       ) : cena === 'salas' ? (
         <OnlineLobby onBack={() => {}} />
-      ) : cena === 'menu' || cena === 'menu-sentando' || cena === 'fila' || cena === 'fila-esperando' ? (
+      ) : cena === 'menu' || cena === 'menu-grupo' || cena === 'menu-sentando' || cena === 'fila' || cena === 'fila-esperando' ? (
         <MainMenu go={() => {}} openQueue={cena === 'fila'} />
       ) : cena === 'personalidade' ? (
         <div className="screen">
@@ -787,7 +955,7 @@ createRoot(document.getElementById('root')!).render(
           <Personalidades />
         </div>
       ) : cena === 'estudio' ? (
-        <Studio onBack={() => {}} />
+        <Studio onBack={() => {}} inicial={(q.get('aba') as never) ?? undefined} />
       ) : cena === 'galeria' ? (
         <GalleryScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} verInicial={q.get('ver') ?? undefined} />
       ) : cena === 'loja' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' ? (

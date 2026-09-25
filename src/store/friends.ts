@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { FriendInfo, PartyInfo } from '../../shared/friends';
+import type { FriendInfo, PartyInfo, PerfilPublico } from '../../shared/friends';
 import { useSession } from './session';
 
 /**
@@ -20,6 +20,15 @@ export interface Convite {
   name: string;
 }
 
+/** Um amigo chamou para a sala dele. */
+export interface ConviteSala {
+  room: string;
+  from: string;
+  name: string;
+  /** Nome da sala, para o convite dizer para onde. */
+  sala: string;
+}
+
 interface FriendsState {
   friends: FriendInfo[];
   /** Pedidos recebidos. */
@@ -28,9 +37,17 @@ interface FriendsState {
   outgoing: FriendInfo[];
   party: PartyInfo | null;
   convite: Convite | null;
+  conviteSala: ConviteSala | null;
+  /** Perfil de amigo aberto: o id pedido, e o perfil quando ele chega. */
+  perfilDe: string | null;
+  perfil: PerfilPublico | null;
   aplicar(l: { friends: FriendInfo[]; incoming: FriendInfo[]; outgoing: FriendInfo[] }): void;
   setParty(p: PartyInfo | null): void;
   setConvite(c: Convite | null): void;
+  setConviteSala(c: ConviteSala | null): void;
+  /** Chegou o perfil pedido (o que chega de um pedido já fechado é ignorado). */
+  chegouPerfil(p: PerfilPublico): void;
+  fecharPerfil(): void;
   limpar(): void;
 }
 
@@ -40,10 +57,16 @@ export const useFriends = create<FriendsState>((set) => ({
   outgoing: [],
   party: null,
   convite: null,
+  conviteSala: null,
+  perfilDe: null,
+  perfil: null,
   aplicar: (l) => set({ friends: l.friends, incoming: l.incoming, outgoing: l.outgoing }),
   setParty: (party) => set({ party, ...(party ? { convite: null } : {}) }),
   setConvite: (convite) => set({ convite }),
-  limpar: () => set({ friends: [], incoming: [], outgoing: [], party: null, convite: null }),
+  setConviteSala: (conviteSala) => set({ conviteSala }),
+  chegouPerfil: (perfil) => set((s) => (s.perfilDe === perfil.id ? { perfil } : {})),
+  fecharPerfil: () => set({ perfilDe: null, perfil: null }),
+  limpar: () => set({ friends: [], incoming: [], outgoing: [], party: null, convite: null, conviteSala: null, perfilDe: null, perfil: null }),
 }));
 
 const send = (m: Parameters<ReturnType<typeof useSession.getState>['send']>[0]) => useSession.getState().send(m);
@@ -64,6 +87,18 @@ export const aceitarGrupo = (party: string): void => send({ type: 'partyAccept',
 export const recusarGrupo = (party: string): void => send({ type: 'partyDecline', party });
 export const sairDoGrupo = (): void => send({ type: 'partyLeave' });
 
+/** Chama um amigo para a sala em que estou. */
+export const chamarParaSala = (id: string): void => send({ type: 'roomInvite', id });
+
+/** Pede amizade a alguém da mesma sala (na espera ou em plena partida). */
+export const pedirAmizadeNaMesa = (playerId: string): void => send({ type: 'friendAddPlayer', playerId });
+
+/** Abre o perfil de um amigo: a janela abre na hora e se preenche quando o servidor responder. */
+export function abrirPerfil(id: string): void {
+  useFriends.setState({ perfilDe: id, perfil: null });
+  send({ type: 'profileOf', id });
+}
+
 /** O líder manda o grupo jogar. Em `custom`, a mesa é a próxima que ele criar. */
 export const jogarEmGrupo = (kind: 'bots' | 'queue', difficulty?: 'easy' | 'normal' | 'hard', currency?: 'chips' | 'pado'): void =>
   send({ type: 'partyStart', kind, difficulty, currency });
@@ -78,6 +113,21 @@ export function usePedidos(): number {
 /** Estou num grupo? */
 export function useNoGrupo(): boolean {
   return useFriends((s) => !!s.party);
+}
+
+/**
+ * O que eu sou de uma conta: eu mesmo, amigo, pedido pendente (de qualquer lado) ou ninguém.
+ * `null` quando não dá para saber — sem conta minha, ou o outro sem conta (bot, jogo sem login).
+ */
+export function useRelacao(conta: string | undefined): 'eu' | 'amigo' | 'pedido' | 'livre' | null {
+  const eu = useSession((s) => s.account?.id);
+  return useFriends((s) => {
+    if (!eu || !conta) return null;
+    if (conta === eu) return 'eu';
+    if (s.friends.some((f) => f.id === conta)) return 'amigo';
+    if (s.outgoing.some((f) => f.id === conta) || s.incoming.some((f) => f.id === conta)) return 'pedido';
+    return 'livre';
+  });
 }
 
 /** Sou o líder do grupo? (sem grupo, não há liderança) */

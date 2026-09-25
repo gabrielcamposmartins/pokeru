@@ -100,6 +100,15 @@ export interface AccountInfo {
   code: string;
 }
 
+/** Como a conta se veste: o que o card de um jogador mostra. */
+export interface Aparencia {
+  character: string;
+  auras: PlayerCosmetics['auras'];
+  frame: PlayerCosmetics['frame'];
+  face: PlayerCosmetics['face'];
+  back: PlayerCosmetics['back'];
+}
+
 /** O que uma conta sabe de si em matéria de amizade (o estado online vem do lobby). */
 export interface FriendRow {
   id: string;
@@ -232,6 +241,15 @@ export interface AccountService extends TableBank {
   info(accountId: string): AccountInfo | null;
   /** Troca o nome guardado da conta (o grupo e a lista de amigos leem daqui). */
   rename?(accountId: string, name: string): void;
+  /**
+   * Guarda como a conta está vestida (personagem, auras, moldura, cartas).
+   *
+   * É o que o card mostra quando a pessoa **não** está conectada: o perfil de um amigo offline
+   * continua com a cara que ele escolheu, e não com a do jogo sem nada.
+   */
+  vestir?(accountId: string, visual: Aparencia): void;
+  /** Como a conta estava vestida da última vez (null = conta que não existe). */
+  aparencia?(accountId: string): Aparencia | null;
   /** O que a conta tem (chaves do catálogo; o que é grátis não está aqui). */
   owned(accountId: string): readonly string[];
   /**

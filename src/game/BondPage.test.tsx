@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { findCharacter } from '../../shared/styles';
 import { comumText, falaText } from '../audio/falas';
 import { voiceUrl } from '../audio/voice';
-import { BOND_MAX, BOND_MISSIONS, BOND_POINTS, EMPTY_BOND, HEART_COST, rewardsOf } from './bond';
+import { BOND_COUNTERS, BOND_MAX, EMPTY_BOND, HEART_COST, rewardsOf } from './bond';
 import { BondPageView } from './BondPage';
 
 const marina = findCharacter('marina');
@@ -20,14 +20,12 @@ describe('página de vínculo', () => {
     expect(html).toContain(rewardsOf(marina)[1].name);
   });
 
-  it('lista as missões com os pontos e o que você já fez', () => {
+  it('mostra as missões com o que você já fez ao lado do personagem', () => {
     const html = page(0);
     expect(html).toContain('Missões');
-    for (const m of BOND_MISSIONS) {
-      expect(html, m.ev).toContain(m.label);
-      expect(html, m.ev).toContain(`+${BOND_POINTS[m.ev]}`);
-    }
-    expect(html).toContain('desistências');
+    for (const c of BOND_COUNTERS) expect(html, c.key).toContain(c.label);
+    // os contadores de `stats`: 4 vitórias, 6 derrotas, 11 desistências, 21 mãos, 2 partidas
+    for (const n of [4, 6, 11, 21, 2]) expect(html).toContain(`<b>${n}</b>`);
   });
 
   it('a recompensa de voz mostra o momento, a fala, a tradução e o arquivo do áudio', () => {

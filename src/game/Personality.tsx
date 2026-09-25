@@ -247,6 +247,11 @@ export function PersonalidadeDoPersonagem({ id, size = 220 }: { id: string; size
  */
 export function MinhaPersonalidade({ size = 380 }: { size?: number }) {
   const play = useSession((s) => s.account?.play);
+  return <PersonalidadeDe play={play} size={size} />;
+}
+
+/** A personalidade de quaisquer partidas (as minhas, ou as de um amigo no perfil dele). */
+export function PersonalidadeDe({ play, size = 380, dono = 'você' }: { play: ResumoDaPartida[] | undefined; size?: number; dono?: string }) {
   const partidas: ResumoDaPartida[] = useMemo(() => play ?? [], [play]);
   const p = useMemo(() => personalidadeDasPartidas(partidas), [partidas]);
   const maos = partidas.reduce((t, r) => t + r.maos, 0);
@@ -262,9 +267,9 @@ export function MinhaPersonalidade({ size = 380 }: { size?: number }) {
         </p>
       ) : (
         <>
-          <TagsPersonalidade p={p} titulo="O que dizem de você na mesa" />
+          <TagsPersonalidade p={p} titulo={`O que dizem de ${dono} na mesa`} />
           <small className="muted personalidade-pe">
-            Das suas últimas {partidas.length} partida{partidas.length === 1 ? '' : 's'} — {maos} {maos === 1 ? 'mão' : 'mãos'}. Só as{' '}
+            {dono === 'você' ? 'Das suas' : 'Das'} últimas {partidas.length} partida{partidas.length === 1 ? '' : 's'} — {maos} {maos === 1 ? 'mão' : 'mãos'}. Só as{' '}
             {PARTIDAS_LEMBRADAS} últimas contam: mude o jogo e o gráfico muda junto.
           </small>
         </>

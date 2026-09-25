@@ -9,29 +9,25 @@
  * conta liberou; pedir outro não teria efeito.
  */
 
-import { equipTitle, useAchievements, useMyTitle } from '../store/titles';
+import { equipTitle, useAchievements, useMyTitle, type AchievementRow } from '../store/titles';
 import { useSession } from '../store/session';
 import { Select, type SelectOption } from '../ui/controls';
 import { TitleGlow } from '../render/Title';
 
-export function TitlePanel() {
+/**
+ * O título em uso, num seletor.
+ *
+ * Mora sozinho porque o perfil o põe logo abaixo da identidade (foto, nome, nível) — é parte de
+ * como a pessoa aparece na mesa —, e a lista de conquistas vai para a aba dela.
+ */
+export function EscolhaDeTitulo() {
   const rows = useAchievements();
   const equipped = useMyTitle();
   const temConta = useSession((s) => !!s.account);
-
   const feitas = rows.filter((r) => r.done);
-
-  if (!temConta) {
-    return (
-      <p className="muted small">
-        Títulos ficam guardados na conta. Entre numa conta para começar a colecionar — sem conta dá para
-        jogar, mas não há onde guardar o que você conquistar.
-      </p>
-    );
-  }
-
+  if (!temConta) return null;
   return (
-    <div className="titles">
+    <div className="titulo-em-uso">
       <div className="field-label">Título em uso</div>
       {feitas.length === 0 ? (
         <p className="muted small" style={{ marginTop: 0 }}>
@@ -63,9 +59,17 @@ export function TitlePanel() {
           ]}
         />
       )}
+    </div>
+  );
+}
 
+/** A lista de conquistas, com o progresso de cada uma — a minha e a de um amigo. */
+export function ListaDeConquistas({ rows }: { rows: AchievementRow[] }) {
+  const feitas = rows.filter((r) => r.done).length;
+  return (
+    <>
       <div className="field-label" style={{ marginTop: 14 }}>
-        Conquistas <small className="muted">({feitas.length}/{rows.length})</small>
+        Conquistas <small className="muted">({feitas}/{rows.length})</small>
       </div>
       <div className="achievements">
         {rows.map((r) => (
@@ -92,6 +96,6 @@ export function TitlePanel() {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }

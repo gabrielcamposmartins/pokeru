@@ -161,6 +161,12 @@ function ResumoDeXp({ ganho }: { ganho: GanhoDaPartida }) {
             <ChipSvg value={100} size={14} /> consolação <b>+{fmt(ganho.consolacao)} fichas</b>
           </span>
         )}
+        {/* o prêmio de terminar a partida, em fichas: o mesmo valor do prêmio mínimo em padocoin */}
+        {(ganho.bonusFichas ?? 0) > 0 && (
+          <span className="me-xp-consolo">
+            <ChipSvg value={100} size={14} /> partida completa <b>+{fmt(ganho.bonusFichas!)} fichas</b>
+          </span>
+        )}
       </div>
       <div className="me-xp-nivel">
         <LevelNumber level={antes.level} size={22} sparks={false} />

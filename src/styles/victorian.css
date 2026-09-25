@@ -107,7 +107,7 @@
   .pot-label,
   .raise-input,
   .chip-btn,
-  .hud-btn,
+  .hud-bt,
   .icon-label,
   .studio-tabs button,
   .title-input,
@@ -240,6 +240,21 @@
   .btn-ghost:hover:not(:disabled) {
     background: rgba(201, 162, 90, 0.14);
   }
+  /* os botões da partida: a placa de latão do tema, pequena e quadrada, com o ícone no meio */
+  .hud-bt {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    letter-spacing: 0;
+    font-size: 17px;
+    font-family: inherit;
+    color: #2a1a08;
+    text-shadow: 0 1px 0 rgba(255, 245, 210, 0.6);
+  }
+  .hud-sair {
+    background: linear-gradient(180deg, #a3303f, var(--oxblood) 55%, var(--oxblood-2));
+    border-color: #c9a25a;
+  }
 
   /* ------------------------------------------------------------------ campos */
 
@@ -362,6 +377,11 @@
   }
 
   /* ------------------------------------------------------------------ fundo: papel de parede adamascado */
+
+  /* a sala da partida leva o mesmo papel de parede do menu */
+  .sala-fundo {
+    --mesa-pat: var(--damask) center top / 132px 184px;
+  }
 
   .menu-bg {
     background:
@@ -489,6 +509,18 @@
       inset 0 0 0 3px rgba(0, 0, 0, 0.3),
       inset 0 0 0 4px rgba(201, 162, 90, 0.2);
   }
+  /*
+   * Com a moldura do Estúdio, o camafeu sai: os anéis dourados dele ficavam atrás da moldura, uma
+   * oval aparecendo pelas bordas de uma foto quadrada.
+   */
+  .player-portrait.com-moldura {
+    border: none;
+    border-radius: 16px;
+    box-shadow: none;
+  }
+  .player-chip:has(> .player-portrait.com-moldura) {
+    border-radius: 16px 6px 6px 16px;
+  }
   /* retrato em camafeu oval */
   .player-portrait {
     border-radius: 50% / 46%;
@@ -509,8 +541,7 @@
     font-size: 12px;
     font-style: italic;
   }
-  .round-icon,
-  .hud-btn {
+  .round-icon {
     background: var(--grain), radial-gradient(circle at 40% 30%, #5a2c1a, #1e0d07 75%);
     border: 1px solid var(--gold);
     color: var(--gold-2);
@@ -519,16 +550,7 @@
       0 0 0 3px rgba(201, 162, 90, 0.35),
       0 5px 12px rgba(0, 0, 0, 0.55);
   }
-  .hud-btn {
-    border-radius: 3px;
-  }
-  .hud-btn.wide {
-    font-family: var(--title);
-    font-size: 13px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-  }
-  .hud-btn .dot {
+  .hud-bt .dot {
     background: var(--candle);
     box-shadow: 0 0 6px var(--candle);
   }
@@ -738,16 +760,6 @@
     font-size: 14px;
     font-style: italic;
   }
-  .seat-slot {
-    border-radius: 3px;
-    background: rgba(10, 4, 2, 0.3);
-    border: 1px dashed rgba(201, 162, 90, 0.25);
-  }
-  .seat-slot.filled {
-    border: 1px solid rgba(201, 162, 90, 0.5);
-    box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.3);
-  }
-  .lobby-portrait,
   .char-info-portrait,
   .pc-portrait {
     border-radius: 50% / 46%;
@@ -1024,7 +1036,6 @@
 
   /* HUD */
   .hud-info {
-    font-size: 16px;
     font-style: italic;
   }
   .hud-info b {
@@ -1389,7 +1400,6 @@
   }
 
   /* painéis pequenos: cantoneiras menores e mais respiro */
-  .hud-info,
   .waiting-banner,
   .emote-grid,
   .avatar-picker,
@@ -1397,7 +1407,6 @@
     padding-left: 22px;
     padding-right: 22px;
   }
-  .hud-info::after,
   .waiting-banner::after,
   .emote-grid::after,
   .avatar-picker::after,

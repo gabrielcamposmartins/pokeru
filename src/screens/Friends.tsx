@@ -4,6 +4,7 @@ import { MAX_PARTY, prettyFriendCode, type FriendInfo } from '../../shared/frien
 import { findCharacter } from '../../shared/styles';
 import { botTier } from '../../shared/protocol';
 import {
+  abrirPerfil,
   aceitarAmizade,
   chamarParaGrupo,
   desfazerAmizade,
@@ -17,6 +18,7 @@ import {
 } from '../store/friends';
 import { useSession } from '../store/session';
 import { CharacterPortrait } from '../render/CharacterArt';
+import { CartaoJogador, CartaoVazio, cartaoDoGrupo, useMeuCartao } from '../game/CartaoJogador';
 import { TitleGlow } from '../render/Title';
 import { ScreenHeader, Section } from '../ui/controls';
 import { sfx } from '../audio/sfx';
@@ -57,20 +59,39 @@ function LinhaAmigo({ f }: { f: FriendInfo }) {
   const [confirmar, setConfirmar] = useState(false);
   return (
     <div className={`amigo ${f.online ? 'on' : ''}`}>
-      <span className="amigo-face" style={{ background: `linear-gradient(160deg, ${char.bg}, ${char.bg2})` }}>
-        <CharacterPortrait st={char} size={38} />
-      </span>
-      <span className="amigo-meta">
-        <b>
-          <Status f={f} />
-          {f.name}
-        </b>
-        <small>
-          {f.title ? <TitleGlow title={f.title} /> : <span className="muted">nível {f.level}</span>}
-          <i className="amigo-code">{prettyFriendCode(f.code)}</i>
-        </small>
-      </span>
+      {/* a foto e o nome abrem o perfil dele */}
+      <button
+        className="amigo-abre"
+        title={`Ver o perfil de ${f.name}`}
+        onClick={() => {
+          sfx.click();
+          abrirPerfil(f.id);
+        }}
+      >
+        <span className="amigo-face" style={{ background: `linear-gradient(160deg, ${char.bg}, ${char.bg2})` }}>
+          <CharacterPortrait st={char} size={38} />
+        </span>
+        <span className="amigo-meta">
+          <b>
+            <Status f={f} />
+            {f.name}
+          </b>
+          <small>
+            {f.title ? <TitleGlow title={f.title} /> : <span className="muted">nível {f.level}</span>}
+            <i className="amigo-code">{prettyFriendCode(f.code)}</i>
+          </small>
+        </span>
+      </button>
       <span className="amigo-acoes">
+        <button
+          className="btn btn-ghost small"
+          onClick={() => {
+            sfx.click();
+            abrirPerfil(f.id);
+          }}
+        >
+          Perfil
+        </button>
         {podeChamar && (
           <button
             className="btn btn-pink small"
@@ -226,6 +247,50 @@ function Adicionar() {
  * Custom, e o grupo vai puxado com quem a criou — um jeito a menos de montar mesa, e a tela que já
  * existia continua sendo a única que monta.
  */
+/**
+ * Quem está no grupo, em cards — os mesmos da tela de carregamento.
+ *
+ * Sem grupo, aparece o meu card sozinho com as vagas: é o convite a chamar alguém, e quem entra
+ * ocupa uma delas na hora.
+ */
+function CartoesDoGrupo() {
+  const party = useFriends((s) => s.party);
+  const eu = useSession((s) => s.account?.id);
+  const meu = useMeuCartao();
+  const gente = party?.members ?? [];
+  const vagas = MAX_PARTY - Math.max(1, gente.length);
+  return (
+    <div className="grupo-cartoes">
+      {gente.length === 0 && <CartaoJogador p={meu} eu className="cartao-grupo" />}
+      {gente.map((m, i) => (
+        <CartaoJogador
+          key={m.id}
+          p={m.id === eu ? meu : cartaoDoGrupo(m)}
+          eu={m.id === eu}
+          delay={i * 0.05}
+          canto={m.leader ? <span title="Líder do grupo">★</span> : undefined}
+          className={`cartao-grupo ${m.online ? '' : 'esperando'}`}
+        >
+          {m.id !== eu && (
+            <button
+              className="btn btn-ghost small"
+              onClick={() => {
+                sfx.click();
+                abrirPerfil(m.id);
+              }}
+            >
+              Perfil
+            </button>
+          )}
+        </CartaoJogador>
+      ))}
+      {Array.from({ length: vagas }, (_, i) => (
+        <CartaoVazio key={`vaga-${i}`} label="livre" />
+      ))}
+    </div>
+  );
+}
+
 function Grupo({ onCustom }: { onCustom?: () => void }) {
   const party = useFriends((s) => s.party);
   const souLider = useSouLider();
@@ -233,35 +298,19 @@ function Grupo({ onCustom }: { onCustom?: () => void }) {
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('easy');
   if (!party) {
     return (
-      <p className="muted small">
-        Sem grupo. Chame um amigo que esteja online e vocês jogam a fila, uma mesa Custom ou uma partida contra bots juntos — até {MAX_PARTY}{' '}
-        pessoas.
-      </p>
+      <div className="grupo">
+        <CartoesDoGrupo />
+        <p className="muted small">
+          Sem grupo. Chame um amigo que esteja online e vocês jogam a fila, uma mesa Custom ou uma partida contra bots juntos — até {MAX_PARTY}{' '}
+          pessoas.
+        </p>
+      </div>
     );
   }
   const tier = botTier(difficulty);
   return (
     <div className="grupo">
-      <div className="grupo-gente">
-        {party.members.map((m) => {
-          const char = findCharacter(m.character);
-          return (
-            <div key={m.id} className={`grupo-um ${m.leader ? 'lider' : ''}`}>
-              <span className="amigo-face" style={{ background: `linear-gradient(160deg, ${char.bg}, ${char.bg2})` }}>
-                <CharacterPortrait st={char} size={44} />
-              </span>
-              <b>{m.name}</b>
-              <small className="muted">{m.leader ? '★ líder' : `nível ${m.level}`}</small>
-            </div>
-          );
-        })}
-        {Array.from({ length: MAX_PARTY - party.members.length }, (_, i) => (
-          <div key={`vazio-${i}`} className="grupo-um vazio">
-            <span className="amigo-face" />
-            <small className="muted">livre</small>
-          </div>
-        ))}
-      </div>
+      <CartoesDoGrupo />
 
       {souLider ? (
         <div className="grupo-acoes">
@@ -376,6 +425,51 @@ export function ConviteDeGrupo() {
   );
 }
 
+/**
+ * Um amigo chamou para a sala dele.
+ *
+ * Fica logo abaixo do convite de grupo quando os dois chegam juntos. Entrar é pedir a sala pelo
+ * código — o servidor deixa passar mesmo que ela tenha senha, porque o convite vale como senha.
+ */
+export function ConviteDeSala() {
+  const convite = useFriends((s) => s.conviteSala);
+  const temConviteDeGrupo = useFriends((s) => !!s.convite);
+  const room = useSession((s) => s.room);
+  if (!convite) return null;
+  // já estou nessa sala (entrei por outro caminho): o convite não tem mais o que fazer
+  if (room?.id === convite.room) return null;
+  const saiDaMesa = !!room;
+  return (
+    <motion.div className={`convite convite-sala ${temConviteDeGrupo ? 'segundo' : ''}`} initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+      <span>
+        <b>{convite.name}</b> te chamou para a sala <b>{convite.sala}</b>
+        {saiDaMesa && <small className="muted"> · você sai da mesa em que está</small>}
+      </span>
+      <span className="row gap">
+        <button
+          className="btn btn-gold small"
+          onClick={() => {
+            sfx.win();
+            useSession.getState().send({ type: 'joinRoom', roomId: convite.room });
+            useFriends.getState().setConviteSala(null);
+          }}
+        >
+          Entrar
+        </button>
+        <button
+          className="btn btn-ghost small"
+          onClick={() => {
+            sfx.click();
+            useFriends.getState().setConviteSala(null);
+          }}
+        >
+          Agora não
+        </button>
+      </span>
+    </motion.div>
+  );
+}
+
 export function FriendsScreen({ onBack, onCustom }: { onBack: () => void; onCustom?: () => void }) {
   const friends = useFriends((s) => s.friends);
   const temConta = useSession((s) => !!s.account);
@@ -385,12 +479,19 @@ export function FriendsScreen({ onBack, onCustom }: { onBack: () => void; onCust
   }, [temConta]);
   const online = friends.filter((f) => f.online).length;
   return (
-    <div className="screen">
+    <div className="screen tela-cheia">
       <div className="menu-bg" />
       <Petals />
       <ScreenHeader title="Amigos" onBack={onBack} />
-      <div className="friends-grid">
-        <div className="panel pad">
+      {/* um painel só, duas colunas: ele preenche a tela até a margem, e quem rola é cada coluna */}
+      <div className="panel painel-duplo friends-duplo">
+        {/* o grupo primeiro e maior: é onde se decide o que jogar, e os cards pedem espaço */}
+        <div className="painel-col grupo-col">
+          <Section title="Grupo">
+            <Grupo onCustom={onCustom} />
+          </Section>
+        </div>
+        <div className="painel-col">
           {temConta ? (
             <>
               <MeuCodigo />
@@ -414,11 +515,6 @@ export function FriendsScreen({ onBack, onCustom }: { onBack: () => void; onCust
           ) : (
             <p className="muted small">Amigos ficam na conta do servidor. Entre numa conta para ter lista e grupo.</p>
           )}
-        </div>
-        <div className="panel pad">
-          <Section title="Grupo">
-            <Grupo onCustom={onCustom} />
-          </Section>
         </div>
       </div>
     </div>

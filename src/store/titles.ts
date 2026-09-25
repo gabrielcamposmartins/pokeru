@@ -45,7 +45,11 @@ export interface AchievementRow {
 
 /** A lista inteira com o progresso de cada uma — conquistadas primeiro. */
 export function useAchievements(): AchievementRow[] {
-  const stats = useMyStats();
+  return achievementRows(useMyStats());
+}
+
+/** As conquistas de quaisquer contadores (as minhas, ou as de um amigo no perfil dele). */
+export function achievementRows(stats: PlayerStats): AchievementRow[] {
   const rows = ACHIEVEMENTS.map((a) => ({
     a,
     done: isUnlocked(a, stats),

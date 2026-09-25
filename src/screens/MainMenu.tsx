@@ -10,18 +10,23 @@ import { useCharacter, useEquipped, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { CharacterAura } from '../render/aura';
+import { PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { CardFaceSvg } from '../render/CardArt';
 import { BondBar } from '../game/BondBar';
 import { HandGuideButton } from '../game/HandGuide';
 import { Segmented } from '../ui/controls';
 import { WalletBar, useChips } from '../ui/Wallet';
+import { BotaoDeSom } from '../ui/Som';
 import { sfx } from '../audio/sfx';
 import { APP_VERSION } from '../util/version';
 import { BOT_MATCH, BOT_TIERS, QUEUE_STAKES, botTier, tierUnlocked } from '../../shared/protocol';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { ChipSvg } from '../render/Chip';
 import { usePado } from '../store/shop';
-import { usePedidos } from '../store/friends';
+import { abrirPerfil, jogarEmGrupo, useFriends, usePedidos, useSouLider } from '../store/friends';
+import { MAX_PARTY } from '../../shared/friends';
+import { findCharacter } from '../../shared/styles';
+import { FotoComMoldura } from '../game/CartaoJogador';
 import { fmt } from '../util/format';
 import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
@@ -134,6 +139,10 @@ function BotMatchModal({ onClose }: { onClose: () => void }) {
   const tier = botTier(difficulty);
   const mesa = tier.mesa;
   const saldo = moeda === 'pado' ? (pado ?? 0) : chips;
+  const grupo = useFriends((s) => s.party);
+  const souLider = useSouLider();
+  // em grupo, quem começa é o líder — e o grupo vai junto; os outros esperam o chamado dele
+  const esperaLider = !!grupo && !souLider;
   /*
    * A mesa do recomeço.
    *
@@ -199,10 +208,13 @@ function BotMatchModal({ onClose }: { onClose: () => void }) {
         <div className="row gap center" style={{ marginTop: 18 }}>
           <button
             className="btn btn-gold big"
-            disabled={pending || travado}
+            disabled={pending || travado || esperaLider}
             onClick={() => {
               sfx.click();
-              pedirPartida(difficulty, moeda);
+              if (grupo && souLider) {
+                jogarEmGrupo('bots', difficulty, moeda);
+                onClose();
+              } else pedirPartida(difficulty, moeda);
             }}
           >
             {pending
@@ -220,6 +232,7 @@ function BotMatchModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         {recomeco && <p className="muted small" style={{ textAlign: 'center', marginTop: 10 }}>Sem fichas para o buy-in: esta mesa é o recomeço, e sai de graça.</p>}
+        <AvisoDoGrupo />
       </motion.div>
     </div>
   );
@@ -239,10 +252,17 @@ function QueueModal({ onClose }: { onClose: () => void }) {
   const chips = useChips();
   const pado = usePado();
   const stakes = QUEUE_STAKES;
+  const grupo = useFriends((s) => s.party);
+  const souLider = useSouLider();
+  const esperaLider = !!grupo && !souLider;
 
+  // em grupo, o líder puxa a fila e todo mundo senta junto na mesma mesa
   const entrar = (moeda: 'chips' | 'pado') => {
     sfx.click();
-    quickMatch(moeda);
+    if (grupo && souLider) {
+      jogarEmGrupo('queue', undefined, moeda);
+      onClose();
+    } else quickMatch(moeda);
   };
 
   return (
@@ -265,7 +285,7 @@ function QueueModal({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <div className="queue-opts">
-            <button className="queue-opt" disabled={chips < stakes.chips.buyIn} onClick={() => entrar('chips')}>
+            <button className="queue-opt" disabled={chips < stakes.chips.buyIn || esperaLider} onClick={() => entrar('chips')}>
               <span className="queue-opt-coin">
                 <ChipSvg value={100} size={34} />
               </span>
@@ -279,7 +299,7 @@ function QueueModal({ onClose }: { onClose: () => void }) {
             </button>
 
             {pado !== null ? (
-              <button className="queue-opt" disabled={pado < stakes.pado.buyIn} onClick={() => entrar('pado')}>
+              <button className="queue-opt" disabled={pado < stakes.pado.buyIn || esperaLider} onClick={() => entrar('pado')}>
                 <span className="queue-opt-coin">
                   <PadoCoinSvg size={34} />
                 </span>
@@ -299,6 +319,7 @@ function QueueModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
+        {!queueing && <AvisoDoGrupo />}
         <div className="row gap center" style={{ marginTop: 16 }}>
           <button className="btn btn-ghost" disabled={queueing} onClick={onClose}>
             Cancelar
@@ -309,11 +330,77 @@ function QueueModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Nos modais de jogo: em grupo, avisa que o grupo vai junto (ou que quem começa é o líder). */
+function AvisoDoGrupo() {
+  const grupo = useFriends((s) => s.party);
+  const souLider = useSouLider();
+  if (!grupo) return null;
+  const outros = grupo.members.length - 1;
+  return (
+    <p className="grupo-aviso">
+      {souLider
+        ? `Você está em grupo: ${outros === 1 ? 'seu amigo senta' : `os ${outros} amigos sentam`} junto na mesma mesa.`
+        : 'Você está em grupo: quem começa a partida é o líder, e você senta junto.'}
+    </p>
+  );
+}
+
+/**
+ * Quem está no grupo, numa linha acima dos modos de jogo.
+ *
+ * As fotos com moldura de cada um, o líder com a estrela. Está ali porque é ali que se decide o que
+ * jogar: a fila, os bots ou uma sala Custom — e o grupo vai junto em qualquer uma delas.
+ */
+function LinhaDoGrupo({ go }: { go: (s: Screen) => void }) {
+  const grupo = useFriends((s) => s.party);
+  const eu = useSession((s) => s.account?.id);
+  const meuFrame = useProfile((s) => s.frame);
+  const meu = useCharacter();
+  if (!grupo) return null;
+  const vagas = MAX_PARTY - grupo.members.length;
+  return (
+    <motion.div className="grupo-linha" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+      <span className="grupo-linha-rotulo">Grupo</span>
+      {grupo.members.map((m) => {
+        const souEu = m.id === eu;
+        const char = souEu ? meu : (m.cartao?.character ?? findCharacter(m.character));
+        const frame = souEu ? meuFrame : m.cartao?.frame;
+        return (
+          <button
+            key={m.id}
+            className={`grupo-linha-um ${m.leader ? 'lider' : ''} ${m.online ? '' : 'off'}`}
+            title={`${m.name}${m.leader ? ' (líder)' : ''}${souEu ? '' : ' — ver perfil'}`}
+            onClick={() => {
+              sfx.click();
+              if (!souEu) abrirPerfil(m.id);
+            }}
+          >
+            <FotoComMoldura character={char} frame={frame} size={40} />
+            {m.leader && <i className="grupo-linha-estrela">★</i>}
+            <small>{souEu ? 'você' : m.name}</small>
+          </button>
+        );
+      })}
+      {vagas > 0 && (
+        <button
+          className="grupo-linha-mais"
+          title="Chamar amigos"
+          onClick={() => {
+            sfx.click();
+            go('friends');
+          }}
+        >
+          +
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
 function TopBar({ go }: { go: (s: Screen) => void }) {
   const name = useProfile((s) => s.name);
-  const muted = useProfile((s) => s.settings.muted);
-  const updateSettings = useProfile((s) => s.updateSettings);
   const st = useCharacter();
+  const frame = useProfile((s) => s.frame);
   const stats = useMyStats();
   const title = useMyTitle();
   const temConta = useSession((s) => !!s.account);
@@ -334,9 +421,10 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
         style={{ '--xp': `${Math.round(lv.progress * 100)}%`, '--xp-cor': levelColor(lv.level) } as CSSProperties}
         title={`${lv.into} / ${lv.need} de experiência para o nível ${lv.level + 1}`}
       >
-        {/* a foto abre o perfil: trocar de personagem tem botão próprio lá embaixo */}
-        <button className="player-portrait" style={{ background: `linear-gradient(160deg, ${st.bg}, ${st.bg2})` }} onClick={() => go('profile')} title="Ver perfil">
-          <CharacterPortrait st={st} size={54} />
+        {/* a foto abre o perfil, e leva a moldura escolhida no Estúdio — é a mesma foto da mesa */}
+        <button className="player-portrait com-moldura" style={{ background: `linear-gradient(160deg, ${st.bg}, ${st.bg2})` }} onClick={() => go('profile')} title="Ver perfil">
+          <CharacterPortrait st={st} size={75} />
+          <PortraitFrame frame={findFrame(frame)} size={75} />
         </button>
         {/* as bolhas sobem dentro do líquido: o recorte para no nível, como numa bebida gaseificada */}
         <span className="player-bolhas" aria-hidden>
@@ -351,9 +439,7 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
       <WalletBar />
       <div className="top-actions">
         <HandGuideButton />
-        <button className="round-icon" title={muted ? 'Ativar som' : 'Silenciar'} onClick={() => updateSettings({ muted: !muted })}>
-          {muted ? '🔇' : '🔊'}
-        </button>
+        <BotaoDeSom className="round-icon" />
         <button className="round-icon" title="Configurações" onClick={() => go('settings')}>
           ⚙
         </button>
@@ -454,6 +540,7 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
         {menu.motto && <span className="logo-est">{menu.motto}</span>}
       </motion.div>
       <div className="mode-area">
+        <LinhaDoGrupo go={go} />
         <div className="mode-cards">
           <ModeCard
             title="PvP Queue"

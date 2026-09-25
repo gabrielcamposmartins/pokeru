@@ -12,8 +12,6 @@ import { CharacterPortrait } from '../render/CharacterArt';
 import { BondBarView, BondHearts, Heart } from './BondBar';
 import {
   BOND_COUNTERS,
-  BOND_MISSIONS,
-  BOND_POINTS,
   HEARTS,
   HEART_COST,
   type HeartQuest,
@@ -27,44 +25,32 @@ import {
 /**
  * A página de vínculo de um personagem, aberta pelo botão na tela de Personagens.
  *
- * Mostra onde o vínculo está, as missões (o que rende pontos) e as cinco recompensas com
- * o conteúdo delas à mostra: a fala liberada com texto, tradução e o áudio para ouvir.
+ * Três colunas, tudo à vista sem rolar: os presentes (que enchem a barra), as missões (que abrem
+ * o coração cheio) e as cinco recompensas, com a fala liberada e o áudio para ouvir.
  *
- * **A tranca das missões.** Jogar enche o coração; quem o abre é a missão do personagem
+ * **A tranca das missões.** Só presente enche o coração; quem o abre é a missão do personagem
  * (shared/bond.ts). Por isso `unlocked` é separado dos pontos: a barra pode estar cheia e a
  * recompensa ainda não ter saído. Quando ninguém informa `unlocked` — jogo local, sem conta —,
- * ele vale os corações dos pontos e a escada antiga continua igual.
- *
- * **Os presentes** não abrem nada: enchem a barra. Cada coração exige um degrau de raridade mais
- * alto, então a prateleira de presentes aqui mostra o que **serve agora** e o que já ficou pequeno.
+ * ele vale os corações dos pontos, e ali jogar ainda dá pontos (não há loja nem presentes).
  */
 
 // ------------------------------------------------------------------ missões
 
-function Missions({ st }: { st: BondStats }) {
-  // duas missões podem alimentar o mesmo contador (mão grande/vitória): o número aparece só na primeira
-  const shown = new Set<string>();
+/**
+ * O que já se jogou ao lado do personagem: os contadores que as missões pedem.
+ *
+ * Eram seis linhas com os pontos de cada momento; jogar não dá mais pontos, então sobra o que
+ * importa — quanto de cada coisa já foi feito.
+ */
+function Contadores({ st }: { st: BondStats }) {
   return (
-    <div className="bond-missions">
-      {BOND_MISSIONS.map((m) => {
-        const first = !shown.has(m.counter);
-        shown.add(m.counter);
-        return (
-          <div key={m.ev} className="bond-mission">
-            <span className="bond-mission-pts">+{BOND_POINTS[m.ev]}</span>
-            <span className="bond-mission-info">
-              <b>{m.label}</b>
-              <small>{m.hint}</small>
-            </span>
-            {first && (
-              <span className="bond-mission-count">
-                {st[m.counter]}
-                <small>{BOND_COUNTERS.find((c) => c.key === m.counter)?.label}</small>
-              </span>
-            )}
-          </div>
-        );
-      })}
+    <div className="bond-contadores">
+      {BOND_COUNTERS.map((c) => (
+        <span key={c.key} className="bond-contador">
+          <b>{st[c.key]}</b>
+          <small>{c.label}</small>
+        </span>
+      ))}
     </div>
   );
 }
@@ -87,35 +73,25 @@ function VoiceReward({ char, r, unlocked }: { char: CharacterStyle; r: BondRewar
   const fala = falaText(char.id, slot);
   const url = voiceUrl(char.id, 'fala', slot);
   const comum = r.replaces ? comumText(r.replaces) : undefined;
-  const comumUrl = r.replaces ? voiceUrl(char.id, 'comum', r.replaces) : undefined;
   const voicesOn = useProfile((s) => s.settings.voices && !s.settings.muted);
   const canHear = unlocked && !!url && voicesOn;
   const why = !url ? 'O áudio dessa fala ainda não foi gravado' : !unlocked ? `Complete o ${r.heart}º coração para ouvir` : !voicesOn ? 'As vozes estão desligadas (Configurações → Áudio)' : '';
+  // compacta: o momento, a fala com a tradução e o botão de ouvir — o resto vai no título do botão
+  const dica = [why, url ? `Áudio: ${fileOf(url)}` : 'Áudio ainda não gravado', comum ? `No lugar de: ${comum.text} (“${comum.pt}”)` : '']
+    .filter(Boolean)
+    .join(' · ');
   return (
-    <div className="bond-audio">
+    <div className="bond-audio compacta" title={dica}>
       <div className="bond-audio-row">
         <span className="bond-audio-moment">♪ {FALA_MOMENTO[slot]}</span>
         <button className="btn btn-ghost small" disabled={!canHear} title={why} onClick={() => say(url)}>
           ♪ Ouvir
         </button>
       </div>
-      <b className="bond-audio-line">{fala?.text ?? '—'}</b>
-      {fala?.pt && <span className="bond-audio-pt">“{fala.pt}”</span>}
-      <small className="bond-audio-file">
-        {url ? `Áudio: ${fileOf(url)}` : 'Áudio ainda não gravado — a fala fica guardada no texto'}
-      </small>
-      {comum && (
-        <div className="bond-audio-swap">
-          <small>No lugar da chamada comum:</small>
-          <span className="bond-audio-comum">
-            {comum.text} <i>“{comum.pt}”</i>
-          </span>
-          <button className="btn btn-ghost small" disabled={!comumUrl || !voicesOn} onClick={() => say(comumUrl)}>
-            ♪
-          </button>
-        </div>
-      )}
-      {why && <small className="bond-audio-why">{why}</small>}
+      <b className="bond-audio-line">
+        {fala?.text ?? '—'}
+        {fala?.pt && <span className="bond-audio-pt"> “{fala.pt}”</span>}
+      </b>
     </div>
   );
 }
@@ -191,35 +167,6 @@ function QuestLine({ st, q }: { st: BondStats; q: HeartQuest }) {
         {Math.min(tem, q.need)}/{q.need}
       </b>
     </span>
-  );
-}
-
-/**
- * O coração cheio esperando a missão.
- *
- * Aparece só quando a barra bateu no teto: até lá a missão é só uma linha da lista, e pô-la em
- * destaque o tempo todo transformaria o vínculo numa lista de tarefas.
- */
-function QuestGate({ char, heart, st }: { char: CharacterStyle; heart: number; st: BondStats }) {
-  const quests = questsFor(heart);
-  if (!quests.length) return null;
-  return (
-    <section className="bond-gate">
-      <div className="bond-gate-cab">
-        <Heart fill={1} size={20} id={`gate-${char.id}`} />
-        <b>
-          O {heart}º coração está cheio — falta cumprir a missão de {char.name}
-        </b>
-      </div>
-      <div className="bond-gate-lista">
-        {quests.map((q) => (
-          <QuestLine key={q.counter} st={st} q={q} />
-        ))}
-      </div>
-      <div className="bond-gate-pe">
-        <small className="muted">Presentes não abrem coração: eles enchem a barra. Quem abre é jogar.</small>
-      </div>
-    </section>
   );
 }
 
@@ -361,20 +308,34 @@ export function BondPageView({
         <p className="bond-page-lead">
           {abertos >= HEARTS
             ? `Vínculo completo: ${char.name} já entregou todas as recompensas.`
-            : travado
-              ? `A barra chegou ao fim do ${abertos + 1}º coração e para aí até a missão fechar. Presente enche a barra; quem abre o coração é jogar.`
-              : `Ganhar rende mais, mas perder ao lado de ${char.name} também aproxima. Faltam ${lv.toNext} pontos para o ${abertos + 1}º coração${next ? ` — ${next.name}` : ''}.`}
+            : unlocked === undefined
+              ? `Ganhar rende mais, mas perder ao lado de ${char.name} também aproxima. Faltam ${lv.toNext} pontos para o ${abertos + 1}º coração${next ? ` — ${next.name}` : ''}.`
+              : travado
+                ? `O ${abertos + 1}º coração está cheio: falta a missão de ${char.name} para ele abrir. Jogar com ${char.name} conta para a missão.`
+                : `Só presente enche a barra: faltam ${lv.toNext} pontos para o ${abertos + 1}º coração${next ? ` — ${next.name}` : ''}. Jogar conta para as missões, que abrem cada coração.`}
         </p>
 
-        {travado && <QuestGate char={char} heart={abertos + 1} st={st} />}
-        {unlocked !== undefined && <GiftShelf char={char} unlocked={abertos} gifts={gifts} cheio={travado} onGive={onGive} />}
-
-        <div className="bond-page-body">
+        <div className={`bond-page-body ${unlocked !== undefined ? 'tres' : ''}`}>
+          {/* os presentes: é o que enche a barra (sem conta não há loja, e a coluna não existe) */}
+          {unlocked !== undefined && (
+            <section className="bond-page-col">
+              <h3>Presentes</h3>
+              <GiftShelf char={char} unlocked={abertos} gifts={gifts} cheio={travado} onGive={onGive} />
+            </section>
+          )}
           <section className="bond-page-col">
             <h3>Missões</h3>
             {abertos < HEARTS && (
-              <div className="bond-proximo">
-                <b>Para abrir o {abertos + 1}º coração</b>
+              <div className={`bond-proximo ${travado ? 'travado' : ''}`}>
+                <b>
+                  {travado ? (
+                    <>
+                      <Heart fill={1} size={16} id={`gate-${char.id}`} /> O {abertos + 1}º coração está cheio — cumpra a missão
+                    </>
+                  ) : (
+                    `Para abrir o ${abertos + 1}º coração`
+                  )}
+                </b>
                 <div className="bond-gate-lista">
                   {questsFor(abertos + 1).map((q) => (
                     <QuestLine key={q.counter} st={st} q={q} />
@@ -382,10 +343,10 @@ export function BondPageView({
                 </div>
               </div>
             )}
-            <Missions st={st} />
-            <p className="bond-page-sum">
-              <b>{st.hands}</b> mãos e <b>{st.matches}</b> partidas ao lado de {char.name}.
-            </p>
+            <small className="muted bond-missoes-dica">
+              {unlocked === undefined ? 'Cada mão ao lado do personagem rende pontos e conta para as missões.' : 'Jogar não dá pontos de vínculo: conta para as missões. Quem enche a barra são os presentes.'}
+            </small>
+            <Contadores st={st} />
           </section>
           <section className="bond-page-col rewards">
             <h3>Recompensas</h3>

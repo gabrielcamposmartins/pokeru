@@ -497,3 +497,121 @@ describe('o grupo respeita quem já está numa mesa', () => {
     acc.close();
   }, 20_000);
 });
+
+/**
+ * O que o grupo, a sala e o perfil mostram de cada um — e quem pode ver o quê.
+ *
+ * O card é montado no servidor, com o que a conta tem; o perfil de amigo é só de amigo; o convite
+ * de sala vale como a senha, mas só para quem foi chamado; e pedir amizade pela mesa só funciona
+ * com quem está sentado na mesma mesa.
+ */
+describe('cards, perfil de amigo, convite de sala e amizade pela mesa', () => {
+  function trio() {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const lobby = new Lobby('teste', acc);
+    const a = client(lobby, 'Gabi');
+    const b = client(lobby, 'Leo');
+    const c = client(lobby, 'Estranho');
+    acc.requestFriend(a.id, codeOf(acc, b.id));
+    acc.acceptFriend(b.id, a.id);
+    return { acc, lobby, a, b, c };
+  }
+
+  it('o grupo manda o card de cada um', () => {
+    const { acc, a, b } = trio();
+    a.conn.handle({ type: 'partyInvite', id: b.id });
+    b.conn.handle({ type: 'partyAccept', party: last(b, 'partyAsk')!.party });
+    const leo = last(a, 'party')!.party!.members.find((m) => m.id === b.id)!;
+    expect(leo.cartao).toMatchObject({ name: 'Leo', frame: expect.any(String) });
+    expect(leo.cartao!.character.id).toBe(leo.character);
+    expect(Array.isArray(leo.cartao!.auras)).toBe(true);
+    acc.close();
+  });
+
+  it('o perfil de um amigo traz o card, o histórico e as conquistas; o de um estranho, não', () => {
+    const { acc, a, b, c } = trio();
+    a.conn.handle({ type: 'profileOf', id: b.id });
+    const perfil = last(a, 'perfil')!.perfil;
+    expect(perfil).toMatchObject({ id: b.id, code: codeOf(acc, b.id), online: true, playing: false });
+    expect(perfil.cartao.name).toBe('Leo');
+    expect(perfil.stats).toBeDefined();
+    expect(Array.isArray(perfil.play)).toBe(true);
+    // saldo e itens não vão: o perfil é o que a pessoa mostra, não a carteira dela
+    expect(perfil).not.toHaveProperty('money');
+    expect(perfil).not.toHaveProperty('owned');
+
+    c.conn.handle({ type: 'profileOf', id: b.id });
+    expect(last(c, 'perfil')).toBeUndefined();
+    expect(c.errors.some((e) => e.includes('amigos'))).toBe(true);
+    acc.close();
+  });
+
+  it('o perfil de quem está offline sai de como ele estava vestido da última vez', () => {
+    const { acc, a, b } = trio();
+    b.conn.close();
+    a.conn.handle({ type: 'profileOf', id: b.id });
+    const perfil = last(a, 'perfil')!.perfil;
+    expect(perfil.online).toBe(false);
+    expect(perfil.cartao.name).toBe('Leo');
+    expect(perfil.cartao.character.id).toBe(acc.aparencia(b.id)!.character);
+    acc.close();
+  });
+
+  it('o amigo chamado para a sala entra mesmo com senha; quem não foi chamado, não', async () => {
+    vi.useFakeTimers();
+    const { acc, lobby, a, b, c } = trio();
+    a.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, password: 'segredo' } });
+    await vi.advanceTimersByTimeAsync(300);
+    const room = [...lobby.rooms.values()][0];
+
+    a.conn.handle({ type: 'roomInvite', id: b.id });
+    const ask = last(b, 'roomAsk')!;
+    expect(ask).toMatchObject({ room: room.id, from: a.id, name: 'Gabi' });
+
+    b.conn.handle({ type: 'joinRoom', roomId: ask.room });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(room.summary().players).toBe(2);
+
+    c.conn.handle({ type: 'joinRoom', roomId: room.id });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(room.summary().players).toBe(2);
+    expect(c.errors).toContain('Senha incorreta');
+    acc.close();
+  }, 20_000);
+
+  it('chamar para a sala só vale para amigo, e de dentro de uma sala', async () => {
+    vi.useFakeTimers();
+    const { acc, a, b, c } = trio();
+    a.conn.handle({ type: 'roomInvite', id: b.id });
+    expect(a.errors.some((e) => e.includes('entre numa sala'))).toBe(true);
+
+    a.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    await vi.advanceTimersByTimeAsync(300);
+    a.conn.handle({ type: 'roomInvite', id: c.id });
+    expect(a.errors.some((e) => e.includes('apenas amigos'))).toBe(true);
+    expect(last(c, 'roomAsk')).toBeUndefined();
+    acc.close();
+  }, 20_000);
+
+  it('pedir amizade a quem está na mesma mesa, pelo id de jogador; de fora da mesa, não', async () => {
+    vi.useFakeTimers();
+    const { acc, lobby, a, b, c } = trio();
+    a.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    await vi.advanceTimersByTimeAsync(300);
+    const room = [...lobby.rooms.values()][0];
+    c.conn.handle({ type: 'joinRoom', roomId: room.id });
+    await vi.advanceTimersByTimeAsync(300);
+
+    // b não está na mesa: o id de jogador de alguém de lá não abre nada para ele
+    b.conn.handle({ type: 'friendAddPlayer', playerId: c.conn.id });
+    expect(b.errors.length).toBeGreaterThan(0);
+    expect(acc.friends(c.id).incoming.map((f) => f.id)).not.toContain(b.id);
+
+    a.conn.handle({ type: 'friendAddPlayer', playerId: c.conn.id });
+    expect(acc.friends(c.id).incoming.map((f) => f.id)).toContain(a.id);
+    expect(last(c, 'friends')!.incoming.map((f) => f.id)).toContain(a.id);
+    // a sala diz de quem é cada cadeira: é por isso que o botão sabe quem já é amigo
+    expect(last(a, 'room')!.room.members.find((m) => m.id === c.conn.id)!.conta).toBe(c.id);
+    acc.close();
+  }, 20_000);
+});

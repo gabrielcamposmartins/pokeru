@@ -1,4 +1,7 @@
 import { randomInt } from './cards';
+import type { PlayerStats } from './achievements';
+import type { ResumoDaPartida } from './personality';
+import type { AuraId, CardBackStyle, CardFaceStyle, CharacterStyle, FrameId } from './styles';
 
 /**
  * Amizades e grupo — as regras.
@@ -86,6 +89,43 @@ export interface FriendInfo {
   playing: boolean;
 }
 
+/**
+ * O card de um jogador: o mesmo da tela de abertura da partida.
+ *
+ * Personagem com as auras, nível, título e o par de cartas com a frente e o verso que ele usa. É
+ * como a pessoa se mostra — na abertura, no grupo, na sala Custom e no perfil —, e por isso é um
+ * tipo só: montado no servidor, com o que a conta tem de verdade.
+ */
+export interface CartaoJogador {
+  name: string;
+  /** Nível do jogador (0 = sem conta). */
+  level: number;
+  title: string | null;
+  character: CharacterStyle;
+  auras: AuraId[];
+  frame: FrameId;
+  face: CardFaceStyle;
+  back: CardBackStyle;
+}
+
+/**
+ * O perfil de um amigo, como ele aparece para quem abre.
+ *
+ * É o que o próprio perfil mostra — o card, o histórico e as conquistas —, sem nada que seja só do
+ * dono: saldo, itens e presentes ficam de fora.
+ */
+export interface PerfilPublico {
+  id: string;
+  code: string;
+  online: boolean;
+  playing: boolean;
+  cartao: CartaoJogador;
+  /** Contadores das conquistas (é deles que saem o nível e os títulos). */
+  stats: PlayerStats;
+  /** As últimas partidas, as mesmas do histórico do perfil. */
+  play: ResumoDaPartida[];
+}
+
 /** Os três jeitos de o grupo jogar junto. */
 export type PartyKind = 'bots' | 'queue' | 'custom';
 
@@ -97,6 +137,8 @@ export interface PartyMember {
   /** É quem manda no grupo (convida e começa a partida). */
   leader: boolean;
   online: boolean;
+  /** O card dele (ausente num servidor de antes dos cards). */
+  cartao?: CartaoJogador;
 }
 
 export interface PartyInfo {

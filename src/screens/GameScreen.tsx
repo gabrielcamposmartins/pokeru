@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useSession } from '../store/session';
 import { nextId, useTable } from '../store/table';
-import { useEquipped, useProfile } from '../store/profile';
+import { useEquipped } from '../store/profile';
 import { Stage } from '../game/Stage';
 import { TableStage } from '../game/TableStage';
 import { tableSkin } from '../game/skins';
 import { ActionPanel } from '../game/ActionPanel';
 import { ChatPanel, EmoteMenu, WinSplash } from '../game/Overlays';
 import { HandGuideButton } from '../game/HandGuide';
+import { BotaoDeSom } from '../ui/Som';
 import { RoundResultScreen } from '../game/RoundResult';
 import { MatchEndScreen } from '../game/MatchEnd';
 import { VARIANT_SHORT, fmt, matchLabel } from '../util/format';
@@ -27,56 +28,20 @@ export function GameScreen() {
    * não — meia cena de uma mesa, meia de outra.
    */
   const table = view ? tableSkin(view, minhaMesa) : minhaMesa;
-  const muted = useProfile((s) => s.settings.muted);
-  const updateSettings = useProfile((s) => s.updateSettings);
   const [chatOpen, setChatOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const unread = useSession((s) => s.chat.length);
   const [seen, setSeen] = useState(0);
 
-  const bg = `radial-gradient(ellipse at 50% 40%, ${table.bgTop} 0%, ${table.bgBottom} 75%)`;
+  /*
+   * O fundo da sala: as cores da mesa, com o papel de parede do tema por cima (veja `.sala-fundo`).
+   * Era um degradê que terminava em preto — a mesa flutuava num vazio.
+   */
+  const sala = { '--mesa-a': table.bgTop, '--mesa-b': table.bgBottom, '--mesa-luz': table.railAccent } as CSSProperties;
   return (
     <div className="game-screen">
-      <Stage background={bg}>
+      <Stage className="sala-fundo" style={sala}>
         {view ? <TableStage /> : <div className="loading">Preparando a mesa…</div>}
-        <div className="hud-top">
-          <button className="hud-btn wide" onClick={() => setConfirmLeave(true)}>
-            ⟵ Sair
-          </button>
-          <div className="hud-info panel">
-            <b>{room?.settings.name ?? 'Mesa'}</b>
-            {view && (
-              <>
-                <span>
-                  Blinds {fmt(view.smallBlind)}/{fmt(view.bigBlind)}
-                </span>
-                <span>
-                  {view.rounds ? `Rodada ${Math.min(view.handNo, view.rounds)}/${view.rounds}` : `Mão #${view.handNo}`}
-                </span>
-                <span className="mode">{room ? matchLabel(room.settings) : VARIANT_SHORT[view.variant]}</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="hud-right">
-          {/* a dúvida sobre as mãos vem no meio da partida, não antes dela */}
-          <HandGuideButton className="hud-btn" />
-          <button className="hud-btn" title={muted ? 'Ativar som' : 'Silenciar'} onClick={() => updateSettings({ muted: !muted })}>
-            {muted ? '🔇' : '🔊'}
-          </button>
-          <button
-            className="hud-btn"
-            title="Chat e histórico"
-            onClick={() => {
-              sfx.click();
-              setChatOpen((o) => !o);
-              setSeen(unread);
-            }}
-          >
-            💬{!chatOpen && unread > seen && <span className="dot" />}
-          </button>
-          <EmoteMenu />
-        </div>
         <ActionPanel />
         <WinSplash />
         <RoundResultScreen />
@@ -92,6 +57,48 @@ export function GameScreen() {
           <div className="waiting-banner panel">Aguardando jogadores suficientes para continuar…</div>
         )}
       </Stage>
+      {/*
+        * O HUD fica fora do palco, preso nos cantos da **tela**.
+        *
+        * O palco é escalado para caber e fica centralizado: numa tela mais larga que 16:9 sobram
+        * faixas dos lados, e o HUD de dentro dele boiava no meio delas em vez de encostar no canto.
+        */}
+      {/*
+        * A descrição da sala, discreta: duas linhas pequenas e meio apagadas no canto.
+        *
+        * Era uma faixa comprida com o botão de sair na frente, e ela cobria os balões de emote dos
+        * assentos de cima. Ao passar o mouse ela acende, para quem quiser ler.
+        */}
+      <div className="hud-info">
+        <b>{room?.settings.name ?? 'Mesa'}</b>
+        {view && (
+          <span>
+            {room ? matchLabel(room.settings) : VARIANT_SHORT[view.variant]} · Blinds {fmt(view.smallBlind)}/{fmt(view.bigBlind)} ·{' '}
+            {view.rounds ? `Rodada ${Math.min(view.handNo, view.rounds)}/${view.rounds}` : `Mão #${view.handNo}`}
+          </span>
+        )}
+      </div>
+      {/* os botões da partida, em coluna no canto direito da tela: o sair é o primeiro, junto com os outros */}
+      <div className="hud-right">
+        <button className="btn hud-bt hud-sair" title="Sair da mesa" aria-label="Sair da mesa" onClick={() => setConfirmLeave(true)}>
+          🚪
+        </button>
+        {/* a dúvida sobre as mãos vem no meio da partida, não antes dela */}
+        <HandGuideButton className="btn hud-bt" />
+        <BotaoDeSom className="btn hud-bt" lado="esquerda" />
+        <button
+          className="btn hud-bt"
+          title="Chat e histórico"
+          onClick={() => {
+            sfx.click();
+            setChatOpen((o) => !o);
+            setSeen(unread);
+          }}
+        >
+          💬{!chatOpen && unread > seen && <span className="dot" />}
+        </button>
+        <EmoteMenu />
+      </div>
       {confirmLeave && (
         <div className="modal-back" onClick={() => setConfirmLeave(false)}>
           <div className="modal panel" onClick={(e) => e.stopPropagation()}>

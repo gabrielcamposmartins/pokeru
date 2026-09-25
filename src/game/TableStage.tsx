@@ -14,6 +14,7 @@ import { ChipStack } from '../render/Chip';
 import { FlyersLayer } from './Flyers';
 import { Nameplate } from './Nameplate';
 import { chipSkin, openerCardSkin, tableSkin } from './skins';
+import { pisoDaMesa } from './piso';
 import { CenterConsole } from './CenterConsole';
 import { MyCountdown } from './Countdown';
 import { director } from './director';
@@ -268,7 +269,8 @@ export function TableStage() {
     view.dealerSeat === seat ? 'D' : view.sbSeat === seat ? 'SB' : view.bbSeat === seat ? 'BB' : null;
   return (
     <div className="table-stage">
-      <div className="floor-plane" style={FLOOR} />
+      {/* o chão é da mesa que está no feltro (a do dealer, com gente): cada estampa tem o seu piso */}
+      <div className="floor-plane" style={{ ...FLOOR, ...pisoDaMesa(tableStyle) }} />
       <div className="table-plane" style={PLANE}>
         <TableFelt st={tableStyle} />
         <CenterConsole view={view} geo={geo} />

@@ -11,8 +11,8 @@ import { RoomLobby } from './screens/RoomLobby';
 import { GameScreen } from './screens/GameScreen';
 import { Studio } from './screens/Studio';
 import { SettingsScreen } from './screens/Settings';
-import { ProfileScreen } from './screens/Profile';
-import { ConviteDeGrupo, FriendsScreen } from './screens/Friends';
+import { PerfilAmigo, ProfileScreen } from './screens/Profile';
+import { ConviteDeGrupo, ConviteDeSala, FriendsScreen } from './screens/Friends';
 import { CharactersScreen } from './screens/Characters';
 import { StoreScreen } from './screens/Store';
 import { GalleryScreen } from './screens/Gallery';
@@ -20,6 +20,7 @@ import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
 import { OpeningScreen } from './game/Opening';
+import { NivelNovoCena } from './game/NivelNovo';
 import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { useUiTheme } from './ui/themes';
@@ -136,8 +137,13 @@ export function App() {
         {content}
       </ErrorBoundary>
       <BondUnlockScreen />
+      {/* subiu de nível: a cena espera a partida acabar para cobrir a tela */}
+      <NivelNovoCena />
       {/* o convite de grupo fica por cima de qualquer tela: ele tem pressa */}
       <ConviteDeGrupo />
+      <ConviteDeSala />
+      {/* o perfil de um amigo abre por cima de qualquer tela: da lista, do grupo ou da sala */}
+      <PerfilAmigo />
       <UpdateOverlay />
       <Toasts />
     </>

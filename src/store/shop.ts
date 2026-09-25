@@ -3,6 +3,7 @@ import { owns, ownsItem, type Currency, type ItemKind } from '../../shared/catal
 import { useRoleta } from './roleta';
 import { PRESETS, SERVER_URL, useProfile, type StyleKind, type StyleMap } from './profile';
 import { useSession } from './session';
+import { componentesDe, type Componentes } from '../../shared/componentes';
 
 /**
  * A loja, do lado do cliente — vitrine e cadeados.
@@ -147,4 +148,20 @@ export function useMyStyles<K extends StyleKind>(kind: K): StyleMap[K][] {
 export function myStyles<K extends StyleKind>(kind: K, owned: readonly string[] | undefined, custom?: readonly StyleMap[K][]): StyleMap[K][] {
   const meus = (PRESETS[kind] as StyleMap[K][]).filter((p) => ownsItem(owned, kind as ItemKind, p.id));
   return custom?.length ? [...meus, ...custom] : meus;
+}
+
+/**
+ * As peças de personalização liberadas para um tipo de estilo (veja shared/componentes.ts).
+ *
+ * Saem dos presets que a conta tem — as criações do próprio Estúdio não contam, senão uma cor
+ * posta à mão uma vez viraria peça liberada para sempre.
+ */
+export function pecasDaConta(kind: StyleKind, owned: readonly string[] | undefined): { comp: Componentes; estilos: object[] } {
+  const estilos = (PRESETS[kind] as { id: string }[]).filter((p) => ownsItem(owned, kind as ItemKind, p.id));
+  return { comp: componentesDe(kind, estilos), estilos };
+}
+
+export function usePecas(kind: StyleKind): { comp: Componentes; estilos: object[] } {
+  const owned = useOwned();
+  return useMemo(() => pecasDaConta(kind, owned), [kind, owned]);
 }

@@ -15,20 +15,12 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import type { Opening, OpeningPlayer } from '../../shared/protocol';
-import { CardView } from '../render/CardArt';
-import { CharacterFull } from '../render/CharacterArt';
-import { CharacterAura } from '../render/aura';
+import { CartaoJogador } from './CartaoJogador';
 import { useProfile } from '../store/profile';
-import { LevelNumber } from '../render/Level';
-import { TitleGlow } from '../render/Title';
 import { Petals } from '../screens/MainMenu';
 import { useSession } from '../store/session';
 import { useTable } from '../store/table';
-
-/** A carta virada para cima no par do card — a mesma para todos; o que muda é a frente de cada um. */
-const MOSTRA = { r: 14, s: 's' as const };
 
 /** Espera a imagem chegar (ou desistir): o carregamento não pode ficar preso num arquivo que falhou. */
 function carrega(url: string, ms: number): Promise<void> {
@@ -46,62 +38,10 @@ function carrega(url: string, ms: number): Promise<void> {
 }
 
 function PlayerCard({ p, isMe, delay }: { p: OpeningPlayer; isMe: boolean; delay: number }) {
-  const cls = ['pm-slot', p.ready && 'ready', isMe && 'me'].filter(Boolean).join(' ');
   // as minhas auras saem do perfil (a troca mais recente vale na hora); as dos outros, do servidor
   const minhas = useProfile((s) => s.auras);
-  // bot não tem aura (veja o sorteio dos bots em shared/room.ts)
-  const auras = isMe ? minhas : p.isBot ? [] : p.auras;
-  return (
-    <motion.div className={cls} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ delay, duration: 0.35 }}>
-      {/* nome e título ficam fora do card: dentro dele é lugar do personagem */}
-      <b className="pm-name">{p.name}</b>
-
-      <div className="pm-card">
-        {/* decoração de fundo do card: PENDENTE — entra atrás do personagem, por trás de tudo aqui */}
-        <div className="pm-deco" aria-hidden />
-
-        {/*
-          * A arte com as auras em volta, numa caixa do tamanho da figura: a aura mede cabeça, ombro
-          * e pé pela altura da caixa. O card corta o que passa da borda — as asas abertas ficam
-          * enquadradas, como numa carta.
-          */}
-        <div className="pm-art">
-          <div className="char-palco">
-            <CharacterAura auras={auras} tint={p.character.bg} />
-            <CharacterFull st={p.character} height="100%" animate={p.ready} />
-            <CharacterAura auras={auras} tint={p.character.bg} plano="frente" />
-          </div>
-        </div>
-
-        <span className="pm-level">{p.isBot ? <span className="pm-bot">BOT</span> : <LevelNumber level={p.level} size="clamp(20px, 2.9vh, 32px)" />}</span>
-
-        {/* a inclinação vai no invólucro: a carta em si é um motion.div, e o framer-motion
-            escreve o transform dela inline — o do CSS seria ignorado */}
-        <div className="pm-pair" aria-hidden>
-          <span className="pm-pair-back">
-            <CardView card={null} faceUp={false} width={40} back={p.back} />
-          </span>
-          <span className="pm-pair-face">
-            <CardView card={MOSTRA} width={40} face={p.face} />
-          </span>
-        </div>
-
-        {p.ready ? (
-          <div className="pm-stamp" aria-label="pronto">
-            <span>PRONTO</span>
-          </div>
-        ) : (
-          <div className="pm-loading" aria-label="carregando">
-            <i />
-            <i />
-            <i />
-          </div>
-        )}
-      </div>
-
-      <span className="pm-foot">{p.title && <TitleGlow title={p.title} />}</span>
-    </motion.div>
-  );
+  const dados = isMe ? { ...p, auras: minhas } : p;
+  return <CartaoJogador p={dados} eu={isMe} pronto={p.ready} animar={p.ready} delay={delay} />;
 }
 
 export function OpeningView({ opening, mySeat = null }: { opening: Opening; mySeat?: number | null }) {

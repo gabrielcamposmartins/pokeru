@@ -15,6 +15,8 @@ import {
 } from '../../shared/protocol';
 import { connectLocal, connectWs, type Transport } from '../net/transport';
 import { SERVER_URL, ajustarAoQueTem, findStyle, myCosmetics, useProfile } from './profile';
+import { nivelSubiu } from './nivel';
+import { playerLevel } from '../../shared/achievements';
 import { useAuth } from './auth';
 import { findGift, findItem } from '../../shared/catalog';
 import { findCharacter } from '../../shared/styles';
@@ -261,6 +263,13 @@ function handle(m: ServerMsg): void {
        * que o jogador peça por isso. Então a notícia é encontrada aqui, comparando a foto nova com
        * a anterior: sem mensagem nova no protocolo, e sem passar batido.
        */
+      /*
+       * Subiu de nível: a cena da subida fica guardada e aparece quando a partida deixar (veja
+       * src/game/NivelNovo.tsx). Só compara com uma foto anterior — a primeira foto da sessão é o
+       * login, e ninguém "subiu" para o nível em que já estava.
+       */
+      const contaAntes = useSession.getState().account;
+      if (contaAntes?.id === m.account.id) nivelSubiu(playerLevel(contaAntes.stats), playerLevel(m.account.stats));
       const antes = useSession.getState().account?.bondUnlocked;
       if (antes) {
         for (const [c, n] of Object.entries(m.account.bondUnlocked ?? {})) {
@@ -341,6 +350,13 @@ function handle(m: ServerMsg): void {
     case 'partyAsk':
       sfx.win();
       useFriends.getState().setConvite({ party: m.party, from: m.from, name: m.name });
+      break;
+    case 'roomAsk':
+      sfx.win();
+      useFriends.getState().setConviteSala({ room: m.room, from: m.from, name: m.name, sala: m.sala });
+      break;
+    case 'perfil':
+      useFriends.getState().chegouPerfil(m.perfil);
       break;
     case 'gifted': {
       const c = findCharacter(m.character);

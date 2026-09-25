@@ -554,6 +554,75 @@ input[type='range']::-webkit-slider-thumb {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+/*
+ * A cor do Estúdio: uma amostra que abre a paleta das cores liberadas (as dos estilos da conta).
+ * A paleta flutua por cima do editor, para a lista de campos não pular a cada abertura.
+ */
+.cor-lib {
+  position: relative;
+}
+.cor-lib-botao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.cor-lib-botao:hover,
+.cor-lib-botao[aria-expanded='true'] {
+  border-color: var(--gold);
+}
+.cor-lib-botao i {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+}
+.cor-lib-paleta {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 236px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(14, 8, 30, 0.98);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.55);
+}
+.cor-lib-paleta button {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 0;
+}
+.cor-lib-paleta button:hover {
+  transform: scale(1.12);
+}
+.cor-lib-paleta button.on {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--gold);
+}
+.cor-lib-dica {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.35;
+}
 .color-field {
   display: flex;
   align-items: center;
@@ -858,6 +927,13 @@ button.avatar {
   -webkit-background-clip: text;
   background-clip: text;
   font-style: italic;
+  /*
+   * O itálico passa da caixa da letra, e o degradê recortado no texto só pinta dentro da caixa: a
+   * perna do "u" ficava cortada. O respiro à direita estende a caixa; a margem negativa devolve a
+   * largura, para o logotipo não sair do centro.
+   */
+  padding-right: 0.16em;
+  margin-right: -0.16em;
 }
 .logo-sub {
   margin-top: 6px;
@@ -1043,12 +1119,6 @@ button.avatar {
   gap: 20px;
   align-items: start;
 }
-.settings-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  align-items: start;
-}
 
 .server-line {
   display: flex;
@@ -1152,28 +1222,6 @@ button.avatar {
   font-size: 13px;
   color: var(--gold-2);
 }
-.seat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.seat-slot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 10px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.22);
-  border: 1.5px dashed rgba(255, 255, 255, 0.15);
-  min-height: 150px;
-  justify-content: center;
-}
-.seat-slot.filled {
-  border-style: solid;
-  border-color: rgba(242, 193, 78, 0.35);
-  background: linear-gradient(180deg, rgba(124, 92, 255, 0.18), rgba(0, 0, 0, 0.2));
-}
 .seat-name {
   font-weight: 700;
   text-align: center;
@@ -1192,6 +1240,108 @@ button.avatar {
 }
 .chat-box .chat-lines {
   flex: 1;
+}
+
+/*
+ * A sala de espera em cards: os mesmos da tela de carregamento, todas as cadeiras numa fileira.
+ *
+ * A largura de cada card sai do número de cadeiras (`--cadeiras`, posto pelo componente): em duas
+ * fileiras, seis cadeiras empurravam o botão de começar para fora da tela.
+ */
+.sala-cartoes {
+  --sala-gap: 26px;
+  display: flex;
+  justify-content: center;
+  gap: var(--sala-gap);
+  padding: 18px 0 8px 18px;
+}
+.cartao-sala,
+.sala-cartoes .pm-slot.vazio {
+  --cartao-w: min(20vh, 170px, calc((100% - (var(--cadeiras, 6) - 1) * var(--sala-gap)) / var(--cadeiras, 6)));
+}
+.sala-cartoes .pm-vazio-sinal {
+  font-size: 34px;
+}
+/* card estreito: o par de cartas encolhe junto, e o título fica numa letra que cabe na largura */
+.cartao-sala .pm-pair,
+.cartao-grupo .pm-pair {
+  transform: scale(0.78);
+  transform-origin: bottom left;
+}
+.cartao-sala .pm-foot,
+.cartao-grupo .pm-foot {
+  font-size: 11px;
+  margin-top: 14px;
+}
+.cartao-sala .pm-name {
+  font-size: 13px;
+}
+/* a coluna da direita: chamar amigos em cima, o chat embaixo */
+.sala-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.sala-lado .chat-box {
+  height: auto;
+  min-height: 300px;
+  flex: 1;
+}
+.sala-convidar h3 {
+  margin: 0 0 10px;
+}
+.sala-convidar-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.sala-convidar-um {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.sala-convidar-um .amigo-face {
+  width: 32px;
+  height: 32px;
+}
+.sala-convidar-um b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* pedir amizade na mesa: o botãozinho aparece no canto do retrato ao passar o mouse na placa */
+.plate-amigo {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 4;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--pink, #ff7eb6);
+  background: rgba(14, 8, 30, 0.92);
+  color: var(--pink, #ff7eb6);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  pointer-events: auto;
+}
+.plate:hover .plate-amigo,
+.plate-amigo:focus-visible {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* ------------------------------------------------------------------ modais e toasts */
@@ -1287,6 +1437,26 @@ button.avatar {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+/*
+ * O fundo da sala em volta da mesa.
+ *
+ * Era um degradê das cores da mesa que terminava em preto: fora do feltro não havia nada. Agora é
+ * uma sala — as cores da mesa (`--mesa-a`, `--mesa-b`, e a luz do friso em `--mesa-luz`, postas pela
+ * partida), duas luzes nos cantos e o papel de parede do tema por cima: sakura no padrão, damasco
+ * no vitoriano. Tudo baixinho, para não disputar com as cartas.
+ */
+.sala-fundo {
+  --mesa-pat: var(--sakura-pat) 0 0 / 120px 120px;
+  background:
+    radial-gradient(ellipse 62% 58% at 50% 46%, color-mix(in srgb, var(--mesa-a) 85%, #ffffff 5%) 0%, transparent 75%),
+    radial-gradient(ellipse at 10% 8%, color-mix(in srgb, var(--mesa-luz) 26%, transparent), transparent 42%),
+    radial-gradient(ellipse at 92% 92%, color-mix(in srgb, var(--mesa-luz) 20%, transparent), transparent 46%),
+    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.45) 100%),
+    var(--mesa-pat),
+    repeating-linear-gradient(30deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(-30deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 26px),
+    linear-gradient(165deg, color-mix(in srgb, var(--mesa-a) 70%, #2a1d52), color-mix(in srgb, var(--mesa-b) 80%, #120b2a));
 }
 .stage {
   position: relative;
@@ -1598,66 +1768,168 @@ button.avatar {
     opacity: 0;
   }
 }
-
-/* HUD */
-.hud-top {
-  position: absolute;
-  top: 14px;
-  left: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  z-index: 20;
+/* o assento do alto da mesa: o balão sai à direita da placa, com a ponta para a esquerda */
+.emote-bubble.lado {
+  bottom: auto;
+  top: 50%;
+  left: calc(100% + 14px);
+  transform: translateY(-50%);
+  animation-name: pop-lado;
 }
+.emote-bubble.lado::after {
+  top: 50%;
+  left: auto;
+  right: 100%;
+  margin: -7px 0 0;
+  border-top-color: transparent;
+  border-right-color: #fff;
+}
+@keyframes pop-lado {
+  from {
+    transform: translateY(-50%) scale(0.2);
+    opacity: 0;
+  }
+}
+
+/*
+ * HUD da partida.
+ *
+ * A descrição da sala é um bloquinho de duas linhas no canto, meio apagado — ela acende ao passar
+ * o mouse. Os botões moram numa coluna no canto de cima à direita, o sair junto com os outros, no
+ * mesmo recorte chanfrado dos botões grandes do sistema (`.btn`), só que pequenos e quadrados.
+ */
 .hud-info {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 20;
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 9px 18px;
-  font-size: 14px;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 380px;
+  padding: 6px 12px 7px;
+  border-radius: 10px;
+  background: rgba(8, 4, 20, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(3px);
+  font-size: 11.5px;
+  line-height: 1.35;
   color: var(--muted);
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.hud-info:hover {
+  opacity: 1;
+}
+.hud-info > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hud-info b {
   color: var(--gold-2);
-  font-size: 15px;
-}
-.hud-info .mode {
-  color: var(--pink);
-  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hud-right {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 12px;
+  right: 14px;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   z-index: 20;
 }
-.hud-btn {
+/*
+ * O botão de som com a régua de volume.
+ *
+ * A régua é vertical e flutua: abaixo do botão no menu, à esquerda dele na coluna da partida.
+ */
+.som {
   position: relative;
-  height: 44px;
-  min-width: 44px;
-  border-radius: 12px;
-  border: 1.5px solid rgba(242, 193, 78, 0.5);
-  background: linear-gradient(180deg, rgba(52, 38, 104, 0.95), rgba(20, 14, 44, 0.95));
-  font-size: 18px;
-  font-weight: 800;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transition: filter 0.15s;
 }
-.hud-btn:hover {
-  filter: brightness(1.2);
-}
-.hud-btn.wide {
-  padding: 0 16px;
-  font-size: 15px;
-}
-.hud-btn .dot {
+.som-regua {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 9px;
-  height: 9px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(14, 8, 30, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+.som.baixo .som-regua {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.som.esquerda .som-regua {
+  top: 0;
+  right: calc(100% + 10px);
+}
+.som-pct {
+  font-family: var(--num);
+  font-size: 13px;
+  color: var(--gold-2);
+}
+.som-trilho {
+  position: relative;
+  width: 24px;
+  height: 130px;
+}
+/* a régua deitada, girada de pé; o próprio controle é a trilha, como os outros deslizadores do jogo */
+input[type='range'].som-slider {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 130px;
+  height: 6px;
+  margin: 0;
+  border-radius: 3px;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  background: linear-gradient(90deg, var(--gold) var(--som), rgba(255, 255, 255, 0.15) var(--som));
+  cursor: pointer;
+}
+.som-mudo {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+  cursor: pointer;
+}
+.som-mudo:hover {
+  border-color: var(--gold);
+}
+.hud-bt {
+  --canto: 6px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1;
+}
+/* o sair se distingue pela face avermelhada, não por um botão maior: é o que menos se aperta */
+.hud-sair {
+  --face: linear-gradient(180deg, #8a4a5c, #5c2a3a);
+  font-size: 18px;
+}
+.hud-bt .dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--pink);
   box-shadow: 0 0 6px var(--pink);
@@ -2002,8 +2274,8 @@ button.avatar {
 }
 .emote-grid {
   position: absolute;
-  top: 54px;
-  right: 0;
+  top: 0;
+  right: calc(100% + 10px);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
@@ -2304,10 +2576,12 @@ button.avatar {
 
 .floor-plane {
   pointer-events: none;
-  background:
-    radial-gradient(ellipse at 50% 50%, transparent 0%, transparent 28%, rgba(4, 2, 12, 0.85) 62%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 3px, transparent 3px 160px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 3px, transparent 3px 160px);
+  /*
+   * O piso é da mesa (veja src/game/piso.ts, que pinta o fundo). Aqui ele só se dissolve nas
+   * bordas: o chão acaba em névoa, e a sala em volta continua aparecendo em vez de um recorte.
+   */
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 42%, transparent 72%);
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 42%, transparent 72%);
 }
 .table-plane {
   pointer-events: none;
@@ -2780,6 +3054,36 @@ button.avatar {
 .player-portrait > * {
   border-radius: 50%;
 }
+/* com a moldura do Estúdio a foto vira a mesma da mesa: quadrada de cantos redondos, sem a borda dourada */
+/*
+ * A foto é maior que a pílula (75px) e fica centrada na altura dela, passando um pouco para cima e
+ * para baixo por igual: a pílula continua da altura dela, e a foto não empurra a barra do topo.
+ */
+.player-portrait.com-moldura {
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 75px;
+  height: 75px;
+  border-radius: 16px;
+  border: none;
+  overflow: visible;
+  flex: none;
+}
+.player-chip:has(> .player-portrait.com-moldura) {
+  padding-left: 90px;
+  min-height: 62px;
+  /* a ponta esquerda acompanha a foto: redonda, ela aparecia pelas beiradas atrás do retrato */
+  border-radius: 16px 40px 40px 16px;
+}
+.player-portrait.com-moldura > img {
+  border-radius: 16px;
+}
+.player-portrait.com-moldura > .moldura {
+  border-radius: 0;
+}
 .player-meta {
   display: flex;
   flex-direction: column;
@@ -2838,6 +3142,84 @@ button.avatar {
   gap: 22px;
   width: min(660px, 46vw);
 }
+/* o grupo, numa linha acima dos modos: fotos com moldura, o líder com a estrela */
+.grupo-linha {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 16px 6px;
+  border-radius: 999px;
+  background: rgba(10, 6, 24, 0.62);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+}
+.grupo-linha-rotulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.grupo-linha-um {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.grupo-linha-um small {
+  max-width: 64px;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grupo-linha-um.off {
+  filter: grayscale(0.8) brightness(0.7);
+}
+.grupo-linha-estrela {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 2;
+  font-style: normal;
+  font-size: 14px;
+  color: var(--gold-2);
+  text-shadow: 0 1px 3px #000;
+}
+.grupo-linha-mais {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  border: 2px dashed var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+.grupo-linha-mais:hover {
+  color: var(--gold-2);
+  border-color: var(--gold-2);
+}
+/* nos modais de jogo: o grupo vai junto */
+.grupo-aviso {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 126, 182, 0.1);
+  border: 1px solid rgba(255, 126, 182, 0.35);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* três cartas: não quebram a linha, afinam junto com a janela */
 .mode-cards {
   display: flex;
@@ -3259,16 +3641,6 @@ button.avatar {
   -webkit-background-clip: text;
   background-clip: text;
   filter: drop-shadow(0 4px 0 #3a0018) drop-shadow(0 0 30px rgba(255, 107, 154, 0.7));
-}
-
-/* sala: retratos */
-.lobby-portrait {
-  width: 96px;
-  height: 96px;
-  border-radius: 18px;
-  overflow: hidden;
-  border: 3px solid var(--gold-2);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
 }
 
 /* estúdio: personagem */
@@ -4467,7 +4839,7 @@ button.avatar {
 }
 .bond-page-in {
   position: relative;
-  width: min(1120px, 96vw);
+  width: min(1400px, 96vw);
   max-height: 92vh;
   padding: 20px 22px;
   display: flex;
@@ -4542,6 +4914,116 @@ button.avatar {
 }
 .bond-page-col h3 {
   margin: 4px 0 0;
+}
+/*
+ * Com conta, três colunas: presentes, missões e recompensas — tudo à vista, sem rolar.
+ *
+ * Empilhada, a página passava da tela: a tranca, a prateleira e duas listas longas uma embaixo da
+ * outra. Lado a lado, cada coluna cabe na altura da janela.
+ */
+.bond-page-body.tres {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 0.8fr) minmax(0, 1.35fr);
+}
+.bond-page-body.tres .bond-presentes {
+  border: none;
+  padding: 0;
+  background: none;
+}
+.bond-page-body.tres .bond-presentes-lista {
+  grid-template-columns: minmax(0, 1fr);
+}
+.bond-proximo.travado {
+  border-color: color-mix(in srgb, var(--pink, #ff7eb6) 55%, transparent);
+  background: color-mix(in srgb, var(--pink, #ff7eb6) 10%, transparent);
+}
+.bond-proximo b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bond-missoes-dica {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.bond-contadores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+}
+.bond-contador {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.03);
+}
+.bond-contador b {
+  font-family: var(--num);
+  font-size: 22px;
+  color: var(--gold-2);
+  line-height: 1.1;
+}
+.bond-contador small {
+  font-size: 11px;
+  color: var(--muted);
+}
+/* a fala da recompensa, numa caixa baixa: momento e botões numa linha, a fala na outra */
+.bond-audio.compacta {
+  gap: 2px;
+  padding: 6px 9px;
+}
+.bond-audio.compacta .bond-audio-line {
+  font-size: 14px;
+  line-height: 1.3;
+}
+.bond-audio.compacta .bond-audio-pt {
+  font-weight: 400;
+}
+.bond-page .bond-reward-info small {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* a coluna já se chama Presentes: o título da prateleira sai, fica a regra do degrau */
+.bond-page-body.tres .bond-presentes-cab > b {
+  display: none;
+}
+/* janela baixa: o cabeçalho encolhe e cada recompensa perde uma linha, para as cinco caberem */
+@media (max-height: 800px) {
+  .bond-page {
+    padding: 12px;
+  }
+  .bond-page-in {
+    max-height: 96vh;
+    padding: 14px 18px;
+    gap: 8px;
+  }
+  .bond-page-head .char-info-portrait {
+    width: 64px;
+    height: 64px;
+  }
+  .bond-page-head h2 {
+    font-size: 24px;
+  }
+  .bond-rewards {
+    gap: 6px;
+  }
+  .bond-page .bond-reward {
+    padding: 6px 9px;
+  }
+  .bond-page .bond-reward-info small {
+    -webkit-line-clamp: 2;
+  }
+  .bond-audio.compacta .bond-audio-line {
+    font-size: 13px;
+  }
+  .bond-audio.compacta .bond-audio-moment {
+    font-size: 10px;
+  }
 }
 
 /* missões */
@@ -5514,13 +5996,61 @@ button.avatar {
   align-items: center;
   gap: 3px;
   /* a largura é do conjunto, não do card: sem isto um título comprido esticaria a coluna e
-     passaria das bordas do card */
-  width: clamp(140px, 21vh, 268px);
+     passaria das bordas do card. Quem usa o card fora da abertura troca pela variável. */
+  width: var(--cartao-w, clamp(140px, 21vh, 268px));
+  flex: none;
   transition: filter 0.3s ease;
 }
 /* quem ainda não confirmou fica apagado — dá para ver de longe quem a mesa espera */
-.pm-slot:not(.ready) {
+.pm-slot.esperando {
   filter: grayscale(0.75) brightness(0.65);
+}
+/* a etiqueta no pé do card, à direita (líder, anfitrião): o alto é do nível, a esquerda é do par de cartas */
+.pm-canto {
+  position: absolute;
+  bottom: 7px;
+  right: 7px;
+  z-index: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line-soft);
+  color: var(--gold-2);
+  white-space: nowrap;
+}
+/* fora da abertura o card é menor, e o par de cartas que passa da borda cobria o título: ele desce */
+.cartao-perfil .pm-foot,
+.cartao-grupo .pm-foot,
+.cartao-sala .pm-foot {
+  margin-top: 20px;
+  min-height: 2.4em;
+}
+/* botões e avisos embaixo do título */
+.pm-extra {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+}
+/* o lugar vazio: a mesma carta, só o contorno */
+.pm-card.pm-card-vazio {
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.18);
+  border: 2px dashed var(--line-soft);
+}
+.pm-card.pm-card-vazio::before {
+  display: none;
+}
+.pm-vazio-sinal {
+  font-family: var(--title);
+  font-size: calc(var(--cartao-w, 160px) * 0.28);
+  color: var(--muted);
+  opacity: 0.45;
 }
 /* o seu card se distingue pelo nome, e só por ele: o card de trás é igual para todo mundo */
 .pm-slot.me .pm-name {
@@ -6420,6 +6950,68 @@ button.avatar {
     transform: scale(1);
   }
 }
+/* subiu de nível: o número com a seta no lugar do prêmio, e o que ele abriu embaixo */
+.nivel-novo-palco {
+  height: min(40vh, 340px);
+}
+.nivel-novo-numero {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  filter: drop-shadow(0 6px 22px rgba(0, 0, 0, 0.6));
+}
+.nivel-novo-seta {
+  font-style: normal;
+  font-size: 54px;
+  line-height: 1;
+  color: currentColor;
+  margin-top: 18px;
+  animation: nivel-seta 1.2s ease-in-out infinite;
+}
+@keyframes nivel-seta {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-10px);
+    opacity: 0.75;
+  }
+}
+.nivel-novo-abriu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+}
+.nivel-novo-abriu > small {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.nivel-novo-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.nivel-novo-item b {
+  color: var(--gold-2);
+  font-size: 17px;
+}
+.nivel-novo-item i {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .ticket-art.girando {
   box-shadow:
     inset 0 0 0 2px rgba(60, 30, 0, 0.35),
@@ -7354,25 +7946,268 @@ button.avatar {
 /* ------------------------------------------------------------------ perfil */
 
 /*
- * A tela de perfil.
+ * Telas de duas colunas num painel só — Ajustes, Perfil e Amigos.
  *
- * Duas colunas: a identidade e as conquistas de um lado, o gráfico do outro. O gráfico pede
- * largura e altura próprias — espremido numa coluna com a lista de conquistas, ele voltaria a ser
- * o selinho que era dentro de Configurações.
+ * Eram dois painéis soltos, cada um da altura do que tinha dentro: o da esquerda acabava no meio da
+ * tela e o da direita descia até embaixo, e a página rolava inteira. Agora é um painel que preenche
+ * a tela até a margem, dividido em duas colunas por um fio; quem rola é cada coluna, por dentro.
  */
-.profile-grid {
+.screen.tela-cheia {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.screen.tela-cheia > .screen-header {
+  flex: none;
+}
+.painel-duplo {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
-  gap: 16px;
-  padding: 0 20px 20px;
-  align-items: start;
+  grid-template-columns: var(--painel-cols, minmax(0, 1fr) minmax(0, 1fr));
+}
+.painel-col {
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.painel-col + .painel-col {
+  border-left: 1.5px solid var(--line-soft);
 }
 @media (max-width: 1100px) {
-  .profile-grid {
+  .screen.tela-cheia {
+    overflow: auto;
+  }
+  .painel-duplo {
+    flex: none;
     grid-template-columns: minmax(0, 1fr);
   }
+  .painel-col {
+    overflow: visible;
+  }
+  .painel-col + .painel-col {
+    border-left: none;
+    border-top: 1.5px solid var(--line-soft);
+  }
 }
+
+/* o rodapé de Ajustes (versão, servidor, restaurar) desce para o pé da coluna */
+.painel-col > .settings-pe {
+  margin-top: auto;
+}
+/* o grupo na frente, três vezes a largura da lista de amigos (6:2) */
+.friends-duplo {
+  --painel-cols: minmax(0, 3fr) minmax(300px, 1fr);
+}
+/*
+ * Na coluna do grupo, os cards ocupam toda a altura que sobra depois das ações.
+ *
+ * A caixa dos cards é um contêiner de tamanho: a largura de cada card sai do que couber — na
+ * altura (o card é 62:100, mais nome, título e botão) ou na largura (quatro lado a lado), o que
+ * for menor.
+ */
+.grupo-col > .section {
+  flex: 1;
+  min-height: 0;
+}
+.grupo-col .grupo {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+.grupo-col .grupo-cartoes {
+  flex: 1;
+  min-height: 260px;
+  container-type: size;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-start;
+}
+.grupo-col .cartao-grupo,
+.grupo-col .grupo-cartoes .pm-slot.vazio {
+  --cartao-w: max(96px, min(calc((100cqh - 124px) / 1.613), calc((100cqw - 3 * 30px - 18px) / 4)));
+}
+.grupo-col .cartao-grupo .pm-foot {
+  font-size: 13px;
+}
+.grupo-col .cartao-grupo .pm-pair {
+  transform: none;
+}
+.grupo-col .grupo > .btn {
+  align-self: flex-start;
+}
+/* a lista de amigos ficou numa coluna estreita: os botões descem para a linha de baixo do nome */
+.friends-duplo .amigo {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.friends-duplo .amigo-acoes {
+  justify-self: end;
+}
+.friends-duplo .pedido {
+  grid-template-columns: minmax(0, 1fr);
+}
+.friends-duplo .pedido > .row,
+.friends-duplo .pedido > .btn {
+  justify-self: end;
+}
+
+/* a foto do jogador com a moldura dele */
+.foto-moldura {
+  display: inline-block;
+  flex: none;
+  border-radius: 14px;
+}
+
+/* ------------------------------------------------------------------ o perfil, num painel só */
+.profile-duplo {
+  --painel-cols: minmax(0, 1.25fr) minmax(360px, 0.75fr);
+}
+/* o card e a identidade lado a lado: é o bloco de "quem sou eu" */
+.profile-topo {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 4px 0 18px 14px;
+}
+/* o que fica ao lado do card: a identidade em cima, o título em uso embaixo */
+.profile-lado {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.profile-lado .titulo-em-uso {
+  padding: 0;
+}
+/* o nome é um rótulo; clicar abre o campo, estreito, no mesmo lugar */
+.profile-nome {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: var(--title);
+  font-size: 26px;
+  font-weight: 800;
+  text-align: left;
+  cursor: text;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-nome i {
+  font-style: normal;
+  font-size: 15px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.profile-nome:hover i,
+.profile-nome:focus-visible i {
+  opacity: 1;
+}
+.profile-nome:hover {
+  color: var(--gold-2);
+}
+.input.profile-nome-input {
+  width: 220px;
+  max-width: 100%;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+.cartao-perfil {
+  --cartao-w: 150px;
+}
+/*
+ * As abas de histórico e conquistas: as mesmas abas da loja (`.shop-aba`), e o conteúdo num fundo
+ * leve logo embaixo — sem moldura em volta, que deixava o bloco pesado.
+ */
+.perfil-abas {
+  flex: 1;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+}
+.perfil-abas-nav .shop-aba {
+  padding: 8px 20px;
+  font-size: 14px;
+}
+.perfil-abas-corpo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 4px 4px;
+  border-top: 1px solid var(--line-soft);
+}
+/* o título em uso, logo abaixo da identidade */
+.titulo-em-uso {
+  max-width: 420px;
+  padding: 0 0 4px 14px;
+}
+.perfil-abas-corpo > .titles > .field-label:first-child,
+.perfil-abas-corpo .field-label:first-child {
+  margin-top: 0;
+}
+
+/* ------------------------------------------------------------------ o perfil de um amigo */
+.perfil-amigo {
+  position: relative;
+  width: min(1180px, 94vw);
+  height: min(820px, 90vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.perfil-amigo-carregando {
+  margin: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+.perfil-amigo-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 22px;
+}
+.perfil-amigo-col {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.perfil-amigo-col + .perfil-amigo-col {
+  border-left: 1.5px solid var(--line-soft);
+  padding-left: 22px;
+}
+.perfil-amigo-nome {
+  margin: 0;
+  font-size: 26px;
+}
+.perfil-on {
+  color: #7be08f;
+}
+
+/*
+ * O cabeçalho do perfil: a foto com moldura, o nome e o nível.
+ *
+ * As colunas da tela ficam no painel duplo (veja `.painel-duplo`): a identidade e as abas de um
+ * lado, o gráfico do outro, que pede largura e altura próprias.
+ */
 .profile-cab {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -7499,19 +8334,6 @@ button.avatar {
 
 /* ------------------------------------------------------------------ amigos e grupo */
 
-.friends-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: 16px;
-  padding: 0 20px 20px;
-  align-items: start;
-  overflow-y: auto;
-}
-@media (max-width: 1100px) {
-  .friends-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 
 /*
  * A bolinha de status.
@@ -7596,7 +8418,7 @@ button.avatar {
 }
 .amigo {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
@@ -7608,6 +8430,37 @@ button.avatar {
 .amigo.on {
   border-color: color-mix(in srgb, #3ddc97 35%, transparent);
   background: color-mix(in srgb, #3ddc97 7%, transparent);
+}
+/* a foto e o nome são um botão só: abrem o perfil */
+.amigo-abre {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.amigo-abre:hover .amigo-meta b {
+  color: var(--gold-2);
+}
+/* o grupo em cards: os mesmos da tela de carregamento, em tamanho de coluna */
+.grupo-cartoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px 30px;
+  padding: 6px 0 10px 18px;
+}
+.cartao-grupo {
+  --cartao-w: 124px;
+}
+.grupo-cartoes .pm-slot.vazio {
+  --cartao-w: 124px;
 }
 .amigo-face {
   display: grid;
@@ -7683,48 +8536,7 @@ button.avatar {
   gap: 12px;
   align-items: flex-start;
 }
-.grupo-gente {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  width: 100%;
-}
-.grupo-um {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 8px 4px;
-  border-radius: 12px;
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.03);
-  text-align: center;
-}
-.grupo-um b {
-  font-size: 12.5px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.grupo-um small {
-  font-size: 11px;
-}
-.grupo-um.lider {
-  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
-  background: color-mix(in srgb, var(--gold) 9%, transparent);
-}
 /* a cadeira vazia é um tracejado: ela convida, em vez de só faltar */
-.grupo-um.vazio {
-  border-style: dashed;
-  opacity: 0.55;
-}
-.grupo-um.vazio .amigo-face {
-  width: 44px;
-  height: 44px;
-  border: 1px dashed var(--line-soft);
-  background: transparent;
-}
 .grupo-acoes {
   display: flex;
   flex-direction: column;
@@ -7758,6 +8570,11 @@ button.avatar {
   background: rgba(14, 8, 30, 0.96);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
   font-size: 14px;
+}
+
+/* dois convites ao mesmo tempo: o da sala desce para baixo do de grupo */
+.convite.convite-sala.segundo {
+  top: 70px;
 }
 
 /* a bolinha de pedidos no botão do menu */

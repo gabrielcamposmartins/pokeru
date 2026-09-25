@@ -9,6 +9,7 @@ import {
   HEART_COST,
   HEART_GIFT_RARITY,
   addBond,
+  addBondLocal,
   bondBlocked,
   bondCap,
   giftFits,
@@ -21,7 +22,7 @@ import {
 import { CHARACTER_PRESETS } from './styles';
 
 /**
- * A tranca do vínculo: jogar enche o coração, a missão abre, o presente acelera.
+ * A tranca do vínculo: o presente enche o coração, a missão abre.
  *
  * O que estes testes protegem é a promessa feita ao jogador — que nada do que ele jogou se perde
  * enquanto o coração espera — e a escada dos presentes, que o servidor cobra.
@@ -36,11 +37,19 @@ describe('teto dos pontos', () => {
     expect(bondCap(99)).toBe(BOND_MAX);
   });
 
-  it('os pontos param no teto, mas os contadores continuam subindo', () => {
+  it('jogar não dá pontos: só os contadores das missões sobem', () => {
     let st = EMPTY_BOND;
-    for (let i = 0; i < 20; i++) st = addBond(st, 'matchWin', bondCap(0));
-    expect(st.points).toBe(bondCap(0));
+    for (let i = 0; i < 20; i++) st = addBond(st, 'matchWin');
+    for (let i = 0; i < 30; i++) st = addBond(st, 'win');
+    expect(st.points).toBe(0);
     expect(st.matches).toBe(20);
+    expect(st.wins).toBe(30);
+    expect(st.hands).toBe(30);
+  });
+
+  it('no jogo local, sem presentes, jogar continua pontuando', () => {
+    expect(addBondLocal(EMPTY_BOND, 'win').points).toBeGreaterThan(0);
+    expect(addBondLocal(EMPTY_BOND, 'win').wins).toBe(1);
   });
 
   it('o coração trancado é o que está cheio esperando a missão', () => {
@@ -80,11 +89,8 @@ describe('as missões abrem os corações', () => {
     expect(questHearts({ ...EMPTY_BOND, hands: 900, wins: 400, matches: 1 })).toBe(1);
   });
 
-  it('a barra trava no teto do que as missões abriram', () => {
-    const st = { ...EMPTY_BOND, hands: 10 };
-    let pts = EMPTY_BOND;
-    for (let i = 0; i < 50; i++) pts = addBond(pts, 'matchWin', bondCap(questHearts(st)));
-    expect(pts.points).toBe(bondCap(1));
+  it('com a missão do primeiro cumprida, a barra pode encher até o fim do segundo', () => {
+    expect(bondCap(questHearts({ ...EMPTY_BOND, hands: 10 }))).toBe(HEART_COST[0] + HEART_COST[1]);
   });
 });
 

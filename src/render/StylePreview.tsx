@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import type { Card } from '../../shared/cards';
 import type { CardBackStyle, CardFaceStyle, ChipStyle, TableStyle } from '../../shared/styles';
@@ -9,6 +9,7 @@ import { PortraitFrame, findFrame } from './PortraitFrame';
 import { ChipStack, ChipSvg } from './Chip';
 import { TableFelt } from './TableFelt';
 import { CARD_H, CARD_W, boardSlot, planeStyle, project } from '../game/layout';
+import { pisoDaMesa } from '../game/piso';
 import { useCharacter, useProfile } from '../store/profile';
 import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
@@ -109,6 +110,8 @@ export function ChipPreview({ st, size = 84 }: { st: ChipStyle; size?: number })
 }
 
 const PREVIEW_PLANE = planeStyle();
+/** O chão em volta, no mesmo plano inclinado da partida (veja FLOOR em src/game/TableStage.tsx). */
+const PREVIEW_FLOOR = planeStyle(3200, 2200, 1600, 1100);
 
 /** A mesa de verdade: o mesmo feltro, o mesmo plano inclinado e as mesmas cartas do jogo. */
 export function TablePreview({ st }: { st: TableStyle }) {
@@ -122,9 +125,30 @@ export function TablePreview({ st }: { st: TableStyle }) {
   ];
   // a aposta fica ao lado, e não em cima do logo gravado no feltro
   const chips = project({ x: 1180, y: 800 });
+  /*
+   * A mesa na sala dela: o fundo e o chão são os da partida (veja `.sala-fundo` e src/game/piso.ts),
+   * para a vitrine mostrar a mesa como ela vai aparecer — o piso faz parte da skin.
+   */
+  /*
+   * A escala acompanha a largura da caixa: o palco de dentro tem 1600x900, e a escala fixa de 0,5
+   * cortava a mesa em caixas mais estreitas que 800px (a do Estúdio, por exemplo).
+   */
+  const caixa = useRef<HTMLDivElement>(null);
+  const [k, setK] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = caixa.current;
+    if (!el) return;
+    const mede = () => setK(el.clientWidth / 1600);
+    mede();
+    const obs = new ResizeObserver(mede);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  const sala = { '--mesa-a': st.bgTop, '--mesa-b': st.bgBottom, '--mesa-luz': st.railAccent, ...(k ? { '--k': k } : {}) } as CSSProperties;
   return (
-    <div className="preview-table" style={{ background: `radial-gradient(ellipse at 50% 40%, ${st.bgTop}, ${st.bgBottom} 80%)` }}>
+    <div className="preview-table sala-fundo" style={sala} ref={caixa}>
       <div className="preview-table-inner">
+        <div className="floor-plane" style={{ ...PREVIEW_FLOOR, ...pisoDaMesa(st) }} />
         <div style={PREVIEW_PLANE}>
           <TableFelt st={st} />
           {cards.map((c, i) => {

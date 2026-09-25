@@ -44,12 +44,13 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const s = p.settings;
   return (
-    <div className="screen">
+    <div className="screen tela-cheia">
       <div className="menu-bg" />
       <Petals />
       <ScreenHeader title="Configurações" onBack={onBack} />
-      <div className="settings-grid">
-        <div className="panel pad">
+      {/* um painel só, duas colunas: ele preenche a tela até a margem, e quem rola é cada coluna */}
+      <div className="panel painel-duplo">
+        <div className="painel-col">
           {/*
             * Jogo e som numa seção só.
             *
@@ -123,7 +124,7 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
             )}
           </div>
         </div>
-        <div className="panel pad">
+        <div className="painel-col">
           <Section title="Conta">
             <AccountSection />
           </Section>

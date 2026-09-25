@@ -8,6 +8,41 @@ import { ChipSvg } from '../render/Chip';
 import { CharacterPortrait } from '../render/CharacterArt';
 import { PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { CountdownDigits, useSecondsLeft } from './Countdown';
+import { useSession } from '../store/session';
+import { pedirAmizadeNaMesa, useRelacao } from '../store/friends';
+import { sfx } from '../audio/sfx';
+
+/**
+ * O botãozinho de pedir amizade, no canto do retrato de quem está na mesa.
+ *
+ * Aparece ao passar o mouse na placa, e só para quem tem conta e ainda não é amigo. A conta sai da
+ * sala (o assento em si não carrega conta nenhuma), e o pedido vai pelo id de jogador: o servidor
+ * confere que os dois estão na mesma mesa.
+ */
+function PedirAmizade({ seat }: { seat: SeatView }) {
+  const conta = useSession((s) => s.room?.members.find((m) => m.id === seat.id)?.conta);
+  const toast = useSession((s) => s.toast);
+  const relacao = useRelacao(conta);
+  if (relacao !== 'livre') return null;
+  return (
+    <button
+      className="plate-amigo"
+      title={`Pedir amizade a ${seat.name}`}
+      aria-label={`Pedir amizade a ${seat.name}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        sfx.click();
+        pedirAmizadeNaMesa(seat.id);
+        toast(`Pedido de amizade enviado para ${seat.name}`);
+      }}
+    >
+      +♥
+    </button>
+  );
+}
+
+/** Abaixo desta altura (no palco de 1600x900) a placa está colada no alto da tela. */
+const ASSENTO_DO_TOPO = 140;
 
 /** Cartão do jogador na mesa: retrato do personagem em moldura, nome e fichas. */
 export function Nameplate({
@@ -44,6 +79,8 @@ export function Nameplate({
   const callouts = allCallouts.filter((c) => c.seat === seat.seat);
   const action = seat.lastAction && seat.lastAction !== 'sb' && seat.lastAction !== 'bb' ? ACTION_LABEL[seat.lastAction] : null;
   const size = isMe ? 96 : 76;
+  // o assento do alto da mesa não tem espaço em cima: o balão do emote sai ao lado da placa
+  const noTopo = geo.plate.y < ASSENTO_DO_TOPO;
   const cls = ['plate', 'seat-card', acting && 'acting', seat.folded && 'folded', winner && 'winner', isMe && 'is-me', !seat.connected && 'offline', seat.busted && 'busted']
     .filter(Boolean)
     .join(' ');
@@ -53,6 +90,7 @@ export function Nameplate({
         <CharacterPortrait st={st} size={size} />
         <PortraitFrame frame={moldura} size={size} />
         {badge && <div className={`plate-pos pos-${badge}`}>{badge}</div>}
+        {!isMe && !seat.isBot && <PedirAmizade seat={seat} />}
         {secs !== null && (
           <div className="seat-count">
             <CountdownDigits seconds={secs} variant="small" />
@@ -78,7 +116,7 @@ export function Nameplate({
       )}
       {seat.handName && !seat.folded && <div className="plate-hand">{seat.handName}</div>}
       {emotes.map((e) => (
-        <div key={e.id} className="emote-bubble">
+        <div key={e.id} className={`emote-bubble ${noTopo ? 'lado' : ''}`}>
           {e.emote}
         </div>
       ))}

@@ -1,7 +1,7 @@
 import { Room, makeId, sanitizeSettings, type ClientHandle } from './room';
 import type { AccountInfo, AccountProfile, AccountService, AuthIdentity } from './accounts';
 import { playerLevel } from './achievements';
-import { MAX_PARTY, podeMaisNoGrupo, type FriendInfo, type PartyInfo, type PartyKind } from './friends';
+import { MAX_PARTY, podeMaisNoGrupo, type CartaoJogador, type FriendInfo, type PartyInfo, type PartyKind, type PerfilPublico } from './friends';
 import type { FriendRow } from './accounts';
 import { clampCosmetics } from './catalog';
 import {
@@ -27,6 +27,7 @@ import {
   sanitizeAvatar,
   sanitizeCosmetics,
   sanitizeName,
+  findCharacter,
   type AvatarInfo,
   type PlayerCosmetics,
   FACE_PRESETS,
@@ -261,22 +262,116 @@ export class Lobby {
     return null;
   }
 
+  /**
+   * O card de uma conta — o mesmo da tela de abertura.
+   *
+   * Conectada, ele sai da conexão (o que ela está vestindo agora, já cortado para o que a conta
+   * tem); offline, de como ela estava vestida da última vez (`aparencia`).
+   */
+  cartaoDe(accountId: string): CartaoJogador {
+    const info = this.accounts?.info(accountId);
+    const conn = this.connsOf(accountId)[0];
+    const base = { name: info?.name ?? conn?.name ?? 'Jogador', level: info ? playerLevel(info.stats) : (conn?.level ?? 0), title: info?.title ?? conn?.title ?? null };
+    if (conn) {
+      const c = conn.cosmetics;
+      return { ...base, character: c.character, auras: c.auras, frame: c.frame, face: c.face, back: c.back };
+    }
+    const a = this.accounts?.aparencia?.(accountId);
+    return {
+      ...base,
+      character: findCharacter(a?.character ?? 'marina'),
+      auras: a?.auras ?? [...DEFAULT_AURAS],
+      frame: a?.frame ?? DEFAULT_FRAME,
+      face: a?.face ?? FACE_PRESETS[0],
+      back: a?.back ?? BACK_PRESETS[0],
+    };
+  }
+
   private partyInfo(p: Party): PartyInfo {
     return {
       id: p.id,
       leader: p.leader,
       members: p.members.map((id) => {
-        const info = this.accounts?.info(id);
+        const cartao = this.cartaoDe(id);
         return {
           id,
-          name: info?.name ?? 'Jogador',
-          character: this.connsOf(id)[0]?.cosmetics.character.id ?? 'marina',
-          level: info ? playerLevel(info.stats) : 0,
+          name: cartao.name,
+          character: cartao.character.id,
+          level: cartao.level,
           leader: id === p.leader,
           online: this.online(id),
+          cartao,
         };
       }),
     };
+  }
+
+  /**
+   * O perfil de um amigo: o card, o histórico e as conquistas.
+   *
+   * Só de amigo — e o próprio, que é o mesmo perfil visto de fora. Saldo, itens e presentes não
+   * vão: o perfil é o que a pessoa mostra, não a carteira dela.
+   */
+  perfilDe(quem: string, alvo: string): PerfilPublico | string {
+    const accounts = this.accounts;
+    if (!accounts) return 'perfis precisam de uma conta no servidor';
+    if (alvo !== quem && !accounts.friends(quem).friends.some((f) => f.id === alvo)) return 'só dá para ver o perfil de amigos';
+    const info = accounts.info(alvo);
+    if (!info) return 'conta não encontrada';
+    const conns = this.connsOf(alvo);
+    return {
+      id: alvo,
+      code: info.code,
+      online: conns.length > 0,
+      playing: conns.some((c) => !!c.room),
+      cartao: this.cartaoDe(alvo),
+      stats: info.stats,
+      play: info.play,
+    };
+  }
+
+  /**
+   * Chama um amigo para a sala Custom em que estou.
+   *
+   * Vale para quem já está sentado na sala (o anfitrião ou não), e o amigo chamado entra sem senha
+   * (veja `Room.convidados`). Mesas da fila e contra bots ficam de fora: lá quem senta é o servidor.
+   */
+  convidarParaSala(from: Connection, alvoId: string): string | null {
+    const accounts = this.accounts;
+    const room = from.room;
+    if (!accounts || !from.accountId) return 'convites precisam de uma conta no servidor';
+    if (!room) return 'entre numa sala antes de chamar alguém';
+    if (room.settings.queue || room.settings.custom === false) return 'só dá para chamar amigos para uma sala Custom';
+    if (room.status === 'finished') return 'essa partida já acabou';
+    if (!accounts.friends(from.accountId).friends.some((f) => f.id === alvoId)) return 'chame apenas amigos';
+    if (!this.online(alvoId)) return 'esse amigo não está online agora';
+    if (this.connsOf(alvoId).some((c) => c.room === room)) return 'esse amigo já está na sala';
+    room.convidados.add(alvoId);
+    const nome = accounts.info(from.accountId)?.name ?? from.name;
+    for (const c of this.connsOf(alvoId)) c.send({ type: 'roomAsk', room: room.id, from: from.accountId, name: nome, sala: room.settings.name });
+    return null;
+  }
+
+  /**
+   * Pede amizade a quem está na mesma sala (na espera ou em plena partida).
+   *
+   * O código de amigo é o caminho de sempre; aqui ele é lido da conta do outro, porque ninguém
+   * dita código no meio de uma mão. Só vale para quem está **na mesma sala**: o id de jogador de
+   * alguém de fora não abre nada.
+   */
+  pedirAmizadeNaMesa(from: Connection, playerId: string): string | null {
+    const accounts = this.accounts;
+    if (!accounts || !from.accountId) return 'amizades precisam de uma conta no servidor';
+    const alvo = from.room?.memberById(playerId);
+    if (!alvo || alvo.isBot || !alvo.accountId) return 'esse jogador não tem conta no servidor';
+    if (alvo.accountId === from.accountId) return 'essa conta é a sua';
+    const code = accounts.info(alvo.accountId)?.code;
+    if (!code) return 'esse jogador não tem código de amigo';
+    const r = accounts.requestFriend(from.accountId, code);
+    if (typeof r === 'string') return r;
+    this.sendFriends(from.accountId);
+    this.sendFriends(r.to);
+    return null;
   }
 
   private broadcastParty(p: Party): void {
@@ -505,6 +600,11 @@ export class Connection implements ClientHandle {
   private applyOwned(owned: readonly string[]): void {
     this.owns = owned;
     this.cosmetics = this.lobby.accounts ? clampCosmetics(this.wanted, owned) : this.wanted;
+    // a conta guarda como está vestida: é o card do perfil quando ela estiver offline
+    if (this.accountId) {
+      const c = this.cosmetics;
+      this.lobby.accounts?.vestir?.(this.accountId, { character: c.character.id, auras: c.auras, frame: c.frame, face: c.face, back: c.back });
+    }
   }
 
   private profile(): AccountProfile {
@@ -801,6 +901,19 @@ export class Connection implements ClientHandle {
       case 'partyInvite':
         this.error(this.lobby.convidar(this, String(msg.id ?? '')));
         break;
+      case 'roomInvite':
+        this.error(this.lobby.convidarParaSala(this, String(msg.id ?? '')));
+        break;
+      case 'friendAddPlayer':
+        this.error(this.lobby.pedirAmizadeNaMesa(this, String(msg.playerId ?? '')));
+        break;
+      case 'profileOf': {
+        if (!this.accountId) return;
+        const r = this.lobby.perfilDe(this.accountId, String(msg.id ?? ''));
+        if (typeof r === 'string') this.error(r);
+        else this.send({ type: 'perfil', perfil: r });
+        break;
+      }
       case 'partyAccept':
         if (this.accountId) this.error(this.lobby.entrarNoGrupo(this.accountId, String(msg.party ?? '')));
         break;

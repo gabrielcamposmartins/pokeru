@@ -164,7 +164,7 @@ export function EmoteMenu() {
         )}
       </AnimatePresence>
       <button
-        className="hud-btn"
+        className="btn hud-bt"
         title="Emotes"
         onClick={() => {
           sfx.click();

@@ -1,9 +1,9 @@
 import type { Card } from './cards';
 import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
-import type { AuraId, AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, PlayerCosmetics } from './styles';
+import type { AuraId, AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, FrameId, PlayerCosmetics } from './styles';
 import type { AccountCreds, AccountInfo } from './accounts';
 import type { Currency } from './catalog';
-import type { FriendInfo, PartyInfo, PartyKind } from './friends';
+import type { FriendInfo, PartyInfo, PartyKind, PerfilPublico } from './friends';
 
 export type { AccountCreds, AccountInfo, Currency };
 
@@ -198,6 +198,8 @@ export interface GanhoDaPartida {
   xpDepois: number;
   /** Fichas de consolação por ter sido eliminado contra bots (0 = nenhuma). */
   consolacao: number;
+  /** Fichas de prêmio por terminar a partida — o mesmo valor do prêmio mínimo em padocoin. */
+  bonusFichas?: number;
 }
 
 /** A mesa de um degrau, numa moeda. */
@@ -339,6 +341,17 @@ export interface MemberInfo {
   title: string | null;
   stack: number;
   connected: boolean;
+  /*
+   * O resto do card da abertura, para a sala de espera mostrar cada um do mesmo jeito. Opcionais:
+   * um servidor de antes dos cards não manda, e aí a sala desenha o que tiver.
+   */
+  level?: number;
+  auras?: AuraId[];
+  frame?: FrameId;
+  face?: CardFaceStyle;
+  back?: CardBackStyle;
+  /** Conta dele no servidor (ausente em bot e sem conta): é o que o botão de pedir amizade usa. */
+  conta?: string;
 }
 
 export interface RoomInfo {
@@ -505,6 +518,12 @@ export type ClientMsg =
   | { type: 'partyLeave' }
   /** O líder manda o grupo jogar: fila, bots ou a próxima mesa Custom que ele criar. */
   | { type: 'partyStart'; kind: PartyKind; difficulty?: BotDifficulty; currency?: Currency }
+  /** Chama um amigo para a sala em que estou (ele entra mesmo que a sala tenha senha). */
+  | { type: 'roomInvite'; id: string }
+  /** Pede amizade a quem está na mesma sala comigo (pelo id de jogador, não pelo código). */
+  | { type: 'friendAddPlayer'; playerId: string }
+  /** Abre o perfil de um amigo. */
+  | { type: 'profileOf'; id: string }
   | { type: 'removeBot'; seat: number }
   | { type: 'startGame' }
   /** "Terminei de carregar": a mesa espera isso de cada jogador antes da primeira mão. */
@@ -567,6 +586,10 @@ export type ServerMsg =
   | { type: 'party'; party: PartyInfo | null }
   /** Alguém te chamou para o grupo dele. */
   | { type: 'partyAsk'; party: string; from: string; name: string }
+  /** Um amigo chamou para a sala dele. */
+  | { type: 'roomAsk'; room: string; from: string; name: string; sala: string }
+  /** O perfil de um amigo, pedido com `profileOf`. */
+  | { type: 'perfil'; perfil: PerfilPublico }
   | { type: 'error'; message: string }
   | { type: 'pong' };
 

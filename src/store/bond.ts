@@ -6,7 +6,7 @@ import type { FalaSlot } from '../audio/voice';
 import {
   BOND_POINTS,
   EMPTY_BOND,
-  addBond,
+  addBondLocal,
   bondLevel,
   heartsOf,
   rewardAt,
@@ -74,7 +74,7 @@ export const useBond = create<BondState>()(
           // com servidor na linha, quem pontua é ele (o cliente nem tenta)
           if (s.server) return {};
           const cur = s.chars[charId] ?? EMPTY_BOND;
-          const next = addBond(cur, ev);
+          const next = addBondLocal(cur, ev);
           const points = next.points;
           // corações que fecharam agora entram na fila do anúncio
           const unlocked: BondUnlock[] = [];

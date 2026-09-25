@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { Card } from '../../shared/cards';
 import {
   BACK_PATTERNS,
@@ -22,14 +22,14 @@ import {
   type WinFxId,
 } from '../../shared/styles';
 import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
-import { useMyStyles, useOwned, useOwns } from '../store/shop';
+import { pecasDaConta, useMyStyles, useOwned, useOwns, usePecas } from '../store/shop';
+import { CAMPOS_DE_ESCOLHA, ehCor, encaixar, liberado, type Componentes } from '../../shared/componentes';
 import { itemKey, ownsItem, padoPrice, priceOf } from '../../shared/catalog';
 import { useSession } from '../store/session';
 import { CardBackSvg, CardFaceSvg, CardView, FONT_FAMILY, FONT_LABEL } from '../render/CardArt';
 import { ChipSvg } from '../render/Chip';
 import { BackPreview, ChipPreview, FacePreview, TablePreview, ThemeSample } from '../render/StylePreview';
-import { ColorField, ScreenHeader, Section, Segmented, Slider, Toggle } from '../ui/controls';
-import { rgbToHex } from '../util/color';
+import { ScreenHeader, Section, Segmented, Slider, Toggle } from '../ui/controls';
 import { parseJsonc } from '../../shared/jsonc';
 import { sfx, type FxSound } from '../audio/sfx';
 import { CardWinFx, WIN_FX, findWinFx, type FxFrame } from '../render/cardfx';
@@ -44,81 +44,94 @@ function newId(): string {
   return 'custom-' + Math.random().toString(36).slice(2, 10);
 }
 
-function hslToHex(h: number, s: number, l: number): string {
-  s /= 100;
-  l /= 100;
-  const k = (n: number) => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return rgbToHex(f(0) * 255, f(8) * 255, f(4) * 255);
-}
-
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-function randomize<K extends StyleKind>(kind: K, st: StyleMap[K]): StyleMap[K] {
-  const hue = Math.random() * 360;
-  const col = (l: number, s = 65, spread = 90) => hslToHex((hue + (Math.random() - 0.5) * spread + 360) % 360, s, l);
-  const any = st as unknown as Record<string, unknown>;
-  switch (kind) {
-    case 'face': {
-      const dark = Math.random() < 0.3;
-      return {
-        ...any,
-        bg: dark ? col(12, 30) : col(97, 40),
-        bgGradient: dark ? col(6, 30) : col(88, 45),
-        border: col(dark ? 60 : 70, 60),
-        frame: pick(['none', 'line', 'double', 'ornate'] as const),
-        frameColor: col(60, 60),
-        suitColors: {
-          s: dark ? col(85, 40) : col(18, 45),
-          h: col(52, 80, 40),
-          d: Math.random() < 0.5 ? col(52, 80, 40) : col(48, 70, 200),
-          c: dark ? col(85, 40) : col(20, 50),
-        },
-        font: pick(FONT_KEYS),
-        center: pick(['pips', 'big', 'minimal'] as const),
-        court: pick(['letter', 'crest'] as const),
-        courtColor: dark ? col(85, 50) : col(28, 55),
-        courtAccent: col(58, 75),
-      } as StyleMap[K];
+/** As peças liberadas do tipo que está sendo editado (veja shared/componentes.ts). */
+const PecasCtx = createContext<Componentes>({ cores: [], opcoes: {} });
+
+/** As escolhas liberadas de um campo, na ordem de sempre. */
+function useLiberadas<T extends string>(campo: string, todas: readonly T[]): T[] {
+  const comp = useContext(PecasCtx);
+  return todas.filter((v) => liberado(comp, campo, v));
+}
+
+/**
+ * Uma cor do editor: só as cores dos estilos que a conta tem.
+ *
+ * No lugar do seletor livre, uma amostra que abre a paleta. A cor atual aparece mesmo que não
+ * esteja na paleta (um estilo feito antes da trava), para ninguém perder o que já tinha — mas
+ * trocar, só por uma cor liberada.
+ */
+function CorLiberada({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const comp = useContext(PecasCtx);
+  const [aberta, setAberta] = useState(false);
+  const atual = value.toLowerCase();
+  const paleta = comp.cores.includes(atual) ? comp.cores : [atual, ...comp.cores];
+  return (
+    <div
+      className="cor-lib"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAberta(false);
+      }}
+    >
+      <button type="button" className="cor-lib-botao" onClick={() => setAberta((v) => !v)} aria-expanded={aberta}>
+        <i style={{ background: value }} />
+        <span>{label}</span>
+      </button>
+      {aberta && (
+        <div className="cor-lib-paleta" role="listbox" aria-label={label}>
+          {paleta.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="option"
+              aria-selected={c === atual}
+              className={c === atual ? 'on' : ''}
+              style={{ background: c }}
+              title={c}
+              onClick={() => {
+                onChange(c);
+                setAberta(false);
+              }}
+            />
+          ))}
+          <small className="cor-lib-dica">Só as cores dos estilos que você tem. Estilo novo, cores novas.</small>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Uma variação aleatória feita **só com peças da conta**.
+ *
+ * Sorteia dois estilos que a pessoa tem e, campo a campo, pega a cor (ou a escolha) de um ou de
+ * outro. O resultado é novo, mas cada peça dele saiu de algo que ela ganhou — o sorteio antigo
+ * inventava cores, e aí o Aleatório virava a porta dos fundos da roleta.
+ */
+function aleatorio<T extends object>(kind: StyleKind, st: T, estilos: readonly object[], comp: Componentes): T {
+  if (!estilos.length) return st;
+  const a = pick(estilos);
+  const b = pick(estilos);
+  const mistura = (atual: unknown, x: unknown, y: unknown): unknown => {
+    if (ehCor(atual)) {
+      const escolhido = Math.random() < 0.5 ? x : y;
+      return ehCor(escolhido) ? escolhido : ehCor(x) ? x : ehCor(y) ? y : pick(comp.cores);
     }
-    case 'back':
-      return {
-        ...any,
-        base: col(38, 70),
-        base2: col(26, 70),
-        pattern: pick(BACK_PATTERNS.filter((p) => p !== 'solid')),
-        patternColor: col(82, 70),
-        patternOpacity: 0.3 + Math.random() * 0.5,
-        border: col(95, 30),
-        frame: col(70, 70),
-        emblem: pick(EMBLEMS.filter((e) => e !== 'none' && e !== 'text')),
-        emblemColor: col(92, 40),
-        emblemBg: col(30, 70),
-      } as StyleMap[K];
-    case 'chip': {
-      const tiers = CHIP_VALUES.map((_, i) => {
-        const h = (hue + i * 45) % 360;
-        return { base: hslToHex(h, 65, 45 + (i % 2) * 10), edge: hslToHex((h + 180) % 360, 30, 95), text: '#ffffff' };
-      });
-      return { ...any, tiers, edgePattern: pick(['blocks', 'stripes', 'dots'] as const), inlay: pick(['ring', 'solid', 'dashed'] as const) } as StyleMap[K];
+    if (Array.isArray(atual)) return atual.map((v, i) => mistura(v, (x as unknown[] | undefined)?.[i], (y as unknown[] | undefined)?.[i]));
+    if (atual && typeof atual === 'object') {
+      return Object.fromEntries(
+        Object.entries(atual).map(([k, v]) => [k, mistura(v, (x as Record<string, unknown> | undefined)?.[k], (y as Record<string, unknown> | undefined)?.[k])]),
+      );
     }
-    case 'table':
-      return {
-        ...any,
-        felt: col(32, 55),
-        feltLight: col(44, 55),
-        rail: col(14, 40),
-        railAccent: col(62, 75),
-        pattern: pick(TABLE_PATTERNS),
-        patternColor: col(85, 60),
-        logoColor: col(88, 50),
-        bgTop: col(16, 45),
-        bgBottom: col(5, 40),
-      } as StyleMap[K];
-    default:
-      return st;
+    return atual;
+  };
+  const out = mistura(st, a, b) as Record<string, unknown>;
+  for (const campo of CAMPOS_DE_ESCOLHA[kind]) {
+    const ok = comp.opcoes[campo] ?? [];
+    if (ok.length) out[campo] = pick(ok);
   }
+  return encaixar(kind, out as T, comp);
 }
 
 async function loadImage(file: File): Promise<string> {
@@ -186,32 +199,62 @@ function OptGrid<T extends string>({ value, options, onChange, render }: { value
   );
 }
 
+/** As duas combinações clássicas de naipes — só aparecem quando as cores delas estão liberadas. */
+const NAIPES_DUAS = { s: '#1b1b24', h: '#d0243b', d: '#d0243b', c: '#1b1b24' };
+const NAIPES_QUATRO = { s: '#1d1f27', h: '#e0263e', d: '#1f6fe0', c: '#1c9a4c' };
+
+const MOLDURAS_DA_FRENTE = [
+  { value: 'none', label: 'Nenhuma' },
+  { value: 'line', label: 'Linha' },
+  { value: 'double', label: 'Dupla' },
+  { value: 'ornate', label: 'Ornada' },
+] as const;
+const CENTROS = [
+  { value: 'pips', label: 'Tradicional' },
+  { value: 'big', label: 'Naipe grande' },
+  { value: 'minimal', label: 'Minimalista' },
+] as const;
+const FIGURAS = [
+  { value: 'crest', label: 'Brasão' },
+  { value: 'letter', label: 'Letra grande' },
+] as const;
+
 function FaceEditor({ st, set }: { st: CardFaceStyle; set: Setter<CardFaceStyle> }) {
   const sc = (k: keyof CardFaceStyle['suitColors'], v: string) => set({ suitColors: { ...st.suitColors, [k]: v } });
+  const comp = useContext(PecasCtx);
+  const temCores = (n: Record<string, string>) => Object.values(n).every((c) => comp.cores.includes(c));
+  const molduras: string[] = useLiberadas('frame', MOLDURAS_DA_FRENTE.map((m) => m.value));
+  const centros: string[] = useLiberadas('center', CENTROS.map((m) => m.value));
+  const figuras: string[] = useLiberadas('court', FIGURAS.map((m) => m.value));
+  const fontes = useLiberadas('font', FONT_KEYS);
   return (
     <>
       <Section title="Cores do papel">
         <div className="color-grid">
-          <ColorField label="Fundo" value={st.bg} onChange={(v) => set({ bg: v })} />
-          <ColorField label="Degradê" value={st.bgGradient} onChange={(v) => set({ bgGradient: v })} />
-          <ColorField label="Borda" value={st.border} onChange={(v) => set({ border: v })} />
-          <ColorField label="Moldura" value={st.frameColor} onChange={(v) => set({ frameColor: v })} />
+          <CorLiberada label="Fundo" value={st.bg} onChange={(v) => set({ bg: v })} />
+          <CorLiberada label="Degradê" value={st.bgGradient} onChange={(v) => set({ bgGradient: v })} />
+          <CorLiberada label="Borda" value={st.border} onChange={(v) => set({ border: v })} />
+          <CorLiberada label="Moldura" value={st.frameColor} onChange={(v) => set({ frameColor: v })} />
         </div>
       </Section>
       <Section title="Naipes">
         <div className="color-grid">
-          <ColorField label="♠ Espadas" value={st.suitColors.s} onChange={(v) => sc('s', v)} />
-          <ColorField label="♥ Copas" value={st.suitColors.h} onChange={(v) => sc('h', v)} />
-          <ColorField label="♦ Ouros" value={st.suitColors.d} onChange={(v) => sc('d', v)} />
-          <ColorField label="♣ Paus" value={st.suitColors.c} onChange={(v) => sc('c', v)} />
+          <CorLiberada label="♠ Espadas" value={st.suitColors.s} onChange={(v) => sc('s', v)} />
+          <CorLiberada label="♥ Copas" value={st.suitColors.h} onChange={(v) => sc('h', v)} />
+          <CorLiberada label="♦ Ouros" value={st.suitColors.d} onChange={(v) => sc('d', v)} />
+          <CorLiberada label="♣ Paus" value={st.suitColors.c} onChange={(v) => sc('c', v)} />
         </div>
         <div className="row gap">
-          <button className="btn btn-ghost small" onClick={() => set({ suitColors: { s: '#1b1b24', h: '#d0243b', d: '#d0243b', c: '#1b1b24' } })}>
-            Duas cores
-          </button>
-          <button className="btn btn-ghost small" onClick={() => set({ suitColors: { s: '#1d1f27', h: '#e0263e', d: '#1f6fe0', c: '#1c9a4c' } })}>
-            Quatro cores
-          </button>
+          {temCores(NAIPES_DUAS) && (
+            <button className="btn btn-ghost small" onClick={() => set({ suitColors: NAIPES_DUAS })}>
+              Duas cores
+            </button>
+          )}
+          {temCores(NAIPES_QUATRO) && (
+            <button className="btn btn-ghost small" onClick={() => set({ suitColors: NAIPES_QUATRO })}>
+              Quatro cores
+            </button>
+          )}
         </div>
       </Section>
       <Section title="Formato">
@@ -221,19 +264,14 @@ function FaceEditor({ st, set }: { st: CardFaceStyle; set: Setter<CardFaceStyle>
           label="Moldura"
           value={st.frame}
           onChange={(v) => set({ frame: v })}
-          options={[
-            { value: 'none', label: 'Nenhuma' },
-            { value: 'line', label: 'Linha' },
-            { value: 'double', label: 'Dupla' },
-            { value: 'ornate', label: 'Ornada' },
-          ]}
+          options={MOLDURAS_DA_FRENTE.filter((m) => molduras.includes(m.value))}
         />
       </Section>
       <Section title="Tipografia">
         <Segmented
           value={st.font}
           onChange={(v) => set({ font: v })}
-          options={FONT_KEYS.map((f) => ({ value: f, label: <span style={{ fontFamily: FONT_FAMILY[f] }}>{FONT_LABEL[f]}</span> }))}
+          options={fontes.map((f) => ({ value: f, label: <span style={{ fontFamily: FONT_FAMILY[f] }}>{FONT_LABEL[f]}</span> }))}
         />
         <Slider label="Tamanho do índice" value={st.indexScale} min={0.8} max={1.5} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ indexScale: v })} />
       </Section>
@@ -242,24 +280,17 @@ function FaceEditor({ st, set }: { st: CardFaceStyle; set: Setter<CardFaceStyle>
           label="Centro"
           value={st.center}
           onChange={(v) => set({ center: v })}
-          options={[
-            { value: 'pips', label: 'Tradicional' },
-            { value: 'big', label: 'Naipe grande' },
-            { value: 'minimal', label: 'Minimalista' },
-          ]}
+          options={CENTROS.filter((m) => centros.includes(m.value))}
         />
         <Segmented
           label="Figuras (J, Q, K)"
           value={st.court}
           onChange={(v) => set({ court: v })}
-          options={[
-            { value: 'crest', label: 'Brasão' },
-            { value: 'letter', label: 'Letra grande' },
-          ]}
+          options={FIGURAS.filter((m) => figuras.includes(m.value))}
         />
         <div className="color-grid">
-          <ColorField label="Figura" value={st.courtColor} onChange={(v) => set({ courtColor: v })} />
-          <ColorField label="Detalhe" value={st.courtAccent} onChange={(v) => set({ courtAccent: v })} />
+          <CorLiberada label="Figura" value={st.courtColor} onChange={(v) => set({ courtColor: v })} />
+          <CorLiberada label="Detalhe" value={st.courtAccent} onChange={(v) => set({ courtAccent: v })} />
         </div>
       </Section>
     </>
@@ -296,19 +327,21 @@ const PATTERN_LABEL: Record<BackPattern, string> = {
 
 function BackEditor({ st, set }: { st: CardBackStyle; set: Setter<CardBackStyle> }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const padroes = useLiberadas('pattern', BACK_PATTERNS);
+  const emblemas = useLiberadas('emblem', EMBLEMS);
   const toast = useSession((s) => s.toast);
   return (
     <>
       <Section title="Base">
         <div className="color-grid">
-          <ColorField label="Cor 1" value={st.base} onChange={(v) => set({ base: v })} />
-          <ColorField label="Cor 2" value={st.base2} onChange={(v) => set({ base2: v })} />
+          <CorLiberada label="Cor 1" value={st.base} onChange={(v) => set({ base: v })} />
+          <CorLiberada label="Cor 2" value={st.base2} onChange={(v) => set({ base2: v })} />
         </div>
       </Section>
       <Section title="Padrão">
         <OptGrid
           value={st.pattern}
-          options={BACK_PATTERNS}
+          options={padroes}
           onChange={(v) => set({ pattern: v })}
           render={(p) => (
             <span className="pattern-opt">
@@ -317,26 +350,26 @@ function BackEditor({ st, set }: { st: CardBackStyle; set: Setter<CardBackStyle>
             </span>
           )}
         />
-        <ColorField label="Cor do padrão" value={st.patternColor} onChange={(v) => set({ patternColor: v })} />
+        <CorLiberada label="Cor do padrão" value={st.patternColor} onChange={(v) => set({ patternColor: v })} />
         <Slider label="Escala" value={st.patternScale} min={0.5} max={2} step={0.05} format={(v) => `${v.toFixed(2)}x`} onChange={(v) => set({ patternScale: v })} />
         <Slider label="Opacidade" value={st.patternOpacity} min={0} max={1} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ patternOpacity: v })} />
       </Section>
       <Section title="Borda">
         <div className="color-grid">
-          <ColorField label="Borda" value={st.border} onChange={(v) => set({ border: v })} />
-          <ColorField label="Filete" value={st.frame} onChange={(v) => set({ frame: v })} />
+          <CorLiberada label="Borda" value={st.border} onChange={(v) => set({ border: v })} />
+          <CorLiberada label="Filete" value={st.frame} onChange={(v) => set({ frame: v })} />
         </div>
         <Slider label="Largura da borda" value={st.borderWidth} min={0} max={24} onChange={(v) => set({ borderWidth: v })} />
         <Slider label="Arredondamento" value={st.radius} min={0} max={40} onChange={(v) => set({ radius: v })} />
       </Section>
       <Section title="Emblema">
-        <OptGrid value={st.emblem} options={EMBLEMS} onChange={(v) => set({ emblem: v })} render={(e) => <span className="emblem-opt">{EMBLEM_ICON[e]}</span>} />
+        <OptGrid value={st.emblem} options={emblemas} onChange={(v) => set({ emblem: v })} render={(e) => <span className="emblem-opt">{EMBLEM_ICON[e]}</span>} />
         {st.emblem === 'text' && (
           <input className="input" maxLength={3} value={st.emblemText} onChange={(e) => set({ emblemText: e.target.value })} placeholder="Até 3 letras" />
         )}
         <div className="color-grid">
-          <ColorField label="Símbolo" value={st.emblemColor} onChange={(v) => set({ emblemColor: v })} />
-          <ColorField label="Fundo" value={st.emblemBg} onChange={(v) => set({ emblemBg: v })} />
+          <CorLiberada label="Símbolo" value={st.emblemColor} onChange={(v) => set({ emblemColor: v })} />
+          <CorLiberada label="Fundo" value={st.emblemBg} onChange={(v) => set({ emblemBg: v })} />
         </div>
       </Section>
       <Section title="Imagem personalizada">
@@ -373,8 +406,22 @@ function BackEditor({ st, set }: { st: CardBackStyle; set: Setter<CardBackStyle>
   );
 }
 
+const BORDAS_DA_FICHA = [
+  { value: 'blocks', label: 'Blocos' },
+  { value: 'stripes', label: 'Listras' },
+  { value: 'dots', label: 'Pontos' },
+  { value: 'none', label: 'Lisa' },
+] as const;
+const CENTROS_DA_FICHA = [
+  { value: 'ring', label: 'Anel' },
+  { value: 'dashed', label: 'Tracejado' },
+  { value: 'solid', label: 'Sólido' },
+] as const;
+
 function ChipEditor({ st, set }: { st: ChipStyle; set: Setter<ChipStyle> }) {
   const [tier, setTier] = useState(0);
+  const bordas: string[] = useLiberadas('edgePattern', BORDAS_DA_FICHA.map((m) => m.value));
+  const centros: string[] = useLiberadas('inlay', CENTROS_DA_FICHA.map((m) => m.value));
   const t = st.tiers[tier];
   const setTierColor = (patch: Partial<ChipStyle['tiers'][number]>) => set({ tiers: st.tiers.map((x, i) => (i === tier ? { ...x, ...patch } : x)) });
   return (
@@ -390,9 +437,9 @@ function ChipEditor({ st, set }: { st: ChipStyle; set: Setter<ChipStyle> }) {
       </Section>
       <Section title={`Cores da ficha de ${CHIP_VALUES[tier].toLocaleString('pt-BR')}`}>
         <div className="color-grid">
-          <ColorField label="Base" value={t.base} onChange={(v) => setTierColor({ base: v })} />
-          <ColorField label="Borda" value={t.edge} onChange={(v) => setTierColor({ edge: v })} />
-          <ColorField label="Valor" value={t.text} onChange={(v) => setTierColor({ text: v })} />
+          <CorLiberada label="Base" value={t.base} onChange={(v) => setTierColor({ base: v })} />
+          <CorLiberada label="Borda" value={t.edge} onChange={(v) => setTierColor({ edge: v })} />
+          <CorLiberada label="Valor" value={t.text} onChange={(v) => setTierColor({ text: v })} />
         </div>
         <button
           className="btn btn-ghost small"
@@ -406,23 +453,14 @@ function ChipEditor({ st, set }: { st: ChipStyle; set: Setter<ChipStyle> }) {
           label="Borda"
           value={st.edgePattern}
           onChange={(v) => set({ edgePattern: v })}
-          options={[
-            { value: 'blocks', label: 'Blocos' },
-            { value: 'stripes', label: 'Listras' },
-            { value: 'dots', label: 'Pontos' },
-            { value: 'none', label: 'Lisa' },
-          ]}
+          options={BORDAS_DA_FICHA.filter((m) => bordas.includes(m.value))}
         />
         <Slider label="Marcas na borda" value={st.edgeCount} min={4} max={12} onChange={(v) => set({ edgeCount: v })} />
         <Segmented
           label="Centro"
           value={st.inlay}
           onChange={(v) => set({ inlay: v })}
-          options={[
-            { value: 'ring', label: 'Anel' },
-            { value: 'dashed', label: 'Tracejado' },
-            { value: 'solid', label: 'Sólido' },
-          ]}
+          options={CENTROS_DA_FICHA.filter((m) => centros.includes(m.value))}
         />
         <div className="row gap wrap">
           <Toggle label="Mostrar valor" value={st.showValue} onChange={(v) => set({ showValue: v })} />
@@ -436,30 +474,31 @@ function ChipEditor({ st, set }: { st: ChipStyle; set: Setter<ChipStyle> }) {
 const TPATTERN_LABEL: Record<TablePattern, string> = { none: 'Liso', lines: 'Linhas', hex: 'Hexágonos', sakura: 'Sakura', suits: 'Naipes', damask: 'Damasco' };
 
 function TableEditor({ st, set }: { st: TableStyle; set: Setter<TableStyle> }) {
+  const estampas = useLiberadas('pattern', TABLE_PATTERNS);
   return (
     <>
       <Section title="Feltro">
         <div className="color-grid">
-          <ColorField label="Feltro" value={st.felt} onChange={(v) => set({ felt: v })} />
-          <ColorField label="Brilho central" value={st.feltLight} onChange={(v) => set({ feltLight: v })} />
+          <CorLiberada label="Feltro" value={st.felt} onChange={(v) => set({ felt: v })} />
+          <CorLiberada label="Brilho central" value={st.feltLight} onChange={(v) => set({ feltLight: v })} />
         </div>
-        <Segmented label="Estampa" value={st.pattern} onChange={(v) => set({ pattern: v })} options={TABLE_PATTERNS.map((p) => ({ value: p, label: TPATTERN_LABEL[p] }))} />
-        <ColorField label="Cor da estampa / linhas" value={st.patternColor} onChange={(v) => set({ patternColor: v })} />
+        <Segmented label="Estampa" value={st.pattern} onChange={(v) => set({ pattern: v })} options={estampas.map((p) => ({ value: p, label: TPATTERN_LABEL[p] }))} />
+        <CorLiberada label="Cor da estampa / linhas" value={st.patternColor} onChange={(v) => set({ patternColor: v })} />
       </Section>
       <Section title="Borda acolchoada">
         <div className="color-grid">
-          <ColorField label="Borda" value={st.rail} onChange={(v) => set({ rail: v })} />
-          <ColorField label="Friso" value={st.railAccent} onChange={(v) => set({ railAccent: v })} />
+          <CorLiberada label="Borda" value={st.rail} onChange={(v) => set({ rail: v })} />
+          <CorLiberada label="Friso" value={st.railAccent} onChange={(v) => set({ railAccent: v })} />
         </div>
       </Section>
       <Section title="Logotipo">
         <input className="input" maxLength={24} value={st.logoText} onChange={(e) => set({ logoText: e.target.value })} />
-        <ColorField label="Cor do logotipo" value={st.logoColor} onChange={(v) => set({ logoColor: v })} />
+        <CorLiberada label="Cor do logotipo" value={st.logoColor} onChange={(v) => set({ logoColor: v })} />
       </Section>
       <Section title="Ambiente">
         <div className="color-grid">
-          <ColorField label="Fundo (centro)" value={st.bgTop} onChange={(v) => set({ bgTop: v })} />
-          <ColorField label="Fundo (bordas)" value={st.bgBottom} onChange={(v) => set({ bgBottom: v })} />
+          <CorLiberada label="Fundo (centro)" value={st.bgTop} onChange={(v) => set({ bgTop: v })} />
+          <CorLiberada label="Fundo (bordas)" value={st.bgBottom} onChange={(v) => set({ bgBottom: v })} />
         </div>
       </Section>
     </>
@@ -1079,10 +1118,10 @@ function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (te
   );
 }
 
-export function Studio({ onBack }: { onBack: () => void }) {
+export function Studio({ onBack, inicial = 'face' }: { onBack: () => void; /** A aba que abre (o preview usa). */ inicial?: Tab }) {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
-  const [tab, setTab] = useState<Tab>('face');
+  const [tab, setTab] = useState<Tab>(inicial);
   /** Estilo das abas de estilos (as abas avulsas — efeitos, aura, moldura, UI — não editam nada). */
   const kind: StyleKind = ehAvulsa(tab) ? 'face' : tab;
   const [selected, setSelected] = useState<Record<StyleKind, string>>(() => ({ ...profile.equipped }));
@@ -1091,6 +1130,9 @@ export function Studio({ onBack }: { onBack: () => void }) {
 
   // só o que é dele: presets comprados (ou gratuitos) e as criações do próprio Estúdio
   const list = useMyStyles(kind);
+  // e as peças com que ele pode montar: as dos estilos que tem
+  const pecas = usePecas(kind);
+  const owned = useOwned();
   // quantos presets deste tipo ainda não são do jogador: sem isso a lista curta parece defeito
   const trancados = PRESETS[kind].length - list.filter((x) => isPreset(kind, x.id)).length;
   const current = (list.find((x) => x.id === selected[kind]) ?? list[0]) as StyleMap[StyleKind];
@@ -1138,7 +1180,8 @@ export function Studio({ onBack }: { onBack: () => void }) {
     try {
       const obj = parseJsonc(text) as { kind?: StyleKind; style?: unknown } | null;
       const k: StyleKind = obj && typeof obj.kind === 'string' && obj.kind in PRESETS ? obj.kind : kind;
-      const st = SANITIZE[k](obj?.style ?? obj);
+      // o estilo importado chega com as peças que a pessoa tem: cada cor vira a mais parecida da paleta dela
+      const st = encaixar(k, SANITIZE[k](obj?.style ?? obj), pecasDaConta(k, owned).comp);
       const saved = { ...st, id: newId(), name: st.name || 'Importado' } as StyleMap[StyleKind];
       profile.saveStyle(k, saved);
       setTab(k);
@@ -1242,7 +1285,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
                 title={preset ? 'Estilos padrão não podem ser renomeados' : 'Renomear'}
               />
               <div className="row gap">
-                <button className="btn btn-ghost small" onClick={() => set(randomize(kind, current))} title="Gera uma variação aleatória">
+                <button className="btn btn-ghost small" onClick={() => set(aleatorio(kind, current, pecas.estilos, pecas.comp))} title="Mistura as peças dos estilos que você tem">
                   🎲 Aleatório
                 </button>
                 <button className="btn btn-ghost small" onClick={exportStyle}>
@@ -1280,7 +1323,9 @@ export function Studio({ onBack }: { onBack: () => void }) {
             <div className="preview-stage">{previewNode}</div>
             {preset && <div className="preset-note">Este é um estilo padrão. Qualquer ajuste cria automaticamente uma cópia sua.</div>}
           </div>
-          <div className="panel editor">{editor}</div>
+          <div className="panel editor">
+            <PecasCtx.Provider value={pecas.comp}>{editor}</PecasCtx.Provider>
+          </div>
         </div>
       )}
       {importing && <ImportModal onClose={() => setImporting(false)} onImport={doImport} />}

@@ -1,13 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_STATS } from '../shared/achievements';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AccountProfile } from '../shared/accounts';
 import { Lobby } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type AccountInfo, type ServerMsg, type TableView } from '../shared/protocol';
-import { BOND_POINTS } from '../shared/bond';
-import { BOT_MATCH, CONSOLACAO_BOTS, CUSTOM_PADO_MIN, QUEUE_STAKES, RECOMECO_CUSTOM, type GanhoDaPartida } from '../shared/protocol';
+import { BOT_MATCH, CONSOLACAO_BOTS, CUSTOM_PADO_MIN, QUEUE_STAKES, RECOMECO_CUSTOM, bonusPado, type GanhoDaPartida } from '../shared/protocol';
 import { sanitizeSettings } from '../shared/room';
 import { playerLevel, xpForLevel } from '../shared/achievements';
 import { personalidadeDe } from '../shared/personality';
@@ -97,7 +96,9 @@ describe('contas do servidor', () => {
     acc.note(a.id, 'wins');
     acc.note(a.id, 'matches');
     const info = acc.info(a.id)!;
-    expect(info.bond.marina.points).toBe(BOND_POINTS.win + BOND_POINTS.loss);
+    // jogar não dá pontos de vínculo (só presente dá): conta nas missões
+    expect(info.bond.marina.points).toBe(0);
+    expect(info.bond.marina.hands).toBe(2);
     expect(info.bond.marina.wins).toBe(1);
     expect(info.bond.marina.losses).toBe(1);
     expect(info.bond.ren.folds).toBe(1);
@@ -117,7 +118,24 @@ describe('contas do servidor', () => {
     const back = second.login({ id: a.id, token: a.token! }, profile)!;
     expect(back.id).toBe(a.id);
     expect(back.money).toBe(2500);
-    expect(back.bond.tobi.points).toBe(BOND_POINTS.bigWin);
+    expect(back.bond.tobi.wins).toBe(1);
+    second.close();
+  });
+
+  it('corações abertos pela regra antiga do vínculo continuam abertos', () => {
+    const file = newFile();
+    const first = new Accounts({ file });
+    const a = first.login(undefined, profile)!;
+    // dez mãos: pela regra antiga, a missão sozinha já abria o 1º coração
+    for (let i = 0; i < 10; i++) first.bond(a.id, 'tobi', 'win');
+    first.close();
+    // a conta volta como se fosse de antes da regra nova
+    const raw = JSON.parse(readFileSync(file, 'utf8'));
+    delete raw.accounts[a.id].bondV2;
+    writeFileSync(file, JSON.stringify(raw));
+
+    const second = new Accounts({ file });
+    expect(second.info(a.id)!.bondUnlocked.tobi).toBe(1);
     second.close();
   });
 
@@ -228,7 +246,7 @@ describe('mesa a dinheiro', () => {
 
     const acc = accounts.info(p.account!.id)!;
     // as duas rodadas renderam vínculo com o personagem e contaram nas estatísticas
-    expect(acc.bond.marina.points).toBeGreaterThan(0);
+    expect(acc.bond.marina.points).toBe(0);
     expect(acc.bond.marina.hands).toBeGreaterThanOrEqual(1); // quebrar na 1ª rodada deixa só uma mão
     expect(acc.bond.marina.hands).toBeLessThanOrEqual(2);
     expect(acc.bond.marina.matches).toBe(1);
@@ -505,7 +523,9 @@ describe('partida contra bots no servidor', () => {
     const fim = eventos.find((e) => e.t === 'gameOver')!;
     const meu = fim.ganhos!.find((g) => g.seat === c.seat)!;
     expect(meu.consolacao).toBe(CONSOLACAO_BOTS);
-    expect(accounts.money(id)).toBeGreaterThanOrEqual(antes - 1000 * 12 + CONSOLACAO_BOTS);
+    // terminar a partida paga em fichas o mesmo que o prêmio mínimo em padocoin — quebrado ou não
+    expect(meu.bonusFichas).toBe(bonusPado('easy', false));
+    expect(accounts.money(id)).toBeGreaterThanOrEqual(antes - 1000 * 12 + CONSOLACAO_BOTS + bonusPado('easy', false));
     accounts.close();
   }, 120_000);
 
@@ -521,6 +541,8 @@ describe('partida contra bots no servidor', () => {
     const eventos = await ateQuebrar(c, () => void accounts.charge(id, accounts.money(id)));
     const meu = eventos.find((e) => e.t === 'gameOver')!.ganhos!.find((g) => g.seat === c.seat)!;
     expect(meu.consolacao).toBe(0);
+    // quem sentou de graça também não leva o prêmio em fichas: senão a mesa de graça imprimiria fichas
+    expect(meu.bonusFichas).toBe(0);
     expect(accounts.money(id)).toBe(0);
     accounts.close();
   }, 120_000);

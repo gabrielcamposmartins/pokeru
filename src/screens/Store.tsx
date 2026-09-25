@@ -38,6 +38,7 @@ import { useCharacter, useProfile } from '../store/profile';
 import { useSession } from '../store/session';
 import { buyItem, pedeSaldo, spinRoulette, useCanShop, useGifts, useOwned, usePado } from '../store/shop';
 import { useRoleta } from '../store/roleta';
+import { LuzDoPremio } from '../render/Luz';
 import { Sparks } from '../render/Sparks';
 import { AuraAmostra, findAura } from '../render/aura';
 import { PortraitFrame, findFrame } from '../render/PortraitFrame';
@@ -861,26 +862,6 @@ function PremioArte({ item }: { item: CatalogItem }) {
       // mesa e interface não cabem numa peça: o quadro do palco já é a imagem certa deles
       return <Grande item={item} />;
   }
-}
-
-/**
- * Os feixes de luz atrás do prêmio.
- *
- * É a Luz Sagrada das cartas vencedoras (render/cardfx.tsx) recortada para fora da carta: doze
- * raios girando e um halo, pintados com `currentColor` — que quem chama define como a cor da
- * raridade. Um lendário nasce dourado; um comum, verde.
- */
-function LuzDoPremio() {
-  return (
-    <svg className="giro-luz" viewBox="0 0 100 100" aria-hidden>
-      <g className="giro-raios">
-        {Array.from({ length: 12 }, (_, i) => (
-          <path key={i} transform={`rotate(${i * 30} 50 50)`} d="M50 50 L45 -30 L55 -30 Z" />
-        ))}
-      </g>
-      <circle className="giro-halo" cx={50} cy={50} r={34} />
-    </svg>
-  );
 }
 
 /**

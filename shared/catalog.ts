@@ -1,3 +1,4 @@
+import { componentesDe, encaixar } from './componentes';
 import {
   AURA_IDS,
   BACK_PRESETS,
@@ -432,7 +433,7 @@ export function clampCosmetics(c: PlayerCosmetics, owned: readonly string[] | un
     // Estes tres agora vao para a mesa dos outros (frente no showdown, fichas da
     // aposta, mesa quando o jogador e' o dealer), entao passam pela mesma trava.
     face: ownsItem(owned, 'face', c.face.id) ? c.face : freePreset('face', FACE_PRESETS),
-    back: ownsBack(c.back, owned) ? c.back : freeBack(),
+    back: ownsBack(c.back, owned) ? versoNoQueTem(c.back, owned) : freeBack(),
     chip: ownsItem(owned, 'chip', c.chip.id) ? c.chip : freePreset('chip', CHIP_PRESETS),
     table: ownsItem(owned, 'table', c.table.id) ? c.table : freePreset('table', TABLE_PRESETS),
   };
@@ -450,6 +451,19 @@ export function ownsBack(back: { id: string; from?: string }, owned: readonly st
   // não é preset do catálogo: é criação do Estúdio, e vale pela peça de origem
   if (findItem(itemKey('back', back.id))) return false;
   return !!back.from && ownsItem(owned, 'back', back.from);
+}
+
+/**
+ * O verso personalizado, encaixado nas peças que a conta tem (veja shared/componentes.ts).
+ *
+ * O preset vai como está. A criação do Estúdio passa pelo encaixe: cada cor vira a mais parecida
+ * das cores dos versos da conta, e padrão e emblema só os que algum verso dela tem. Um cliente
+ * modificado não põe na mesa um verso com peças que a pessoa nunca ganhou.
+ */
+function versoNoQueTem(back: CardBackStyle, owned: readonly string[] | undefined): CardBackStyle {
+  if (findItem(itemKey('back', back.id))) return back;
+  const meus = BACK_PRESETS.filter((b) => ownsItem(owned, 'back', b.id));
+  return encaixar('back', back, componentesDe('back', meus));
 }
 
 export function freeBack(): CardBackStyle {

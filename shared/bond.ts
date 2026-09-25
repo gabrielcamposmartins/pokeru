@@ -1,19 +1,17 @@
 /**
  * Vínculo com os personagens — as regras.
  *
- * Jogar com um personagem aproxima você dele: cada mão rende pontos de vínculo (ganhar vale mais,
- * mas perder também conta) e cada partida terminada dá um bônus. A barra tem cinco corações; a cada
- * coração completo o personagem entrega uma recompensa.
+ * A barra tem cinco corações; a cada coração completo o personagem entrega uma recompensa.
  *
- * **Jogar não basta.** Cada coração tem uma tranca, e quem a abre são as **missões** do
- * personagem: tantas mãos ao lado dele, tantas vitórias, tantas partidas até o fim. A barra enche
- * até a borda do coração e para ali enquanto a missão não fecha — a barra não desperdiça o que
- * você jogou, ela espera.
+ * **Só presente enche a barra.** Jogar não dá pontos de vínculo: o vínculo corria depressa demais
+ * quando cada mão rendia pontos, e o presente virava detalhe. O que os presentes pedem é altura: o
+ * primeiro coração aceita um ramo de sakura, o quinto já não se impressiona com menos que um
+ * kimono. É a mesma escada de raridade do resto do jogo (shared/catalog.ts).
  *
- * **Os presentes dão pontos.** Eles não abrem coração nenhum: enchem a barra mais depressa, e só
- * isso. O que eles pedem é altura: o primeiro coração aceita um ramo de sakura, o quinto já não
- * se impressiona com menos que um kimono. É a mesma escada de raridade do resto do jogo
- * (shared/catalog.ts), o que dá ao presente caro um lugar onde ele vale a pena.
+ * **A missão abre o coração.** Cada coração tem uma tranca, e quem a abre são as **missões** do
+ * personagem: tantas mãos ao lado dele, tantas vitórias, tantas partidas até o fim. Jogar conta
+ * para elas, e só para elas. A barra enche até a borda do coração e para ali enquanto a missão não
+ * fecha — o presente dado não se perde, ele espera.
  *
  * Este arquivo é comum ao servidor e ao cliente: o servidor hospedado pontua o vínculo das contas
  * com as mesmas contas daqui. O catálogo de recompensas (vozes, emotes, skins) é do cliente e fica
@@ -33,7 +31,12 @@ export const BOND_MAX = HEART_COST.reduce((t, c) => t + c, 0);
 /** O que rende pontos de vínculo. */
 export type BondEvent = 'win' | 'bigWin' | 'loss' | 'fold' | 'match' | 'matchWin';
 
-/** Quanto cada momento rende. Ganhar vale mais, mas perder junto com o personagem também aproxima. */
+/**
+ * Quanto cada momento rendia de pontos, na regra antiga.
+ *
+ * Hoje jogar não dá pontos (veja o topo do arquivo); a tabela fica para o jogo local, sem conta,
+ * que não tem loja nem presentes — ali o vínculo continua andando jogando.
+ */
 export const BOND_POINTS: Record<BondEvent, number> = {
   win: 10,
   bigWin: 18,
@@ -99,16 +102,23 @@ const COUNTERS: Record<BondEvent, Partial<BondStats>> = {
 };
 
 /**
- * Soma um momento ao vínculo: devolve a ficha nova (não mexe na antiga).
+ * Conta um momento nas missões: devolve a ficha nova (não mexe na antiga).
  *
- * `cap` é o limite de pontos do coração destrancado mais recente (veja `bondCap`). Os contadores
- * sobem de todo jeito — as missões continuam valendo, e é o que a página mostra —, mas os pontos
- * param na borda do coração trancado.
+ * Só os contadores sobem — mãos, vitórias, partidas. Os pontos da barra não mudam: quem os dá são
+ * os presentes (veja `giftPoints`).
  */
-export function addBond(cur: BondStats, ev: BondEvent, cap = Infinity): BondStats {
-  const next = { ...cur, points: Math.min(cur.points + BOND_POINTS[ev], cap) };
+export function addBond(cur: BondStats, ev: BondEvent): BondStats {
+  const next = { ...cur };
   for (const [k, v] of Object.entries(COUNTERS[ev]) as [keyof BondStats, number][]) next[k] = cur[k] + v;
   return next;
+}
+
+/**
+ * O mesmo momento no jogo local, sem conta: lá não há presentes, então jogar continua dando pontos.
+ * Sem isso o vínculo de quem joga offline ficaria parado para sempre.
+ */
+export function addBondLocal(cur: BondStats, ev: BondEvent): BondStats {
+  return { ...addBond(cur, ev), points: cur.points + BOND_POINTS[ev] };
 }
 
 /** Onde o vínculo está: corações completos e o quanto falta para o próximo. */

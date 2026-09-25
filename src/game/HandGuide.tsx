@@ -135,7 +135,7 @@ export function HandGuide({ onClose }: { onClose: () => void }) {
  * O botão de interrogação que abre o guia.
  *
  * Mora no menu e na mesa — a dúvida costuma vir no meio da mão, não antes dela. `className` deixa
- * cada lugar usar o seu botão redondo (`round-icon` no menu, `hud-btn` na mesa) sem duplicar a
+ * cada lugar usar o seu botão redondo (`round-icon` no menu, `hud-bt` na mesa) sem duplicar a
  * lógica de abrir e fechar.
  */
 export function HandGuideButton({ className = 'round-icon' }: { className?: string }) {

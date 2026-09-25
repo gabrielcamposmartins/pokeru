@@ -340,6 +340,13 @@ export class Room {
           title: m.title,
           stack: m.stack,
           connected: m.connected,
+          // o resto do card da abertura: a sala de espera mostra cada um do mesmo jeito
+          level: m.level,
+          auras: m.isBot ? [] : m.cosmetics.auras,
+          frame: m.isBot ? DEFAULT_FRAME : m.cosmetics.frame,
+          face: m.cosmetics.face,
+          back: m.cosmetics.back,
+          conta: m.accountId,
         })),
     };
   }
@@ -384,8 +391,17 @@ export class Room {
   }
 
   /** As regras de entrada, sem cobrar nada: devolve a cadeira ou o motivo da recusa. */
+  /**
+   * Contas chamadas para esta sala por quem já está nela (veja `Lobby.convidarParaSala`).
+   *
+   * O convite vale como a senha: o amigo chamado entra numa sala privada sem precisar dela — quem
+   * chamou já sabia, e ditar a senha no chat seria a mesma coisa com um passo a mais.
+   */
+  readonly convidados = new Set<string>();
+
   private checkJoin(client: ClientHandle, password?: string): { erro: string } | { seat: number } {
-    if (this.settings.password && this.settings.password !== password) return { erro: 'Senha incorreta' };
+    const convidado = !!client.accountId && this.convidados.has(client.accountId);
+    if (this.settings.password && this.settings.password !== password && !convidado) return { erro: 'Senha incorreta' };
     if (this.status === 'playing' && this.closedGame()) return { erro: 'Partida em andamento' };
     if (this.status === 'finished') return { erro: 'Partida encerrada' };
     let seat = this.seats.findIndex((s) => s === null);
@@ -1114,6 +1130,8 @@ export class Room {
       const lugar = ranking.find((r) => r.seat === m.seat)?.place ?? 0;
       this.guardarResumo(m, { lugar, jogadores: ranking.length });
       this.premioDoFim(m, lugar === 1);
+      const bonus = this.bonusFichasDe(m);
+      if (bonus > 0) this.bank?.credit(m.accountId!, bonus);
       this.cashOut(m);
     }
     this.broadcastRoom();
@@ -1144,6 +1162,7 @@ export class Room {
           xpAntes: Math.max(0, xpDepois - xp.total),
           xpDepois,
           consolacao: m.consolacao ?? 0,
+          bonusFichas: this.bonusFichasDe(m),
         };
       });
   }
@@ -1161,6 +1180,18 @@ export class Room {
     const premio = bonusPado(this.settings.difficulty ?? 'normal', venceu);
     if (premio <= 0) return;
     this.bank.bonus(m.accountId, premio, `pokeru:bonus:${this.id}:${m.accountId}:${Date.now()}`, venceu ? 'vitória' : 'partida completa');
+  }
+
+  /**
+   * O prêmio em fichas por terminar a partida: o mesmo valor do prêmio mínimo em padocoin.
+   *
+   * O padocoin só chega a quem tem Discord; as fichas chegam a todo mundo que **pagou** o buy-in e
+   * ficou até o fim. Quem sentou de graça (o recomeço) não recebe: senão bastaria sentar numa mesa
+   * de graça e esperar acabar para imprimir fichas.
+   */
+  private bonusFichasDe(m: Member): number {
+    if (m.isBot || !m.accountId || m.leaving || !this.bank || !m.pagou) return 0;
+    return bonusPado(this.settings.difficulty ?? 'normal', false);
   }
 
   /** Permite ao anfitrião reiniciar a sala após o fim do Sit & Go. */
