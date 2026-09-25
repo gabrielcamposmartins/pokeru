@@ -218,7 +218,9 @@ describe('modo normal (rodadas fixas)', () => {
   it('termina no número de rodadas contratado e mostra o placar', async () => {
     vi.useFakeTimers();
     const lobby = new Lobby('teste');
-    const p = autoPlayer(lobby, 'Tester', passive);
+    // passa ou desiste, nunca paga: contra bots, quebrar encerra a partida — e pagar um all-in na
+    // primeira mão acabava com ela antes das três rodadas, conforme o baralho
+    const p = autoPlayer(lobby, 'Tester', (v) => (v.legal!.canCheck ? { type: 'check' } : { type: 'fold' }));
     p.conn.handle({
       type: 'createRoom',
       settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'normal', rounds: 3, maxPlayers: 4, startingStack: 1000, smallBlind: 25, bigBlind: 50 },
