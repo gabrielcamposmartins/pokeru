@@ -588,6 +588,11 @@ export type ServerMsg =
   | { type: 'partyAsk'; party: string; from: string; name: string }
   /** Um amigo chamou para a sala dele. */
   | { type: 'roomAsk'; room: string; from: string; name: string; sala: string }
+  /**
+   * A sessão guardada neste aparelho não vale mais (a chave de volta venceu ou foi trocada): o
+   * cliente volta para a tela de login. A conta está inteira no servidor — só falta a senha.
+   */
+  | { type: 'sessaoVencida' }
   /** O perfil de um amigo, pedido com `profileOf`. */
   | { type: 'perfil'; perfil: PerfilPublico }
   | { type: 'error'; message: string }

@@ -358,6 +358,14 @@ function handle(m: ServerMsg): void {
     case 'perfil':
       useFriends.getState().chegouPerfil(m.perfil);
       break;
+    case 'sessaoVencida':
+      // a chave guardada não vale mais: desliga, esquece a chave e volta para a tela de login
+      // (ao entrar de novo, a conexão abre com o JWT novo e a conta volta inteira)
+      queueMicrotask(() => {
+        useSession.getState().disconnect();
+        useAuth.getState().sessaoVencida();
+      });
+      break;
     case 'gifted': {
       const c = findCharacter(m.character);
       const g = findGift(m.gift);

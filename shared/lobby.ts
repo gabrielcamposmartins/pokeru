@@ -680,7 +680,17 @@ export class Connection implements ClientHandle {
           return;
         }
         // sem login: identidade por token deste aparelho (ou nenhuma, sem serviço de contas)
-        this.finishHello(accounts ? accounts.login(msg.account, this.profile()) : null);
+        const conta = accounts ? accounts.login(msg.account, this.profile()) : null;
+        /*
+         * A chave guardada é de uma conta com login e não entrou: venceu, ou foi trocada. Antes
+         * isto era silencioso — o jogo abria sem conta e parecia que nível, vínculo e Discord
+         * tinham sumido. Agora o cliente é avisado e volta para a tela de login.
+         */
+        if (!conta && msg.account?.id && accounts?.pedeSenha?.(msg.account.id)) {
+          this.send({ type: 'sessaoVencida' });
+          this.error('sua sessão expirou — entre de novo com a sua senha: a conta está inteira no servidor');
+        }
+        this.finishHello(conta);
         break;
       }
       case 'updateProfile': {

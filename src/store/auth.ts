@@ -110,6 +110,8 @@ export interface AuthState {
   setRemember(on: boolean): void;
   /** Lê a sessão guardada e pergunta ao servidor se há serviço de contas (chamado ao abrir). */
   restore(): Promise<void>;
+  /** O servidor recusou a sessão guardada: volta para a tela de login, com o usuário preenchido. */
+  sessaoVencida(): void;
   /** Entra: pede o token ao serviço e guarda a sessão se "lembrar" estiver marcado. */
   signIn(user: string, password: string): Promise<boolean>;
   /** Cria a conta e já entra. */
@@ -225,6 +227,12 @@ export const useAuth = create<AuthState>()((set, get) => ({
   },
 
   continueOffline: () => set({ status: 'offline', error: null }),
+
+  sessaoVencida() {
+    // a conta está inteira no servidor: o que venceu foi a chave deste aparelho
+    useProfile.getState().forgetAccount(SERVER_URL);
+    set({ status: 'anon', token: null, discord: null, error: 'Sua sessão expirou. Entre de novo com a sua senha — sua conta, seu nível e seu vínculo continuam no servidor.' });
+  },
 
   async signOut() {
     await clearSession();

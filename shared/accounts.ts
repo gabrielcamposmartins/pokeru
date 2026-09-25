@@ -241,6 +241,8 @@ export interface AccountService extends TableBank {
   info(accountId: string): AccountInfo | null;
   /** Troca o nome guardado da conta (o grupo e a lista de amigos leem daqui). */
   rename?(accountId: string, name: string): void;
+  /** A conta pede senha para entrar (é uma conta com login)? */
+  pedeSenha?(accountId: string | undefined): boolean;
   /**
    * Guarda como a conta está vestida (personagem, auras, moldura, cartas).
    *

@@ -535,16 +535,60 @@ describe('sessão guardada no aparelho', () => {
     acc.close();
   });
 
-  it('cada entrada com senha renova as duas semanas', async () => {
+  it('cada entrada com senha dá uma chave nova, e a do outro aparelho continua valendo', async () => {
     const acc = new Accounts({ file: newFile() });
     const primeira = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
     const segunda = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
 
     expect(segunda.id).toBe(primeira.id);
-    // chave nova a cada entrada: a antiga deixa de valer
     expect(segunda.token).not.toBe(primeira.token);
-    expect(acc.login({ id: primeira.id, token: primeira.token! }, profile())).toBeNull();
-    expect(acc.login({ id: segunda.id, token: segunda.token! }, profile())).toBeTruthy();
+    // a chave antiga é de outro aparelho (ou de outra instalação): entrar aqui não derruba lá.
+    // Antes ela deixava de valer, e o outro aparelho abria o jogo sem conta, "sem nada"
+    expect(acc.login({ id: primeira.id, token: primeira.token! }, profile())?.id).toBe(primeira.id);
+    expect(acc.login({ id: segunda.id, token: segunda.token! }, profile())?.id).toBe(primeira.id);
+    acc.close();
+  });
+
+  it('as chaves dos outros aparelhos sobrevivem ao reinício, e o teto descarta as mais velhas', async () => {
+    const file = newFile();
+    const acc = new Accounts({ file });
+    const chaves: string[] = [];
+    for (let i = 0; i < 9; i++) chaves.push((await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!.token!);
+    const id = acc.info(acc.list()[0].id)!.id;
+    acc.close();
+
+    const depois = new Accounts({ file });
+    // a principal e as seis anteriores valem; as duas mais velhas saíram pelo teto
+    expect(depois.login({ id, token: chaves[8] }, profile())).toBeTruthy();
+    expect(depois.login({ id, token: chaves[2] }, profile())).toBeTruthy();
+    expect(depois.login({ id, token: chaves[1] }, profile())).toBeNull();
+    expect(depois.login({ id, token: chaves[0] }, profile())).toBeNull();
+    depois.close();
+  });
+
+  it('chave recusada de uma conta com login avisa o cliente para pedir a senha', async () => {
+    const acc = new Accounts({ file: newFile() });
+    const a = (await acc.loginAuth({ sub: '4', username: 'gabs' }, profile()))!;
+    const lobby = new Lobby('Teste', acc);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabs', avatar: { color: '#fff', icon: '♠' }, cosmetics: profile().cosmetics, account: { id: a.id, token: 'chave-velha' } });
+
+    // antes: o jogo abria sem conta, em silêncio, e parecia que tudo tinha sumido
+    expect(got.some((m) => m.type === 'sessaoVencida')).toBe(true);
+    expect(got.some((m) => m.type === 'account')).toBe(false);
+    // e nenhuma conta nova nasceu por causa disso
+    expect(acc.count).toBe(1);
+    acc.close();
+  });
+
+  it('a conta sem login não recebe o aviso (ela não tem senha para pedir)', () => {
+    const acc = new Accounts({ file: newFile() });
+    const lobby = new Lobby('Teste', acc);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabs', avatar: { color: '#fff', icon: '♠' }, cosmetics: profile().cosmetics, account: { id: 'a-nao-existe', token: 'x' } });
+    expect(got.some((m) => m.type === 'sessaoVencida')).toBe(false);
     acc.close();
   });
 

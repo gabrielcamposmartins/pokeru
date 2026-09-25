@@ -30,7 +30,8 @@ import type { SpinResult } from '../shared/accounts';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, Aparencia, AuthIdentity, DiscordLink, FriendRow } from '../shared/accounts';
 import { BACK_PRESETS, DEFAULT_AURAS, DEFAULT_FRAME, FACE_PRESETS, sanitizeName } from '../shared/styles';
 import { GbotError, type Gbot } from './gbot';
-import { JsonStore } from './store';
+import { JsonStore, type Armazem } from './store';
+import type { ArquivoDeContas } from './banco';
 
 /** Nome da moeda nos logs. */
 const moeda = (c: Currency): string => (c === 'pado' ? 'padocoins' : 'fichas');
@@ -42,6 +43,14 @@ interface Stored {
   token: string;
   /** Quando a chave de volta expira (ISO). Ausente = não expira (contas sem login antigas). */
   tokenUntil?: string;
+  /**
+   * As chaves de volta dos **outros** aparelhos da conta com login (hash e validade).
+   *
+   * Cada entrada com senha gera uma chave nova; antes, ela substituía a anterior — e o aparelho
+   * que tinha a anterior, ao reconectar com o JWT vencido, entrava sem conta, como se tudo tivesse
+   * sumido. Agora as anteriores ainda válidas ficam aqui, até `MAX_CHAVES`.
+   */
+  chaves?: { h: string; ate: string }[];
   /** `sub` do JWT: a identidade no serviço de contas. Ausente na conta sem login. */
   sub?: string;
   /** Usuário no serviço de contas. */
@@ -92,6 +101,11 @@ interface File {
 }
 
 export interface AccountsOptions {
+  /**
+   * Onde guardar as contas (o banco de dados, veja server/banco.ts). Sem isto, é o arquivo `file`.
+   * O formato em memória é o mesmo nos dois.
+   */
+  store?: Armazem<ArquivoDeContas>;
   /** Saldo de uma conta nova. */
   startingMoney?: number;
   /**
@@ -123,6 +137,9 @@ export interface AccountsOptions {
 
 /** O token é aleatório e longo: um SHA-256 basta (não é senha digitada por gente). */
 const hash = (token: string): string => createHash('sha256').update(token).digest('hex');
+
+/** Quantas chaves de outros aparelhos uma conta guarda (além da principal). */
+const MAX_CHAVES = 6;
 
 /** Compara sem dar pista pelo tempo de resposta. */
 function sameToken(token: string, stored: string): boolean {
@@ -172,7 +189,7 @@ function personagemDe(owned: readonly string[] | undefined, id: string): string 
 }
 
 export class Accounts implements AccountService {
-  private store: JsonStore<File>;
+  private store: Armazem<File>;
   onChange?: (accountId: string) => void;
   /**
    * Quantas fichas a conta tem em mesa agora. Quem sabe disso são as salas, então o servidor
@@ -185,7 +202,8 @@ export class Accounts implements AccountService {
   private pado = new Map<string, { value: number; at: number }>();
 
   constructor(private readonly opts: AccountsOptions = {}) {
-    this.store = new JsonStore<File>(opts.file ?? './data/accounts.json', { version: 1, accounts: {} });
+    // o banco de dados, quando o servidor abriu um; sem ele, o arquivo JSON de sempre
+    this.store = (opts.store as Armazem<File> | undefined) ?? new JsonStore<File>(opts.file ?? './data/accounts.json', { version: 1, accounts: {} });
     // contas antigas (de antes da loja) não tinham lista de itens
     for (const acc of Object.values(this.store.get().accounts)) {
       acc.owned ??= [];
@@ -217,10 +235,16 @@ export class Accounts implements AccountService {
     return Object.keys(this.store.get().accounts).length;
   }
 
-  close(): void {
+  /** Grava o que falta e fecha. Com o banco, devolve a promessa da última gravação. */
+  close(): void | Promise<void> {
     if (this.notify) clearTimeout(this.notify);
     this.notify = null;
-    this.store.close();
+    return this.store.close();
+  }
+
+  /** Onde as contas estão guardadas (para o log de subida). */
+  get onde(): string {
+    return this.store.onde;
   }
 
   private byId(id: string | undefined): Stored | undefined {
@@ -295,8 +319,9 @@ export class Accounts implements AccountService {
   login(creds: AccountCreds | undefined, profile: AccountProfile): AccountInfo | null {
     const name = sanitizeName(profile.name);
     const known = this.byId(creds?.id);
-    if (known && creds && known.token && sameToken(creds.token, known.token)) {
-      if (known.tokenUntil && Date.parse(known.tokenUntil) < Date.now()) {
+    const chave = known && creds ? this.chaveDe(known, creds.token) : null;
+    if (known && creds && chave) {
+      if (chave.ate && Date.parse(chave.ate) < Date.now()) {
         console.log(`[conta] sessão de ${known.name} (${known.id}) expirou`);
         return known.sub ? null : this.novaSemLogin(name, profile);
       }
@@ -345,8 +370,10 @@ export class Accounts implements AccountService {
     this.store.touch();
     // o saldo de padocoins mora no GBOT; busca agora para a barra abrir com o número certo
     await this.refreshPado(acc.id);
-    // chave de volta nova a cada entrada com senha: é o que estica a sessão para duas semanas
+    // chave de volta nova a cada entrada com senha: é o que estica a sessão para duas semanas. A
+    // anterior não morre — é de outro aparelho (ou de outra instalação), e continua valendo lá
     const token = randomBytes(24).toString('base64url');
+    this.guardaChaveAnterior(acc);
     acc.token = hash(token);
     acc.tokenUntil = emDias(SESSION_DAYS);
     this.store.touch();
@@ -973,10 +1000,40 @@ export class Accounts implements AccountService {
     this.changed(acc.id);
   }
 
+  /**
+   * A chave de volta que bate com `token`: a principal ou a de outro aparelho. Devolve a validade
+   * dela (vazia = não expira), ou null quando nenhuma bate.
+   */
+  private chaveDe(acc: Stored, token: string): { ate: string } | null {
+    if (acc.token && sameToken(token, acc.token)) return { ate: acc.tokenUntil ?? '' };
+    const outra = acc.chaves?.find((c) => sameToken(token, c.h));
+    return outra ? { ate: outra.ate } : null;
+  }
+
+  /** A chave principal vira "de outro aparelho" (se ainda vale), e as vencidas saem. */
+  private guardaChaveAnterior(acc: Stored): void {
+    const agora = Date.now();
+    const chaves = (acc.chaves ?? []).filter((c) => Date.parse(c.ate) > agora);
+    if (acc.token && acc.tokenUntil && Date.parse(acc.tokenUntil) > agora) chaves.push({ h: acc.token, ate: acc.tokenUntil });
+    acc.chaves = chaves.slice(-MAX_CHAVES);
+  }
+
+  /**
+   * A conta desta chave pede senha? É o caso de uma conta com login cuja chave guardada no
+   * aparelho não vale mais: o lobby avisa o cliente para ele mostrar a tela de login, em vez de
+   * deixar a pessoa jogando sem conta achando que perdeu tudo.
+   */
+  pedeSenha(accountId: string | undefined): boolean {
+    return !!this.byId(accountId)?.sub;
+  }
+
   /** Só para teste: envelhece a chave de volta, para não haver teste que espere duas semanas. */
   expireSessionForTests(accountId: string): void {
     const acc = this.byId(accountId);
-    if (acc) acc.tokenUntil = new Date(Date.now() - 1000).toISOString();
+    if (!acc) return;
+    const vencida = new Date(Date.now() - 1000).toISOString();
+    acc.tokenUntil = vencida;
+    for (const c of acc.chaves ?? []) c.ate = vencida;
   }
 
   /** Presente do administrador (usado pelo console do servidor). */

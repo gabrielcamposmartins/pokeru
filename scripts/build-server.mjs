@@ -26,8 +26,8 @@ const pkg = {
   type: 'commonjs',
   main: 'server/index.js',
   scripts: { start: 'node server/index.js' },
-  // a única dependência do servidor em produção
-  dependencies: { ws: rootPkg.dependencies.ws },
+  // as dependências do servidor em produção: o WebSocket e o cliente do banco (libSQL)
+  dependencies: { ws: rootPkg.dependencies.ws, '@libsql/client': rootPkg.dependencies['@libsql/client'] },
 };
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');

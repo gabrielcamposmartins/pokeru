@@ -2,6 +2,23 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 /**
+ * Onde as contas moram: um arquivo JSON (`JsonStore`) ou o banco de dados (`ContasNoBanco`, em
+ * server/banco.ts). As duas guardam o objeto inteiro em memória e gravam agrupado; quem usa não
+ * precisa saber qual das duas está por baixo.
+ */
+export interface Armazem<T> {
+  /** Onde fica (para o log de subida). */
+  readonly onde: string;
+  get(): T;
+  /** Marca que mudou: a gravação sai em bloco, alguns segundos depois. */
+  touch(): void;
+  /** Grava agora (o banco põe na fila e não espera). */
+  flush(): void;
+  /** Grava o que falta e fecha (o banco espera a gravação terminar). */
+  close(): void | Promise<void>;
+}
+
+/**
  * Guarda um objeto num arquivo JSON, do jeito simples que um servidor caseiro precisa:
  *
  * - a gravação é **atômica** (escreve num `.tmp` e renomeia), então uma queda no meio não corrompe;
@@ -10,7 +27,7 @@ import { dirname, join } from 'node:path';
  *
  * Sem banco de dados de propósito: o arquivo fica num volume e dá para copiar, versionar e ler.
  */
-export class JsonStore<T> {
+export class JsonStore<T> implements Armazem<T> {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private dirty = false;
 
@@ -38,6 +55,10 @@ export class JsonStore<T> {
         }
       }
     }
+  }
+
+  get onde(): string {
+    return this.file;
   }
 
   get(): T {
