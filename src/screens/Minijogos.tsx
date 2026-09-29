@@ -1,32 +1,36 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { ScreenHeader } from '../ui/controls';
 import { sfx } from '../audio/sfx';
 import { fmt } from '../util/format';
 import { Petals } from './MainMenu';
+import { WalletBar } from '../ui/Wallet';
 import { DefsDasJoias, JogoJoias, JoiaSvg } from '../minijogos/JogoJoias';
 import { JogoBolhas } from '../minijogos/JogoBolhas';
 import { PALETA } from '../minijogos/bolhas';
 import { lerRecorde, type Minijogo } from '../minijogos/recorde';
+import { useMinijogos, useRestantesHoje } from '../store/minijogos';
+import { PREMIO_POR_NIVEL } from '../../shared/minijogos';
 
 /**
  * Os minijogos: uma lista de jogos rápidos para passar o tempo entre uma mesa e outra.
  *
- * Não valem fichas nem padocoins — o que fica é o recorde, neste computador. A lista abre o jogo
- * na mesma tela, e "Voltar" do jogo volta para a lista (não para o menu).
+ * Os dois são de níveis, e cada nível passado rende fichas e padocoins — quem confere e paga é o
+ * servidor, com um teto por dia (shared/minijogos.ts). O recorde de pontos fica neste computador.
+ * A lista abre o jogo na mesma tela, e "Voltar" do jogo volta para a lista (não para o menu).
  */
 const JOGOS: { id: Minijogo; nome: string; sub: string; texto: string }[] = [
   {
     id: 'joias',
     nome: 'Joias',
     sub: 'Troque e alinhe três',
-    texto: 'Troque joias vizinhas para alinhar três ou mais da mesma cor. Faça o máximo de pontos em 25 jogadas.',
+    texto: 'Troque joias vizinhas para alinhar três ou mais da mesma cor. Cada nível pede pontos e joias de uma cor, com jogadas contadas.',
   },
   {
     id: 'bolhas',
     nome: 'Bolhas',
     sub: 'Mire, atire, estoure',
-    texto: 'Atire bolhas para juntar três da mesma cor. Limpe a grade antes que ela chegue lá embaixo.',
+    texto: 'Atire bolhas para juntar três da mesma cor. Limpe a grade para passar de nível antes que ela chegue lá embaixo.',
   },
 ];
 
@@ -77,18 +81,29 @@ function CapaBolhas() {
 export function MinijogosScreen({ onBack, inicial = null }: { onBack: () => void; inicial?: Minijogo | null }) {
   const [jogando, setJogando] = useState<Minijogo | null>(inicial);
   const jogo = JOGOS.find((j) => j.id === jogando);
+  const zerarSessao = useMinijogos((s) => s.zerarSessao);
+  const restantes = useRestantesHoje();
+  // o que a sessão rendeu conta a partir de quando a tela abriu
+  useEffect(() => zerarSessao(), [zerarSessao]);
 
   return (
     <div className="screen tela-cheia mj-screen">
       <div className="menu-bg" />
-      {!jogo && <Petals />}
-      <ScreenHeader title={jogo ? jogo.nome : 'Minijogos'} onBack={jogo ? () => setJogando(null) : onBack} />
+      {/* as pétalas do menu (ou o que cai em cada tema) continuam caindo durante os jogos */}
+      <Petals />
+      <ScreenHeader title={jogo ? jogo.nome : 'Minijogos'} onBack={jogo ? () => setJogando(null) : onBack}>
+        <WalletBar />
+      </ScreenHeader>
       {jogo?.id === 'joias' ? (
         <JogoJoias onSair={() => setJogando(null)} />
       ) : jogo?.id === 'bolhas' ? (
         <JogoBolhas onSair={() => setJogando(null)} />
       ) : (
         <div className="mj-lista">
+          <p className="mj-lista-premio">
+            Cada nível passado vale <b>{PREMIO_POR_NIVEL.fichas} fichas</b> e <b>{PREMIO_POR_NIVEL.pado} padocoins</b>
+            {restantes !== null && <> · ainda rendem hoje: <b>{restantes}</b> níveis</>}
+          </p>
           {JOGOS.map((j, i) => {
             const recorde = lerRecorde(j.id);
             return (

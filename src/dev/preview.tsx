@@ -43,6 +43,8 @@
  *   &nivel=45                          o nível do jogador no menu (muda a cor da barra de xp)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
  *   &ui=retro&paleta=tron&crt=0        o tema retrofuturista (paleta: synthwave|tron|vaporwave|fosforo|ambar)
+ *   /preview.html?cena=ranking         o ranking com contas de exemplo (&aba=poker|joias|bolhas)
+ *   /preview.html?cena=menu-ranking    o menu com o botão do ranking mostrando a sua posição
  */
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -122,6 +124,9 @@ import { NivelNovoView } from '../game/NivelNovo';
 import type { CartaoJogador } from '../../shared/friends';
 import { ConviteDeGrupo, ConviteDeSala, FriendsScreen } from '../screens/Friends';
 import { useFriends } from '../store/friends';
+import { useRanking } from '../store/ranking';
+import { RankingScreen } from '../screens/Ranking';
+import { montarRanking, type ContaRanking } from '../../shared/ranking';
 
 const q = new URLSearchParams(location.search);
 const uiInicial = q.get('ui') ?? 'default';
@@ -590,6 +595,23 @@ if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'con
 if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queueing: true });
 // o card do PvP Queue com gente na fila: no menu de exemplo há três pessoas jogando
 if (cena === 'menu') useSession.setState({ fila: 3 });
+
+// o ranking com contas de exemplo (o de verdade vem do servidor)
+if (cena === 'ranking' || cena === 'menu-ranking') {
+  const nomes = ['berlineta', 'Mogleo', 'dokidoki_tt', 'Gabi', 'Kaito', 'Luna', 'Rafa', 'Sora', 'Tati', 'Vini', 'Yumi', 'Zeca'];
+  const chars = ['marina', 'ren', 'tobi', 'yukina'];
+  const contas: ContaRanking[] = nomes.map((name, i) => ({
+    id: i === 3 ? 'eu' : `c${i}`,
+    name,
+    character: chars[i % chars.length],
+    frame: i % 3 === 0 ? 'ouro' : undefined,
+    matchWins: [31, 24, 24, 12, 9, 7, 5, 3, 2, 1, 0, 0][i],
+    matches: [80, 71, 60, 40, 33, 30, 22, 15, 9, 8, 4, 2][i],
+    recordes: { joias: [0, 18_400, 9_200, 22_150, 7_800, 0, 12_300, 4_100, 0, 2_600, 15_900, 3_300][i], bolhas: [6_200, 0, 14_800, 9_900, 3_100, 11_200, 0, 2_700, 8_400, 0, 1_900, 0][i] },
+  }));
+  useRanking.setState({ ranking: montarRanking(contas, 'eu', new Date(Date.now() - 20_000)) });
+  if (cena === 'ranking') useSession.setState({ status: 'connected', account: { id: 'eu', money: 12_400, inPlay: 0, bond: {} } as never });
+}
 /**
  * A cena do giro, parada para a foto.
  *
@@ -970,6 +992,10 @@ createRoot(document.getElementById('root')!).render(
           <div className="menu-bg" />
           <Personalidades />
         </div>
+      ) : cena === 'ranking' ? (
+        <RankingScreen onBack={() => {}} inicial={q.get('aba') ?? undefined} />
+      ) : cena === 'menu-ranking' ? (
+        <MainMenu go={() => {}} />
       ) : cena === 'minijogos' ? (
         <MinijogosScreen onBack={() => {}} inicial={(q.get('jogo') as never) ?? null} />
       ) : cena === 'estudio' ? (

@@ -26,7 +26,9 @@ import { findItem, freeIdOf, isFree, isSold, ownsItem, priceOf, type Currency } 
 import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
 import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
 import { MAX_REQUESTS, isFriendCode, makeFriendCode, normalizeFriendCode, podeMaisAmigos } from '../shared/friends';
-import type { SpinResult } from '../shared/accounts';
+import type { PremioMinijogo, SpinResult } from '../shared/accounts';
+import { PREMIO_POR_NIVEL, decidirPremio, premiadosHoje, recordePlausivel, type Minijogo, type PremiosDoDia } from '../shared/minijogos';
+import { montarRanking, type ContaRanking, type Ranking } from '../shared/ranking';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, Aparencia, AuthIdentity, DiscordLink, FriendRow } from '../shared/accounts';
 import { BACK_PRESETS, DEFAULT_AURAS, DEFAULT_FRAME, FACE_PRESETS, sanitizeName } from '../shared/styles';
 import { GbotError, type Gbot } from './gbot';
@@ -91,6 +93,10 @@ interface Stored {
   stats: PlayerStats;
   /** Titulo de conquista escolhido (null/ausente = nenhum). */
   title?: string | null;
+  /** Níveis de minijogo premiados no dia (o teto diário conta daqui; veja shared/minijogos.ts). */
+  minijogos?: PremiosDoDia;
+  /** O recorde de cada minijogo (o ranking lê daqui). */
+  recordes?: Partial<Record<Minijogo, number>>;
   since: string;
   seen: string;
 }
@@ -133,6 +139,8 @@ export interface AccountsOptions {
    * confiar.
    */
   rnd?: () => number;
+  /** O relógio (ms). Existe para o teste poder andar o tempo dos prêmios dos minijogos. */
+  agora?: () => number;
 }
 
 /** O token é aleatório e longo: um SHA-256 basta (não é senha digitada por gente). */
@@ -438,6 +446,8 @@ export class Accounts implements AccountService {
       stats: sanitizeStats(acc.stats),
       title: sanitizeTitle(acc.title, sanitizeStats(acc.stats)),
       since: acc.since,
+      minijogosHoje: premiadosHoje(acc.minijogos, this.agora()),
+      recordes: { ...(acc.recordes ?? {}) },
     };
   }
 
@@ -664,6 +674,84 @@ export class Accounts implements AccountService {
     this.changed(acc.id);
     console.log(`[vínculo] ${acc.name} deu ${gift} a ${id} e ganhou ${pontos} pontos`);
     return pontos;
+  }
+
+  // ---------------------------------------------------------------- minijogos
+
+  /** Quando cada conta ganhou o último prêmio de minijogo (em memória: é só a trava de ritmo). */
+  private ultimoPremioMj = new Map<string, number>();
+
+  private agora(): number {
+    return this.opts.agora?.() ?? Date.now();
+  }
+
+  /**
+   * Um nível de minijogo foi passado: fichas na hora e padocoins pelo bot do Discord.
+   *
+   * O teto do dia fica **na conta** (sobrevive a reinício); o intervalo mínimo fica em memória,
+   * porque só serve para barrar pedidos em rajada. A chave de idempotência do padocoin é o dia e
+   * o número do prêmio: repetir a mesma chamada não paga duas vezes.
+   */
+  premioMinijogo(accountId: string, jogo: string, nivel: number): PremioMinijogo {
+    const acc = this.byId(accountId);
+    if (!acc) return { fichas: 0, pado: 0, restantes: 0, motivo: 'conta não encontrada' };
+    const agora = this.agora();
+    const d = decidirPremio(jogo, nivel, acc.minijogos, this.ultimoPremioMj.get(acc.id), agora);
+    if (!d.ok) return { fichas: 0, pado: 0, restantes: d.restantes, motivo: d.motivo };
+
+    acc.minijogos = d.registro;
+    acc.money += PREMIO_POR_NIVEL.fichas;
+    this.ultimoPremioMj.set(acc.id, agora);
+    this.store.flush();
+    this.changed(acc.id);
+    const temPado = !!acc.discord && !!this.opts.gbot?.canMoveMoney;
+    if (temPado) {
+      this.bonus(acc.id, PREMIO_POR_NIVEL.pado, `pokeru:${acc.id}:minijogo:${d.registro.dia}:${d.registro.niveis}`, `minijogo ${jogo} nível ${nivel}`);
+    }
+    console.log(`[minijogo] ${acc.name} passou o nível ${nivel} de ${jogo}: +${PREMIO_POR_NIVEL.fichas} fichas${temPado ? ` +${PREMIO_POR_NIVEL.pado} padocoins` : ''} (${d.registro.niveis} hoje)`);
+    return { fichas: PREMIO_POR_NIVEL.fichas, pado: temPado ? PREMIO_POR_NIVEL.pado : 0, restantes: d.restantes };
+  }
+
+  /**
+   * Um recorde de minijogo. O jogo roda no cliente, então o número vem de lá: aqui se guarda só o
+   * maior da conta, e só se ele couber no teto do nível (`recordePlausivel`) — o absurdo fica fora.
+   */
+  recordeMinijogo(accountId: string, jogo: string, pontos: number, nivel: number): number | null {
+    const acc = this.byId(accountId);
+    if (!acc || !recordePlausivel(jogo, pontos, nivel)) return null;
+    const j = jogo as Minijogo;
+    const antes = acc.recordes?.[j] ?? 0;
+    if (pontos <= antes) return antes;
+    acc.recordes = { ...(acc.recordes ?? {}), [j]: pontos };
+    this.rankingFeito = null;
+    this.store.flush();
+    this.changed(acc.id);
+    console.log(`[minijogo] ${acc.name} fez recorde em ${jogo}: ${pontos} pontos (nível ${nivel})`);
+    return pontos;
+  }
+
+  // ---------------------------------------------------------------- ranking
+
+  /** O ranking montado por último (vale alguns segundos: dez pessoas abrindo a tela não remontam dez vezes). */
+  private rankingFeito: { em: number; contas: ContaRanking[] } | null = null;
+
+  ranking(accountId: string | null): Ranking {
+    const agora = this.agora();
+    if (!this.rankingFeito || agora - this.rankingFeito.em > 15_000) {
+      const contas = Object.values(this.store.get().accounts).map(
+        (a): ContaRanking => ({
+          id: a.id,
+          name: a.name,
+          character: a.character,
+          frame: a.aparencia?.frame,
+          matchWins: a.stats?.matchWins ?? 0,
+          matches: a.stats?.matches ?? 0,
+          recordes: a.recordes ?? {},
+        }),
+      );
+      this.rankingFeito = { em: agora, contas };
+    }
+    return montarRanking(this.rankingFeito.contas, accountId, new Date(agora));
   }
 
   // ---------------------------------------------------------------- banca

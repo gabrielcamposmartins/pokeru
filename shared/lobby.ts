@@ -808,6 +808,33 @@ export class Connection implements ClientHandle {
         this.send({ type: 'gifted', character, gift, points: r });
         break;
       }
+      case 'minijogoNivel': {
+        const accounts = this.lobby.accounts;
+        const jogo = String(msg.jogo ?? '');
+        const nivel = Number(msg.nivel);
+        if (!accounts?.premioMinijogo || !this.accountId) {
+          this.send({ type: 'minijogoPremio', jogo, nivel, fichas: 0, pado: 0, restantes: 0, motivo: 'prêmios precisam de uma conta no servidor' });
+          return;
+        }
+        const r = accounts.premioMinijogo(this.accountId, jogo, nivel);
+        this.send({ type: 'minijogoPremio', jogo, nivel, ...r });
+        break;
+      }
+      case 'minijogoRecorde': {
+        const accounts = this.lobby.accounts;
+        if (!accounts?.recordeMinijogo || !this.accountId) return;
+        accounts.recordeMinijogo(this.accountId, String(msg.jogo ?? ''), Number(msg.pontos), Number(msg.nivel));
+        break;
+      }
+      case 'ranking': {
+        const accounts = this.lobby.accounts;
+        if (!accounts?.ranking) {
+          this.error('o ranking precisa de um servidor com contas');
+          return;
+        }
+        this.send({ type: 'ranking', ranking: accounts.ranking(this.accountId ?? null) });
+        break;
+      }
       case 'refreshAccount': {
         const accounts = this.lobby.accounts;
         if (!accounts?.refresh || !this.accountId) return;

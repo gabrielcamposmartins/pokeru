@@ -17,6 +17,7 @@ import { CharactersScreen } from './screens/Characters';
 import { StoreScreen } from './screens/Store';
 import { GalleryScreen } from './screens/Gallery';
 import { MinijogosScreen } from './screens/Minijogos';
+import { RankingScreen } from './screens/Ranking';
 import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
@@ -26,7 +27,7 @@ import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { applyTheme, useUiTheme } from './ui/themes';
 
-export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'friends' | 'characters' | 'store' | 'gallery' | 'minijogos';
+export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'friends' | 'characters' | 'store' | 'gallery' | 'minijogos' | 'ranking';
 
 /** Telas que vivem por conta própria: sair de uma partida não tira o jogador delas. */
 const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
@@ -39,6 +40,7 @@ const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
   store: true,
   gallery: true,
   minijogos: true,
+  ranking: true,
 };
 
 export function App() {
@@ -129,6 +131,7 @@ export function App() {
   else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'gallery') content = <GalleryScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'minijogos') content = <MinijogosScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'ranking') content = <RankingScreen onBack={() => setScreen('menu')} />;
   else content = <MainMenu go={setScreen} />;
 
   return (

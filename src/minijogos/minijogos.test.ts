@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CORES, LADO, cair, criar as criarJoias, dica, embaralhar, jogar, sequencias, temJogada, type Gema, type Tabuleiro } from './joias';
+import { CORES, LADO, cair, criar as criarJoias, cumpriu, dica, embaralhar, estrelasDoNivel, jogar, nivelJoias, sequencias, temJogada, type Gema, type Tabuleiro } from './joias';
 import {
   COLS,
   R,
@@ -16,6 +16,11 @@ import {
   soltas,
   vizinhas,
   ATIRADOR,
+  PALETA,
+  alvoDaMira,
+  contar,
+  estrelasBolhas,
+  nivelBolhas,
   type Grade,
 } from './bolhas';
 
@@ -238,5 +243,78 @@ describe('bolhas', () => {
     expect(anguloPara(ATIRADOR.x + 100, ATIRADOR.y + 50)).toBeGreaterThan(0);
     expect(anguloPara(ATIRADOR.x - 100, ATIRADOR.y + 50)).toBeLessThan(Math.PI);
     expect(anguloPara(ATIRADOR.x, 0)).toBeCloseTo(Math.PI / 2);
+  });
+});
+
+describe('níveis', () => {
+  it('Joias: os dois primeiros com cinco cores, depois seis; metas e jogadas só crescem', () => {
+    expect(nivelJoias(1).cores).toBe(5);
+    expect(nivelJoias(2).cores).toBe(5);
+    expect(nivelJoias(3).cores).toBe(CORES);
+    expect(nivelJoias(1).coletar).toEqual([]);
+    expect(nivelJoias(2).coletar).toHaveLength(1);
+    expect(nivelJoias(5).coletar).toHaveLength(2);
+    for (let n = 3; n < 40; n++) {
+      const a = nivelJoias(n);
+      const b = nivelJoias(n + 1);
+      expect(b.meta).toBeGreaterThan(a.meta);
+      expect(b.jogadas).toBeGreaterThanOrEqual(a.jogadas);
+      expect(b.jogadas).toBeLessThanOrEqual(30);
+      // as cores da coleta existem no tabuleiro e não se repetem
+      for (const c of b.coletar) expect(c.cor).toBeLessThan(b.cores);
+      expect(new Set(b.coletar.map((c) => c.cor)).size).toBe(b.coletar.length);
+    }
+  });
+
+  it('Joias: o nível fecha com a meta e a coleta; as estrelas vêm dos pontos', () => {
+    const nv = nivelJoias(2);
+    const juntou = new Array(CORES).fill(0);
+    expect(cumpriu(nv, nv.meta, juntou)).toBe(false);
+    juntou[nv.coletar[0].cor] = nv.coletar[0].qtd;
+    expect(cumpriu(nv, nv.meta - 1, juntou)).toBe(false);
+    expect(cumpriu(nv, nv.meta, juntou)).toBe(true);
+    expect(estrelasDoNivel(nv, nv.meta)).toBe(1);
+    expect(estrelasDoNivel(nv, nv.meta * 1.3)).toBe(2);
+    expect(estrelasDoNivel(nv, nv.meta * 1.6)).toBe(3);
+  });
+
+  it('Joias com cinco cores: nada da sexta cor nasce, nem no tabuleiro novo nem nas cascatas', () => {
+    const rng = semente(21);
+    let t = criarJoias(rng, 5);
+    for (let i = 0; i < 40; i++) {
+      if (!temJogada(t)) t = embaralhar(t, rng, 5);
+      const [a, b] = dica(t)!;
+      const j = jogar(t, a, b, rng, 5);
+      if (!j.valida) continue;
+      for (const p of j.passos) expect(p.depois.flat().every((g) => g!.cor < 5)).toBe(true);
+      t = j.final;
+    }
+  });
+
+  it('Bolhas: tutorial pequeno, e a cada nível mais linhas e cores até o jogo cheio', () => {
+    expect(nivelBolhas(1)).toEqual({ n: 1, linhas: 5, cores: 3, errosAteDescer: 7 });
+    expect(nivelBolhas(4).cores).toBe(PALETA.length);
+    expect(nivelBolhas(20)).toMatchObject({ linhas: 9, cores: PALETA.length, errosAteDescer: 4 });
+    const g = criarBolhas(nivelBolhas(1).linhas, nivelBolhas(1).cores, semente());
+    expect(contar(g)).toBe(COLS * 3 + (COLS - 1) * 2);
+    expect(g.linhas.flat().every((x) => x != null && x < 3)).toBe(true);
+  });
+
+  it('Bolhas: a mira aponta a mesma casa em que o tiro para', () => {
+    const rng = semente(3);
+    const g = criarBolhas(5, 4, rng);
+    for (let i = 0; i < 30; i++) {
+      const ang = 0.2 + rng() * (Math.PI - 0.4);
+      let v = atirar(ang);
+      let parou = null;
+      for (let k = 0; k < 800 && !parou; k++) ({ voo: v, parou } = avancar(g, v, 1 / 120));
+      expect(alvoDaMira(g, ang)).toEqual(parou);
+    }
+  });
+
+  it('Bolhas: menos tiros, mais estrelas', () => {
+    expect(estrelasBolhas(60, 10)).toBe(3);
+    expect(estrelasBolhas(60, 30)).toBe(2);
+    expect(estrelasBolhas(60, 80)).toBe(1);
   });
 });

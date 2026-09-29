@@ -45,15 +45,20 @@ export function vizinhas(a: Pos, b: Pos): boolean {
   return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1;
 }
 
-/** Um tabuleiro novo, sem nenhum alinhamento pronto e com pelo menos uma jogada. */
-export function criar(rng: Rng = Math.random): Tabuleiro {
+/**
+ * Um tabuleiro novo, sem nenhum alinhamento pronto e com pelo menos uma jogada.
+ *
+ * `cores` é quantas das seis joias entram: com cinco sobram mais alinhamentos e cascatas (é como os
+ * primeiros níveis ficam mais fáceis), com seis é o jogo cheio.
+ */
+export function criar(rng: Rng = Math.random, cores = CORES): Tabuleiro {
   for (;;) {
     const t: Tabuleiro = [];
     for (let r = 0; r < LADO; r++) {
       t.push([]);
       for (let c = 0; c < LADO; c++) {
         let cor: number;
-        do cor = Math.floor(rng() * CORES);
+        do cor = Math.floor(rng() * cores);
         while (
           (c >= 2 && t[r][c - 1]!.cor === cor && t[r][c - 2]!.cor === cor) ||
           (r >= 2 && t[r - 1][c]!.cor === cor && t[r - 2][c]!.cor === cor)
@@ -130,7 +135,7 @@ function detonar(t: Tabuleiro, alvo: Set<number>, protegidas: Set<number>): numb
 }
 
 /** As joias descem para os buracos e nascem novas no alto de cada coluna. */
-export function cair(t: Tabuleiro, rng: Rng = Math.random): Tabuleiro {
+export function cair(t: Tabuleiro, rng: Rng = Math.random, cores = CORES): Tabuleiro {
   const n = copiar(t);
   for (let c = 0; c < LADO; c++) {
     const ficam: Gema[] = [];
@@ -141,7 +146,7 @@ export function cair(t: Tabuleiro, rng: Rng = Math.random): Tabuleiro {
     const faltam = LADO - ficam.length;
     for (let r = LADO - 1, k = 0; r >= 0; r--, k++) {
       if (k < ficam.length) n[r][c] = ficam[k];
-      else n[r][c] = { ...novaGema(Math.floor(rng() * CORES)), nasce: faltam };
+      else n[r][c] = { ...novaGema(Math.floor(rng() * cores)), nasce: faltam };
     }
   }
   return n;
@@ -176,7 +181,7 @@ function contar(t: Tabuleiro, limpas: number[]): number[] {
 }
 
 /** Monta um passo: some com `alvo`, põe as especiais novas e deixa cair. */
-function passo(t: Tabuleiro, alvo: Set<number>, novas: Map<number, Gema>, combo: number, rng: Rng): Passo {
+function passo(t: Tabuleiro, alvo: Set<number>, novas: Map<number, Gema>, combo: number, rng: Rng, cores: number): Passo {
   const protegidas = new Set(novas.keys());
   const limpas = detonar(t, alvo, protegidas);
   const porCor = contar(t, limpas);
@@ -190,14 +195,14 @@ function passo(t: Tabuleiro, alvo: Set<number>, novas: Map<number, Gema>, combo:
     comBuracos[p.r][p.c] = g;
   }
   const pontos = (limpas.length + novas.size) * PONTOS_POR_JOIA * combo;
-  return { limpas: limpas.map(pos), comBuracos, depois: cair(comBuracos, rng), pontos, combo, porCor };
+  return { limpas: limpas.map(pos), comBuracos, depois: cair(comBuracos, rng, cores), pontos, combo, porCor };
 }
 
 /**
  * Os alinhamentos do tabuleiro viram um passo (ou null, se não houver nenhum). `preferidas` são as
  * casas da troca: a especial nasce onde o jogador mexeu, quando o alinhamento passa por ali.
  */
-function alinhamentos(t: Tabuleiro, preferidas: Pos[], combo: number, rng: Rng): Passo | null {
+function alinhamentos(t: Tabuleiro, preferidas: Pos[], combo: number, rng: Rng, cores: number): Passo | null {
   const seqs = sequencias(t);
   if (!seqs.length) return null;
   const alvo = new Set<number>();
@@ -211,16 +216,16 @@ function alinhamentos(t: Tabuleiro, preferidas: Pos[], combo: number, rng: Rng):
     const velha = t[onde.r][onde.c]!;
     novas.set(i, s.casas.length >= 5 ? novaGema(-1, 'estrela') : { ...novaGema(velha.cor, s.dir === 'h' ? 'linha-h' : 'linha-v'), id: velha.id });
   }
-  return passo(t, alvo, novas, combo, rng);
+  return passo(t, alvo, novas, combo, rng, cores);
 }
 
 /** As cascatas: depois de cada queda, o que se alinhou sozinho some também. */
-function cascatas(inicio: Passo | null, rng: Rng): { passos: Passo[]; final: Tabuleiro } | null {
+function cascatas(inicio: Passo | null, rng: Rng, cores: number): { passos: Passo[]; final: Tabuleiro } | null {
   if (!inicio) return null;
   const passos = [inicio];
   for (;;) {
     const ultimo = passos[passos.length - 1];
-    const prox = alinhamentos(ultimo.depois, [], ultimo.combo + 1, rng);
+    const prox = alinhamentos(ultimo.depois, [], ultimo.combo + 1, rng, cores);
     if (!prox) return { passos, final: ultimo.depois };
     passos.push(prox);
   }
@@ -230,7 +235,7 @@ function cascatas(inicio: Passo | null, rng: Rng): { passos: Passo[]; final: Tab
  * Troca duas joias vizinhas. Vale se a troca alinha alguma coisa ou se uma delas é estrela; senão
  * é inválida (e a tela desfaz a troca).
  */
-export function jogar(t: Tabuleiro, a: Pos, b: Pos, rng: Rng = Math.random): Jogada {
+export function jogar(t: Tabuleiro, a: Pos, b: Pos, rng: Rng = Math.random, cores = CORES): Jogada {
   if (!dentro(a) || !dentro(b) || !vizinhas(a, b)) return { valida: false };
   const ga = t[a.r][a.c];
   const gb = t[b.r][b.c];
@@ -251,11 +256,11 @@ export function jogar(t: Tabuleiro, a: Pos, b: Pos, rng: Rng = Math.random): Jog
       }
     // a estrela já foi usada: sem o poder, ela não detona de novo (a cor mais comum) no caminho
     const gasta = trocado.map((l) => l.map((g) => (g?.especial === 'estrela' && (g === ga || g === gb) ? { ...g, especial: undefined } : g)));
-    const r = cascatas(passo(gasta, alvo, new Map(), 1, rng), rng)!;
+    const r = cascatas(passo(gasta, alvo, new Map(), 1, rng, cores), rng, cores)!;
     return { valida: true, trocado, ...r };
   }
 
-  const r = cascatas(alinhamentos(trocado, [a, b], 1, rng), rng);
+  const r = cascatas(alinhamentos(trocado, [a, b], 1, rng, cores), rng, cores);
   return r ? { valida: true, trocado, ...r } : { valida: false };
 }
 
@@ -294,7 +299,7 @@ export function dica(t: Tabuleiro): [Pos, Pos] | null {
 }
 
 /** Embaralha as joias que estão no tabuleiro até sobrar jogada e não sobrar alinhamento pronto. */
-export function embaralhar(t: Tabuleiro, rng: Rng = Math.random): Tabuleiro {
+export function embaralhar(t: Tabuleiro, rng: Rng = Math.random, cores = CORES): Tabuleiro {
   const todas = t.flat().filter((g): g is Gema => !!g);
   for (let tentativa = 0; tentativa < 200; tentativa++) {
     for (let i = todas.length - 1; i > 0; i--) {
@@ -304,15 +309,63 @@ export function embaralhar(t: Tabuleiro, rng: Rng = Math.random): Tabuleiro {
     const n: Tabuleiro = Array.from({ length: LADO }, (_, r) => todas.slice(r * LADO, r * LADO + LADO).map((g) => ({ ...g, nasce: undefined })));
     if (!sequencias(n).length && temJogada(n)) return n;
   }
-  return criar(rng);
+  return criar(rng, cores);
 }
 
-// ------------------------------------------------------------------ a partida
+// ------------------------------------------------------------------ os níveis
 
-export const JOGADAS = 25;
-/** As três estrelas da partida, por pontos. */
-export const METAS = [4000, 8000, 13000] as const;
+/** Juntar `qtd` joias da cor `cor` (as que somem, em qualquer passo, contam). */
+export interface Coleta {
+  cor: number;
+  qtd: number;
+}
 
-export function estrelasDe(pontos: number): number {
-  return METAS.filter((m) => pontos >= m).length;
+export interface NivelJoias {
+  n: number;
+  /** Pontos que o nível pede (contados só dentro dele). */
+  meta: number;
+  jogadas: number;
+  /** Quantas das seis joias entram no tabuleiro. */
+  cores: number;
+  coletar: Coleta[];
+}
+
+/**
+ * O nível `n`.
+ *
+ * A curva saiu de simulação (centenas de partidas de um jogador que troca ao acaso e de um que
+ * pega sempre a troca que mais pontua): com cinco cores, 20 jogadas rendem ~4.700 pontos na
+ * mediana; com seis, ~3.000, e ~18 joias de uma mesma cor. Por isso:
+ *
+ *   - níveis 1 e 2 têm cinco cores e metas que quase todo mundo passa (é o tutorial);
+ *   - do 3 em diante entram as seis cores, e a meta cresce mais depressa que as jogadas extras —
+ *     por volta do nível 8 só passa quem procura as listradas e as estrelas;
+ *   - a coleta começa no 2 (uma cor) e vira duas cores no 5.
+ */
+export function nivelJoias(n: number): NivelJoias {
+  const nivel = Math.max(1, Math.floor(n));
+  const cores = nivel <= 2 ? 5 : CORES;
+  const jogadas = Math.min(30, 20 + 2 * Math.floor((nivel - 1) / 2));
+  const meta = nivel === 1 ? 2000 : nivel === 2 ? 3000 : nivel <= 10 ? 2400 + 400 * (nivel - 3) : 5200 + 250 * (nivel - 10);
+  const corA = (nivel * 2) % cores;
+  const corB = (nivel * 2 + 3) % cores;
+  const coletar: Coleta[] =
+    nivel === 1 ? [] : nivel < 5 ? [{ cor: corA, qtd: Math.min(28, 8 + 2 * nivel) }] : [
+      { cor: corA, qtd: Math.min(24, 6 + nivel) },
+      { cor: corB, qtd: Math.min(24, 6 + nivel) },
+    ];
+  return { n: nivel, meta, jogadas, cores, coletar };
+}
+
+/** O nível está cumprido com estes pontos e estas joias juntadas (por cor)? */
+export function cumpriu(nivel: NivelJoias, pontos: number, juntadas: number[]): boolean {
+  return pontos >= nivel.meta && nivel.coletar.every((c) => (juntadas[c.cor] ?? 0) >= c.qtd);
+}
+
+/** Cada jogada que sobra quando o nível termina vira estes pontos. */
+export const BONUS_POR_JOGADA = 150;
+
+/** As estrelas do nível: uma na meta, duas com 30% a mais, três com 60% a mais. */
+export function estrelasDoNivel(nivel: NivelJoias, pontos: number): number {
+  return [1, 1.3, 1.6].filter((k) => pontos >= nivel.meta * k).length;
 }

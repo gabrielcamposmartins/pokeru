@@ -22,7 +22,8 @@ export const ALTURA = Math.ceil(R + LINHA_LIMITE * ALTURA_LINHA + 110);
 export const ATIRADOR = { x: LARGURA / 2, y: ALTURA - 52 };
 export const VELOCIDADE = 900; // unidades por segundo
 
-export const PALETA = ['#ff3b4a', '#ffb52e', '#3bd35a', '#2fa8ff', '#b04dff', '#39e3e0'] as const;
+/** As cores das bolhas (vermelho, âmbar, verde, azul, violeta e turquesa), iguais em qualquer tema. */
+export const PALETA = ['#ff4459', '#ffbe2e', '#3fd46a', '#3a9dff', '#b25bff', '#2fe0cf'] as const;
 
 export interface Grade {
   linhas: (number | null)[][];
@@ -284,5 +285,48 @@ export function pousar(g: Grade, casa: Casa, corDaBolha: number): Resultado {
   return { grade: n, casa, estouradas: junto, caidas, pontos };
 }
 
-/** Tiros seguidos sem estourar nada até a grade descer uma linha. */
+/** Tiros seguidos sem estourar nada até a grade descer uma linha (o padrão; cada nível tem o seu). */
 export const ERROS_ATE_DESCER = 6;
+
+/** Quantas bolhas há na grade. */
+export function contar(g: Grade): number {
+  let n = 0;
+  for (const l of g.linhas) for (const x of l) if (x != null) n++;
+  return n;
+}
+
+/** A casa onde um tiro neste ângulo vai parar (para a mira mostrar a bolha-fantasma). */
+export function alvoDaMira(g: Grade, angulo: number): Casa | null {
+  let v = atirar(angulo);
+  for (let i = 0; i < 600; i++) {
+    const r = avancar(g, v, 1 / 120);
+    v = r.voo;
+    if (r.parou) return r.parou;
+  }
+  return null;
+}
+
+export interface NivelBolhas {
+  n: number;
+  /** Linhas cheias com que a grade começa. */
+  linhas: number;
+  cores: number;
+  /** Tiros sem estourar nada até a grade descer. */
+  errosAteDescer: number;
+}
+
+/**
+ * O nível `n`: o primeiro é o tutorial (três cores, cinco linhas, paciência de sete tiros); a cada
+ * nível entra uma linha e uma cor, e a grade perde a paciência mais depressa, até o jogo cheio no
+ * quarto nível — seis cores, e a descida a cada quatro erros. Dali em diante crescem só as linhas.
+ */
+export function nivelBolhas(n: number): NivelBolhas {
+  const nivel = Math.max(1, Math.floor(n));
+  return { n: nivel, linhas: Math.min(9, 4 + nivel), cores: Math.min(PALETA.length, 2 + nivel), errosAteDescer: Math.max(4, 8 - nivel) };
+}
+
+/** As estrelas do nível, pelos tiros: limpar com poucos tiros vale mais (a referência é o tamanho da grade). */
+export function estrelasBolhas(bolhasNoInicio: number, tiros: number): number {
+  const par = Math.max(4, Math.round(bolhasNoInicio / 2.6));
+  return tiros <= par ? 3 : tiros <= par * 1.45 ? 2 : 1;
+}

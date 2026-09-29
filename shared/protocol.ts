@@ -1,7 +1,8 @@
 import type { Card } from './cards';
 import type { HandEvent, LegalActions, PlayerAction, Street, ActionType, GameVariant } from './engine';
 import type { AuraId, AvatarInfo, CardBackStyle, CardFaceStyle, CharacterStyle, FrameId, PlayerCosmetics } from './styles';
-import type { AccountCreds, AccountInfo } from './accounts';
+import type { AccountCreds, AccountInfo, PremioMinijogo } from './accounts';
+import type { Ranking } from './ranking';
 import type { Currency } from './catalog';
 import type { FriendInfo, PartyInfo, PartyKind, PerfilPublico } from './friends';
 
@@ -550,6 +551,15 @@ export type ClientMsg =
   | { type: 'quickMatch'; currency?: Currency }
   /** Pede uma foto nova da conta (relê o saldo de padocoins, que vive no bot do Discord). */
   | { type: 'refreshAccount' }
+  /**
+   * Passou o nível `nivel` de um minijogo. O servidor decide se isso rende prêmio (teto do dia e
+   * intervalo mínimo, shared/minijogos.ts) e responde com `minijogoPremio`.
+   */
+  | { type: 'minijogoNivel'; jogo: string; nivel: number }
+  /** O melhor total de uma partida de minijogo, para o ranking (o servidor guarda só o maior). */
+  | { type: 'minijogoRecorde'; jogo: string; pontos: number; nivel: number }
+  /** Pede o ranking (shared/ranking.ts). */
+  | { type: 'ranking' }
   | { type: 'ping' };
 
 export type ServerMsg =
@@ -578,6 +588,10 @@ export type ServerMsg =
   | { type: 'spun'; roulette: string; prize: string; dup: boolean; refund: number }
   /** O presente foi entregue: quantos pontos de vínculo ele rendeu. */
   | { type: 'gifted'; character: string; gift: string; points: number }
+  /** O que o nível de minijogo rendeu (fichas e padocoins, ou o motivo de não render). */
+  | ({ type: 'minijogoPremio'; jogo: string; nivel: number } & PremioMinijogo)
+  /** O ranking pedido com `ranking`. */
+  | { type: 'ranking'; ranking: Ranking }
   /** A lista de amigos e os pedidos, com quem está online agora. */
   | { type: 'friends'; friends: FriendInfo[]; incoming: FriendInfo[]; outgoing: FriendInfo[] }
   /** Um amigo acabou de entrar no jogo. */

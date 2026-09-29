@@ -8662,6 +8662,7 @@ input[type='range'].som-slider {
   gap: 28px;
   justify-content: center;
   align-items: center;
+  align-content: center;
   flex-wrap: wrap;
   padding-bottom: 40px;
 }
@@ -8719,10 +8720,11 @@ input[type='range'].som-slider {
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     inset 0 -30px 60px rgba(0, 0, 0, 0.35);
 }
+/* as duas capas no fundo do tabuleiro dos jogos, o mesmo azul-noite */
 .mj-capa.joias {
   background:
-    radial-gradient(circle at 50% 50%, rgba(155, 50, 232, 0.25), transparent 70%),
-    linear-gradient(160deg, #2a1d4a, #120b26);
+    radial-gradient(circle at 50% 50%, rgba(155, 50, 232, 0.22), transparent 70%),
+    linear-gradient(160deg, #26304a, #121828);
 }
 .mj-capa.bolhas {
   position: relative;
@@ -8730,8 +8732,9 @@ input[type='range'].som-slider {
   align-items: flex-start;
   padding: 16px 0 0 42px;
   background:
-    repeating-conic-gradient(from 0deg at 50% 110%, rgba(160, 200, 255, 0.1) 0 7.5deg, transparent 7.5deg 15deg),
-    linear-gradient(180deg, #0b1f8f, #2350e6);
+    radial-gradient(ellipse 70% 50% at 50% 110%, rgba(120, 140, 255, 0.22), transparent 70%),
+    radial-gradient(circle, rgba(0, 0, 0, 0.22) 0 15px, transparent 16px) 0 0 / 36px 32px,
+    linear-gradient(160deg, #26304a, #121828);
 }
 .mj-capa-linha {
   display: flex;
@@ -8772,27 +8775,44 @@ input[type='range'].som-slider {
   bottom: 10px;
 }
 
-/* o painel do lado, comum aos dois jogos */
-.mj-joias,
-.mj-bolhas {
+/*
+ * O layout dos dois jogos: três colunas que ocupam o resto da tela abaixo do cabeçalho — o
+ * objetivo à esquerda, o tabuleiro no meio (medido pelo espaço que sobrou, veja minijogos/ui.tsx)
+ * e o placar com os prêmios à direita.
+ */
+.mj-jogo {
   position: relative;
   flex: 1;
   min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(210px, 270px) minmax(0, 1fr) minmax(210px, 270px);
+  gap: 18px;
+  align-items: stretch;
+}
+.mj-centro {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  gap: 24px;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
 }
 .mj-lado {
-  width: 220px;
-  flex: none;
+  min-height: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 18px;
+  align-self: center;
+  max-height: 100%;
 }
 .mj-placar small,
-.mj-jogadas small {
+.mj-jogadas small,
+.mj-nivel-atual small,
+.mj-objetivos > small,
+.mj-cores-nivel small,
+.mj-caixa-premios > small {
   display: block;
   font-size: 12px;
   color: var(--muted);
@@ -8805,12 +8825,165 @@ input[type='range'].som-slider {
   color: var(--gold-2);
   font-variant-numeric: tabular-nums;
 }
+.mj-nivel-atual b {
+  font-family: var(--title);
+  font-size: 46px;
+  line-height: 1;
+  color: var(--gold-2);
+  text-shadow: 0 0 18px rgba(255, 210, 90, 0.35);
+}
 .mj-jogadas b {
   font-size: 28px;
   font-variant-numeric: tabular-nums;
 }
 .mj-jogadas b.pouco {
   color: var(--danger);
+}
+
+/* os objetivos do nível, cada um com a sua barra */
+.mj-objetivos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mj-objetivo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mj-objetivo-icone {
+  width: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  color: var(--gold);
+}
+.mj-objetivo-corpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mj-objetivo-texto {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+}
+.mj-objetivo-texto b {
+  font-variant-numeric: tabular-nums;
+}
+.mj-objetivo.ok .mj-objetivo-texto b {
+  color: var(--mint);
+}
+.mj-objetivo-barra {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.mj-objetivo-barra > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold-3), var(--gold));
+  transition: width 0.35s ease;
+}
+.mj-objetivo.ok .mj-objetivo-barra > i {
+  background: var(--mint);
+}
+.mj-cores-nivel span {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.mj-cores-nivel i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  box-shadow:
+    inset -3px -4px 6px rgba(0, 0, 0, 0.35),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.45);
+}
+
+/* o placar e os prêmios */
+.mj-caixa-premios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line-soft);
+}
+.mj-moedas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-weight: 700;
+}
+.mj-moeda {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.mj-moeda i {
+  font-style: normal;
+  font-size: 0.9em;
+}
+.mj-moeda.fichas i {
+  color: var(--gold);
+}
+.mj-moeda.pado i {
+  color: var(--cyan);
+}
+.mj-ganhos,
+.mj-restantes {
+  font-size: 13px;
+  color: var(--muted);
+}
+.mj-ganhos b {
+  color: var(--text);
+}
+.mj-restantes.zero {
+  color: var(--pink);
+}
+
+/* a faixa de "Nível N" no começo de cada nível */
+.mj-faixa {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 42%;
+  display: grid;
+  place-items: center;
+  padding: 10px 0;
+  background: linear-gradient(90deg, transparent, rgba(8, 4, 20, 0.82) 18%, rgba(8, 4, 20, 0.82) 82%, transparent);
+  pointer-events: none;
+  z-index: 4;
+}
+.mj-faixa span {
+  font-family: var(--title);
+  font-size: 40px;
+  color: var(--gold-2);
+  text-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(255, 210, 90, 0.6);
+}
+
+/* as Bolhas: o canvas é transparente e o tabuleiro por baixo é o mesmo das Joias */
+.mj-tabuleiro.bolhas {
+  cursor: crosshair;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 100%, rgba(120, 140, 255, 0.12), transparent 70%),
+    linear-gradient(160deg, #26304a, #121828);
+}
+.mj-canvas {
+  display: block;
+  touch-action: none;
 }
 .mj-coletadas {
   display: grid;
@@ -8966,38 +9139,6 @@ input[type='range'].som-slider {
   color: var(--gold-2);
 }
 
-/* as Bolhas */
-.mj-bolhas-palco {
-  position: relative;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-}
-.mj-canvas {
-  height: 100%;
-  max-height: calc(100vh - 110px);
-  max-width: calc(100vw - 320px);
-  border-radius: 12px;
-  cursor: crosshair;
-  touch-action: none;
-  box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.6),
-    0 0 0 2px rgba(255, 255, 255, 0.12);
-}
-.mj-nivel {
-  position: absolute;
-  top: 40%;
-  left: 50%;
-  translate: -50% 0;
-  font-family: var(--title);
-  font-size: 44px;
-  color: var(--gold-2);
-  text-shadow:
-    0 3px 0 #7a4a00,
-    0 0 20px rgba(255, 210, 90, 0.8);
-  pointer-events: none;
-}
-
 /* o fim de uma partida */
 .mj-fim-fundo {
   position: absolute;
@@ -9032,4 +9173,855 @@ input[type='range'].som-slider {
 .mj-fim-recorde {
   color: var(--mint);
   font-weight: 700;
+}
+.mj-fim-linhas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px auto 4px;
+  max-width: 280px;
+}
+.mj-fim-linhas > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 15px;
+  color: var(--muted);
+}
+.mj-fim-linhas b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.mj-premio {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line);
+  font-size: 17px;
+}
+.mj-premio.esperando,
+.mj-premio.sem {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  border-color: var(--line-soft);
+}
+.mj-fim-sessao {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+/* a linha do prêmio no alto da lista de minijogos */
+.mj-lista-premio {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+}
+.mj-lista-premio b {
+  color: var(--gold-2);
+}
+
+/*
+ * Os painéis dos minijogos, de altura inteira: a coluna vai do cabeçalho ao pé da tela, e o que
+ * ela mostra é de ler de relance — números grandes, ícones grandes, barras grossas.
+ */
+.mj-screen.screen {
+  padding-bottom: 14px;
+}
+.mj-screen > .screen-header {
+  margin-bottom: 10px;
+}
+.mj-jogo {
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) minmax(240px, 320px);
+}
+.mj-lado {
+  align-self: stretch;
+  max-height: none;
+  gap: 16px;
+}
+.mj-lado > .mj-ajuda:last-child,
+.mj-lado-pe {
+  margin-top: auto;
+}
+.mj-lado-pe {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* a medalha do nível */
+.mj-medalha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.mj-medalha small,
+.mj-bloco > small {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.mj-medalha b {
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  font-family: var(--title);
+  font-size: 56px;
+  line-height: 1;
+  color: var(--gold-2);
+  background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.2), rgba(0, 0, 0, 0.38) 72%);
+  border: 3px solid var(--gold);
+  box-shadow:
+    0 0 0 5px rgba(0, 0, 0, 0.3),
+    0 0 28px rgba(255, 210, 90, 0.35),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* as missões, em cartões com ícone e número grandes */
+.mj-objetivos {
+  gap: 10px;
+}
+.mj-objetivos > small {
+  margin-bottom: -2px;
+}
+.mj-objetivo {
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line-soft);
+}
+.mj-objetivo.ok {
+  border-color: color-mix(in srgb, var(--mint) 60%, transparent);
+  box-shadow: 0 0 18px -6px var(--mint);
+}
+.mj-objetivo-icone {
+  width: 46px;
+  height: 46px;
+  font-size: 30px;
+}
+.mj-objetivo-corpo {
+  gap: 3px;
+}
+.mj-objetivo-texto {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.mj-objetivo-num {
+  font-size: 15px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.mj-objetivo-num b {
+  display: inline-block;
+  font-family: var(--title);
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--text);
+}
+.mj-objetivo.ok .mj-objetivo-num b {
+  color: var(--mint);
+  font-size: 22px;
+}
+.mj-objetivo-barra {
+  height: 10px;
+  border-radius: 5px;
+}
+
+/* os destaques: dois por linha */
+.mj-destaques {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.mj-destaque {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line-soft);
+  min-width: 0;
+}
+.mj-destaque-icone {
+  color: var(--gold);
+  line-height: 0;
+  margin-bottom: 4px;
+}
+.mj-destaque small {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mj-destaque b {
+  font-family: var(--title);
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--gold-2);
+  font-variant-numeric: tabular-nums;
+}
+.mj-destaque-sub {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mj-destaque.alerta {
+  border-color: color-mix(in srgb, var(--danger) 70%, transparent);
+}
+.mj-destaque.alerta b,
+.mj-destaque.alerta .mj-destaque-icone {
+  color: var(--danger);
+}
+
+/* o placar da direita */
+.mj-placar b {
+  font-size: 50px;
+  line-height: 1.05;
+}
+.mj-recorde-grande {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line-soft);
+  color: var(--gold);
+}
+.mj-recorde-grande span {
+  display: flex;
+  flex-direction: column;
+}
+.mj-recorde-grande small {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.mj-recorde-grande b {
+  font-family: var(--title);
+  font-size: 26px;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.mj-recorde-grande.bateu {
+  border-color: color-mix(in srgb, var(--mint) 60%, transparent);
+  color: var(--mint);
+  box-shadow: 0 0 18px -6px var(--mint);
+}
+.mj-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mj-estrelas-nivel {
+  display: flex;
+  gap: 8px;
+}
+.mj-estrelas-nivel span {
+  color: rgba(255, 255, 255, 0.14);
+  line-height: 0;
+}
+.mj-estrelas-nivel span.on {
+  color: var(--gold);
+  filter: drop-shadow(0 0 8px rgba(255, 210, 90, 0.7));
+}
+
+/* os prêmios, com as moedas de verdade */
+.mj-caixa-premios {
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+}
+.mj-premio-nivel {
+  display: flex;
+  gap: 18px;
+}
+.mj-premio-nivel span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mj-premio-nivel b {
+  font-family: var(--title);
+  font-size: 28px;
+  color: var(--gold-2);
+}
+.mj-ganhos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mj-ganhos small,
+.mj-restantes small {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.mj-ganhos span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mj-ganhos b {
+  font-size: 20px;
+  color: var(--text);
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.mj-restantes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mj-pips {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+.mj-pips i {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.mj-pips i.on {
+  background: var(--gold);
+  box-shadow: 0 0 6px rgba(255, 210, 90, 0.6);
+}
+.mj-restantes.zero small {
+  color: var(--pink);
+}
+.mj-moeda small {
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mj-moeda svg {
+  flex: none;
+}
+
+/*
+ * O tabuleiro manda na largura do meio (coluna `auto`, do tamanho dele): ele se mede pela altura
+ * inteira do jogo, e os painéis ficam com o que sobra — nunca menos que PAINEL_MIN (minijogos/ui.tsx).
+ */
+.mj-jogo {
+  grid-template-columns: minmax(244px, 400px) auto minmax(244px, 400px);
+  justify-content: center;
+}
+/* o meio não encolhe abaixo do tabuleiro: é essa largura mínima que a coluna auto usa */
+.mj-jogo > .mj-centro {
+  min-width: auto;
+}
+.mj-sem-conta {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px dashed var(--line-soft);
+}
+
+/* os níveis desta partida */
+.mj-historico {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.mj-historico ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mj-historico li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line-soft);
+}
+.mj-historico-n {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--title);
+  font-size: 14px;
+  color: var(--gold-2);
+  border: 1.5px solid var(--gold);
+}
+.mj-historico-estrelas {
+  display: flex;
+  gap: 1px;
+}
+.mj-historico-estrelas i {
+  line-height: 0;
+  color: rgba(255, 255, 255, 0.14);
+}
+.mj-historico-estrelas i.on {
+  color: var(--gold);
+}
+.mj-historico li b {
+  margin-left: auto;
+  font-family: var(--title);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.mj-historico-vazio {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* painel estreito (o tabuleiro ficou com a largura): os rótulos quebram linha em vez de cortar */
+.mj-destaque small,
+.mj-destaque-sub {
+  white-space: normal;
+  line-height: 1.2;
+}
+.mj-premio-nivel {
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+/* ------------------------------------------------------------------ ranking */
+
+/* o botão no menu, acima dos modos de jogo */
+.menu-ranking {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px 10px 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--line);
+  background:
+    radial-gradient(ellipse at 12% 50%, rgba(255, 210, 90, 0.18), transparent 55%),
+    linear-gradient(180deg, var(--panel-a), var(--panel-b));
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  text-align: left;
+}
+.menu-ranking:hover {
+  border-color: var(--gold);
+}
+.menu-ranking-icone {
+  width: 50px;
+  height: 50px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--gold-2);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.25), rgba(0, 0, 0, 0.35) 70%);
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 18px rgba(255, 210, 90, 0.35);
+}
+.menu-ranking-texto {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.menu-ranking-texto b {
+  font-family: var(--title);
+  font-size: 22px;
+  color: var(--gold-2);
+  line-height: 1.1;
+}
+.menu-ranking-texto small {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-ranking-pos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.menu-ranking-pos small {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.menu-ranking-pos b {
+  font-family: var(--title);
+  font-size: 22px;
+  line-height: 1.05;
+  color: var(--text);
+}
+.menu-ranking-seta {
+  font-size: 30px;
+  line-height: 1;
+  color: var(--gold);
+}
+
+/* a tela */
+.rk-quando {
+  align-self: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.rk-aviso {
+  align-self: center;
+  margin-top: 12vh;
+  padding: 24px 30px;
+  font-size: 16px;
+}
+.rk-abas {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.rk-aba {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: rgba(10, 6, 24, 0.55);
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 15px;
+}
+.rk-aba:hover {
+  color: var(--text);
+  border-color: var(--line);
+}
+.rk-aba.on {
+  color: #3a2300;
+  border-color: transparent;
+  background: linear-gradient(180deg, #fff1b8, #f2c14e 50%, #d9962a);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+.rk-aba small {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+}
+.rk-naipe {
+  font-size: 20px;
+  line-height: 1;
+}
+.rk-corpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+  gap: 18px;
+}
+.rk-lado {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+}
+.rk-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 30px;
+}
+.rk-titulo svg,
+.rk-titulo .rk-naipe {
+  color: var(--gold);
+}
+.rk-explica {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.rk-vazio {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--muted);
+  padding: 30px 10px;
+}
+
+/* o pódio */
+.rk-podio {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  align-items: end;
+  gap: 8px;
+  min-height: 330px;
+}
+.rk-podio-lugar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.rk-podio-lugar .foto-moldura {
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+.rk-podio-lugar.eu .foto-moldura {
+  box-shadow:
+    0 0 0 3px var(--mint),
+    0 10px 24px rgba(0, 0, 0, 0.5);
+}
+.rk-coroa {
+  font-family: var(--title);
+  font-size: 20px;
+  color: var(--gold-2);
+}
+.rk-podio-lugar.p1 .rk-coroa {
+  color: var(--gold);
+  filter: drop-shadow(0 0 10px rgba(255, 210, 90, 0.8));
+}
+.rk-podio-nome {
+  max-width: 100%;
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rk-podio-valor {
+  font-family: var(--title);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--gold-2);
+}
+.rk-podio-lugar.p1 .rk-podio-valor {
+  font-size: 38px;
+}
+.rk-podio-lugar small {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.rk-degrau {
+  width: 100%;
+  margin-top: 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px 10px 4px 4px;
+  font-family: var(--title);
+  font-size: 34px;
+  color: rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45);
+}
+.rk-podio-lugar.p1 .rk-degrau {
+  height: 96px;
+  background: linear-gradient(180deg, #fff1b8, #f2c14e 50%, #b8862a);
+}
+.rk-podio-lugar.p2 .rk-degrau {
+  height: 70px;
+  background: linear-gradient(180deg, #f4f6fb, #c3c9d6 50%, #8a93a6);
+}
+.rk-podio-lugar.p3 .rk-degrau {
+  height: 52px;
+  background: linear-gradient(180deg, #ffd7b0, #d9894a 50%, #9a5424);
+}
+.rk-podio-lugar.vazio .rk-degrau {
+  opacity: 0.35;
+}
+.rk-minha {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid color-mix(in srgb, var(--mint) 55%, transparent);
+}
+.rk-minha small {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.rk-minha b {
+  font-family: var(--title);
+  font-size: 34px;
+  color: var(--mint);
+  line-height: 1;
+}
+.rk-minha span {
+  margin-left: auto;
+  font-weight: 700;
+}
+
+/* a lista */
+.rk-lista {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+.rk-lista > ol {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.rk-lista ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rk-linha {
+  display: grid;
+  grid-template-columns: 46px 46px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line-soft);
+}
+.rk-linha.eu {
+  border-color: color-mix(in srgb, var(--mint) 65%, transparent);
+  background: color-mix(in srgb, var(--mint) 10%, rgba(0, 0, 0, 0.22));
+}
+.rk-pos {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-left: 4px;
+  border-radius: 50%;
+  font-family: var(--title);
+  font-size: 18px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+.rk-linha.top1 .rk-pos {
+  color: #3a2300;
+  background: linear-gradient(180deg, #fff1b8, #f2c14e);
+}
+.rk-linha.top2 .rk-pos {
+  color: #2a2f3a;
+  background: linear-gradient(180deg, #f4f6fb, #b7bfcd);
+}
+.rk-linha.top3 .rk-pos {
+  color: #3a1d08;
+  background: linear-gradient(180deg, #ffd7b0, #d9894a);
+}
+.rk-linha .foto-moldura {
+  border-radius: 10px;
+}
+.rk-quem {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rk-quem b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rk-quem small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rk-voce {
+  font-style: normal;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: #06281a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.rk-valor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.rk-valor b {
+  font-family: var(--title);
+  font-size: 24px;
+  line-height: 1.05;
+  color: var(--gold-2);
+  font-variant-numeric: tabular-nums;
+}
+.rk-valor small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.rk-partes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.rk-parte {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.rk-parte svg,
+.rk-parte .rk-naipe {
+  width: 14px;
+  height: 14px;
+  font-size: 13px;
+  color: var(--gold);
+}
+.rk-lista-eu {
+  flex: none;
+  margin-top: 8px !important;
+  padding-top: 8px !important;
+  border-top: 1px dashed var(--line);
 }

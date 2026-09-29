@@ -28,6 +28,8 @@ import { MAX_PARTY } from '../../shared/friends';
 import { findCharacter } from '../../shared/styles';
 import { FotoComMoldura } from '../game/CartaoJogador';
 import { fmt } from '../util/format';
+import { useRanking } from '../store/ranking';
+import { Icone } from '../minijogos/ui';
 import { useUiTheme } from '../ui/themes';
 import type { Screen } from '../App';
 
@@ -351,6 +353,51 @@ function AvisoDoGrupo() {
  * As fotos com moldura de cada um, o líder com a estrela. Está ali porque é ali que se decide o que
  * jogar: a fila, os bots ou uma sala Custom — e o grupo vai junto em qualquer uma delas.
  */
+/**
+ * O botão do ranking, acima dos modos de jogo. Mostra a sua posição no geral quando o ranking já
+ * veio do servidor — é o convite para abrir.
+ */
+function BotaoRanking({ go }: { go: (s: Screen) => void }) {
+  const conectado = useSession((s) => s.status === 'connected');
+  const ranking = useRanking((s) => s.ranking);
+  const pedir = useRanking((s) => s.pedir);
+  // pede uma vez ao chegar no menu conectado: a posição aparece no botão
+  useEffect(() => {
+    if (conectado && !useRanking.getState().ranking) pedir();
+  }, [conectado, pedir]);
+  const eu = ranking?.quadros[0]?.eu;
+  const lider = ranking?.quadros[0]?.linhas[0];
+  return (
+    <motion.button
+      className="menu-ranking"
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ delay: 0.08 }}
+      whileHover={{ y: -3 }}
+      onMouseEnter={() => sfx.hover()}
+      onClick={() => {
+        sfx.click();
+        go('ranking');
+      }}
+    >
+      <span className="menu-ranking-icone">
+        <Icone nome="trofeu" size={30} />
+      </span>
+      <span className="menu-ranking-texto">
+        <b>Ranking</b>
+        <small>{lider ? `Líder: ${lider.name}` : 'Poker e minijogos — quem está na frente?'}</small>
+      </span>
+      {eu && (
+        <span className="menu-ranking-pos">
+          <small>Você</small>
+          <b>{eu.pos}º</b>
+        </span>
+      )}
+      <span className="menu-ranking-seta">›</span>
+    </motion.button>
+  );
+}
+
 function LinhaDoGrupo({ go }: { go: (s: Screen) => void }) {
   const grupo = useFriends((s) => s.party);
   const eu = useSession((s) => s.account?.id);
@@ -541,6 +588,7 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
       </motion.div>
       <div className="mode-area">
         <LinhaDoGrupo go={go} />
+        <BotaoRanking go={go} />
         <div className="mode-cards">
           <ModeCard
             title="PvP Queue"

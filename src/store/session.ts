@@ -21,6 +21,9 @@ import { useAuth } from './auth';
 import { findGift, findItem } from '../../shared/catalog';
 import { findCharacter } from '../../shared/styles';
 import { useRoleta } from './roleta';
+import { useMinijogos } from './minijogos';
+import { useRanking } from './ranking';
+import { ehMinijogo } from '../../shared/minijogos';
 import { useBond } from './bond';
 import { useFriends } from './friends';
 import { useTable } from './table';
@@ -334,6 +337,15 @@ function handle(m: ServerMsg): void {
     case 'spun':
       // o servidor já cobrou e já entregou: aqui só a cena revela o que ele mandou
       useRoleta.getState().chegou({ key: m.prize, dup: m.dup, refund: m.refund });
+      break;
+    case 'ranking':
+      useRanking.getState().chegou(m.ranking);
+      break;
+    case 'minijogoPremio':
+      // quem decidiu foi o servidor; o quadro de "nível concluído" mostra o que entrou
+      if (ehMinijogo(m.jogo)) {
+        useMinijogos.getState().chegou({ jogo: m.jogo, nivel: m.nivel, fichas: m.fichas, pado: m.pado, restantes: m.restantes, motivo: m.motivo });
+      }
       break;
     // ---------------------------------------------------------------- amizades e grupo
     case 'friends':

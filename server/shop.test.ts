@@ -20,6 +20,7 @@ import { priceOf } from '../shared/catalog';
 import { ROULETTES, dropsOf, findRoulette, refundOf, roletaDe, ticketPrice } from '../shared/roulette';
 import { bondCap, giftPoints } from '../shared/bond';
 import { bonusPado } from '../shared/protocol';
+import { NIVEIS_PREMIADOS_POR_DIA, PREMIO_POR_NIVEL, SEGUNDOS_ENTRE_PREMIOS } from '../shared/minijogos';
 import { Accounts } from './accounts';
 import { Gbot, GbotError, type GbotMove, type GbotUser } from './gbot';
 
@@ -890,5 +891,165 @@ describe('bônus de padocoin', () => {
     await Promise.resolve();
     expect(fake.credits).toHaveLength(0);
     acc.close();
+  });
+});
+
+describe('minijogos: prêmio por nível', () => {
+  /** Um relógio de mentira: o teste anda o tempo na mão. */
+  function relogio(inicio = Date.UTC(2026, 8, 29, 15, 0, 0)) {
+    let t = inicio;
+    return { agora: () => t, andar: (seg: number) => void (t += seg * 1000) };
+  }
+
+  it('fichas na conta e padocoins no Discord, com a chave do dia', async () => {
+    const fake = fakeGbot(0);
+    const r = relogio();
+    const acc = new Accounts({ file: newFile(), startingMoney: 1000, gbot: fake.gbot, agora: r.agora });
+    const a = (await acc.loginAuth(identity, profile()))!;
+
+    const p = acc.premioMinijogo(a.id, 'joias', 1);
+    expect(p).toEqual({ fichas: PREMIO_POR_NIVEL.fichas, pado: PREMIO_POR_NIVEL.pado, restantes: NIVEIS_PREMIADOS_POR_DIA - 1 });
+    expect(acc.money(a.id)).toBe(1000 + PREMIO_POR_NIVEL.fichas);
+    await vi.waitFor(() => expect(fake.credits).toHaveLength(1));
+    expect(fake.credits[0]).toMatchObject({ id: identity.discordId, quantity: PREMIO_POR_NIVEL.pado, key: `pokeru:${a.id}:minijogo:2026-09-29:1` });
+    expect(fake.credits[0].reason).toMatch(/joias/);
+    expect(acc.info(a.id)!.minijogosHoje).toBe(1);
+    acc.close();
+  });
+
+  it('sem Discord, só as fichas', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const a = acc.login(undefined, profile())!;
+    const p = acc.premioMinijogo(a.id, 'bolhas', 3);
+    expect(p.fichas).toBe(PREMIO_POR_NIVEL.fichas);
+    expect(p.pado).toBe(0);
+    expect(acc.money(a.id)).toBe(PREMIO_POR_NIVEL.fichas);
+    acc.close();
+  });
+
+  it('pedido em rajada não rende; depois do intervalo, rende', () => {
+    const r = relogio();
+    const acc = new Accounts({ file: newFile(), startingMoney: 0, agora: r.agora });
+    const a = acc.login(undefined, profile())!;
+    expect(acc.premioMinijogo(a.id, 'joias', 1).fichas).toBe(PREMIO_POR_NIVEL.fichas);
+    r.andar(SEGUNDOS_ENTRE_PREMIOS - 1);
+    const rapido = acc.premioMinijogo(a.id, 'joias', 2);
+    expect(rapido.fichas).toBe(0);
+    expect(rapido.motivo).toMatch(/rápido/);
+    r.andar(1);
+    expect(acc.premioMinijogo(a.id, 'joias', 2).fichas).toBe(PREMIO_POR_NIVEL.fichas);
+    expect(acc.money(a.id)).toBe(2 * PREMIO_POR_NIVEL.fichas);
+    acc.close();
+  });
+
+  it('o teto do dia vale, e zera no dia seguinte (de Brasília)', () => {
+    const r = relogio(Date.UTC(2026, 8, 29, 12, 0, 0));
+    const acc = new Accounts({ file: newFile(), startingMoney: 0, agora: r.agora });
+    const a = acc.login(undefined, profile())!;
+    for (let n = 1; n <= NIVEIS_PREMIADOS_POR_DIA; n++) {
+      expect(acc.premioMinijogo(a.id, 'bolhas', n).fichas).toBe(PREMIO_POR_NIVEL.fichas);
+      r.andar(SEGUNDOS_ENTRE_PREMIOS);
+    }
+    const cheio = acc.premioMinijogo(a.id, 'bolhas', 99);
+    expect(cheio).toMatchObject({ fichas: 0, restantes: 0 });
+    expect(cheio.motivo).toMatch(/amanhã/);
+    expect(acc.money(a.id)).toBe(NIVEIS_PREMIADOS_POR_DIA * PREMIO_POR_NIVEL.fichas);
+    // 03:00 UTC do dia seguinte é meia-noite em Brasília
+    r.andar((Date.UTC(2026, 8, 30, 3, 0, 0) - r.agora()) / 1000);
+    expect(acc.premioMinijogo(a.id, 'bolhas', 1).fichas).toBe(PREMIO_POR_NIVEL.fichas);
+    acc.close();
+  });
+
+  it('o teto sobrevive ao servidor reiniciar (fica na conta)', () => {
+    const file = newFile();
+    const r = relogio();
+    const antes = new Accounts({ file, startingMoney: 0, agora: r.agora });
+    const a = antes.login(undefined, profile())!;
+    antes.premioMinijogo(a.id, 'joias', 1);
+    antes.close();
+    const depois = new Accounts({ file, startingMoney: 0, agora: r.agora });
+    expect(depois.info(a.id)!.minijogosHoje).toBe(1);
+    depois.close();
+  });
+
+  it('jogo ou nível que não existem não rendem nada', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const a = acc.login(undefined, profile())!;
+    expect(acc.premioMinijogo(a.id, 'paciencia', 1).fichas).toBe(0);
+    expect(acc.premioMinijogo(a.id, 'joias', 0).fichas).toBe(0);
+    expect(acc.premioMinijogo(a.id, 'joias', 1.5).fichas).toBe(0);
+    expect(acc.money(a.id)).toBe(0);
+    acc.close();
+  });
+
+  it('pelo lobby: o cliente avisa o nível e recebe o prêmio', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const lobby = new Lobby('Teste', acc);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: {} as never });
+    conn.handle({ type: 'minijogoNivel', jogo: 'joias', nivel: 1 });
+    expect(got.find((m) => m.type === 'minijogoPremio')).toMatchObject({ type: 'minijogoPremio', jogo: 'joias', nivel: 1, fichas: PREMIO_POR_NIVEL.fichas });
+    acc.close();
+  });
+
+  it('sem contas no servidor, o lobby responde que não há prêmio', () => {
+    const lobby = new Lobby('Teste', null);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: {} as never });
+    conn.handle({ type: 'minijogoNivel', jogo: 'joias', nivel: 1 });
+    expect(got.find((m) => m.type === 'minijogoPremio')).toMatchObject({ fichas: 0, pado: 0 });
+  });
+});
+
+describe('ranking no servidor', () => {
+  it('o recorde de minijogo fica só se for o maior e plausível, e vai à foto da conta', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const a = acc.login(undefined, profile())!;
+    expect(acc.recordeMinijogo(a.id, 'joias', 5000, 2)).toBe(5000);
+    expect(acc.recordeMinijogo(a.id, 'joias', 3000, 2)).toBe(5000); // menor: fica o anterior
+    expect(acc.recordeMinijogo(a.id, 'joias', 99_000_000, 1)).toBeNull(); // absurdo para o nível
+    expect(acc.recordeMinijogo(a.id, 'joias', 7000, 3)).toBe(7000);
+    expect(acc.info(a.id)!.recordes).toEqual({ joias: 7000 });
+    acc.close();
+  });
+
+  it('o recorde sobrevive ao servidor reiniciar', () => {
+    const file = newFile();
+    const antes = new Accounts({ file, startingMoney: 0 });
+    const a = antes.login(undefined, profile())!;
+    antes.recordeMinijogo(a.id, 'bolhas', 4200, 3);
+    antes.close();
+    const depois = new Accounts({ file, startingMoney: 0 });
+    expect(depois.info(a.id)!.recordes).toEqual({ bolhas: 4200 });
+    depois.close();
+  });
+
+  it('pelo lobby: o recorde entra, e o ranking volta com a posição de quem pediu', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const lobby = new Lobby('Teste', acc);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: {} as never });
+    conn.handle({ type: 'minijogoRecorde', jogo: 'joias', pontos: 6400, nivel: 3 });
+    conn.handle({ type: 'ranking' });
+    const r = got.find((m) => m.type === 'ranking');
+    expect(r?.type).toBe('ranking');
+    if (r?.type !== 'ranking') return;
+    const joias = r.ranking.quadros.find((q) => q.id === 'joias')!;
+    expect(joias.linhas[0]).toMatchObject({ name: 'Gabi', valor: 6400, pos: 1 });
+    expect(joias.eu?.pos).toBe(1);
+    expect(r.ranking.quadros[0].id).toBe('geral');
+    acc.close();
+  });
+
+  it('sem contas no servidor, o ranking responde com erro (e não quebra)', () => {
+    const lobby = new Lobby('Teste', null);
+    const got: ServerMsg[] = [];
+    const conn = lobby.connect((m) => void got.push(m));
+    conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: {} as never });
+    conn.handle({ type: 'ranking' });
+    expect(got.some((m) => m.type === 'error')).toBe(true);
   });
 });

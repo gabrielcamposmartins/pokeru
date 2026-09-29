@@ -2,6 +2,7 @@ import type { BondEvent, BondStats } from './bond';
 import type { Currency } from './catalog';
 import type { PlayerStats, StatEvent } from './achievements';
 import type { ResumoDaPartida } from './personality';
+import type { Ranking } from './ranking';
 import type { AvatarInfo, PlayerCosmetics } from './styles';
 
 /**
@@ -98,6 +99,27 @@ export interface AccountInfo {
    * apontaria para outra pessoa no dia seguinte (veja shared/friends.ts).
    */
   code: string;
+  /**
+   * Quantos níveis de minijogo já renderam prêmio hoje (shared/minijogos.ts). Opcional: servidor
+   * antigo não manda, e aí o cliente só não mostra quanto falta.
+   */
+  minijogosHoje?: number;
+  /**
+   * O recorde de cada minijogo guardado no servidor (é o que vai ao ranking). Opcional: servidor
+   * antigo não manda. O cliente mostra o maior entre este e o do próprio aparelho.
+   */
+  recordes?: Partial<Record<string, number>>;
+}
+
+/** O que um nível de minijogo rendeu (ou por que não rendeu). */
+export interface PremioMinijogo {
+  fichas: number;
+  /** 0 quando a conta não tem Discord vinculado (padocoin só existe lá). */
+  pado: number;
+  /** Quantos níveis ainda rendem prêmio hoje. */
+  restantes: number;
+  /** Por que não rendeu nada (teto do dia, pedido rápido demais…). Ausente quando rendeu. */
+  motivo?: string;
 }
 
 /** Como a conta se veste: o que o card de um jogador mostra. */
@@ -271,6 +293,19 @@ export interface AccountService extends TableBank {
    * que entraram, ou a mensagem de erro.
    */
   giveGift(accountId: string, character: string, gift: string): number | string;
+  /**
+   * Um nível de minijogo foi passado: entrega fichas e padocoins, se a conta ainda pode ganhar
+   * hoje. **Quem decide é daqui** (shared/minijogos.ts) — o cliente só avisa. Opcional: um serviço
+   * sem contas de verdade não paga prêmio.
+   */
+  premioMinijogo?(accountId: string, jogo: string, nivel: number): PremioMinijogo;
+  /**
+   * Um recorde de minijogo: guarda se for o maior da conta e se for plausível para o nível
+   * (shared/minijogos.ts). Devolve o recorde que ficou, ou null se foi recusado.
+   */
+  recordeMinijogo?(accountId: string, jogo: string, pontos: number, nivel: number): number | null;
+  /** O ranking de todas as contas (shared/ranking.ts), com a posição de quem pediu. */
+  ranking?(accountId: string | null): Ranking;
   /**
    * Relê o que vive fora do servidor (o saldo de padocoins, que é do bot do Discord) e avisa se
    * mudou. Opcional: um serviço que não fala com ninguém de fora não precisa disso.
