@@ -42,6 +42,7 @@
  *   /preview.html?cena=estudio&aba=ui  o Estúdio (aba= face|back|chip|table|fx|ui)
  *   &nivel=45                          o nível do jogador no menu (muda a cor da barra de xp)
  *   &motion=1                          liga as animacoes; &ui=victorian usa o tema vitoriano
+ *   &ui=retro&paleta=tron&crt=0        o tema retrofuturista (paleta: synthwave|tron|vaporwave|fosforo|ambar)
  */
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -65,9 +66,19 @@ import '@fontsource/playfair-display/700.css';
 import '@fontsource/playfair-display/800.css';
 import '@fontsource/playfair-display/900.css';
 import '@fontsource/playfair-display/900-italic.css';
+import '@fontsource/orbitron/500.css';
+import '@fontsource/orbitron/600.css';
+import '@fontsource/orbitron/700.css';
+import '@fontsource/orbitron/800.css';
+import '@fontsource/orbitron/900.css';
+import '@fontsource/chakra-petch/400.css';
+import '@fontsource/chakra-petch/500.css';
+import '@fontsource/chakra-petch/600.css';
+import '@fontsource/chakra-petch/700.css';
 import '../styles/global.css';
 import '../styles/cardfx.css';
 import '../styles/victorian.css';
+import '../styles/retro.css';
 import '../styles/persona.css';
 import { BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, findCharacter, type AuraId } from '../../shared/styles';
 import type { GanhoDaPartida, Opening, SeatView } from '../../shared/protocol';
@@ -91,11 +102,12 @@ import { MainMenu } from '../screens/MainMenu';
 import { OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
 import { GalleryScreen } from '../screens/Gallery';
+import { MinijogosScreen } from '../screens/Minijogos';
 import { Studio } from '../screens/Studio';
 import { xpForLevel } from '../../shared/achievements';
 import { useProfile } from '../store/profile';
 import { useRoleta } from '../store/roleta';
-import { useUiTheme } from '../ui/themes';
+import { applyTheme, useUiTheme } from '../ui/themes';
 import { useSession } from '../store/session';
 import { useAuth } from '../store/auth';
 import { RoundResultPanel } from '../game/RoundResult';
@@ -114,7 +126,9 @@ import { useFriends } from '../store/friends';
 const q = new URLSearchParams(location.search);
 const uiInicial = q.get('ui') ?? 'default';
 document.documentElement.dataset.ui = uiInicial;
-useProfile.setState((s) => ({ settings: { ...s.settings, uiTheme: uiInicial } }));
+useProfile.setState((s) => ({
+  settings: { ...s.settings, uiTheme: uiInicial, retroPalette: q.get('paleta') ?? s.settings.retroPalette, crt: q.get('crt') !== '0' },
+}));
 
 /**
  * Segue a aparência escolhida, como o App faz.
@@ -124,9 +138,11 @@ useProfile.setState((s) => ({ settings: { ...s.settings, uiTheme: uiInicial } })
  */
 function TemaVivo() {
   const theme = useUiTheme();
+  const retroPalette = useProfile((s) => s.settings.retroPalette);
+  const crt = useProfile((s) => s.settings.crt);
   useEffect(() => {
-    document.documentElement.dataset.ui = theme.id;
-  }, [theme]);
+    applyTheme(theme, { retroPalette, crt });
+  }, [theme, retroPalette, crt]);
   return null;
 }
 
@@ -954,6 +970,8 @@ createRoot(document.getElementById('root')!).render(
           <div className="menu-bg" />
           <Personalidades />
         </div>
+      ) : cena === 'minijogos' ? (
+        <MinijogosScreen onBack={() => {}} inicial={(q.get('jogo') as never) ?? null} />
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} inicial={(q.get('aba') as never) ?? undefined} />
       ) : cena === 'galeria' ? (

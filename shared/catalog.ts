@@ -100,6 +100,7 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'character:tobi': 'lendario',
   'character:yukina': 'lendario',
   'ui:victorian': 'lendario',
+  'ui:retro': 'lendario',
   /*
    * O kimono é o presente do fim da escada.
    *
@@ -325,6 +326,7 @@ export const findGift = (id: string): GiftSpec | undefined => GIFTS.find((g) => 
 const UI_THEMES: { id: string; name: string }[] = [
   { id: 'default', name: 'Sakura' },
   { id: 'victorian', name: 'Vitoriano' },
+  { id: 'retro', name: 'Retrofuturista' },
 ];
 
 /** O preço de tabela de uma peça: o do tipo, com as exceções declaradas acima. */

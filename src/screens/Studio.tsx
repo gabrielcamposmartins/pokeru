@@ -36,7 +36,7 @@ import { CardWinFx, WIN_FX, findWinFx, type FxFrame } from '../render/cardfx';
 import { AURAS, AuraAmostra, CharacterAura, SLOT_LABEL, findAura } from '../render/aura';
 import { FRAMES, PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
-import { UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
+import { RETRO_PALETTES, UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
 
 // ------------------------------------------------------------------ util
 
@@ -529,6 +529,41 @@ function ThemeLock({ id }: { id: string }) {
   return useOwns('ui', id) ? null : <span className="badge locked">🔒 Loja</span>;
 }
 
+/**
+ * Paleta e efeito de monitor do Retrofuturista.
+ *
+ * Valem na hora (o App põe `data-palette`/`data-crt` no <html>), inclusive durante a
+ * pré-visualização, e ficam guardados mesmo se o jogador sair sem aplicar a aparência.
+ */
+function RetroOptions() {
+  const palette = useProfile((s) => s.settings.retroPalette);
+  const crt = useProfile((s) => s.settings.crt);
+  const updateSettings = useProfile((s) => s.updateSettings);
+  return (
+    <Section title="Paleta">
+      <div className="retro-palettes" role="radiogroup" aria-label="Paleta de cores">
+        {RETRO_PALETTES.map((p) => (
+          <button
+            key={p.id}
+            role="radio"
+            aria-checked={palette === p.id}
+            className={`retro-palette ${palette === p.id ? 'on' : ''}`}
+            style={{ '--sw1': p.colors[0], '--sw2': p.colors[1], '--sw3': p.colors[2] } as React.CSSProperties}
+            onClick={() => {
+              sfx.click();
+              updateSettings({ retroPalette: p.id });
+            }}
+          >
+            <span className="retro-swatch" aria-hidden="true" />
+            {p.name}
+          </button>
+        ))}
+      </div>
+      <Toggle label="Efeito CRT (linhas de varredura)" value={crt} onChange={(v) => updateSettings({ crt: v })} />
+    </Section>
+  );
+}
+
 function UiThemeStudio() {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
@@ -616,6 +651,7 @@ function UiThemeStudio() {
         <Section title="Sobre">
           <p className="theme-desc">{theme.description}</p>
         </Section>
+        {theme.id === 'retro' && <RetroOptions />}
         <Section title="O que muda">
           <ul className="theme-features">
             {theme.features.map((f) => (

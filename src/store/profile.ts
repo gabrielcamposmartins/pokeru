@@ -72,6 +72,10 @@ export interface Settings {
   autoMuck: boolean;
   /** Aparência da interface (id em src/ui/themes.ts). */
   uiTheme: string;
+  /** Paleta do tema Retrofuturista (id em RETRO_PALETTES, src/ui/themes.ts). */
+  retroPalette: string;
+  /** Linhas de varredura de monitor no tema Retrofuturista. */
+  crt: boolean;
   /** App desktop: procurar e instalar a versão nova ao abrir. */
   autoUpdate: boolean;
 }
@@ -178,6 +182,8 @@ const initial = {
     handHint: true,
     autoMuck: true,
     uiTheme: 'default',
+    retroPalette: 'synthwave',
+    crt: true,
     autoUpdate: true,
   },
 };

@@ -1,0 +1,1773 @@
+/* ==========================================================================
+   Pokeru — tema retrofuturista (synthwave + monitor de tubo + HUD)
+   Vale só com <html data-ui="retro"> (escolhido no Estúdio → UI; veja src/ui/themes.ts).
+   `data-palette` troca as cores (synthwave, tron, vaporwave, fosforo, ambar) e
+   `data-crt="on"` liga as linhas de varredura; os dois são postos pelo App.
+
+   Regras que seguram o tema:
+     1. Neon é acento, não massa: fundo quase preto, brilho só em bordas, títulos, barras e no
+        botão principal. Texto corrido nunca brilha.
+     2. Tudo sai dos tokens. Cada paleta redefine ~15 cores-base; linhas, fundos suaves e brilhos
+        derivam delas com color-mix(). Nenhum componente conhece a paleta.
+     3. Cantos retos (0 a 4 px) — isso sozinho já muda a cara do jogo.
+     4. Efeitos estáticos e baratos: a grade do fundo não anda, o CRT é um degradê sem blend.
+   ========================================================================== */
+
+/* ---------- paletas: as cores-base ---------- */
+
+:root[data-ui='retro'] {
+  --bg: #0d0221;
+  --bg-2: #13042e;
+  --surface: #170935;
+  --surface-2: #1f0d45;
+  --surface-3: #2a1458;
+  --text: #fbeaff;
+  --text-2: #d6c2f0;
+  --muted: #9a84bd;
+  --accent: #ff2a6d;
+  --accent-2: #05d9e8;
+  --accent-3: #d300c5;
+  --good: #3dfc9a;
+  --bad: #ff4d6d;
+  --warn: #ffd319;
+  --star: #ffd319;
+  --on-accent: #12021f;
+  --horizon: #ff2a6d;
+}
+:root[data-ui='retro'][data-palette='tron'] {
+  --bg: #000b13;
+  --bg-2: #00111d;
+  --surface: #031927;
+  --surface-2: #062334;
+  --surface-3: #0a3147;
+  --text: #e0fbff;
+  --text-2: #a3d9e8;
+  --muted: #5f93a5;
+  --accent: #00e5ff;
+  --accent-2: #2f7bff;
+  --accent-3: #7df9ff;
+  --good: #3dfc9a;
+  --bad: #ff5470;
+  --warn: #ffc640;
+  --star: #ffd84d;
+  --on-accent: #00121c;
+  --horizon: #00e5ff;
+}
+:root[data-ui='retro'][data-palette='vaporwave'] {
+  --bg: #1a0b2e;
+  --bg-2: #200e3a;
+  --surface: #261146;
+  --surface-2: #2e1554;
+  --surface-3: #3b1c68;
+  --text: #fff0fb;
+  --text-2: #e4c8f2;
+  --muted: #a98cc6;
+  --accent: #ff71ce;
+  --accent-2: #01cdfe;
+  --accent-3: #b967ff;
+  --good: #05ffa1;
+  --bad: #ff5c8a;
+  --warn: #fffb96;
+  --star: #fffb96;
+  --on-accent: #1a0b2e;
+  --horizon: #ff71ce;
+}
+:root[data-ui='retro'][data-palette='fosforo'] {
+  --bg: #010a03;
+  --bg-2: #021006;
+  --surface: #04170a;
+  --surface-2: #07200f;
+  --surface-3: #0b2d16;
+  --text: #c8ffd4;
+  --text-2: #8fe2a5;
+  --muted: #52925f;
+  --accent: #33ff66;
+  --accent-2: #a6ff4d;
+  --accent-3: #00ff9c;
+  --good: #33ff66;
+  --bad: #ff5a4d;
+  --warn: #e8ff4d;
+  --star: #e8ff4d;
+  --on-accent: #011204;
+  --horizon: #33ff66;
+}
+:root[data-ui='retro'][data-palette='ambar'] {
+  --bg: #0c0600;
+  --bg-2: #120900;
+  --surface: #1a0e02;
+  --surface-2: #231404;
+  --surface-3: #301c07;
+  --text: #ffe4b5;
+  --text-2: #e9c182;
+  --muted: #a27b46;
+  --accent: #ffb000;
+  --accent-2: #ff7a00;
+  --accent-3: #ffd166;
+  --good: #b6ff4d;
+  --bad: #ff5a3c;
+  --warn: #ffd166;
+  --star: #ffd166;
+  --on-accent: #1a0d00;
+  --horizon: #ff9500;
+}
+
+:root[data-ui='retro'] {
+  /* ---------- derivados (iguais em todas as paletas) e a ponte para os tokens do jogo ---------- */
+  & {
+    --line-1: color-mix(in srgb, var(--accent) 14%, transparent);
+    --line-2: color-mix(in srgb, var(--accent) 24%, transparent);
+    --line-3: color-mix(in srgb, var(--accent) 42%, transparent);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+    --glow: 0 0 22px -8px var(--accent);
+    --hud-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 18px 40px -22px rgba(0, 0, 0, 0.9);
+    --scan: repeating-linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent) 0 1px, transparent 1px 4px);
+    --card-grad: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 92%, transparent), color-mix(in srgb, var(--surface) 95%, transparent));
+    --neon-grad: linear-gradient(135deg, var(--accent), var(--accent-3));
+    --chrome: linear-gradient(180deg, #ffffff 0%, var(--text) 30%, var(--accent-2) 48%, var(--accent) 62%, var(--accent-3) 100%);
+
+    /* os tokens do global.css, agora saídos da paleta */
+    --bg0: var(--bg);
+    --bg1: var(--bg-2);
+    --panel-a: color-mix(in srgb, var(--surface-2) 94%, transparent);
+    --panel-b: color-mix(in srgb, var(--surface) 96%, transparent);
+    --line: var(--line-3);
+    --line-soft: var(--line-1);
+    --gold: var(--accent-2);
+    --gold-2: color-mix(in srgb, var(--accent-2) 45%, var(--text));
+    --gold-3: color-mix(in srgb, var(--accent) 55%, #000);
+    --pink: var(--accent);
+    --pink-2: var(--accent-3);
+    --violet: var(--accent-3);
+    --cyan: var(--accent-2);
+    --mint: var(--good);
+    --danger: var(--bad);
+    --radius: 3px;
+    --stamp-ink: var(--good);
+    --washi: linear-gradient(transparent, transparent);
+
+    --font: 'Chakra Petch', 'M PLUS Rounded 1c', 'Segoe UI', system-ui, sans-serif;
+    --title: 'Orbitron', 'Chakra Petch', 'M PLUS Rounded 1c', sans-serif;
+    --display: 'Orbitron', 'Chakra Petch', sans-serif;
+    --num: 'Chakra Petch', 'M PLUS Rounded 1c', sans-serif;
+  }
+
+  &,
+  & body,
+  & #root {
+    background: var(--bg);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- globais: seleção, foco, rolagem e o CRT ---------- */
+
+  & ::selection {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+    color: #fff;
+  }
+  & :focus-visible {
+    outline-color: var(--accent-2);
+  }
+  & ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+    border-radius: 2px;
+  }
+  & ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  /*
+   * Linhas de varredura: uma linha escura de 1 px a cada 3 px, a 16%. Fica por cima de tudo,
+   * modais inclusive, e não recebe clique. Sem mix-blend-mode — com ele o navegador recomporia a
+   * tela inteira a cada quadro da mesa.
+   */
+  &[data-crt='on'] body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2000;
+    background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+  }
+
+  /* ---------- tipografia ---------- */
+
+  & h1,
+  & h2 {
+    letter-spacing: 0.03em;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  & h3 {
+    font-family: var(--title);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+  }
+  & code {
+    background: color-mix(in srgb, var(--accent) 13%, transparent);
+    color: color-mix(in srgb, var(--accent-2) 55%, white);
+    border-radius: 2px;
+  }
+  .title-deco {
+    font-family: var(--title);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    background: linear-gradient(90deg, var(--text), var(--accent) 55%, var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 40%, transparent));
+  }
+  .section-title {
+    font-family: var(--title);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+  }
+  .section-title::before {
+    content: '▸ ';
+    color: var(--accent);
+  }
+  .section {
+    border-bottom-color: var(--line-1);
+  }
+  .field-label,
+  .pc-label {
+    font-family: var(--title);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+  }
+
+  /* ---------- painéis: superfície escura, borda de neon apagado e um fio de luz no topo ---------- */
+
+  .panel {
+    background: var(--card-grad);
+    border: 1px solid var(--line-2);
+    border-radius: 3px;
+    box-shadow:
+      var(--hud-shadow),
+      inset 0 1px 0 color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .panel::before {
+    inset: 3px;
+    border-color: var(--line-1);
+    border-radius: 1px;
+  }
+  /*
+   * Cantoneiras de HUD nos painéis principais (modais, pré-visualização do Estúdio e login).
+   * Em todo painel virariam ruído; aqui marcam onde está o conteúdo que importa.
+   */
+  .modal::after,
+  .preview-area::after,
+  .login-panel::after,
+  .raise-box::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--accent), var(--accent)) top left / 16px 2px,
+      linear-gradient(var(--accent), var(--accent)) top left / 2px 16px,
+      linear-gradient(var(--accent), var(--accent)) bottom right / 16px 2px,
+      linear-gradient(var(--accent), var(--accent)) bottom right / 2px 16px;
+    background-repeat: no-repeat;
+    filter: drop-shadow(0 0 4px var(--accent));
+  }
+
+  /* ---------- botões ---------- */
+
+  /*
+   * A placa de laca com cantos cortados é do Sakura. Aqui o botão é um retângulo de cantos quase
+   * retos com borda de neon; desligar o recorte, o filtro e os pseudos devolve o botão ao desenho
+   * abaixo.
+   */
+  .btn,
+  .act-btn {
+    clip-path: none;
+    filter: none;
+  }
+  .btn::before,
+  .btn::after,
+  .act-btn::before {
+    display: none;
+  }
+  .btn {
+    border-radius: 3px;
+    padding: 10px 22px;
+    font-family: var(--title);
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: color-mix(in srgb, var(--surface-2) 85%, transparent);
+    border: 1px solid var(--line-3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition:
+      background 0.15s,
+      box-shadow 0.15s,
+      border-color 0.15s,
+      transform 0.12s;
+  }
+  .btn:hover:not(:disabled) {
+    filter: none;
+    background: var(--surface-3);
+    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+    box-shadow: 0 0 14px -6px var(--accent);
+  }
+  .btn:active:not(:disabled) {
+    filter: none;
+  }
+  .btn:focus-visible {
+    filter: none;
+    outline: 2px solid var(--accent-2);
+    outline-offset: 2px;
+  }
+  .btn.small {
+    font-size: 11px;
+    padding: 7px 14px;
+  }
+  .btn.big {
+    font-size: 16px;
+    padding: 14px 32px;
+  }
+  /* o principal: neon cheio, texto escuro (texto branco sobre magenta fica abaixo de 4,5:1) */
+  .btn-gold,
+  .btn-gold:hover:not(:disabled) {
+    background: var(--neon-grad);
+    color: var(--on-accent);
+    text-shadow: none;
+    border-color: transparent;
+    box-shadow:
+      0 0 20px -4px var(--accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+  .btn-gold:hover:not(:disabled) {
+    box-shadow:
+      0 0 26px -2px var(--accent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+  .btn-pink {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+    border-color: var(--accent);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  .btn-blue {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent-2) 18%, var(--surface));
+    border-color: var(--accent-2);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--accent-2) 60%, transparent);
+  }
+  .btn-blue:hover:not(:disabled) {
+    border-color: var(--accent-2);
+    box-shadow: 0 0 14px -6px var(--accent-2);
+  }
+  .btn-danger {
+    color: var(--bad);
+    background: color-mix(in srgb, var(--bad) 12%, var(--surface));
+    border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    border-color: var(--bad);
+    box-shadow: 0 0 14px -6px var(--bad);
+  }
+  .btn-ghost {
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    border-color: var(--line-2);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--accent-soft);
+  }
+  .hud-bt {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    letter-spacing: 0;
+    font-size: 17px;
+    font-family: inherit;
+  }
+  .hud-bt .dot {
+    background: var(--accent-2);
+    box-shadow: 0 0 6px var(--accent-2);
+  }
+
+  /* ---------- campos ---------- */
+
+  .input {
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    border: 1px solid var(--line-2);
+    border-radius: 2px;
+    color: var(--text);
+  }
+  .input:focus {
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 25%, transparent);
+  }
+  .seg {
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+    border: 1px solid var(--line-1);
+    border-radius: 2px;
+  }
+  .seg button:hover:not(:disabled) {
+    background: var(--accent-soft);
+  }
+  .seg button.on,
+  .icon-grid button.on,
+  .studio-tabs button.on {
+    background: var(--neon-grad);
+    color: var(--on-accent);
+    text-shadow: none;
+    box-shadow: 0 0 12px -4px var(--accent);
+  }
+  & input[type='range'] {
+    border-radius: 0;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  & input[type='range']::-webkit-slider-thumb {
+    border-radius: 1px;
+    background: var(--accent-2);
+    box-shadow: 0 0 8px var(--accent-2);
+  }
+  .toggle-track {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    border: 1px solid var(--line-2);
+  }
+  .toggle-knob {
+    border-radius: 1px;
+    background: var(--muted);
+  }
+  .toggle.on .toggle-track {
+    background: color-mix(in srgb, var(--accent-2) 30%, transparent);
+    border-color: var(--accent-2);
+  }
+  .toggle.on .toggle-knob {
+    background: var(--accent-2);
+    box-shadow: 0 0 8px var(--accent-2);
+  }
+  .color-field,
+  .room-card,
+  .style-item,
+  .opt-grid button,
+  .icon-grid button,
+  .chat-tabs button,
+  .emote-grid button,
+  .chip-btn,
+  .pre-btn,
+  .degrau,
+  .ranking li,
+  .theme-thumb,
+  .char-card,
+  .thumb-portrait,
+  .pc-expr,
+  .preview-stage,
+  .shop-card,
+  .shop-warn,
+  .shop-hint,
+  .shop-art,
+  .login-modes,
+  .login-mode,
+  .login-eye,
+  .login-error,
+  .wallet,
+  .wallet-pill,
+  .bond-stats span,
+  .bond-reward,
+  .bond-gain,
+  .bond-unlock,
+  .bond-mission,
+  .bond-audio,
+  .bond-soon,
+  .bond-skin,
+  .bond-emote,
+  .bond-track,
+  .bond-fill {
+    border-radius: 3px;
+  }
+  .tag,
+  .badge,
+  .room-status,
+  .room-rules span,
+  .plate-action,
+  .plate-badge,
+  .plate-hand,
+  .chip-label,
+  .pot-label,
+  .me-badge,
+  .icon-badge {
+    border-radius: 2px;
+  }
+  .tag {
+    background: var(--accent-soft);
+    border: 1px solid var(--line-3);
+    color: var(--accent-2);
+    font-family: var(--title);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+  .swatch.on {
+    border-color: var(--accent-2);
+  }
+  .avatar {
+    border-color: var(--accent);
+  }
+
+  /* ---------- fundo: céu, brilho do horizonte e grade em perspectiva ---------- */
+
+  .menu-bg {
+    background:
+      radial-gradient(ellipse 55% 32% at 50% 100%, color-mix(in srgb, var(--horizon) 26%, transparent), transparent 70%),
+      radial-gradient(900px 420px at 10% -10%, color-mix(in srgb, var(--accent-3) 14%, transparent), transparent 65%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 55%, color-mix(in srgb, var(--horizon) 9%, var(--bg)) 100%);
+  }
+  /*
+   * A grade: uma malha plana deitada em 3D e apagada para cima. -50% dos lados porque a
+   * perspectiva estreita a malha no alto. A malha é bem mais alta que a tela porque a projeção
+   * achata o fundo: com 150vh e esta perspectiva ela sobe até ~27vh, onde fica o horizonte.
+   * Estática de propósito: animar background-position repintaria a faixa inteira a cada quadro.
+   */
+  .menu-bg::before {
+    inset: auto -50% 0 -50%;
+    height: 150vh;
+    border: none;
+    box-shadow: none;
+    background:
+      linear-gradient(color-mix(in srgb, var(--accent) 42%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 42%, transparent) 1px, transparent 1px);
+    background-size: 64px 48px;
+    transform: perspective(500px) rotateX(55deg);
+    transform-origin: 50% 100%;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 70%);
+    mask-image: linear-gradient(to top, #000 0%, transparent 70%);
+    opacity: 0.6;
+  }
+  /* o horizonte: um fio de luz onde a grade some */
+  .menu-bg::after {
+    inset: auto 0 27vh 0;
+    height: 2px;
+    opacity: 0.55;
+    background: linear-gradient(90deg, transparent, var(--horizon) 30%, var(--horizon) 70%, transparent);
+    background-size: auto;
+    box-shadow: 0 0 18px 2px color-mix(in srgb, var(--horizon) 60%, transparent);
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  /* no lugar das pétalas: pontos de luz subindo devagar */
+  .petal {
+    top: auto;
+    bottom: -20px;
+    width: 3px;
+    height: 3px;
+    border-radius: 0;
+    background: var(--accent-2);
+    box-shadow: 0 0 6px var(--accent-2);
+    opacity: 0.5;
+    animation-name: retroRise;
+  }
+  .petal.suit {
+    box-shadow: none;
+    background: none;
+    color: color-mix(in srgb, var(--accent) 22%, transparent);
+    font-family: var(--title);
+  }
+  .menu-rays {
+    background: radial-gradient(ellipse 40% 55% at 70% -8%, color-mix(in srgb, var(--accent-2) 10%, transparent), transparent 70%);
+  }
+  /* a sala da partida: a mesma grade, bem baixinha, no lugar do papel de parede */
+  .sala-fundo {
+    --mesa-pat:
+      linear-gradient(color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px) 0 0 / 56px 56px,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 7%, transparent) 1px, transparent 1px) 0 0 / 56px 56px;
+  }
+
+  /* ---------- menu principal ---------- */
+
+  .logo-main {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: clamp(40px, 5.6vw, 88px);
+    letter-spacing: 0.04em;
+    font-style: italic;
+    background: var(--chrome);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 3px 0 color-mix(in srgb, var(--accent-3) 70%, #000)) drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 55%, transparent));
+  }
+  .logo-spade {
+    background: linear-gradient(180deg, var(--accent-2), var(--accent));
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .logo-accent {
+    background: linear-gradient(180deg, #fff, var(--accent) 60%, var(--accent-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .logo-sub {
+    font-family: var(--title);
+    font-size: clamp(11px, 1.05vw, 15px);
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    color: var(--accent-2);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--accent-2) 60%, transparent);
+  }
+  .logo-est {
+    margin-top: 4px;
+    font-family: var(--title);
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    color: var(--accent);
+    text-shadow: 0 0 8px var(--accent);
+  }
+  .mj-menu .logo-main {
+    white-space: nowrap;
+  }
+  .top-bar {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 88%, transparent), transparent);
+  }
+  .player-chip {
+    border-radius: 3px;
+    background: var(--card-grad);
+    border: 1px solid var(--line-3);
+    box-shadow: var(--hud-shadow), 0 0 22px -12px var(--accent);
+  }
+  .player-portrait {
+    border-radius: 2px;
+    border-color: var(--accent);
+    box-shadow: 0 0 10px -2px var(--accent);
+  }
+  .player-portrait.com-moldura {
+    border: none;
+    box-shadow: none;
+  }
+  .player-name {
+    font-family: var(--title);
+    font-size: 17px;
+    letter-spacing: 0.04em;
+  }
+  .round-icon {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+    border: 1px solid var(--line-3);
+    color: var(--accent-2);
+    box-shadow: 0 0 14px -6px var(--accent);
+  }
+  .round-icon:hover {
+    box-shadow: 0 0 18px -4px var(--accent);
+  }
+  .wallet-pill {
+    background: var(--card-grad);
+    border: 1px solid var(--line-3);
+  }
+  .wallet-pill-value {
+    font-family: var(--num);
+    font-weight: 700;
+  }
+  .wallet-pill-plus {
+    border-radius: 2px;
+    background: var(--neon-grad);
+    color: var(--on-accent);
+  }
+
+  /* cartões de modo: telas de HUD com a grade no pé */
+  .mode-card {
+    --c: var(--accent);
+    border-radius: 3px;
+    border: 1px solid var(--line-3);
+    color: var(--text);
+    background:
+      linear-gradient(color-mix(in srgb, var(--c) 30%, transparent) 1px, transparent 1px) 0 100% / 100% 16px,
+      linear-gradient(90deg, color-mix(in srgb, var(--c) 30%, transparent) 1px, transparent 1px) 50% 100% / 22px 100%,
+      radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--c) 35%, transparent), transparent 60%),
+      linear-gradient(180deg, var(--surface-2), var(--bg));
+    background-repeat: repeat-y, repeat-x, no-repeat, no-repeat;
+    box-shadow:
+      var(--hud-shadow),
+      0 0 26px -12px var(--c),
+      inset 0 1px 0 color-mix(in srgb, var(--c) 30%, transparent);
+  }
+  .mode-card.gold {
+    --c: var(--accent);
+    color: var(--text);
+  }
+  .mode-card.pink {
+    --c: var(--accent-3);
+  }
+  .mode-card.blue {
+    --c: var(--accent-2);
+  }
+  .mode-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--c), var(--c)) top left / 14px 2px,
+      linear-gradient(var(--c), var(--c)) top left / 2px 14px,
+      linear-gradient(var(--c), var(--c)) bottom right / 14px 2px,
+      linear-gradient(var(--c), var(--c)) bottom right / 2px 14px,
+      var(--scan);
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+  }
+  .mode-glyph {
+    color: var(--c);
+    opacity: 0.14;
+    font-family: var(--title);
+  }
+  .mode-title {
+    font-family: var(--title);
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-shadow: 0 0 12px var(--c);
+  }
+  .mode-card.pink .mode-title {
+    text-shadow: 0 0 12px var(--c);
+  }
+  .mode-sub {
+    color: var(--text-2);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  }
+  .mode-shine {
+    background: linear-gradient(115deg, transparent 35%, color-mix(in srgb, var(--c) 18%, transparent) 48%, transparent 60%);
+  }
+  .icon-circle {
+    border-radius: 3px;
+    width: 60px;
+    height: 60px;
+    font-size: 26px;
+    color: var(--accent-2);
+    background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+    border: 1px solid var(--line-3);
+    box-shadow:
+      var(--hud-shadow),
+      0 0 16px -8px var(--accent),
+      inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent);
+    text-shadow: 0 0 10px var(--accent-2);
+  }
+  .icon-label {
+    font-family: var(--title);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
+  }
+  .icon-badge {
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .version {
+    font-family: var(--title);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+  }
+
+  /* personagem: a etiqueta chanfrada do HUD e a fala num balão de terminal */
+  .char-nameplate {
+    padding: 6px 30px 8px 18px;
+    border-left: none;
+    border-radius: 0;
+    background: var(--neon-grad);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 16px) 100%, 0 100%);
+    box-shadow: none;
+  }
+  .char-nameplate small {
+    color: var(--on-accent);
+    opacity: 0.8;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .char-nameplate b {
+    font-family: var(--title);
+    font-weight: 800;
+    font-size: 26px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: var(--on-accent);
+    text-shadow: none;
+  }
+  .char-nameplate .bond-count {
+    color: var(--on-accent);
+  }
+  .char-nameplate .bond-heart-bg {
+    fill: rgba(0, 0, 0, 0.25);
+  }
+  .char-nameplate .bond-heart-line {
+    stroke: var(--on-accent);
+  }
+  .speech {
+    border-radius: 3px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 96%, transparent), color-mix(in srgb, var(--bg) 97%, transparent));
+    color: var(--text);
+    border: 1px solid var(--line-3);
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.4),
+      0 0 30px -12px var(--accent),
+      0 16px 40px -20px rgba(0, 0, 0, 0.9);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .speech::after {
+    border-top-color: color-mix(in srgb, var(--accent) 42%, var(--bg));
+  }
+
+  /* ---------- telas genéricas ---------- */
+
+  .screen-header h1 {
+    font-family: var(--title);
+    font-size: 26px;
+    text-transform: uppercase;
+  }
+  .screen-header h1::after {
+    content: '';
+    display: block;
+    width: 180px;
+    height: 2px;
+    margin-top: 6px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .room-card {
+    background: color-mix(in srgb, var(--bg) 45%, transparent);
+    border: 1px solid var(--line-1);
+  }
+  .room-status {
+    font-family: var(--title);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    background: color-mix(in srgb, var(--good) 14%, transparent);
+    color: var(--good);
+  }
+  .room-status.st-playing {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .room-status.st-finished {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--muted);
+  }
+  .room-rules span {
+    background: var(--accent-soft);
+  }
+  .char-info-portrait,
+  .pc-portrait {
+    border-radius: 3px;
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 16px -6px var(--accent);
+  }
+  .dot-status.connected {
+    background: var(--good);
+    box-shadow: 0 0 8px var(--good);
+  }
+
+  /* ---------- modais e avisos ---------- */
+
+  .modal-back {
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+  }
+  .modal {
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    border-color: var(--line-3);
+    box-shadow:
+      0 24px 60px -20px rgba(0, 0, 0, 0.9),
+      var(--glow);
+  }
+  .modal h2 {
+    font-family: var(--title);
+    font-size: 24px;
+    text-transform: uppercase;
+  }
+  .ranking li {
+    background: color-mix(in srgb, var(--bg) 45%, transparent);
+    border: 1px solid var(--line-1);
+  }
+  .ranking li.first {
+    background: linear-gradient(90deg, var(--accent-soft), transparent);
+    border-color: var(--accent);
+  }
+  .toast {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    border: 1px solid var(--line-3);
+    box-shadow:
+      0 12px 30px -12px rgba(0, 0, 0, 0.9),
+      var(--glow);
+  }
+  .toast-error {
+    border-color: var(--bad);
+    color: color-mix(in srgb, var(--bad) 35%, white);
+  }
+
+  /* ---------- mesa ---------- */
+
+  .loading {
+    font-family: var(--title);
+    letter-spacing: 0.1em;
+  }
+  /* o console segue a paleta (o SVG traz as cores da Synthwave; o CSS vence o atributo) */
+  #console-bg stop:first-child {
+    stop-color: var(--surface-2);
+  }
+  #console-bg stop:last-child {
+    stop-color: var(--bg);
+  }
+  .console-svg .turn-glow,
+  .console-svg g:has(> .turn-glow) > rect:last-child {
+    fill: var(--accent-2);
+  }
+  .console-label {
+    font-family: var(--title);
+    font-size: 12px;
+    letter-spacing: 0.5em;
+    color: var(--accent-2);
+    text-shadow: 0 0 8px var(--accent-2);
+  }
+  .console-pot {
+    font-family: var(--num);
+    font-weight: 700;
+    text-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .console-sub {
+    color: var(--text-2);
+    letter-spacing: 0.04em;
+  }
+  .chip-label,
+  .pot-label {
+    font-family: var(--num);
+    font-weight: 700;
+    color: var(--text);
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    border: 1px solid var(--line-3);
+    box-shadow: 0 0 10px -4px var(--accent);
+  }
+  .dealer-btn {
+    font-family: var(--title);
+    color: var(--on-accent);
+    background: radial-gradient(circle at 35% 30%, #fff, var(--accent-2) 70%);
+    border: 2px solid var(--bg);
+    box-shadow:
+      0 0 0 1px var(--accent-2),
+      0 0 12px var(--accent-2);
+  }
+  .hand-hint {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    color: var(--accent-2);
+    border: 1px solid var(--accent-2);
+    font-family: var(--title);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 0 14px -4px var(--accent-2);
+  }
+  .card-hl > .card-svg,
+  .my-card .card-hl > .card-svg {
+    filter: drop-shadow(0 0 4px var(--accent-2)) drop-shadow(0 0 12px color-mix(in srgb, var(--accent-2) 70%, transparent));
+  }
+
+  /* cartões dos jogadores */
+  .plate,
+  .plate.seat-card {
+    border-radius: 3px;
+    background: var(--card-grad);
+    border: 1px solid var(--line-3);
+    box-shadow:
+      var(--hud-shadow),
+      inset 0 1px 0 color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  .plate.is-me {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, var(--surface-2)), color-mix(in srgb, var(--surface) 95%, transparent));
+    border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .seat-portrait,
+  .seat-portrait > svg,
+  .seat-portrait > img {
+    border-radius: 2px;
+  }
+  .moldura rect {
+    rx: 2px;
+    ry: 2px;
+  }
+  .seat-name {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .seat-stack,
+  .plate-stack {
+    font-family: var(--num);
+    font-weight: 700;
+    color: var(--gold-2);
+  }
+  /* a vez: a borda acende no neon complementar */
+  .plate.acting {
+    border-color: var(--accent-2);
+    box-shadow:
+      0 0 0 1px var(--accent-2),
+      0 0 26px -4px var(--accent-2);
+  }
+  .plate.acting .moldura {
+    --moldura-cor: var(--accent-2);
+    --moldura-cor2: #fff;
+    filter: drop-shadow(0 0 5px var(--accent-2));
+  }
+  .plate.acting .seat-portrait {
+    box-shadow: 0 0 18px var(--accent-2);
+  }
+  .plate.folded {
+    filter: grayscale(0.8) brightness(0.8);
+  }
+  .plate.busted {
+    filter: grayscale(1) brightness(0.6);
+  }
+  .plate.winner {
+    border-color: var(--star);
+    box-shadow:
+      0 0 0 1px var(--star),
+      0 0 34px -2px var(--star);
+    animation-name: retroWinPulse;
+  }
+  .plate.winner .moldura {
+    --moldura-cor: var(--star);
+    --moldura-cor2: #fff;
+  }
+  .plate.winner .seat-portrait {
+    box-shadow: 0 0 24px var(--star);
+  }
+  .plate-pos {
+    border-radius: 2px;
+    font-family: var(--title);
+    font-size: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 8px -2px currentColor;
+  }
+  .plate-pos.pos-D {
+    background: #f4f4ff;
+    color: #111;
+  }
+  .plate-pos.pos-SB {
+    background: var(--accent-2);
+    color: var(--on-accent);
+  }
+  .plate-pos.pos-BB {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+  .plate-action,
+  .plate-badge.allin {
+    font-family: var(--title);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent-2) 22%, var(--bg));
+    border: 1px solid var(--accent-2);
+  }
+  .plate-action.act-fold {
+    background: color-mix(in srgb, var(--muted) 18%, var(--bg));
+    border-color: var(--muted);
+    color: var(--text-2);
+  }
+  .plate-action.act-check {
+    background: color-mix(in srgb, var(--text) 10%, var(--bg));
+    border-color: var(--text-2);
+  }
+  .plate-action.act-raise {
+    background: var(--neon-grad);
+    color: var(--on-accent);
+    border-color: transparent;
+  }
+  .plate-badge.allin {
+    font-weight: 700;
+    background: var(--bad);
+    color: var(--on-accent);
+    border-color: transparent;
+    box-shadow: 0 0 12px var(--bad);
+  }
+  .plate-hand {
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    color: var(--accent-2);
+    border: 1px solid var(--accent-2);
+    font-weight: 700;
+  }
+  .emote-bubble {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--surface-2) 97%, transparent);
+    color: var(--text);
+    border: 1px solid var(--line-3);
+  }
+  .emote-bubble::after {
+    border-top-color: color-mix(in srgb, var(--accent) 42%, var(--bg));
+  }
+  .hud-info b {
+    font-family: var(--title);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+  .hud-info .mode {
+    color: var(--accent-2);
+  }
+
+  /* painel de ações: teclas de console */
+  .act-btn {
+    --c: var(--accent);
+    min-width: 156px;
+    height: 58px;
+    border-radius: 3px;
+    font-family: var(--title);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--c, var(--accent)) 70%, transparent);
+    background:
+      var(--scan),
+      linear-gradient(180deg, color-mix(in srgb, var(--c, var(--accent)) 22%, var(--surface-2)), color-mix(in srgb, var(--c, var(--accent)) 8%, var(--bg)));
+    border: 1px solid var(--c, var(--accent));
+    box-shadow:
+      0 0 18px -6px var(--c, var(--accent)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 0 22px -10px var(--c, var(--accent));
+  }
+  .act-btn:hover {
+    filter: brightness(1.15);
+    box-shadow:
+      0 0 26px -4px var(--c, var(--accent)),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      inset 0 0 22px -8px var(--c, var(--accent));
+  }
+  .act-btn small {
+    font-family: var(--num);
+    color: var(--text-2);
+    letter-spacing: 0;
+  }
+  .act-btn.fold {
+    --c: var(--muted);
+  }
+  .act-btn.check,
+  .act-btn.call {
+    --c: var(--accent-2);
+  }
+  .act-btn.raise {
+    --c: var(--accent);
+    background: var(--neon-grad);
+    color: var(--on-accent);
+    text-shadow: none;
+    border-color: transparent;
+  }
+  .act-btn.raise small {
+    color: var(--on-accent);
+  }
+  .act-btn.raise.allin {
+    --c: var(--bad);
+    background: linear-gradient(135deg, var(--bad), var(--accent-3));
+  }
+  .raise-box {
+    position: relative;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    border: 1px solid var(--line-3);
+  }
+  .chip-btn {
+    font-family: var(--title);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+    border: 1px solid var(--line-2);
+    color: var(--text-2);
+  }
+  .chip-btn.on,
+  .chip-btn:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .round-btn {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+    border: 1px solid var(--line-3);
+    color: var(--accent-2);
+  }
+  .raise-input {
+    font-family: var(--num);
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    border: 1px solid var(--line-3);
+    color: var(--text);
+  }
+  .pre-btn {
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    border: 1px solid var(--line-2);
+  }
+  .pre-btn.on {
+    border-color: var(--accent-2);
+  }
+  .pre-btn .box {
+    border-radius: 1px;
+    border: 1px solid var(--accent-2);
+  }
+  .pre-btn.on .box {
+    background: var(--accent-2);
+    box-shadow: 0 0 8px var(--accent-2);
+  }
+
+  /* anúncios: letreiro de neon */
+  .splash-ribbon {
+    background:
+      var(--scan),
+      linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg) 88%, transparent) 16%, color-mix(in srgb, var(--bg) 88%, transparent) 84%, transparent);
+    border-top: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    border-image: linear-gradient(90deg, transparent, var(--accent) 20%, var(--accent-2) 80%, transparent) 1;
+    box-shadow:
+      0 -8px 20px -14px var(--accent),
+      0 8px 20px -14px var(--accent-2);
+  }
+  .splash-title {
+    font-family: var(--display);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.03em;
+    background: var(--chrome);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 3px 0 color-mix(in srgb, var(--accent-3) 70%, #000)) drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 60%, transparent));
+  }
+  /* a Orbitron é larga: o nome da mão cabe na faixa com um corpo menor */
+  .rr-hand-name {
+    font-size: 46px;
+    letter-spacing: 0.03em;
+  }
+  .splash-big .splash-title,
+  .splash-title.big {
+    background: linear-gradient(180deg, #fff 0%, var(--warn) 35%, var(--accent) 62%, var(--accent-3) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .splash-sub {
+    font-family: var(--title);
+    font-size: 20px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    text-shadow: 0 0 12px var(--accent-2);
+  }
+  .callout {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+  }
+  .callout-raise {
+    background-image: linear-gradient(180deg, #fff, var(--accent) 55%, var(--accent-3));
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 14px var(--accent));
+  }
+  .callout-call {
+    background-image: linear-gradient(180deg, #fff, var(--accent-2) 60%, color-mix(in srgb, var(--accent-2) 55%, #000));
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 12px var(--accent-2));
+  }
+  .callout-check {
+    background-image: linear-gradient(180deg, #fff, var(--text-2) 60%, var(--muted));
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 10px color-mix(in srgb, var(--text) 50%, transparent));
+  }
+  .callout-fold {
+    background-image: linear-gradient(180deg, var(--text-2), var(--muted) 60%, color-mix(in srgb, var(--muted) 50%, #000));
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8));
+  }
+  .callout-allin {
+    background-image: linear-gradient(180deg, #fff, var(--warn) 30%, var(--bad) 62%, var(--accent-3));
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 18px var(--bad));
+  }
+  .countdown-num {
+    font-family: var(--display);
+    font-weight: 900;
+    background: linear-gradient(180deg, #fff, var(--accent-2) 60%, color-mix(in srgb, var(--accent-2) 50%, #000));
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 14px var(--accent-2));
+  }
+  .countdown.danger .countdown-num {
+    background-image: linear-gradient(180deg, #fff, var(--bad) 55%, color-mix(in srgb, var(--bad) 50%, #000));
+    filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 16px var(--bad));
+  }
+  .my-countdown-label {
+    font-family: var(--title);
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--accent-2);
+  }
+
+  /* cut-in: faixa com varredura e frisos de neon */
+  .cutin-band {
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent-2);
+    box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.6);
+  }
+  .cutin-portrait {
+    border-radius: 3px;
+    border: 3px solid var(--accent);
+    box-shadow: 0 0 24px -4px var(--accent);
+  }
+  .pc-cutin {
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent-2);
+  }
+  .pc-cutin span {
+    font-family: var(--display);
+    color: var(--text);
+    text-shadow: 0 0 14px var(--accent);
+  }
+
+  /* chat */
+  .chat-tabs button {
+    font-family: var(--title);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--bg) 55%, transparent);
+    border: 1px solid var(--line-2);
+  }
+  .chat-tabs button.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .chat-line b {
+    color: var(--accent-2);
+  }
+  .chat-line.log-hand {
+    font-family: var(--title);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    border-top: 1px solid var(--line-2);
+  }
+  .chat-line.log-street {
+    color: var(--accent-2);
+  }
+  .chat-line.log-win {
+    color: var(--star);
+  }
+  .emote-grid button:hover {
+    background: var(--accent-soft);
+  }
+
+  /* textos desenhados em SVG (a fonte do CSS vence o atributo) */
+  .chip-value {
+    font-family: var(--num);
+    font-weight: 700;
+  }
+  .felt-logo {
+    font-family: var(--display);
+  }
+
+  /* fim do round */
+  .rr-back {
+    background: radial-gradient(ellipse at 30% 60%, color-mix(in srgb, var(--surface-2) 70%, transparent), color-mix(in srgb, var(--bg) 95%, transparent) 70%);
+  }
+  .rr-band {
+    border-top: 2px solid var(--accent);
+    border-bottom: 2px solid var(--accent-2);
+  }
+  .rr-plate {
+    padding: 8px 36px 10px 20px;
+    border-left: none;
+    background: var(--neon-grad);
+  }
+  .rr-plate small {
+    color: var(--on-accent);
+    opacity: 0.8;
+  }
+  .rr-plate b {
+    font-family: var(--title);
+    font-size: 26px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--on-accent);
+  }
+  .rr-pot-line,
+  .rr-pay {
+    border-radius: 3px;
+    border: 1px solid var(--line-3);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--surface-2) 92%, transparent), color-mix(in srgb, var(--bg) 50%, transparent));
+  }
+  .rr-pot-line b,
+  .rr-pay b,
+  .rr-stack {
+    font-family: var(--num);
+  }
+  /* números grandes na Chakra Petch: o zero da Orbitron é cortado e parece um Ø */
+  .rr-won {
+    font-family: var(--num);
+    font-weight: 700;
+    color: var(--text);
+    text-shadow:
+      0 3px 0 rgba(0, 0, 0, 0.8),
+      0 0 26px var(--accent);
+  }
+  .rr-confirm {
+    border-radius: 3px;
+    border: none;
+    background: var(--neon-grad);
+    color: var(--on-accent);
+    font-family: var(--title);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px -4px var(--accent);
+  }
+  .rr-label {
+    font-family: var(--title);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--accent-2);
+  }
+  .rr-pay-face {
+    border-radius: 2px;
+    border-color: var(--accent-2);
+  }
+
+  /* fim da partida */
+  .me-row {
+    border: 1px solid var(--line-3);
+    border-radius: 3px;
+    background: linear-gradient(100deg, color-mix(in srgb, var(--surface-2) 96%, transparent), color-mix(in srgb, var(--surface) 90%, transparent));
+  }
+  .me-row.first {
+    border-color: var(--star);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--star) 18%, var(--surface-2)), color-mix(in srgb, var(--surface) 90%, transparent));
+    box-shadow: 0 0 24px -10px var(--star);
+  }
+  .me-row.mine:not(.first) {
+    border-color: var(--accent-2);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--accent-2) 16%, var(--surface-2)), color-mix(in srgb, var(--surface) 90%, transparent));
+  }
+  .me-place,
+  .me-stack,
+  .me-delta {
+    font-family: var(--num);
+  }
+  .me-portrait {
+    border-radius: 2px;
+    border: 1px solid var(--accent-2);
+    box-shadow: 0 0 12px -4px var(--accent-2);
+  }
+  .me-badge {
+    border: none;
+    background: var(--neon-grad);
+    color: var(--on-accent);
+  }
+  .me-delta.up {
+    color: var(--good);
+  }
+  .me-delta.down {
+    color: var(--bad);
+  }
+  .me-dot.on {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+  .me-pager-btn {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--surface-2) 92%, transparent);
+    border-color: var(--line-3);
+  }
+
+  /* ---------- estúdio e personagens ---------- */
+
+  .studio-tabs button {
+    border-radius: 3px 3px 0 0;
+    font-family: var(--title);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    border: 1px solid var(--line-2);
+  }
+  .style-item {
+    background: color-mix(in srgb, var(--bg) 45%, transparent);
+  }
+  .style-item:hover {
+    background: var(--accent-soft);
+  }
+  .style-item.on {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .badge {
+    font-family: var(--title);
+    font-size: 8.5px;
+    letter-spacing: 0.08em;
+  }
+  .badge.eq,
+  .char-card-eq {
+    background: var(--neon-grad);
+    color: var(--on-accent);
+  }
+  .badge.mine {
+    background: color-mix(in srgb, var(--accent-2) 25%, transparent);
+    color: var(--text);
+  }
+  .badge.soon {
+    background: color-mix(in srgb, var(--good) 20%, transparent);
+    color: var(--text);
+  }
+  .preview-stage {
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 100%, color-mix(in srgb, var(--horizon) 22%, transparent), transparent 70%),
+      linear-gradient(color-mix(in srgb, var(--accent) 8%, transparent) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 8%, transparent) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(180deg, var(--bg), var(--bg-2));
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+  }
+  .title-input {
+    font-family: var(--title);
+  }
+  .opt-grid button {
+    background: color-mix(in srgb, var(--bg) 45%, transparent);
+    border: 1px solid var(--line-1);
+  }
+  .opt-grid button:hover {
+    border-color: var(--line-3);
+  }
+  .opt-grid button.on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .char-card {
+    border: 1px solid var(--line-3);
+  }
+  .char-card.on {
+    border-color: var(--accent);
+    box-shadow: 0 0 18px -4px var(--accent);
+  }
+  .char-card-name {
+    font-family: var(--title);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    color: var(--text);
+  }
+  .theme-thumb {
+    border-color: var(--line-3);
+  }
+  .theme-features {
+    list-style: '▸  ';
+  }
+
+  /* ---------- vínculo, carteira e loja ---------- */
+
+  .bond-heart-fill,
+  .bond-heart.bond-full .bond-heart-fill {
+    fill: var(--accent);
+  }
+  .bond-heart.bond-full .bond-heart-fill {
+    filter: drop-shadow(0 0 4px var(--accent));
+  }
+  .bond-heart-line {
+    stroke: var(--accent);
+  }
+  .bond-fill {
+    background: linear-gradient(90deg, var(--accent-3), var(--accent) 55%, var(--accent-2));
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .bond-unlock {
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    border: 1px solid var(--accent);
+    box-shadow:
+      0 14px 40px rgba(0, 0, 0, 0.7),
+      var(--glow);
+  }
+  .bond-unlock-text b {
+    font-family: var(--title);
+    letter-spacing: 0.06em;
+  }
+  .bond-mission-pts {
+    border-radius: 2px;
+    background: var(--neon-grad);
+    color: var(--on-accent);
+  }
+  .wallet-money,
+  .bond-total,
+  .bond-stats b,
+  .bond-mission-count {
+    font-family: var(--num);
+  }
+  .my-card-mark,
+  .plate-drew {
+    border-radius: 2px;
+    font-family: var(--title);
+    letter-spacing: 0.08em;
+  }
+  .my-card-mark {
+    background: var(--accent);
+    color: var(--on-accent);
+    border: none;
+  }
+  .my-card-gap {
+    border-radius: 3px;
+    border-color: var(--line-3);
+  }
+  .shop-tab,
+  .shop-coin {
+    border-radius: 2px;
+    border: 1px solid var(--line-2);
+  }
+  .shop-tab.on {
+    background: var(--neon-grad);
+    color: var(--on-accent);
+  }
+  .login-title {
+    font-family: var(--title);
+    letter-spacing: 0.06em;
+  }
+  .login-plain {
+    border-radius: 2px;
+    border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+  }
+  .login-mode.on {
+    background: var(--accent-soft);
+    box-shadow: inset 0 -2px 0 var(--accent);
+    color: var(--text);
+  }
+  .login-error {
+    border: 1px solid color-mix(in srgb, var(--bad) 70%, transparent);
+    background: color-mix(in srgb, var(--bad) 14%, transparent);
+  }
+
+  /* ---------- minijogos: moldura de neon no lugar da de madeira ---------- */
+
+  .mj-moldura {
+    border-radius: 3px;
+    background: linear-gradient(180deg, var(--surface-2), var(--bg));
+    border: 1px solid var(--accent);
+    box-shadow:
+      0 18px 50px rgba(0, 0, 0, 0.6),
+      0 0 26px -8px var(--accent);
+  }
+  .mj-tabuleiro {
+    border-radius: 2px;
+    background:
+      repeating-conic-gradient(color-mix(in srgb, var(--accent) 7%, transparent) 0 25%, rgba(0, 0, 0, 0.2) 0 50%) 0 0 / calc(var(--casa) * 2) calc(var(--casa) * 2),
+      var(--bg);
+  }
+  .mj-barra {
+    border-radius: 0;
+    background: var(--bg);
+  }
+  .mj-barra > i {
+    border-radius: 0;
+    background: linear-gradient(0deg, var(--accent-3), var(--accent) 70%, #fff);
+    box-shadow: 0 0 12px var(--accent);
+  }
+  .mj-capa {
+    border-radius: 2px;
+  }
+  .mj-canvas {
+    border-radius: 3px;
+    box-shadow:
+      0 18px 50px rgba(0, 0, 0, 0.6),
+      0 0 0 1px var(--accent),
+      0 0 26px -8px var(--accent);
+  }
+  .mj-cartao-nome,
+  .mj-nivel,
+  .mj-aviso.grande {
+    font-family: var(--title);
+  }
+  .mj-placar b,
+  .mj-fim-pontos {
+    font-family: var(--num);
+    font-weight: 700;
+  }
+  .mj-sel {
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--accent-2) 20%, transparent);
+    box-shadow:
+      inset 0 0 0 2px var(--accent-2),
+      0 0 16px var(--accent-2);
+  }
+}
+
+/* ---------- Estúdio: paletas do retro (visível em qualquer tema, porque a lista pré-visualiza) ---------- */
+
+.retro-palettes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.retro-palette {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--line-soft);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.retro-palette:hover {
+  border-color: var(--line);
+}
+.retro-palette.on {
+  border-color: var(--sw1);
+  box-shadow:
+    0 0 0 1px var(--sw1),
+    0 0 16px -6px var(--sw1);
+}
+.retro-swatch {
+  flex: none;
+  width: 30px;
+  height: 20px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(135deg, var(--sw1) 0 45%, var(--sw2) 45% 70%, var(--sw3) 70%);
+}
+
+/* animações do tema (@keyframes não podem ficar aninhadas) */
+
+@keyframes retroRise {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.55;
+  }
+  85% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate3d(0, -108vh, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes retroWinPulse {
+  50% {
+    box-shadow:
+      0 0 0 2px var(--star),
+      0 0 50px var(--star);
+  }
+}

@@ -461,7 +461,7 @@ class Director {
           .filter((b) => geo[b.seat])
           .map((b) => this.flyChips(project(betSpot(geo[b.seat].bet, b.seat, cur.street)), pot, b.amount, 460 + Math.random() * 120, true, 10 + Math.random() * 14));
         store.patchDisplay({ seats: cur.seats.map((s) => (s ? { ...s, bet: 0 } : s)), pot: cur.pot });
-        sfx.chips(5);
+        sfx.recolher();
         const ids = await Promise.all(flights);
         store.patchDisplay({ pot: next.pot });
         this.clearFlyers(ids);
@@ -619,7 +619,7 @@ class Director {
             if (g) flights.push(this.flyChips(potStage, g.plate, w.amount, 760, true, 30));
           }
         }
-        sfx.chips(8);
+        sfx.pote();
         this.clearFlyers(await Promise.all(flights));
         // showdown: tela de resultado do round (personagem, mão feita e fichas ganhas)
         // ao pular a mão fica só o anúncio de quem ganhou, sem a tela de resultado
@@ -678,7 +678,8 @@ class Director {
     if (!alive()) return;
     apply();
     this.clearFlyers([id]);
-    sfx.chips(2 + Math.floor(Math.random() * 3));
+    // quanto maior a aposta, mais fichas assentando
+    sfx.aposta(1 + Math.min(4, Math.floor(Math.log10(Math.max(1, amount)))));
   }
 
   private async allinMotion(next: TableView, geo: SeatGeo[], seat: number, amount: number, alive: () => boolean) {

@@ -516,7 +516,7 @@ export function MainMenu({ go, openQueue = false }: { go: (s: Screen) => void; o
     { key: 'store', icon: '🛍', label: 'Loja' },
     { key: 'gallery', icon: '🖼', label: 'Galeria' },
     { key: 'studio', icon: menu.icons.studio, label: 'Estúdio' },
-    { key: 'settings', icon: menu.icons.settings, label: 'Ajustes' },
+    { key: 'minijogos', icon: '⚄', label: 'Minijogos' },
   ];
   return (
     <div className="menu-screen mj-menu">

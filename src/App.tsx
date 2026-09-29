@@ -16,6 +16,7 @@ import { ConviteDeGrupo, ConviteDeSala, FriendsScreen } from './screens/Friends'
 import { CharactersScreen } from './screens/Characters';
 import { StoreScreen } from './screens/Store';
 import { GalleryScreen } from './screens/Gallery';
+import { MinijogosScreen } from './screens/Minijogos';
 import { LoginScreen } from './screens/Login';
 import { Toasts } from './game/Overlays';
 import { BondUnlockScreen } from './game/BondBar';
@@ -23,9 +24,9 @@ import { OpeningScreen } from './game/Opening';
 import { NivelNovoCena } from './game/NivelNovo';
 import { UpdateOverlay } from './update/UpdateOverlay';
 import { ErrorBoundary } from './ui/ErrorBoundary';
-import { useUiTheme } from './ui/themes';
+import { applyTheme, useUiTheme } from './ui/themes';
 
-export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'friends' | 'characters' | 'store' | 'gallery';
+export type Screen = 'menu' | 'online' | 'studio' | 'settings' | 'profile' | 'friends' | 'characters' | 'store' | 'gallery' | 'minijogos';
 
 /** Telas que vivem por conta própria: sair de uma partida não tira o jogador delas. */
 const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
@@ -37,6 +38,7 @@ const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
   characters: true,
   store: true,
   gallery: true,
+  minijogos: true,
 };
 
 export function App() {
@@ -53,6 +55,8 @@ export function App() {
   const voices = useProfile((s) => s.settings.voices);
   const voiceVolume = useProfile((s) => s.settings.voiceVolume);
   const theme = useUiTheme();
+  const retroPalette = useProfile((s) => s.settings.retroPalette);
+  const crt = useProfile((s) => s.settings.crt);
   const authStatus = useAuth((s) => s.status);
   const restore = useAuth((s) => s.restore);
 
@@ -76,11 +80,11 @@ export function App() {
     if (passouDoLogin && connStatus === 'idle' && !connError) connectOnline();
   }, [passouDoLogin, connStatus, connError, connectOnline]);
 
-  // tema da interface: o CSS de cada tema vale sob <html data-ui="…">
+  // tema da interface: o CSS de cada tema vale sob <html data-ui="…"> (e a paleta do retro, sob data-palette)
   useEffect(() => {
-    document.documentElement.dataset.ui = theme.id;
+    applyTheme(theme, { retroPalette, crt });
     setSoundSet(theme.sounds);
-  }, [theme]);
+  }, [theme, retroPalette, crt]);
 
   useEffect(() => {
     setVolume(volume, muted);
@@ -124,6 +128,7 @@ export function App() {
   else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} onStore={() => setScreen('store')} />;
   else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'gallery') content = <GalleryScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'minijogos') content = <MinijogosScreen onBack={() => setScreen('menu')} />;
   else content = <MainMenu go={setScreen} />;
 
   return (

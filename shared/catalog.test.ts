@@ -27,7 +27,7 @@ describe('catálogo da loja', () => {
       AURA_IDS.length +
       FRAME_IDS.length +
       GIFTS.length +
-      2;
+      3; // as aparências: Sakura, Vitoriano e Retrofuturista
     expect(CATALOG).toHaveLength(esperado);
     expect(new Set(CATALOG.map((i) => i.key)).size).toBe(CATALOG.length);
   });

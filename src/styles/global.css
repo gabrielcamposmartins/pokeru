@@ -8646,3 +8646,390 @@ input[type='range'].som-slider {
     inset 0 -1.5px 0 rgba(255, 255, 255, 0.55),
     0 2px 6px rgba(0, 0, 0, 0.3);
 }
+
+/* ------------------------------------------------------------------ minijogos */
+
+/*
+ * Os minijogos (src/screens/Minijogos.tsx): a lista, as Joias e as Bolhas.
+ *
+ * Os jogos ocupam o resto da tela abaixo do cabeçalho: um painel estreito à esquerda (pontos,
+ * jogadas, recorde) e o tabuleiro no meio. As cores das peças são as delas, iguais em qualquer tema.
+ */
+.mj-lista {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 40px;
+}
+.mj-cartao {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px 18px 16px;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--line);
+}
+.mj-cartao-nome {
+  font-family: var(--title);
+  font-size: 26px;
+  color: var(--gold-2);
+  margin-top: 8px;
+}
+.mj-cartao-sub {
+  font-size: 13px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.mj-cartao-texto {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.45;
+  min-height: 60px;
+}
+.mj-cartao-rodape {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+/* as capas dos cartões */
+.mj-capa {
+  width: 100%;
+  height: 170px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -30px 60px rgba(0, 0, 0, 0.35);
+}
+.mj-capa.joias {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(155, 50, 232, 0.25), transparent 70%),
+    linear-gradient(160deg, #2a1d4a, #120b26);
+}
+.mj-capa.bolhas {
+  position: relative;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 16px 0 0 42px;
+  background:
+    repeating-conic-gradient(from 0deg at 50% 110%, rgba(160, 200, 255, 0.1) 0 7.5deg, transparent 7.5deg 15deg),
+    linear-gradient(180deg, #0b1f8f, #2350e6);
+}
+.mj-capa-linha {
+  display: flex;
+  gap: 4px;
+}
+.mj-capa.joias .mj-capa-linha span {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+}
+.mj-capa.joias .mj-capa-linha span.brilha {
+  background: rgba(255, 225, 120, 0.3);
+  box-shadow: 0 0 14px rgba(255, 220, 110, 0.55);
+  animation: mj-brilho 1.6s ease-in-out infinite;
+}
+@keyframes mj-brilho {
+  50% {
+    box-shadow: 0 0 22px rgba(255, 230, 140, 0.9);
+  }
+}
+.mj-capa.bolhas .mj-capa-linha {
+  gap: 0;
+  margin-top: -5px;
+}
+.mj-capa.bolhas i {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: block;
+  background: radial-gradient(circle at 34% 30%, #fff 0 8%, var(--b) 30% 82%, rgba(0, 0, 0, 0.5) 100%);
+}
+.mj-capa.bolhas .mj-capa-tiro {
+  position: absolute;
+  left: calc(50% - 18px);
+  bottom: 10px;
+}
+
+/* o painel do lado, comum aos dois jogos */
+.mj-joias,
+.mj-bolhas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  justify-content: center;
+}
+.mj-lado {
+  width: 220px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+.mj-placar small,
+.mj-jogadas small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.mj-placar b {
+  font-family: var(--title);
+  font-size: 34px;
+  color: var(--gold-2);
+  font-variant-numeric: tabular-nums;
+}
+.mj-jogadas b {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.mj-jogadas b.pouco {
+  color: var(--danger);
+}
+.mj-coletadas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.mj-coletada {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.mj-metas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.3);
+}
+.mj-metas span.on {
+  color: var(--gold);
+}
+.mj-metas small {
+  color: var(--muted);
+  margin-left: 4px;
+}
+.mj-recorde {
+  font-size: 13px;
+  color: var(--muted);
+}
+.mj-recorde b {
+  color: var(--text);
+}
+.mj-ajuda {
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* as Joias: a moldura escura, a barra das estrelas e o tabuleiro */
+.mj-moldura {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #3a2a12, #1b1206);
+  border: 2px solid var(--gold-3);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(255, 231, 160, 0.25);
+}
+.mj-barra {
+  position: relative;
+  width: 22px;
+  border-radius: 11px;
+  background: #140b24;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.mj-barra > i {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  max-height: calc(100% - 6px);
+  border-radius: 8px;
+  background: linear-gradient(0deg, #6a1fd1, #c46bff 70%, #f3d2ff);
+  box-shadow: 0 0 12px rgba(196, 107, 255, 0.7);
+  transition: height 0.4s ease;
+}
+.mj-barra-marca {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.35);
+  text-shadow: 0 1px 2px #000;
+}
+.mj-barra-marca.on {
+  color: var(--gold);
+}
+.mj-tabuleiro {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+  /* as casas: um xadrez bem escuro, como ladrilhos */
+  background:
+    repeating-conic-gradient(rgba(255, 255, 255, 0.05) 0 25%, rgba(0, 0, 0, 0.12) 0 50%) 0 0 / calc(var(--casa) * 2) calc(var(--casa) * 2),
+    linear-gradient(160deg, #26304a, #121828);
+}
+.mj-casa {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.mj-joia {
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+}
+.mj-joia.estrela {
+  animation: mj-gira 3s linear infinite;
+}
+@keyframes mj-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.mj-listras {
+  animation: mj-listra 1.1s ease-in-out infinite;
+}
+@keyframes mj-listra {
+  50% {
+    opacity: 0.45;
+  }
+}
+.mj-casa.dica {
+  animation: mj-dica 0.9s ease-in-out infinite;
+}
+@keyframes mj-dica {
+  50% {
+    filter: brightness(1.5) drop-shadow(0 0 8px #fff);
+  }
+}
+.mj-sel {
+  position: absolute;
+  border-radius: 8px;
+  background: rgba(255, 225, 120, 0.28);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 231, 160, 0.9),
+    0 0 16px rgba(255, 220, 110, 0.6);
+  pointer-events: none;
+}
+.mj-aviso {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 20px;
+  color: #fff;
+  text-shadow:
+    0 2px 0 #7a4a00,
+    0 0 10px rgba(255, 200, 80, 0.8);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 3;
+}
+.mj-aviso.grande {
+  font-family: var(--title);
+  font-size: 30px;
+  color: var(--gold-2);
+}
+
+/* as Bolhas */
+.mj-bolhas-palco {
+  position: relative;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+}
+.mj-canvas {
+  height: 100%;
+  max-height: calc(100vh - 110px);
+  max-width: calc(100vw - 320px);
+  border-radius: 12px;
+  cursor: crosshair;
+  touch-action: none;
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.6),
+    0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+.mj-nivel {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  translate: -50% 0;
+  font-family: var(--title);
+  font-size: 44px;
+  color: var(--gold-2);
+  text-shadow:
+    0 3px 0 #7a4a00,
+    0 0 20px rgba(255, 210, 90, 0.8);
+  pointer-events: none;
+}
+
+/* o fim de uma partida */
+.mj-fim-fundo {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 4, 20, 0.55);
+  z-index: 5;
+}
+.mj-fim {
+  min-width: 320px;
+  text-align: center;
+  padding: 24px 28px;
+}
+.mj-fim-estrelas {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  font-size: 54px;
+  color: rgba(255, 255, 255, 0.18);
+}
+.mj-fim-estrelas span.on {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(255, 210, 90, 0.8);
+}
+.mj-fim-pontos {
+  font-family: var(--title);
+  font-size: 30px;
+  color: var(--gold-2);
+  margin: 6px 0;
+}
+.mj-fim-recorde {
+  color: var(--mint);
+  font-weight: 700;
+}
