@@ -86,6 +86,12 @@ export interface AccountInfo {
   /** Contadores das conquistas (shared/achievements.ts). */
   stats: PlayerStats;
   /**
+   * Tudo o que a conta já ganhou: o lucro nas mesas, os bônus de fim de partida, a consolação e
+   * os prêmios dos minijogos. Padocoin só conta para quem tem Discord (é onde ele existe).
+   * Opcional: servidor antigo não manda.
+   */
+  ganhos?: { fichas: number; pado: number };
+  /**
    * Titulo escolhido pelo jogador, ou null. Vale so' se as conquistas sustentarem:
    * quem valida e' `sanitizeTitle`, com os mesmos contadores.
    */
@@ -100,11 +106,6 @@ export interface AccountInfo {
    */
   code: string;
   /**
-   * Quantos níveis de minijogo já renderam prêmio hoje (shared/minijogos.ts). Opcional: servidor
-   * antigo não manda, e aí o cliente só não mostra quanto falta.
-   */
-  minijogosHoje?: number;
-  /**
    * O recorde de cada minijogo guardado no servidor (é o que vai ao ranking). Opcional: servidor
    * antigo não manda. O cliente mostra o maior entre este e o do próprio aparelho.
    */
@@ -116,9 +117,7 @@ export interface PremioMinijogo {
   fichas: number;
   /** 0 quando a conta não tem Discord vinculado (padocoin só existe lá). */
   pado: number;
-  /** Quantos níveis ainda rendem prêmio hoje. */
-  restantes: number;
-  /** Por que não rendeu nada (teto do dia, pedido rápido demais…). Ausente quando rendeu. */
+  /** Por que não rendeu nada (pedido rápido demais, sem conta…). Ausente quando rendeu. */
   motivo?: string;
 }
 
@@ -194,6 +193,11 @@ export interface TableBank {
   charge(accountId: string, amount: number): number;
   /** Devolve fichas à conta (saída da mesa, fim de partida). */
   credit(accountId: string, amount: number): void;
+  /**
+   * Soma ao total ganho da conta (o perfil e o ranking mostram). Não mexe no saldo: quem paga é
+   * `credit`/`bonus`; isto só conta o que foi ganho de verdade (lucro, prêmio).
+   */
+  ganho?(accountId: string, valor: number, moeda: Currency): void;
   /**
    * Cobra o buy-in numa moeda qualquer. Em padocoin o dinheiro está no bot do Discord, então é
    * ida à rede — daí ser assíncrono. `key` é a chave de idempotência: a mesma chave não cobra

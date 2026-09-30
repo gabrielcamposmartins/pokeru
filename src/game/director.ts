@@ -217,9 +217,14 @@ class Director {
     else sayCommon(char, 'show', { important: true });
   }
 
+  /** Quantos turnos meus desde a última fala de "sua vez" (ela toca uma a cada três). */
+  private turnosSemFala = 0;
+
   /** Fala própria liberada pelo vínculo (só vale para o meu assento). */
   private bondVoice(view: TableView, seat: number, slot: 'turn' | 'lose'): void {
     if (this.skipping || seat !== view.mySeat) return;
+    // "sua vez" em todo turno cansa: a fala toca na primeira vez e depois a cada três turnos
+    if (slot === 'turn' && this.turnosSemFala++ % 3 !== 0) return;
     const char = this.charId(view, seat);
     if (char && voiceUnlocked(char, slot)) sayLine(char, slot, { speaker: `${seat}:${char}`, important: slot === 'lose' });
   }

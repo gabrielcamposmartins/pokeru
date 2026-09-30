@@ -27,7 +27,8 @@ import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } fro
 import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
 import { MAX_REQUESTS, isFriendCode, makeFriendCode, normalizeFriendCode, podeMaisAmigos } from '../shared/friends';
 import type { PremioMinijogo, SpinResult } from '../shared/accounts';
-import { PREMIO_POR_NIVEL, decidirPremio, premiadosHoje, recordePlausivel, type Minijogo, type PremiosDoDia } from '../shared/minijogos';
+import { PREMIO_POR_NIVEL, decidirPremio, recordePlausivel, type Minijogo } from '../shared/minijogos';
+import { STAT_DO_MINIJOGO } from '../shared/achievements';
 import { montarRanking, type ContaRanking, type Ranking } from '../shared/ranking';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, Aparencia, AuthIdentity, DiscordLink, FriendRow } from '../shared/accounts';
 import { BACK_PRESETS, DEFAULT_AURAS, DEFAULT_FRAME, FACE_PRESETS, sanitizeName } from '../shared/styles';
@@ -93,10 +94,10 @@ interface Stored {
   stats: PlayerStats;
   /** Titulo de conquista escolhido (null/ausente = nenhum). */
   title?: string | null;
-  /** Níveis de minijogo premiados no dia (o teto diário conta daqui; veja shared/minijogos.ts). */
-  minijogos?: PremiosDoDia;
   /** O recorde de cada minijogo (o ranking lê daqui). */
   recordes?: Partial<Record<Minijogo, number>>;
+  /** Tudo o que a conta já ganhou (lucro nas mesas e prêmios), por moeda. */
+  ganhos?: { fichas: number; pado: number };
   since: string;
   seen: string;
 }
@@ -446,8 +447,8 @@ export class Accounts implements AccountService {
       stats: sanitizeStats(acc.stats),
       title: sanitizeTitle(acc.title, sanitizeStats(acc.stats)),
       since: acc.since,
-      minijogosHoje: premiadosHoje(acc.minijogos, this.agora()),
       recordes: { ...(acc.recordes ?? {}) },
+      ganhos: { fichas: acc.ganhos?.fichas ?? 0, pado: acc.ganhos?.pado ?? 0 },
     };
   }
 
@@ -694,22 +695,24 @@ export class Accounts implements AccountService {
    */
   premioMinijogo(accountId: string, jogo: string, nivel: number): PremioMinijogo {
     const acc = this.byId(accountId);
-    if (!acc) return { fichas: 0, pado: 0, restantes: 0, motivo: 'conta não encontrada' };
+    if (!acc) return { fichas: 0, pado: 0, motivo: 'conta não encontrada' };
     const agora = this.agora();
-    const d = decidirPremio(jogo, nivel, acc.minijogos, this.ultimoPremioMj.get(acc.id), agora);
-    if (!d.ok) return { fichas: 0, pado: 0, restantes: d.restantes, motivo: d.motivo };
+    const d = decidirPremio(jogo, nivel, this.ultimoPremioMj.get(acc.id), agora);
+    if (!d.ok) return { fichas: 0, pado: 0, motivo: d.motivo };
 
-    acc.minijogos = d.registro;
     acc.money += PREMIO_POR_NIVEL.fichas;
+    this.somarGanho(acc, PREMIO_POR_NIVEL.fichas, 'chips');
+    this.note(acc.id, 'mjNiveis');
+    this.note(acc.id, STAT_DO_MINIJOGO[jogo as Minijogo]);
     this.ultimoPremioMj.set(acc.id, agora);
     this.store.flush();
     this.changed(acc.id);
     const temPado = !!acc.discord && !!this.opts.gbot?.canMoveMoney;
     if (temPado) {
-      this.bonus(acc.id, PREMIO_POR_NIVEL.pado, `pokeru:${acc.id}:minijogo:${d.registro.dia}:${d.registro.niveis}`, `minijogo ${jogo} nível ${nivel}`);
+      this.bonus(acc.id, PREMIO_POR_NIVEL.pado, `pokeru:${acc.id}:minijogo:${jogo}:${nivel}:${agora}`, `minijogo ${jogo} nível ${nivel}`);
     }
-    console.log(`[minijogo] ${acc.name} passou o nível ${nivel} de ${jogo}: +${PREMIO_POR_NIVEL.fichas} fichas${temPado ? ` +${PREMIO_POR_NIVEL.pado} padocoins` : ''} (${d.registro.niveis} hoje)`);
-    return { fichas: PREMIO_POR_NIVEL.fichas, pado: temPado ? PREMIO_POR_NIVEL.pado : 0, restantes: d.restantes };
+    console.log(`[minijogo] ${acc.name} passou o nível ${nivel} de ${jogo}: +${PREMIO_POR_NIVEL.fichas} fichas${temPado ? ` +${PREMIO_POR_NIVEL.pado} padocoins` : ''}`);
+    return { fichas: PREMIO_POR_NIVEL.fichas, pado: temPado ? PREMIO_POR_NIVEL.pado : 0 };
   }
 
   /**
@@ -747,6 +750,8 @@ export class Accounts implements AccountService {
           matchWins: a.stats?.matchWins ?? 0,
           matches: a.stats?.matches ?? 0,
           recordes: a.recordes ?? {},
+          ganhosFichas: a.ganhos?.fichas ?? 0,
+          ganhosPado: a.discord ? (a.ganhos?.pado ?? 0) : 0,
         }),
       );
       this.rankingFeito = { em: agora, contas };
@@ -820,6 +825,7 @@ export class Accounts implements AccountService {
       .credit(acc.discord.id, got, `pokeru: ${motivo}`, key)
       .then((move) => {
         this.pado.set(acc.id, { value: move.after, at: Date.now() });
+        this.somarGanho(acc, got, 'pado');
         this.changed(acc.id);
         console.log(`[padocoin] ${acc.name} ganhou ${got} de bônus (${motivo}, saldo ${move.after})`);
       })
@@ -984,6 +990,24 @@ export class Accounts implements AccountService {
     acc.money -= want;
     this.changed(acc.id);
     return want;
+  }
+
+  /** Soma ao total ganho (sem mexer no saldo). */
+  private somarGanho(acc: Stored, valor: number, moeda: Currency): void {
+    const v = Math.max(0, Math.round(valor));
+    if (!v) return;
+    const g = acc.ganhos ?? { fichas: 0, pado: 0 };
+    acc.ganhos = moeda === 'pado' ? { ...g, pado: g.pado + v } : { ...g, fichas: g.fichas + v };
+    this.rankingFeito = null;
+  }
+
+  ganho(accountId: string, valor: number, moeda: Currency): void {
+    const acc = this.byId(accountId);
+    if (!acc) return;
+    // padocoin só existe para quem tem Discord
+    if (moeda === 'pado' && !acc.discord) return;
+    this.somarGanho(acc, valor, moeda);
+    this.changed(acc.id);
   }
 
   credit(accountId: string, amount: number): void {

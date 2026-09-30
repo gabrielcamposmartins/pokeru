@@ -15,10 +15,10 @@ const conta = (id: string, name: string, matchWins: number, recordes: ContaRanki
 const quadro = (r: ReturnType<typeof montarRanking>, id: string) => r.quadros.find((q) => q.id === id)!;
 
 describe('ranking', () => {
-  it('tem o geral primeiro, o poker e um quadro por minijogo (um minijogo novo entra sozinho)', () => {
+  it('tem o geral primeiro, o poker, os ganhos e um quadro por minijogo (um minijogo novo entra sozinho)', () => {
     const r = montarRanking([], null);
-    expect(r.quadros.map((q) => q.id)).toEqual([ID_GERAL, 'poker', ...MINIJOGOS]);
-    expect(QUADROS).toHaveLength(1 + MINIJOGOS.length);
+    expect(r.quadros.map((q) => q.id)).toEqual([ID_GERAL, 'poker', 'ganhos', ...MINIJOGOS]);
+    expect(QUADROS).toHaveLength(2 + MINIJOGOS.length);
   });
 
   it('o poker ordena por partidas ganhas em primeiro; quem não tem nenhuma fica de fora', () => {
@@ -76,5 +76,24 @@ describe('ranking', () => {
     expect(recordePlausivel('bolhas', 0, 1)).toBe(false);
     expect(recordePlausivel('bolhas', 100.5, 1)).toBe(false);
     expect(recordePlausivel('bolhas', 100, 0)).toBe(false);
+  });
+});
+
+describe('ranking: ganhos', () => {
+  it('ordena pelo total ganho em fichas e mostra os padocoins embaixo', () => {
+    const r = montarRanking(
+      [
+        { ...conta('a', 'Ana', 0), ganhosFichas: 5000, ganhosPado: 1200 },
+        { ...conta('b', 'Bia', 0), ganhosFichas: 9000, ganhosPado: 0 },
+      ],
+      null,
+    );
+    const g = r.quadros.find((q) => q.id === 'ganhos')!;
+    expect(g.linhas.map((l) => [l.name, l.valor])).toEqual([
+      ['Bia', 9000],
+      ['Ana', 5000],
+    ]);
+    expect(g.linhas[1].detalhe).toBe('+ 1.200 padocoins');
+    expect(g.linhas[0].detalhe).toBeUndefined();
   });
 });

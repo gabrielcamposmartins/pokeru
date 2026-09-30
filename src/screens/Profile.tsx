@@ -17,6 +17,9 @@ import { LevelNumber } from '../render/Level';
 import { TitleGlow } from '../render/Title';
 import { sfx } from '../audio/sfx';
 import { Petals } from './MainMenu';
+import { ChipSvg } from '../render/Chip';
+import { PadoCoinSvg } from '../render/PadoCoin';
+import { fmt } from '../util/format';
 
 /**
  * "Hoje", "ontem", "há três dias".
@@ -193,6 +196,36 @@ function AbasDoPerfil({ play, conquistas }: { play: ResumoDaPartida[] | undefine
  * Um painel só, com duas colunas: a identidade (o card, a foto com moldura, o nome) e as abas de
  * histórico e conquistas de um lado; o gráfico de como a pessoa joga do outro.
  */
+/**
+ * Tudo o que a conta já ganhou: o lucro nas mesas, os bônus de fim de partida e os prêmios dos
+ * minijogos. Quem conta é o servidor. Padocoin só aparece com o Discord vinculado — é onde ele existe.
+ */
+function GanhosTotais() {
+  const ganhos = useSession((s) => s.account?.ganhos);
+  const discord = useSession((s) => !!s.account?.discord);
+  if (!ganhos) return <p className="muted small">Conecte-se para ver o quanto você já ganhou.</p>;
+  return (
+    <div className="ganhos-totais">
+      <span className="ganhos-total">
+        <ChipSvg value={100} size={40} />
+        <span>
+          <b>{fmt(ganhos.fichas)}</b>
+          <small>fichas ganhas</small>
+        </span>
+      </span>
+      {discord && (
+        <span className="ganhos-total">
+          <PadoCoinSvg size={40} />
+          <span>
+            <b>{fmt(ganhos.pado)}</b>
+            <small>padocoins ganhos</small>
+          </span>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ProfileScreen({ onBack }: { onBack: () => void }) {
   const p = useProfile();
   const code = useSession((s) => s.account?.code);
@@ -247,6 +280,9 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
           <AbasDoPerfil play={play} conquistas={<ListaDeConquistas rows={conquistas} />} />
         </div>
         <div className="painel-col">
+          <Section title="Ganhos totais">
+            <GanhosTotais />
+          </Section>
           <Section title="Como você joga">
             <MinhaPersonalidade />
           </Section>

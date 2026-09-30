@@ -10,6 +10,8 @@
  * mostra o que recebe.
  */
 
+import type { Minijogo } from './minijogos';
+
 /** Contadores de uma conta. Tudo por jogador, não por personagem. */
 export interface PlayerStats {
   /** Mãos jogadas até o fim (sem contar as que a pessoa nem recebeu carta). */
@@ -28,6 +30,12 @@ export interface PlayerStats {
   showdowns: number;
   /** Partidas ganhas (1º lugar). */
   matchWins: number;
+  /** Níveis passados nos minijogos (todos somados). */
+  mjNiveis: number;
+  /** Níveis passados nas Joias. */
+  mjJoias: number;
+  /** Níveis passados nas Bolhas. */
+  mjBolhas: number;
 }
 
 export const EMPTY_STATS: PlayerStats = {
@@ -39,6 +47,9 @@ export const EMPTY_STATS: PlayerStats = {
   bigWins: 0,
   showdowns: 0,
   matchWins: 0,
+  mjNiveis: 0,
+  mjJoias: 0,
+  mjBolhas: 0,
 };
 
 /** Momento que faz um contador subir. */
@@ -53,7 +64,13 @@ export const STAT_EVENTS: readonly StatEvent[] = [
   'bigWins',
   'showdowns',
   'matchWins',
+  'mjNiveis',
+  'mjJoias',
+  'mjBolhas',
 ];
+
+/** O contador de cada minijogo (o nível passado nele sobe este e o `mjNiveis`). */
+export const STAT_DO_MINIJOGO: Record<Minijogo, StatEvent> = { joias: 'mjJoias', bolhas: 'mjBolhas' };
 
 export interface Achievement {
   id: string;
@@ -108,6 +125,14 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'marathon', name: 'Maratona', hint: 'Termine 10 partidas.', title: 'Maratonista', of: 'matches', need: 10, tier: 2 },
   { id: 'champion', name: 'Campeão', hint: 'Ganhe uma partida.', title: 'Campeão', of: 'matchWins', need: 1, tier: 2 },
   { id: 'unbeaten', name: 'Invicto', hint: 'Ganhe 25 partidas.', title: 'Imbatível', of: 'matchWins', need: 25, tier: 5 },
+
+  // minijogos: títulos que só saem jogando eles (quem conta os níveis é o servidor)
+  { id: 'mj-recreio', name: 'Hora do recreio', hint: 'Passe um nível num minijogo.', title: 'Recreio Garantido', of: 'mjNiveis', need: 1, tier: 1 },
+  { id: 'mj-lapidador', name: 'Lapidador', hint: 'Passe 20 níveis nas Joias.', title: 'Lapidador', of: 'mjJoias', need: 20, tier: 2 },
+  { id: 'mj-joalheiro', name: 'Joalheiro', hint: 'Passe 100 níveis nas Joias.', title: 'Mestre Joalheiro', of: 'mjJoias', need: 100, tier: 4 },
+  { id: 'mj-estoura', name: 'Estoura-bolhas', hint: 'Passe 20 níveis nas Bolhas.', title: 'Estoura-Bolhas', of: 'mjBolhas', need: 20, tier: 2 },
+  { id: 'mj-rei-bolhas', name: 'Rei das bolhas', hint: 'Passe 100 níveis nas Bolhas.', title: 'Rei das Bolhas', of: 'mjBolhas', need: 100, tier: 4 },
+  { id: 'mj-fliperama', name: 'Fliperama', hint: 'Passe 300 níveis nos minijogos.', title: 'Lenda do Fliperama', of: 'mjNiveis', need: 300, tier: 5 },
 ];
 
 /**

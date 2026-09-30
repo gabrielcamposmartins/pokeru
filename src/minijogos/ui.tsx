@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { fmt } from '../util/format';
-import { NIVEIS_PREMIADOS_POR_DIA, PREMIO_POR_NIVEL, type Minijogo } from '../../shared/minijogos';
-import { useMinijogos, useRestantesHoje } from '../store/minijogos';
+import { PREMIO_POR_NIVEL, type Minijogo } from '../../shared/minijogos';
+import { useMinijogos } from '../store/minijogos';
 import { useSession } from '../store/session';
 import { ChipSvg } from '../render/Chip';
 import { PadoCoinSvg } from '../render/PadoCoin';
@@ -231,7 +231,6 @@ export function PainelPlacar({
   children?: ReactNode;
 }) {
   const sessao = useMinijogos((s) => s.sessao);
-  const restantes = useRestantesHoje();
   const comConta = useSession((s) => s.status === 'connected' && !!s.account);
   const bateu = total > 0 && total >= recorde;
   return (
@@ -275,16 +274,6 @@ export function PainelPlacar({
           </span>
         </div>
         {!comConta && <div className="mj-sem-conta">Entre com uma conta para receber os prêmios.</div>}
-        {restantes !== null && (
-          <div className={`mj-restantes ${restantes === 0 ? 'zero' : ''}`}>
-            <small>{restantes > 0 ? `Ainda pagam hoje: ${restantes} de ${NIVEIS_PREMIADOS_POR_DIA}` : 'Os prêmios de hoje acabaram'}</small>
-            <span className="mj-pips">
-              {Array.from({ length: NIVEIS_PREMIADOS_POR_DIA }, (_, i) => (
-                <i key={i} className={i < restantes ? 'on' : ''} />
-              ))}
-            </span>
-          </div>
-        )}
       </div>
       <div className="mj-bloco mj-historico">
         <small>Níveis desta partida</small>

@@ -10,6 +10,7 @@ import { ID_GERAL, QUADROS, type LinhaRanking, type QuadroRanking } from '../../
 import { useRanking } from '../store/ranking';
 import { useSession } from '../store/session';
 import { Icone } from '../minijogos/ui';
+import { ChipSvg } from '../render/Chip';
 
 /**
  * O ranking: uma aba geral e uma por jogo (poker e cada minijogo).
@@ -23,6 +24,7 @@ import { Icone } from '../minijogos/ui';
 const ICONE: Record<string, ReactNode> = {
   [ID_GERAL]: <Icone nome="trofeu" size={22} />,
   poker: <span className="rk-naipe">♠</span>,
+  ganhos: <ChipSvg value={100} size={22} />,
   joias: <Icone nome="joias" size={22} />,
   bolhas: <Icone nome="bolha" size={22} />,
 };
@@ -186,6 +188,8 @@ export function RankingScreen({ onBack, inicial = ID_GERAL }: { onBack: () => vo
                       ? 'Junta todos os quadros: cada um vale até 1.000 pontos, e você leva a fração do líder de cada quadro.'
                       : q.id === 'poker'
                         ? 'Partidas de poker ganhas em primeiro lugar.'
+                        : q.id === 'ganhos'
+                          ? 'Tudo o que cada um já ganhou em fichas: o lucro nas mesas, os bônus e os prêmios dos minijogos. Os padocoins aparecem embaixo, para quem tem Discord.'
                         : `O maior total numa partida de ${q.nome}.`}
                   </p>
                   {q.linhas.length ? <Podio q={q} euId={euId} /> : <div className="rk-vazio">Ninguém pontuou neste quadro ainda. Que tal ser o primeiro?</div>}

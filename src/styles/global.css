@@ -10025,3 +10025,36 @@ input[type='range'].som-slider {
   padding-top: 8px !important;
   border-top: 1px dashed var(--line);
 }
+
+/* o total ganho, no perfil */
+.ganhos-totais {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.ganhos-total {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line-soft);
+}
+.ganhos-total > span {
+  display: flex;
+  flex-direction: column;
+}
+.ganhos-total b {
+  font-family: var(--title);
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--gold-2);
+  font-variant-numeric: tabular-nums;
+}
+.ganhos-total small {
+  font-size: 12px;
+  color: var(--muted);
+}

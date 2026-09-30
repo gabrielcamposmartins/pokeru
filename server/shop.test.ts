@@ -20,7 +20,7 @@ import { priceOf } from '../shared/catalog';
 import { ROULETTES, dropsOf, findRoulette, refundOf, roletaDe, ticketPrice } from '../shared/roulette';
 import { bondCap, giftPoints } from '../shared/bond';
 import { bonusPado } from '../shared/protocol';
-import { NIVEIS_PREMIADOS_POR_DIA, PREMIO_POR_NIVEL, SEGUNDOS_ENTRE_PREMIOS } from '../shared/minijogos';
+import { PREMIO_POR_NIVEL, SEGUNDOS_ENTRE_PREMIOS } from '../shared/minijogos';
 import { Accounts } from './accounts';
 import { Gbot, GbotError, type GbotMove, type GbotUser } from './gbot';
 
@@ -901,19 +901,19 @@ describe('minijogos: prêmio por nível', () => {
     return { agora: () => t, andar: (seg: number) => void (t += seg * 1000) };
   }
 
-  it('fichas na conta e padocoins no Discord, com a chave do dia', async () => {
+  it('fichas na conta e padocoins no Discord', async () => {
     const fake = fakeGbot(0);
     const r = relogio();
     const acc = new Accounts({ file: newFile(), startingMoney: 1000, gbot: fake.gbot, agora: r.agora });
     const a = (await acc.loginAuth(identity, profile()))!;
 
     const p = acc.premioMinijogo(a.id, 'joias', 1);
-    expect(p).toEqual({ fichas: PREMIO_POR_NIVEL.fichas, pado: PREMIO_POR_NIVEL.pado, restantes: NIVEIS_PREMIADOS_POR_DIA - 1 });
+    expect(p).toEqual({ fichas: PREMIO_POR_NIVEL.fichas, pado: PREMIO_POR_NIVEL.pado });
     expect(acc.money(a.id)).toBe(1000 + PREMIO_POR_NIVEL.fichas);
     await vi.waitFor(() => expect(fake.credits).toHaveLength(1));
-    expect(fake.credits[0]).toMatchObject({ id: identity.discordId, quantity: PREMIO_POR_NIVEL.pado, key: `pokeru:${a.id}:minijogo:2026-09-29:1` });
+    expect(fake.credits[0]).toMatchObject({ id: identity.discordId, quantity: PREMIO_POR_NIVEL.pado });
+    expect(fake.credits[0].key).toMatch(new RegExp(`^pokeru:${a.id}:minijogo:joias:1:`));
     expect(fake.credits[0].reason).toMatch(/joias/);
-    expect(acc.info(a.id)!.minijogosHoje).toBe(1);
     acc.close();
   });
 
@@ -942,34 +942,16 @@ describe('minijogos: prêmio por nível', () => {
     acc.close();
   });
 
-  it('o teto do dia vale, e zera no dia seguinte (de Brasília)', () => {
-    const r = relogio(Date.UTC(2026, 8, 29, 12, 0, 0));
+  it('sem teto: com o intervalo respeitado, todo nível rende', () => {
+    const r = relogio();
     const acc = new Accounts({ file: newFile(), startingMoney: 0, agora: r.agora });
     const a = acc.login(undefined, profile())!;
-    for (let n = 1; n <= NIVEIS_PREMIADOS_POR_DIA; n++) {
+    for (let n = 1; n <= 60; n++) {
       expect(acc.premioMinijogo(a.id, 'bolhas', n).fichas).toBe(PREMIO_POR_NIVEL.fichas);
       r.andar(SEGUNDOS_ENTRE_PREMIOS);
     }
-    const cheio = acc.premioMinijogo(a.id, 'bolhas', 99);
-    expect(cheio).toMatchObject({ fichas: 0, restantes: 0 });
-    expect(cheio.motivo).toMatch(/amanhã/);
-    expect(acc.money(a.id)).toBe(NIVEIS_PREMIADOS_POR_DIA * PREMIO_POR_NIVEL.fichas);
-    // 03:00 UTC do dia seguinte é meia-noite em Brasília
-    r.andar((Date.UTC(2026, 8, 30, 3, 0, 0) - r.agora()) / 1000);
-    expect(acc.premioMinijogo(a.id, 'bolhas', 1).fichas).toBe(PREMIO_POR_NIVEL.fichas);
+    expect(acc.money(a.id)).toBe(60 * PREMIO_POR_NIVEL.fichas);
     acc.close();
-  });
-
-  it('o teto sobrevive ao servidor reiniciar (fica na conta)', () => {
-    const file = newFile();
-    const r = relogio();
-    const antes = new Accounts({ file, startingMoney: 0, agora: r.agora });
-    const a = antes.login(undefined, profile())!;
-    antes.premioMinijogo(a.id, 'joias', 1);
-    antes.close();
-    const depois = new Accounts({ file, startingMoney: 0, agora: r.agora });
-    expect(depois.info(a.id)!.minijogosHoje).toBe(1);
-    depois.close();
   });
 
   it('jogo ou nível que não existem não rendem nada', () => {
@@ -1051,5 +1033,56 @@ describe('ranking no servidor', () => {
     conn.handle({ type: 'hello', name: 'Gabi', avatar: { color: '#fff', icon: '♠' }, cosmetics: {} as never });
     conn.handle({ type: 'ranking' });
     expect(got.some((m) => m.type === 'error')).toBe(true);
+  });
+});
+
+describe('ganhos totais e títulos dos minijogos', () => {
+  it('o prêmio do minijogo entra no total ganho e sobe os contadores dos títulos', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const a = acc.login(undefined, profile())!;
+    acc.premioMinijogo(a.id, 'joias', 1);
+    const info = acc.info(a.id)!;
+    expect(info.ganhos).toEqual({ fichas: PREMIO_POR_NIVEL.fichas, pado: 0 });
+    expect(info.stats.mjNiveis).toBe(1);
+    expect(info.stats.mjJoias).toBe(1);
+    expect(info.stats.mjBolhas).toBe(0);
+    acc.close();
+  });
+
+  it('o título dos minijogos só vale depois dos níveis', () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 0 });
+    const a = acc.login(undefined, profile())!;
+    acc.setTitle(a.id, 'Lapidador');
+    expect(acc.info(a.id)!.title).toBeNull();
+    for (let i = 0; i < 20; i++) acc.note(a.id, 'mjJoias');
+    acc.setTitle(a.id, 'Lapidador');
+    expect(acc.info(a.id)!.title).toBe('Lapidador');
+    acc.close();
+  });
+
+  it('ganho em padocoin só conta para quem tem Discord; em fichas, para todos', async () => {
+    const fake = fakeGbot(0);
+    const acc = new Accounts({ file: newFile(), startingMoney: 0, gbot: fake.gbot });
+    const semDiscord = acc.login(undefined, profile())!;
+    acc.ganho(semDiscord.id, 300, 'pado');
+    acc.ganho(semDiscord.id, 700, 'chips');
+    expect(acc.info(semDiscord.id)!.ganhos).toEqual({ fichas: 700, pado: 0 });
+    const comDiscord = (await acc.loginAuth(identity, profile()))!;
+    acc.ganho(comDiscord.id, 300, 'pado');
+    // o bônus de padocoin confirmado pelo Discord também conta
+    acc.bonus(comDiscord.id, 200, 'k1', 'vitória');
+    await vi.waitFor(() => expect(acc.info(comDiscord.id)!.ganhos?.pado).toBe(500));
+    acc.close();
+  });
+
+  it('o total ganho sobrevive ao servidor reiniciar', () => {
+    const file = newFile();
+    const antes = new Accounts({ file, startingMoney: 0 });
+    const a = antes.login(undefined, profile())!;
+    antes.ganho(a.id, 1234, 'chips');
+    antes.close();
+    const depois = new Accounts({ file, startingMoney: 0 });
+    expect(depois.info(a.id)!.ganhos?.fichas).toBe(1234);
+    depois.close();
   });
 });

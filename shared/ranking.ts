@@ -27,6 +27,10 @@ export interface ContaRanking {
   matches: number;
   /** O recorde de cada minijogo. */
   recordes: Partial<Record<Minijogo, number>>;
+  /** Tudo o que a conta já ganhou em fichas (lucro nas mesas e prêmios). */
+  ganhosFichas?: number;
+  /** O mesmo em padocoins (0 para quem não tem Discord). */
+  ganhosPado?: number;
 }
 
 export interface QuadroDef {
@@ -48,6 +52,13 @@ export const QUADROS: QuadroDef[] = [
     unidade: 'vitórias',
     valorDe: (c) => c.matchWins,
     detalheDe: (c) => `${c.matches} ${c.matches === 1 ? 'partida' : 'partidas'}`,
+  },
+  {
+    id: 'ganhos',
+    nome: 'Ganhos',
+    unidade: 'fichas',
+    valorDe: (c) => c.ganhosFichas ?? 0,
+    detalheDe: (c) => (c.ganhosPado ? `+ ${c.ganhosPado.toLocaleString('pt-BR')} padocoins` : ''),
   },
   ...MINIJOGOS.map(
     (jogo): QuadroDef => ({

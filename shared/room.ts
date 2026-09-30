@@ -890,6 +890,9 @@ export class Room {
       m.adiantamento = 0;
     }
     if (!this.paid() || !m.accountId || m.stack <= 0) return;
+    // o que sai acima do que entrou é ganho de verdade (o perfil e o ranking somam)
+    const lucro = m.stack - m.investido;
+    if (lucro > 0) this.bank!.ganho?.(m.accountId, lucro, this.settings.currency);
     if (this.settings.currency === 'pado') {
       // padocoin volta para o bot: é rede, então não dá para esperar aqui. O banco registra falha.
       void this.bank!.creditIn?.(m.accountId, m.stack, 'pado', `pokeru:out:${this.id}:${m.accountId}:${Date.now()}`);
@@ -1070,6 +1073,7 @@ export class Room {
   private consolar(m: Member): void {
     if (m.isBot || !m.accountId || !this.bank || !this.contraBots() || !m.pagou) return;
     this.bank.credit(m.accountId, CONSOLACAO_BOTS);
+    this.bank.ganho?.(m.accountId, CONSOLACAO_BOTS, 'chips');
     m.consolacao = (m.consolacao ?? 0) + CONSOLACAO_BOTS;
     this.system(`${m.name} recebeu ${CONSOLACAO_BOTS} fichas de consolação.`);
   }
@@ -1131,7 +1135,10 @@ export class Room {
       this.guardarResumo(m, { lugar, jogadores: ranking.length });
       this.premioDoFim(m, lugar === 1);
       const bonus = this.bonusFichasDe(m);
-      if (bonus > 0) this.bank?.credit(m.accountId!, bonus);
+      if (bonus > 0) {
+        this.bank?.credit(m.accountId!, bonus);
+        this.bank?.ganho?.(m.accountId!, bonus, 'chips');
+      }
       this.cashOut(m);
     }
     this.broadcastRoom();

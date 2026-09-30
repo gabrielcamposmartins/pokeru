@@ -1720,6 +1720,7 @@
   .mj-recorde-grande b,
   .mj-premio-nivel b,
   .mj-historico li b,
+  .ganhos-total b,
   .mj-historico-n {
     font-family: var(--num);
     font-weight: 700;
@@ -1729,6 +1730,7 @@
   .mj-recorde-grande,
   .mj-pips i,
   .mj-historico li,
+  .ganhos-total,
   .mj-historico-n,
   .mj-sem-conta,
   .mj-caixa-premios,

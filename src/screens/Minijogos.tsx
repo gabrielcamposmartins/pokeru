@@ -9,7 +9,7 @@ import { DefsDasJoias, JogoJoias, JoiaSvg } from '../minijogos/JogoJoias';
 import { JogoBolhas } from '../minijogos/JogoBolhas';
 import { PALETA } from '../minijogos/bolhas';
 import { lerRecorde, type Minijogo } from '../minijogos/recorde';
-import { useMinijogos, useRestantesHoje } from '../store/minijogos';
+import { useMinijogos } from '../store/minijogos';
 import { PREMIO_POR_NIVEL } from '../../shared/minijogos';
 
 /**
@@ -82,7 +82,6 @@ export function MinijogosScreen({ onBack, inicial = null }: { onBack: () => void
   const [jogando, setJogando] = useState<Minijogo | null>(inicial);
   const jogo = JOGOS.find((j) => j.id === jogando);
   const zerarSessao = useMinijogos((s) => s.zerarSessao);
-  const restantes = useRestantesHoje();
   // o que a sessão rendeu conta a partir de quando a tela abriu
   useEffect(() => zerarSessao(), [zerarSessao]);
 
@@ -102,7 +101,6 @@ export function MinijogosScreen({ onBack, inicial = null }: { onBack: () => void
         <div className="mj-lista">
           <p className="mj-lista-premio">
             Cada nível passado vale <b>{PREMIO_POR_NIVEL.fichas} fichas</b> e <b>{PREMIO_POR_NIVEL.pado} padocoins</b>
-            {restantes !== null && <> · ainda rendem hoje: <b>{restantes}</b> níveis</>}
           </p>
           {JOGOS.map((j, i) => {
             const recorde = lerRecorde(j.id);

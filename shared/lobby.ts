@@ -813,7 +813,7 @@ export class Connection implements ClientHandle {
         const jogo = String(msg.jogo ?? '');
         const nivel = Number(msg.nivel);
         if (!accounts?.premioMinijogo || !this.accountId) {
-          this.send({ type: 'minijogoPremio', jogo, nivel, fichas: 0, pado: 0, restantes: 0, motivo: 'prêmios precisam de uma conta no servidor' });
+          this.send({ type: 'minijogoPremio', jogo, nivel, fichas: 0, pado: 0, motivo: 'prêmios precisam de uma conta no servidor' });
           return;
         }
         const r = accounts.premioMinijogo(this.accountId, jogo, nivel);

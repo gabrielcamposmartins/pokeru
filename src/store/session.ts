@@ -344,7 +344,7 @@ function handle(m: ServerMsg): void {
     case 'minijogoPremio':
       // quem decidiu foi o servidor; o quadro de "nível concluído" mostra o que entrou
       if (ehMinijogo(m.jogo)) {
-        useMinijogos.getState().chegou({ jogo: m.jogo, nivel: m.nivel, fichas: m.fichas, pado: m.pado, restantes: m.restantes, motivo: m.motivo });
+        useMinijogos.getState().chegou({ jogo: m.jogo, nivel: m.nivel, fichas: m.fichas, pado: m.pado, motivo: m.motivo });
       }
       break;
     // ---------------------------------------------------------------- amizades e grupo

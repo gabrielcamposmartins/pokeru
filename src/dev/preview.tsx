@@ -607,6 +607,8 @@ if (cena === 'ranking' || cena === 'menu-ranking') {
     frame: i % 3 === 0 ? 'ouro' : undefined,
     matchWins: [31, 24, 24, 12, 9, 7, 5, 3, 2, 1, 0, 0][i],
     matches: [80, 71, 60, 40, 33, 30, 22, 15, 9, 8, 4, 2][i],
+    ganhosFichas: [212_000, 184_300, 96_500, 150_200, 41_000, 88_800, 12_400, 30_000, 5_500, 2_100, 0, 0][i],
+    ganhosPado: [40_000, 0, 12_000, 42_750, 0, 3_300, 0, 0, 0, 0, 0, 0][i],
     recordes: { joias: [0, 18_400, 9_200, 22_150, 7_800, 0, 12_300, 4_100, 0, 2_600, 15_900, 3_300][i], bolhas: [6_200, 0, 14_800, 9_900, 3_100, 11_200, 0, 2_700, 8_400, 0, 1_900, 0][i] },
   }));
   useRanking.setState({ ranking: montarRanking(contas, 'eu', new Date(Date.now() - 20_000)) });
@@ -672,7 +674,7 @@ function statsDoNivel(nivel: number) {
   // os outros contadores são fixos (e valem xp também); as mãos completam o que falta para o alvo
   const outros = { wins: 62, matches: 11, matchWins: 2 };
   const gastos = outros.wins * 3 + outros.matches * 10 + outros.matchWins * 25;
-  return { ...outros, hands: Math.max(0, alvo - gastos), folds: 74, allIns: 9, bigWins: 3, showdowns: 41 };
+  return { ...outros, hands: Math.max(0, alvo - gastos), folds: 74, allIns: 9, bigWins: 3, showdowns: 41, mjNiveis: 27, mjJoias: 21, mjBolhas: 6 };
 }
 
 /*
@@ -893,6 +895,7 @@ if (
       bond: {},
       // contadores de verdade: sem eles a lista de conquistas fica toda em zero e a tela não dá para conferir
       stats: statsDoNivel(Number(q.get('nivel') ?? 23)),
+      ganhos: { fichas: 184_300, pado: 42_750 },
       title: 'Colecionador de Potes',
       since: '2026-03-04T12:00:00.000Z',
     },

@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Minijogo } from '../../shared/minijogos';
-import { NIVEIS_PREMIADOS_POR_DIA } from '../../shared/minijogos';
 import type { PremioMinijogo } from '../../shared/accounts';
 import { useSession } from './session';
 
@@ -39,7 +38,7 @@ export const useMinijogos = create<MinijogosState>((set) => ({
   avisarNivel(jogo, nivel) {
     const s = useSession.getState();
     if (s.status !== 'connected' || !s.account) {
-      set({ ultimo: { jogo, nivel, fichas: 0, pado: 0, restantes: 0, motivo: 'entre com uma conta para ganhar fichas e padocoins', id: ++seq } });
+      set({ ultimo: { jogo, nivel, fichas: 0, pado: 0, motivo: 'entre com uma conta para ganhar fichas e padocoins', id: ++seq } });
       return;
     }
     s.send({ type: 'minijogoNivel', jogo, nivel });
@@ -53,12 +52,3 @@ export const useMinijogos = create<MinijogosState>((set) => ({
   zerarSessao: () => set({ sessao: { fichas: 0, pado: 0, niveis: 0 }, ultimo: null }),
 }));
 
-/** Quantos níveis ainda rendem prêmio hoje (null = sem conta, ou servidor que não conta). */
-export function useRestantesHoje(): number | null {
-  const account = useSession((s) => s.account);
-  const ultimo = useMinijogos((s) => s.ultimo);
-  if (!account) return null;
-  // a resposta mais nova do servidor vale mais que a foto da conta (que chega um pouco depois)
-  if (ultimo && !ultimo.motivo?.startsWith('entre com')) return ultimo.restantes;
-  return account.minijogosHoje === undefined ? null : Math.max(0, NIVEIS_PREMIADOS_POR_DIA - account.minijogosHoje);
-}
