@@ -559,9 +559,12 @@ matriz com macOS e Linux.
 
 ```bash
 TAURI_SIGNING_PRIVATE_KEY=$(cat ~/.tauri/pokeru-updater.key) TAURI_SIGNING_PRIVATE_KEY_PASSWORD= npm run app:build
-npm run release:json    # monta o latest.json e imprime o SHA-256 de cada pacote
-# e suba os três arquivos numa release com a tag vX.Y.Z
+npm run release:json    # monta o latest.json, a cópia Pokeru-setup.exe e imprime o SHA-256 de cada pacote
+# e suba os arquivos numa release com a tag vX.Y.Z
 ```
+
+O `Pokeru-setup.exe` (cópia do instalador com nome fixo) é o que o botão *Baixar o app* da versão
+web baixa, por `releases/latest/download/Pokeru-setup.exe` — sem ele na última release, o link quebra.
 
 O `latest.json` precisa estar na **última** release (é o endereço `releases/latest/download/…` que
 o app consulta), e a tag tem de bater com a versão. Quem está na 0.1.0 não se atualiza sozinho (a

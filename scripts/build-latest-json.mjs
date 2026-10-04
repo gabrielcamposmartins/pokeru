@@ -12,7 +12,7 @@
  * juntar os blocos numa release só.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -58,6 +58,12 @@ for (const t of TARGETS) {
   };
   console.log(`✓ ${t.platform}: ${file}`);
   hashes.push([file, sha256(join(dir, file))]);
+  // o botão "Baixar o app" da versão web aponta para releases/latest/download/Pokeru-setup.exe:
+  // um nome fixo, que toda release precisa levar junto com o versionado
+  if (t.platform === 'windows-x86_64') {
+    copyFileSync(join(dir, file), join(bundle, 'Pokeru-setup.exe'));
+    console.log(`  e a cópia ${join(bundle, 'Pokeru-setup.exe')} (suba também)`);
+  }
 }
 
 // os pacotes que não vão para o atualizador (o .msi) também entram na lista de conferência

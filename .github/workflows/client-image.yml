@@ -82,4 +82,4 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.tags.outputs.base }}:${GITHUB_SHA::12}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "Na VM: \`bash ~/deploy-cliente.sh\`" >> $GITHUB_STEP_SUMMARY
+          echo "Na VM: \`bash ~/deploy-vm.sh\` (atualiza servidor e cliente)" >> $GITHUB_STEP_SUMMARY
