@@ -17,6 +17,7 @@ import { HandGuideButton } from '../game/HandGuide';
 import { Segmented } from '../ui/controls';
 import { WalletBar, useChips } from '../ui/Wallet';
 import { BotaoDeSom } from '../ui/Som';
+import { BotaoBaixarApp } from '../ui/BaixarApp';
 import { sfx } from '../audio/sfx';
 import { APP_VERSION } from '../util/version';
 import { BOT_MATCH, BOT_TIERS, QUEUE_STAKES, botTier, tierUnlocked } from '../../shared/protocol';
@@ -485,6 +486,7 @@ function TopBar({ go }: { go: (s: Screen) => void }) {
       </div>
       <WalletBar />
       <div className="top-actions">
+        <BotaoBaixarApp jeito="topo" />
         <HandGuideButton />
         <BotaoDeSom className="round-icon" />
         <button className="round-icon" title="Configurações" onClick={() => go('settings')}>

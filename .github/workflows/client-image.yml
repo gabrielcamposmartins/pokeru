@@ -1,0 +1,85 @@
+# Publica a imagem do cliente web (a interface servida por nginx) no Artifact Registry do GCP.
+#
+# Roda quando a interface muda na main (ou a pedido, em Actions → Run workflow) e empurra para
+# us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/client. Na VM, o contêiner
+# `pokeru-client` atende https://pokeru.padoru.org atrás do nginx de borda (veja docker/vm/).
+#
+# A autenticação é a mesma da imagem do servidor: sem chave, pelo token do próprio job
+# (Workload Identity Federation).
+
+name: Imagem do cliente web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'shared/**'
+      - 'public/**'
+      - 'assets/**'
+      - 'index.html'
+      - 'vite.config.ts'
+      - 'Dockerfile.client'
+      - 'docker/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.github/workflows/client-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: us-central1
+  PROJECT: gen-lang-client-0425635607
+  REPO: pokeru
+  IMAGE: client
+
+jobs:
+  build:
+    name: Constrói e publica
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autentica no GCP (sem chave)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/87290125413/locations/global/workloadIdentityPools/github/providers/pokeru
+          service_account: github-pokeru@gen-lang-client-0425635607.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Libera o docker para o Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Etiquetas da imagem
+        id: tags
+        shell: bash
+        run: |
+          base="${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${IMAGE}"
+          version=$(node -p "require('./package.json').version")
+          echo "tags=${base}:${GITHUB_SHA::12},${base}:v${version},${base}:latest" >> "$GITHUB_OUTPUT"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Constrói e empurra
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.client
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,mode=max,scope=client
+
+      - name: Onde ficou
+        run: |
+          echo "### Imagem do cliente publicada" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.tags.outputs.base }}:${GITHUB_SHA::12}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Na VM: \`bash ~/deploy-cliente.sh\`" >> $GITHUB_STEP_SUMMARY

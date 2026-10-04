@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { insecureGateway, useAuth } from '../store/auth';
 import { CharacterStageView, Petals } from './MainMenu';
 import { sfx } from '../audio/sfx';
+import { BotaoBaixarApp } from '../ui/BaixarApp';
 
 /**
  * Tela de entrada: usuário, senha e "lembrar-me" — e, na mesma tela, criar a conta.
@@ -203,6 +204,8 @@ export function LoginScreen() {
             continueOffline();
           }}
         />
+        {/* jogando pelo navegador: o convite para o app desktop */}
+        <BotaoBaixarApp jeito="largo" />
       </div>
     </div>
   );

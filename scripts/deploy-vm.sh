@@ -56,6 +56,8 @@ sudo docker exec pokeru-server node -e "fetch('http://bot:8090/health').then(r=>
 
 echo "=== pelo domínio, via nginx ==="
 curl -s -m 8 https://pokeru.padoru.org/health; echo
+# a página do jogo no navegador (o cliente web); o título vem do index.html
+curl -s -m 8 https://pokeru.padoru.org/ | grep -o '<title>[^<]*</title>' || echo 'a raiz não devolveu a página do cliente'
 
 echo "=== log ==="
 sudo docker logs pokeru-server 2>&1 | tail -8

@@ -24,6 +24,18 @@ services:
     networks: [gbot, edge]
     stop_grace_period: 15s
 
+  # a interface no navegador: https://pokeru.padoru.org (o nginx de borda manda para cá o que
+  # não é WebSocket nem /auth; veja docker/edge/pokeru.conf). Só arquivos estáticos, sem estado.
+  client:
+    image: us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/client:latest
+    # o nginx de borda aponta para este nome
+    container_name: pokeru-client
+    restart: unless-stopped
+    environment:
+      POKERU_SERVER_URL: wss://pokeru.padoru.org
+    networks: [edge]
+    mem_limit: 64m
+
 volumes:
   pokeru-data:
     # o volume de antes do Compose, com as contas e o estado das mesas
