@@ -1,0 +1,23 @@
+// Falas de Violetta por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Violetta",
+  "falas": [
+    "ごきげんよう。お手柔らかにね。", // join: Boa noite. Peguem leve comigo.
+    "あら、わたくしの番ね。", // turn: Ora, minha vez.
+    "ふふ、お先にどうぞ。", // check: Hehe, primeiro você.
+    "いいわ、乗ってあげる。", // call: Tudo bem, eu acompanho.
+    "少しだけ、ね。", // bet: Só um pouquinho.
+    "もう少し、楽しませて。", // raise: Me divirta mais um pouco.
+    "全部賭けるわ。受け止められるかしら？", // allin: Aposto tudo. Será que você aguenta?
+    "今回は譲ってあげる。", // fold: Desta vez, eu cedo.
+    "さあ、答え合わせの時間よ。", // showdown: Hora de conferir as respostas.
+    "ふふっ、ごちそうさま。", // win: Hehe, estava delicioso.
+    "最初から、わたくしの勝ちだったのよ。", // big_win: Eu já tinha vencido desde o começo.
+    "どうぞ。今は勝たせてあげる。", // lose: Pode levar. Por ora, deixo você ganhar.
+    "あら、おしまい？…少し遊びすぎたわね。", // bust: Ora, acabou? Brinquei demais.
+    "仕切り直しましょう。今度は本気で。", // rebuy: Recomecemos. Agora é pra valer.
+    "あら、面白くなってきたわ。", // blinds_up: Ora, está ficando interessante.
+    "ずいぶん悩むのね。" // idle: Quanta hesitação.
+  ]
+}

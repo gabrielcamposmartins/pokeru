@@ -1,0 +1,23 @@
+// Falas de Alistair por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Alistair",
+  "falas": [
+    "やあ、諸君。定刻通りだ。", // join: Boa noite, senhores. Pontual como sempre.
+    "さて、私の出番だ。", // turn: Pois bem, minha deixa.
+    "様子を見よう。", // check: Vejamos.
+    "付き合おう、友よ。", // call: Eu acompanho, meu amigo.
+    "幕開けといこう。", // bet: Que se abram as cortinas.
+    "もう一幕、いかがかな？", // raise: Que tal mais um ato?
+    "終幕だ。すべてを賭けよう。", // allin: Ato final. Aposto tudo.
+    "今は退こう。見せ場は後だ。", // fold: Recuo agora. O grande momento fica para depois.
+    "時は来た。拝見しよう。", // showdown: Chegou a hora. Vejamos o que tem.
+    "当然の結末だよ、友よ。", // win: Um desfecho natural, meu amigo.
+    "ブラボー！拍手を頼むよ。", // big_win: Bravo! Aplausos, por favor.
+    "ほう…君にも見せ場をあげよう。", // lose: Oh... deixo que você tenha seu momento.
+    "幕は下りた。だが、私を忘れるなよ。", // bust: A cortina caiu. Mas não se esqueça de mim.
+    "アンコールにお応えしよう。", // rebuy: Atendendo ao pedido de bis.
+    "時計の針が進むね。", // blinds_up: Os ponteiros avançam.
+    "チクタク…私を待たせる気かい？" // idle: Tique-taque... vai me fazer esperar?
+  ]
+}

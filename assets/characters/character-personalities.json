@@ -1,0 +1,112 @@
+{
+  "characters": [
+    {
+      "id": "yukina",
+      "name": "Yukina",
+      "gender": "feminino",
+      "age": 25,
+      "archetype": "Estrategista serena",
+      "personality": "Calma, elegante e extremamente observadora. Raramente demonstra emoção e prefere analisar tudo antes de agir. Passa uma impressão de frieza, mas é atenciosa e leal com quem conquista sua confiança. Tem um orgulho silencioso e detesta ser subestimada, embora nunca diga isso em voz alta.",
+      "traits": ["calma", "analítica", "elegante", "reservada", "paciente", "orgulhosa", "leal"],
+      "speech_style": "Fala devagar, em tom baixo e suave, com frases curtas e precisas. Nunca levanta a voz. Usa linguagem formal e polida, e recorre a uma ironia sutil quando está irritada.",
+      "likes": ["silêncio", "chá", "planejamento", "ordem", "conversas inteligentes"],
+      "dislikes": ["barulho", "pressa", "gente que fala demais", "improviso", "ser interrompida"],
+      "quirks": [
+        "toca o queixo com dois dedos quando está pensando",
+        "fecha os olhos por um instante antes de tomar uma decisão importante",
+        "carrega sempre um leque fechado, que abre apenas quando está satisfeita"
+      ],
+      "motivation": "Provar, sem alarde, que a paciência e a precisão vencem qualquer talento bruto."
+    },
+    {
+      "id": "marina",
+      "name": "Marina",
+      "gender": "feminino",
+      "age": 22,
+      "archetype": "Impulsiva de coração grande",
+      "personality": "Energética, barulhenta e competitiva ao extremo. Age primeiro e pensa depois, o que a coloca em confusão com frequência. É sincera até demais, incapaz de esconder o que sente, mas também é a primeira a defender os amigos. Odeia perder, porém consegue rir de si mesma logo depois.",
+      "traits": ["enérgica", "impulsiva", "competitiva", "sincera", "leal", "otimista", "teimosa"],
+      "speech_style": "Fala rápido e alto, com gírias, exclamações e risadas no meio das frases. Provoca os outros o tempo todo, mas sem maldade. Comemora e reclama com a mesma intensidade.",
+      "likes": ["música alta", "desafios", "comida de rua", "vencer", "amigos"],
+      "dislikes": ["esperar", "regras demais", "gente arrogante", "silêncio constrangedor", "perder (mesmo que finja que não liga)"],
+      "quirks": [
+        "estala os dedos antes de tomar uma decisão",
+        "nunca tira os fones do pescoço, mesmo sem estar ouvindo nada",
+        "dá apelidos para todo mundo no primeiro encontro"
+      ],
+      "motivation": "Viver cada momento no máximo e nunca deixar ninguém dizer que ela não é capaz."
+    },
+    {
+      "id": "ren",
+      "name": "Ren",
+      "gender": "masculino",
+      "age": 35,
+      "archetype": "Mestre veterano",
+      "personality": "Calmo, refinado e naturalmente autoritário. Já viu de tudo e gosta de testar as pessoas antes de levá-las a sério. Tem um humor seco e raramente elogia, mas quando o faz, é sincero. Age como mentor relutante dos mais jovens e esconde, atrás da postura controlada, um cuidado genuíno por eles.",
+      "traits": ["calmo", "refinado", "autoritário", "calculista", "paciente", "irônico", "protetor (discreto)"],
+      "speech_style": "Fala devagar, com voz grave e frases medidas, cada palavra escolhida com cuidado. Usa vocabulário culto e tom levemente condescendente. Prefere perguntas a afirmações quando quer ensinar algo.",
+      "likes": ["chá preto", "silêncio", "livros antigos", "pessoas que aprendem rápido", "xadrez"],
+      "dislikes": ["pressa", "arrogância sem fundamento", "desperdício de talento", "explicar a mesma coisa duas vezes"],
+      "quirks": [
+        "ajusta os óculos antes de dizer algo importante",
+        "cruza os braços quando está avaliando alguém",
+        "gira o pingente de jade entre os dedos quando está pensativo"
+      ],
+      "motivation": "Passar adiante o que aprendeu, mesmo que finja não se importar com isso."
+    },
+    {
+      "id": "tobi",
+      "name": "Tobi",
+      "gender": "masculino",
+      "age": 17,
+      "archetype": "Prodígio travesso",
+      "personality": "Gênio precoce, brincalhão e convencido. Entedia-se com facilidade e trata tudo como um jogo, o que às vezes o faz parecer irresponsável. É curioso e aprende qualquer coisa em minutos, mas esconde uma insegurança real atrás da arrogância: teme o dia em que encontrar algo que não consiga dominar. Quando gosta de alguém, demonstra com provocações.",
+      "traits": ["genial", "brincalhão", "arrogante", "curioso", "inquieto", "carismático", "inseguro (escondido)"],
+      "speech_style": "Fala rápido, com gírias, entonação ascendente e muitas provocações. Ri das próprias piadas. Quando está realmente concentrado, fica subitamente quieto, o que assusta quem o conhece.",
+      "likes": ["desafios novos", "doces", "videogames", "irritar o Ren", "ser subestimado (para depois surpreender)"],
+      "dislikes": ["rotina", "tédio", "ser tratado como criança", "perder para alguém mais velho", "explicações longas"],
+      "quirks": [
+        "gira objetos pequenos nos dedos o tempo todo",
+        "nunca fica parado, balança a perna ou anda de um lado para o outro",
+        "diz 'foi mal' sem estar arrependido de verdade"
+      ],
+      "motivation": "Encontrar algo que realmente o desafie, e provar que ainda assim consegue vencer."
+    },
+    {
+      "id": "alistair",
+      "name": "Alistair",
+      "gender": "masculino",
+      "age": 28,
+      "archetype": "Aristocrata excêntrico",
+      "personality": "Teatral, charmoso e imprevisível. Trata a vida como um palco e as pessoas como plateia, alternando entre gentileza refinada e uma condescendência afiada. Obcecado por tempo e pontualidade, detesta esperar mas adora fazer os outros esperarem. Carrega uma aura de perigo elegante: nunca se sabe se está brincando ou ameaçando, e ele gosta que seja assim.",
+      "traits": ["teatral", "charmoso", "condescendente", "imprevisível", "elegante", "manipulador", "vaidoso", "perspicaz"],
+      "speech_style": "Fala com floreios e vocabulário rebuscado, em tom calmo e sorridente. Chama os outros de 'meu amigo' mesmo quando não são. Usa ironia constante e pausas dramáticas, e costuma terminar as frases com uma provocação disfarçada de elogio.",
+      "likes": ["pontualidade", "relógios", "jogos psicológicos", "vinho tinto", "plateia", "vestir-se bem"],
+      "dislikes": ["ser ignorado", "esperar", "gente sem estilo", "previsibilidade", "perder a compostura"],
+      "quirks": [
+        "abre e fecha o relógio de bolso enquanto fala",
+        "ajusta o monóculo antes de dizer algo cruel com sorriso",
+        "faz uma pequena reverência teatral ao chegar e ao sair"
+      ],
+      "motivation": "Nunca ser esquecido: prefere ser temido ou admirado a ser comum."
+    },
+    {
+      "id": "violetta",
+      "name": "Violetta",
+      "gender": "feminino",
+      "age": 25,
+      "archetype": "Nobre femme fatale",
+      "personality": "Sofisticada, calculista e perfeitamente educada. Parece encantadora e impecável à primeira vista, mas por trás das boas maneiras há uma mente fria que está sempre avaliando quem tem à frente. Gosta de brincar com as pessoas: deixa os outros acreditarem que estão no controle, diverte-se com isso e só revela suas intenções quando já é tarde demais. Nunca perde a compostura e trata cada situação como um jogo de salão que ela já venceu.",
+      "traits": ["sofisticada", "calculista", "misteriosa", "charmosa", "provocadora", "controlada", "intimidadora", "inteligente"],
+      "speech_style": "Fala com elegância aristocrática e um tom provocador, alongando as palavras e deixando pausas para que o outro fique desconfortável. Usa elogios com segundas intenções, risadas discretas e uma ironia suave que nunca chega a ser grosseira. Raramente diz o que realmente pensa de forma direta.",
+      "likes": ["jogos psicológicos", "salões elegantes", "segredos alheios", "adversários que se acham espertos", "chá com conversa fiada cheia de subentendidos"],
+      "dislikes": ["vulgaridade", "gente previsível", "ser ignorada", "perder o controle da situação", "sinceridade excessiva"],
+      "quirks": [
+        "inclina levemente a cabeça com um sorriso quando alguém comete um erro",
+        "ri baixinho por trás da mão em vez de gargalhar",
+        "deixa o adversário vencer as primeiras rodadas de propósito para estudá-lo"
+      ],
+      "motivation": "Ter sempre a última palavra e sair de qualquer situação com mais do que entrou, sem jamais sujar as luvas."
+    }
+  ]
+}

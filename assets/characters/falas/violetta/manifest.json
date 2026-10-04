@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_ごきげんよう。お手柔らかにね。.wav",
+    "tipo": "audio",
+    "texto": "ごきげんよう。お手柔らかにね。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_あら、わたくしの番ね。.wav",
+    "tipo": "audio",
+    "texto": "あら、わたくしの番ね。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_ふふ、お先にどうぞ。.wav",
+    "tipo": "audio",
+    "texto": "ふふ、お先にどうぞ。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_いいわ、乗ってあげる。.wav",
+    "tipo": "audio",
+    "texto": "いいわ、乗ってあげる。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_少しだけ、ね。.wav",
+    "tipo": "audio",
+    "texto": "少しだけ、ね。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_もう少し、楽しませて。.wav",
+    "tipo": "audio",
+    "texto": "もう少し、楽しませて。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_全部賭けるわ。受け止められるかしら？.wav",
+    "tipo": "audio",
+    "texto": "全部賭けるわ。受け止められるかしら？",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_今回は譲ってあげる。.wav",
+    "tipo": "audio",
+    "texto": "今回は譲ってあげる。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_さあ、答え合わせの時間よ。.wav",
+    "tipo": "audio",
+    "texto": "さあ、答え合わせの時間よ。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_ふふっ、ごちそうさま。.wav",
+    "tipo": "audio",
+    "texto": "ふふっ、ごちそうさま。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_最初から、わたくしの勝ちだったのよ。.wav",
+    "tipo": "audio",
+    "texto": "最初から、わたくしの勝ちだったのよ。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_どうぞ。今は勝たせてあげる。.wav",
+    "tipo": "audio",
+    "texto": "どうぞ。今は勝たせてあげる。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_あら、おしまい？…少し遊びすぎたわね。.wav",
+    "tipo": "audio",
+    "texto": "あら、おしまい？…少し遊びすぎたわね。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_仕切り直しましょう。今度は本気で。.wav",
+    "tipo": "audio",
+    "texto": "仕切り直しましょう。今度は本気で。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_あら、面白くなってきたわ。.wav",
+    "tipo": "audio",
+    "texto": "あら、面白くなってきたわ。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_ずいぶん悩むのね。.wav",
+    "tipo": "audio",
+    "texto": "ずいぶん悩むのね。",
+    "seed": 43,
+    "voice": "Violetta_2",
+    "language": "Japanese"
+  }
+]
