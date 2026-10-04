@@ -130,26 +130,45 @@ interface ProfileState {
 }
 
 /**
- * Servidor oficial do Pokeru: o IP fixo da VM.
+ * Servidor oficial do Pokeru: `pokeru.padoru.org`, com TLS.
  *
- * Hoje é **`ws://`**, e isso é uma pendência conhecida, não um descuido: a senha do login (no
- * gateway `/auth/login`) e o token da sessão viajam por aqui, e sem TLS eles vão em claro na rede.
- * O suporte a TLS está pronto dos dois lados — é só o servidor subir com `TLS_CERT_PATH` e
- * `TLS_KEY_PATH` (veja `npm run cert` e "TLS" no README) e trocar este endereço por `wss://`.
- *
- * Ficou para depois porque um certificado autoassinado obriga **cada máquina** a confiar nele uma
- * vez, e no app desktop isso quer dizer instalar o certificado na store do sistema. Com um domínio
- * e um certificado público (Let's Encrypt), o passo desaparece e a troca é esta linha.
+ * Na VM, um nginx atende as portas 80 e 443, termina o TLS com um certificado do Let's Encrypt e
+ * repassa HTTP e WebSocket para o servidor, que roda em `ws://` por trás dele. Assim a senha do
+ * login (no gateway `/auth/login`) e o token da sessão viajam cifrados, sem o jogador ter de
+ * confiar em certificado nenhum.
  *
  * O jogador **não escolhe** endereço: o jogo fala sempre com o servidor oficial, e o que ele
  * escolhe é a *sala* (veja a lista de salas no lobby). Quem hospeda um servidor próprio aponta o
  * app na hora de montá-lo, não em tempo de uso:
  *
  *   - `config.js` servido pelo servidor web do cliente (POKERU_SERVER_URL no Docker);
- *   - `VITE_SERVER_URL=wss://meu-host:3001` no build (é assim que se aponta para um servidor com
- *     TLS, ou para um local em `ws://localhost:3001`).
+ *   - `VITE_SERVER_URL=wss://meu-host` no build (ou `ws://localhost:3001` para um local).
  */
-export const DEFAULT_SERVER_URL = 'ws://35.209.186.9:3001';
+export const DEFAULT_SERVER_URL = 'wss://pokeru.padoru.org';
+
+/**
+ * Endereços que o servidor oficial já teve. A conta guardada no perfil é chaveada pelo endereço,
+ * então sem isto quem atualiza o app perderia a sessão e teria de entrar de novo.
+ */
+export const ENDERECOS_ANTIGOS_DO_OFICIAL = ['ws://35.209.186.9:3001', 'wss://35.209.186.9:3001'];
+
+/**
+ * Traz a conta guardada sob um endereço antigo do servidor oficial para o endereço atual. O
+ * servidor é o mesmo, então a chave de volta continua valendo. Só age quando o app usa o
+ * oficial e ainda não há conta no endereço novo; os endereços antigos saem do perfil.
+ */
+export function migrarContasDoOficial(
+  accounts: Record<string, ServerAccount>,
+  atual: string = DEFAULT_SERVER_URL,
+): Record<string, ServerAccount> {
+  if (atual !== DEFAULT_SERVER_URL) return accounts;
+  const antigos = ENDERECOS_ANTIGOS_DO_OFICIAL.filter((u) => u in accounts);
+  if (!antigos.length) return accounts;
+  const resto = Object.fromEntries(Object.entries(accounts).filter(([u]) => !antigos.includes(u)));
+  if (resto[atual]) return resto;
+  const herdada = antigos.map((u) => accounts[u]).find((a) => a?.token) ?? accounts[antigos[0]];
+  return { ...resto, [atual]: herdada };
+}
 
 /** O endereço que este app usa — decidido no build/hospedagem, nunca digitado pelo jogador. */
 export const SERVER_URL: string =
@@ -240,7 +259,7 @@ export const useProfile = create<ProfileState>()(
         return {
           ...current,
           ...p,
-          accounts: { ...current.accounts, ...(p.accounts ?? {}) },
+          accounts: migrarContasDoOficial({ ...current.accounts, ...(p.accounts ?? {}) }, SERVER_URL),
           custom: known(current.custom, p.custom),
           // perfil de antes das auras não tem o campo: fica o padrão; o que tem passa pela regra
           auras: p.auras === undefined ? current.auras : sanitizeAuras(p.auras),

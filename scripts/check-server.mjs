@@ -1,8 +1,9 @@
-// Confere o servidor oficial por HTTP puro: mesa por ws e a cadeia de login pelo gateway.
+// Confere o servidor oficial: mesa por WebSocket e a cadeia de login pelo gateway.
+// Padrão: o domínio, pelo nginx com TLS. Para outro servidor: node scripts/check-server.mjs ws://localhost:3001
 import { WebSocket } from 'ws';
 
-const BASE = 'http://35.209.186.9:3001';
-const WS = 'ws://35.209.186.9:3001';
+const WS = (process.argv[2] || 'wss://pokeru.padoru.org').replace(/\/+$/, '');
+const BASE = WS.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
 const log = [];
 
 const h = await fetch(`${BASE}/health`).then((r) => r.json());

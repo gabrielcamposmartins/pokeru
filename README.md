@@ -143,21 +143,19 @@ qualquer um que alcance a porta cria uma conta e recebe o saldo inicial. Para um
 deixe o servidor numa rede privada (ou atrás de um proxy com autenticação), use senha nas salas e
 ajuste `MAX_ACCOUNTS`.
 
-### TLS (pendente no servidor oficial)
+### TLS
 
 Duas coisas passam pelo endereço do servidor e pedem TLS: a **senha** do jogador (no
 `/auth/login` e no `/auth/register`) e o **token** da sessão, em toda conexão de mesa. Sem TLS, os
 dois andam em claro na rede — a documentação do GBOT diz para nunca chamar `/login` por HTTP puro,
 e isso vale para o caminho inteiro.
 
-> **Estado de hoje:** o suporte está pronto dos dois lados e **desligado** no servidor oficial, que
-> atende em `ws://35.209.186.9:3001`. A autenticação funciona por HTTP, e a tela de entrada avisa,
-> em letras miúdas, que a senha vai em claro — use uma senha só deste jogo.
+> **Servidor oficial:** `wss://pokeru.padoru.org`. Um nginx na VM termina o TLS com um certificado
+> do Let's Encrypt e repassa para o servidor, que roda em `ws://` por trás dele (veja "Como o
+> servidor oficial está montado"). Ninguém precisa instalar certificado.
 >
-> Ficou pendente porque um certificado autoassinado obriga **cada máquina** a confiar nele uma vez,
-> e no app desktop isso quer dizer instalar o certificado na store do sistema (veja "Aceitar o
-> certificado"). Com um domínio apontando para a VM, um certificado do Let's Encrypt derruba esse
-> atrito: aí é subir o servidor com os dois caminhos e trocar `DEFAULT_SERVER_URL` para `wss://`.
+> O que vem abaixo é para quem hospeda **sem proxy**: o próprio servidor serve `https` e `wss`
+> com um par de certificados.
 
 **Gerar o certificado** (uma vez, na máquina que vai hospedar):
 
@@ -200,7 +198,7 @@ docker run -d --name pokeru-server -p 3001:3001 \
   us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server:latest
 ```
 
-**No cliente** o endereço já é `wss://35.209.186.9:3001` (`DEFAULT_SERVER_URL`, em
+**No cliente** o endereço oficial é `wss://pokeru.padoru.org` (`DEFAULT_SERVER_URL`, em
 `src/store/profile.ts`), e o gateway de contas é o mesmo endereço em `https`. Para outro servidor,
 `VITE_SERVER_URL=wss://…` no build ou `POKERU_SERVER_URL` no contêiner do cliente.
 
@@ -235,22 +233,32 @@ do Node.
 
 #### Como o servidor oficial está montado
 
-Os dois scripts que fizeram isso na VM estão no repositório, e são idempotentes:
-
-```bash
-bash scripts/prep-vm.sh     # certificado em /etc/pokeru/certs, conta de serviço no GBOT
-                            # e /etc/pokeru/server.env (chmod 600, com a senha da conta)
-bash scripts/deploy-vm.sh   # pull da imagem, troca o contêiner e confere health + acesso ao bot
+```
+jogador ──https/wss :443──> nginx (/srv/edge) ──rede edge──> pokeru-server :3001 ──rede gbot_default──> bot, banco
 ```
 
-O certificado é para `IP:35.209.186.9`, a chave fica `640 root:1000` (o contêiner roda como o
-usuário `node`, uid 1000 — com 600 ele não conseguiria ler), e o servidor entra na rede
-`gbot_default` para alcançar o bot em `http://bot:8090`. O par de chaves **não** está na imagem:
-entra por `-v /etc/pokeru/certs:/certs:ro`.
+- **DNS:** `pokeru.padoru.org` é um registro A na zona `padoru-org` do Cloud DNS, apontando para o
+  IP fixo da VM (`35.209.186.9`).
+- **Proxy:** um projeto Compose em `/srv/edge` com o nginx nas portas 80 e 443 e o certbot, que
+  só sobe para emitir ou renovar. A renovação roda pelo cron (`/etc/cron.d/edge-certbot`). O
+  nginx só enxerga a rede `edge`: o bot e o banco ficam fora do alcance dele.
+- **Servidor:** o Compose em `docker/vm/compose.yml`, instalado em `/srv/pokeru`. O contêiner
+  entra na `gbot_default` para alcançar o bot em `http://bot:8090` e na `edge` para receber o
+  nginx. O TLS do próprio servidor fica desligado: quem termina o TLS é o nginx.
 
-O certificado e a montagem continuam lá; o que está desligado são as duas linhas `TLS_*` em
-`/etc/pokeru/server.env`. Para religar o TLS: descomente-as, `docker restart pokeru-server` e
-publique um cliente com `VITE_SERVER_URL=wss://35.209.186.9:3001`.
+Os scripts são idempotentes:
+
+```bash
+bash scripts/prep-vm.sh     # conta de serviço no GBOT e /etc/pokeru/server.env
+                            # (chmod 600, com a senha da conta)
+bash scripts/deploy-vm.sh   # pull da imagem, recria o contêiner pelo Compose e confere
+                            # health, acesso ao bot e o caminho pelo domínio
+```
+
+A porta 3001 ainda fica publicada enquanto houver clientes antigos (até a 0.9.15), que falam com
+`ws://35.209.186.9:3001`. Quando eles sumirem dos logs, apague a seção `ports` do Compose, rode o
+deploy e remova a regra de firewall `pokeru-server`. Clientes novos trazem a sessão guardada no
+endereço antigo para o domínio, sem pedir login de novo.
 
 ### Login, Discord e padocoins
 

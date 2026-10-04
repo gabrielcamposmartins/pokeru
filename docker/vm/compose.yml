@@ -1,0 +1,37 @@
+# Servidor oficial do Pokeru na VM, instalado em /srv/pokeru (veja scripts/deploy-vm.sh).
+#
+#   docker compose pull && docker compose up -d
+#
+# Duas redes, ambas criadas fora daqui:
+#   - gbot_default: a do Compose do GBOT, para falar com o bot (http://bot:8090) e o banco;
+#   - edge: a do proxy (/srv/edge). O nginx encontra este contêiner pelo nome, pokeru-server.
+name: pokeru
+
+services:
+  server:
+    image: us-central1-docker.pkg.dev/gen-lang-client-0425635607/pokeru/server:latest
+    # o nginx aponta para este nome; não mude sem mudar o pokeru.conf do proxy
+    container_name: pokeru-server
+    restart: unless-stopped
+    # contém a senha da conta de serviço no GBOT (gerado por scripts/prep-vm.sh)
+    env_file: /etc/pokeru/server.env
+    volumes:
+      - pokeru-data:/data
+    # Transição: clientes até a 0.9.15 falam direto com ws://35.209.186.9:3001.
+    # Quando eles sumirem dos logs, apague esta seção e a regra de firewall pokeru-server.
+    ports:
+      - "3001:3001"
+    networks: [gbot, edge]
+    stop_grace_period: 15s
+
+volumes:
+  pokeru-data:
+    # o volume de antes do Compose, com as contas e o estado das mesas
+    external: true
+
+networks:
+  gbot:
+    name: gbot_default
+    external: true
+  edge:
+    external: true
