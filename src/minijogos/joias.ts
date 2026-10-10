@@ -4,16 +4,36 @@
  * Só a regra mora aqui — o tabuleiro, as trocas, o que some, o que cai e o que nasce. A tela
  * (JogoJoias.tsx) pega os passos que `jogar` devolve e anima um de cada vez.
  *
- * As peças especiais:
+ * As peças especiais que se **fazem** alinhando:
  *   - quatro em linha deixam uma **joia listrada** no lugar: quando ela some, leva a linha inteira
  *     (listras deitadas levam a linha, em pé levam a coluna);
- *   - cinco ou mais deixam uma **estrela**: trocada com qualquer joia, leva todas daquela cor.
+ *   - um **L ou T** (duas sequências da mesma cor que se cruzam) deixa uma **bomba**: quando some,
+ *     leva as oito vizinhas;
+ *   - um L ou T de seis joias ou mais (um dos braços com quatro) deixa uma **cruz**: leva a linha
+ *     e a coluna de uma vez;
+ *   - cinco ou mais em linha deixam uma **estrela**: trocada com qualquer joia, leva todas daquela cor.
+ *
+ * E as que **caem** do alto, de vez em quando, no lugar de uma joia comum (elas têm cor e se
+ * alinham como qualquer outra):
+ *   - o **relógio** devolve segundos ao nível quando some;
+ *   - o **×2** dobra os pontos do passo em que some.
  */
 
 export const LADO = 8;
 export const CORES = 6;
 
-export type Especial = 'linha-h' | 'linha-v' | 'estrela';
+export type Especial = 'linha-h' | 'linha-v' | 'estrela' | 'bomba' | 'cruz' | 'relogio' | 'x2';
+
+/** Com que chance cada joia nova que cai do alto vem relógio ou ×2 (0 = nunca). */
+export interface ChancesJoias {
+  relogio: number;
+  x2: number;
+}
+
+const SEM_EXTRAS: ChancesJoias = { relogio: 0, x2: 0 };
+
+/** Segundos que cada relógio devolve ao nível. */
+export const SEGUNDOS_DO_RELOGIO = 5;
 
 export interface Gema {
   id: number;
@@ -126,7 +146,12 @@ function detonar(t: Tabuleiro, alvo: Set<number>, protegidas: Set<number>): numb
     };
     if (g.especial === 'linha-h') for (let c = 0; c < LADO; c++) junta({ r: p.r, c });
     else if (g.especial === 'linha-v') for (let r = 0; r < LADO; r++) junta({ r, c: p.c });
-    else if (g.especial === 'estrela') {
+    else if (g.especial === 'cruz') {
+      for (let c = 0; c < LADO; c++) junta({ r: p.r, c });
+      for (let r = 0; r < LADO; r++) junta({ r, c: p.c });
+    } else if (g.especial === 'bomba') {
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) if (dentro({ r: p.r + dr, c: p.c + dc })) junta({ r: p.r + dr, c: p.c + dc });
+    } else if (g.especial === 'estrela') {
       const cor = corMaisComum(t);
       for (let r = 0; r < LADO; r++) for (let c = 0; c < LADO; c++) if (t[r][c]?.cor === cor) junta({ r, c });
     }
@@ -134,8 +159,18 @@ function detonar(t: Tabuleiro, alvo: Set<number>, protegidas: Set<number>): numb
   return [...feitas];
 }
 
+/** Uma joia nova do alto: quase sempre comum; às vezes um relógio ou um ×2, da mesma cor sorteada. */
+function joiaQueCai(rng: Rng, cores: number, chances: ChancesJoias): Gema {
+  const cor = Math.floor(rng() * cores);
+  if (!chances.relogio && !chances.x2) return novaGema(cor);
+  const x = rng();
+  if (x < chances.relogio) return novaGema(cor, 'relogio');
+  if (x < chances.relogio + chances.x2) return novaGema(cor, 'x2');
+  return novaGema(cor);
+}
+
 /** As joias descem para os buracos e nascem novas no alto de cada coluna. */
-export function cair(t: Tabuleiro, rng: Rng = Math.random, cores = CORES): Tabuleiro {
+export function cair(t: Tabuleiro, rng: Rng = Math.random, cores = CORES, chances: ChancesJoias = SEM_EXTRAS): Tabuleiro {
   const n = copiar(t);
   for (let c = 0; c < LADO; c++) {
     const ficam: Gema[] = [];
@@ -146,7 +181,7 @@ export function cair(t: Tabuleiro, rng: Rng = Math.random, cores = CORES): Tabul
     const faltam = LADO - ficam.length;
     for (let r = LADO - 1, k = 0; r >= 0; r--, k++) {
       if (k < ficam.length) n[r][c] = ficam[k];
-      else n[r][c] = { ...novaGema(Math.floor(rng() * cores)), nasce: faltam };
+      else n[r][c] = { ...joiaQueCai(rng, cores, chances), nasce: faltam };
     }
   }
   return n;
@@ -164,6 +199,12 @@ export interface Passo {
   combo: number;
   /** Quantas de cada cor sumiram. */
   porCor: number[];
+  /** Segundos que os relógios que sumiram devolvem ao nível. */
+  segundos: number;
+  /** O multiplicador dos ×2 que sumiram (1 sem nenhum; no máximo 4). */
+  multiplicador: number;
+  /** As especiais que detonaram neste passo (para a tela fazer a festa de cada uma). */
+  detonadas: Especial[];
 }
 
 export type Jogada = { valida: false } | { valida: true; trocado: Tabuleiro; passos: Passo[]; final: Tabuleiro };
@@ -181,10 +222,18 @@ function contar(t: Tabuleiro, limpas: number[]): number[] {
 }
 
 /** Monta um passo: some com `alvo`, põe as especiais novas e deixa cair. */
-function passo(t: Tabuleiro, alvo: Set<number>, novas: Map<number, Gema>, combo: number, rng: Rng, cores: number): Passo {
+function passo(t: Tabuleiro, alvo: Set<number>, novas: Map<number, Gema>, combo: number, rng: Rng, cores: number, chances: ChancesJoias): Passo {
   const protegidas = new Set(novas.keys());
   const limpas = detonar(t, alvo, protegidas);
   const porCor = contar(t, limpas);
+  const detonadas: Especial[] = [];
+  for (const i of limpas) {
+    const p = pos(i);
+    const e = t[p.r][p.c]?.especial;
+    if (e) detonadas.push(e);
+  }
+  const segundos = detonadas.filter((e) => e === 'relogio').length * SEGUNDOS_DO_RELOGIO;
+  const multiplicador = Math.min(4, 2 ** detonadas.filter((e) => e === 'x2').length);
   const comBuracos = copiar(t);
   for (const i of limpas) {
     const p = pos(i);
@@ -194,38 +243,64 @@ function passo(t: Tabuleiro, alvo: Set<number>, novas: Map<number, Gema>, combo:
     const p = pos(i);
     comBuracos[p.r][p.c] = g;
   }
-  const pontos = (limpas.length + novas.size) * PONTOS_POR_JOIA * combo;
-  return { limpas: limpas.map(pos), comBuracos, depois: cair(comBuracos, rng, cores), pontos, combo, porCor };
+  const pontos = (limpas.length + novas.size) * PONTOS_POR_JOIA * combo * multiplicador;
+  return { limpas: limpas.map(pos), comBuracos, depois: cair(comBuracos, rng, cores, chances), pontos, combo, porCor, segundos, multiplicador, detonadas };
 }
 
 /**
  * Os alinhamentos do tabuleiro viram um passo (ou null, se não houver nenhum). `preferidas` são as
  * casas da troca: a especial nasce onde o jogador mexeu, quando o alinhamento passa por ali.
+ *
+ * Primeiro os cruzamentos (uma sequência deitada e uma em pé que dividem uma casa — o L e o T): a
+ * especial nasce na casa do cruzamento, e as duas sequências não dão mais nada. Depois, as
+ * sequências que sobraram: quatro dão a listrada, cinco a estrela.
  */
-function alinhamentos(t: Tabuleiro, preferidas: Pos[], combo: number, rng: Rng, cores: number): Passo | null {
+function alinhamentos(t: Tabuleiro, preferidas: Pos[], combo: number, rng: Rng, cores: number, chances: ChancesJoias): Passo | null {
   const seqs = sequencias(t);
   if (!seqs.length) return null;
   const alvo = new Set<number>();
   const novas = new Map<number, Gema>();
+  for (const s of seqs) for (const p of s.casas) alvo.add(idx(p));
+  const usadas = new Set<Sequencia>();
+  for (const h of seqs) {
+    if (h.dir !== 'h' || usadas.has(h)) continue;
+    for (const v of seqs) {
+      if (v.dir !== 'v' || usadas.has(v)) continue;
+      const x = h.casas.find((p) => v.casas.some((q) => q.r === p.r && q.c === p.c));
+      if (!x) continue;
+      usadas.add(h);
+      usadas.add(v);
+      const i = idx(x);
+      if (novas.has(i)) break;
+      const velha = t[x.r][x.c]!;
+      const tam = h.casas.length + v.casas.length - 1;
+      novas.set(
+        i,
+        h.casas.length >= 5 || v.casas.length >= 5
+          ? novaGema(-1, 'estrela')
+          : { ...novaGema(velha.cor, tam >= 6 ? 'cruz' : 'bomba'), id: velha.id },
+      );
+      break;
+    }
+  }
   for (const s of seqs) {
-    for (const p of s.casas) alvo.add(idx(p));
-    if (s.casas.length < 4) continue;
+    if (usadas.has(s) || s.casas.length < 4) continue;
     const onde = s.casas.find((p) => preferidas.some((q) => q.r === p.r && q.c === p.c)) ?? s.casas[Math.floor(s.casas.length / 2)];
     const i = idx(onde);
     if (novas.has(i)) continue;
     const velha = t[onde.r][onde.c]!;
     novas.set(i, s.casas.length >= 5 ? novaGema(-1, 'estrela') : { ...novaGema(velha.cor, s.dir === 'h' ? 'linha-h' : 'linha-v'), id: velha.id });
   }
-  return passo(t, alvo, novas, combo, rng, cores);
+  return passo(t, alvo, novas, combo, rng, cores, chances);
 }
 
 /** As cascatas: depois de cada queda, o que se alinhou sozinho some também. */
-function cascatas(inicio: Passo | null, rng: Rng, cores: number): { passos: Passo[]; final: Tabuleiro } | null {
+function cascatas(inicio: Passo | null, rng: Rng, cores: number, chances: ChancesJoias): { passos: Passo[]; final: Tabuleiro } | null {
   if (!inicio) return null;
   const passos = [inicio];
   for (;;) {
     const ultimo = passos[passos.length - 1];
-    const prox = alinhamentos(ultimo.depois, [], ultimo.combo + 1, rng, cores);
+    const prox = alinhamentos(ultimo.depois, [], ultimo.combo + 1, rng, cores, chances);
     if (!prox) return { passos, final: ultimo.depois };
     passos.push(prox);
   }
@@ -235,7 +310,7 @@ function cascatas(inicio: Passo | null, rng: Rng, cores: number): { passos: Pass
  * Troca duas joias vizinhas. Vale se a troca alinha alguma coisa ou se uma delas é estrela; senão
  * é inválida (e a tela desfaz a troca).
  */
-export function jogar(t: Tabuleiro, a: Pos, b: Pos, rng: Rng = Math.random, cores = CORES): Jogada {
+export function jogar(t: Tabuleiro, a: Pos, b: Pos, rng: Rng = Math.random, cores = CORES, chances: ChancesJoias = SEM_EXTRAS): Jogada {
   if (!dentro(a) || !dentro(b) || !vizinhas(a, b)) return { valida: false };
   const ga = t[a.r][a.c];
   const gb = t[b.r][b.c];
@@ -256,11 +331,11 @@ export function jogar(t: Tabuleiro, a: Pos, b: Pos, rng: Rng = Math.random, core
       }
     // a estrela já foi usada: sem o poder, ela não detona de novo (a cor mais comum) no caminho
     const gasta = trocado.map((l) => l.map((g) => (g?.especial === 'estrela' && (g === ga || g === gb) ? { ...g, especial: undefined } : g)));
-    const r = cascatas(passo(gasta, alvo, new Map(), 1, rng, cores), rng, cores)!;
+    const r = cascatas(passo(gasta, alvo, new Map(), 1, rng, cores, chances), rng, cores, chances)!;
     return { valida: true, trocado, ...r };
   }
 
-  const r = cascatas(alinhamentos(trocado, [a, b], 1, rng, cores), rng, cores);
+  const r = cascatas(alinhamentos(trocado, [a, b], 1, rng, cores, chances), rng, cores, chances);
   return r ? { valida: true, trocado, ...r } : { valida: false };
 }
 
@@ -328,7 +403,14 @@ export interface NivelJoias {
   /** Quantas das seis joias entram no tabuleiro. */
   cores: number;
   coletar: Coleta[];
+  /** Segundos para cumprir o nível (o relógio para enquanto as joias caem). */
+  tempo: number;
+  /** As joias especiais que caem do alto. */
+  chances: ChancesJoias;
 }
+
+/** O tempo de nível mais curto: dois segundos e pouco para pensar cada jogada. */
+export const TEMPO_MIN_JOIAS = 60;
 
 /**
  * O nível `n`.
@@ -341,6 +423,10 @@ export interface NivelJoias {
  *   - do 3 em diante entram as seis cores, e a meta cresce mais depressa que as jogadas extras —
  *     por volta do nível 8 só passa quem procura as listradas e as estrelas;
  *   - a coleta começa no 2 (uma cor) e vira duas cores no 5.
+ *
+ * O tempo cai a cada nível — de dois minutos e meio no primeiro até `TEMPO_MIN_JOIAS`, no 14. Ele
+ * só corre enquanto se pensa: a animação das cascatas não come tempo de ninguém. O relógio cai do
+ * alto desde o nível 2, e o ×2 desde o 3.
  */
 export function nivelJoias(n: number): NivelJoias {
   const nivel = Math.max(1, Math.floor(n));
@@ -354,7 +440,9 @@ export function nivelJoias(n: number): NivelJoias {
       { cor: corA, qtd: Math.min(24, 6 + nivel) },
       { cor: corB, qtd: Math.min(24, 6 + nivel) },
     ];
-  return { n: nivel, meta, jogadas, cores, coletar };
+  const tempo = Math.max(TEMPO_MIN_JOIAS, 150 - 7 * (nivel - 1));
+  const chances: ChancesJoias = { relogio: nivel >= 2 ? 0.02 : 0, x2: nivel >= 3 ? 0.015 : 0 };
+  return { n: nivel, meta, jogadas, cores, coletar, tempo, chances };
 }
 
 /** O nível está cumprido com estes pontos e estas joias juntadas (por cor)? */

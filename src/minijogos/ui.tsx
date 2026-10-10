@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import { AnimatePresence, motion } from 'framer-motion';
 import { fmt } from '../util/format';
 import { PREMIO_POR_NIVEL, type Minijogo } from '../../shared/minijogos';
+import { PAUSA_MAX_MS } from '../../shared/pausa';
 import { useMinijogos } from '../store/minijogos';
 import { useSession } from '../store/session';
 import { ChipSvg } from '../render/Chip';
@@ -44,7 +45,7 @@ export function useCaixa(ref: RefObject<HTMLElement | null>): { w: number; h: nu
   return caixa;
 }
 
-export type NomeIcone = 'jogadas' | 'combo' | 'raio' | 'alvo' | 'queda' | 'fogo' | 'trofeu' | 'estrela' | 'joias' | 'bolha';
+export type NomeIcone = 'jogadas' | 'combo' | 'raio' | 'alvo' | 'queda' | 'fogo' | 'trofeu' | 'estrela' | 'joias' | 'bolha' | 'relogio' | 'pausa';
 
 /**
  * Ícones desenhados aqui mesmo, em SVG, na cor do texto. Emoji não serve: cada sistema desenha o
@@ -109,6 +110,19 @@ export function Icone({ nome, size = 28 }: { nome: NomeIcone; size?: number }) {
       return (
         <svg {...p}>
           <path d="M6 3h12l4 6-10 12L2 9zm1.2 2L4.7 8.5h4.1L10.2 5zm6.6 0l1.4 3.5h4.1L16.8 5zm-1.8.4L10.6 8.5h2.8zM5 10.5l5.6 6.8-2-6.8zm5.7 0L12 16l1.3-5.5zm4.7 0l-2 6.8 5.6-6.8z" />
+        </svg>
+      );
+    case 'relogio':
+      return (
+        <svg {...p}>
+          <path d="M9 1h6v2H9zm3 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zm0 2.2a6.8 6.8 0 1 0 0 13.6 6.8 6.8 0 0 0 0-13.6zM11 8h2v4.6l3.2 1.9-1 1.7L11 13.7zm7.4-4.8l1.4-1.4 2.2 2.2-1.4 1.4z" fillRule="evenodd" />
+        </svg>
+      );
+    case 'pausa':
+      return (
+        <svg {...p}>
+          <rect x="5" y="3" width="5" height="18" rx="1.5" />
+          <rect x="14" y="3" width="5" height="18" rx="1.5" />
         </svg>
       );
     default:
@@ -220,6 +234,7 @@ export function PainelPlacar({
   estrelas,
   estrelasRotulo,
   historico,
+  legenda,
   children,
 }: {
   total: number;
@@ -228,6 +243,8 @@ export function PainelPlacar({
   estrelas: number | null;
   estrelasRotulo?: string;
   historico: NivelFeito[];
+  /** A legenda das peças especiais do jogo (fica aqui, onde sobra altura). */
+  legenda?: ReactNode;
   children?: ReactNode;
 }) {
   const sessao = useMinijogos((s) => s.sessao);
@@ -275,6 +292,7 @@ export function PainelPlacar({
         </div>
         {!comConta && <div className="mj-sem-conta">Entre com uma conta para receber os prêmios.</div>}
       </div>
+      {legenda}
       <div className="mj-bloco mj-historico">
         <small>Níveis desta partida</small>
         {historico.length === 0 ? (
@@ -446,5 +464,135 @@ function Estrelas({ n }: { n: number }) {
         </motion.span>
       ))}
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ o relógio e a pausa
+
+/** Segundos como relógio: `1:05`. */
+export function mmss(segundos: number): string {
+  const s = Math.max(0, Math.ceil(segundos));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * O tempo que sobra no nível, no painel da esquerda. Acende em alerta nos últimos dez segundos — e
+ * pisca a cada segundo nos últimos cinco, para ser visto de canto de olho.
+ */
+export function RelogioDoNivel({ segundos, total }: { segundos: number; total: number }) {
+  const s = Math.max(0, Math.ceil(segundos));
+  return (
+    <Destaque
+      icone="relogio"
+      rotulo="Tempo"
+      valor={mmss(s)}
+      sub={`de ${mmss(total)}`}
+      alerta={s <= 10}
+      pulso={s <= 5 && s > 0 ? `t${s}` : undefined}
+    />
+  );
+}
+
+/**
+ * A pausa de um minijogo.
+ *
+ * Pausa pelo botão, pela tecla P ou Esc, e sozinha quando a janela some (trocar de aba, minimizar):
+ * o relógio do nível não pode correr com ninguém olhando. `ativo` diz se há o que pausar — fora de
+ * um nível em andamento (no quadro entre níveis, no fim), a pausa não liga.
+ *
+ * Pausado por `PAUSA_MAX_MS`, o jogo recomeça: `onExpirar` roda (o jogo grava o recorde e volta ao
+ * nível 1) e a tela de pausa fica, avisando o que aconteceu.
+ */
+export function usePausa({ ativo, onExpirar }: { ativo: boolean; onExpirar: () => void }) {
+  const [pausado, setPausado] = useState(false);
+  const [expirou, setExpirou] = useState(false);
+  const expirar = useRef(onExpirar);
+  expirar.current = onExpirar;
+  const ativoRef = useRef(ativo);
+  ativoRef.current = ativo;
+
+  const pausar = () => {
+    if (!ativoRef.current) return;
+    setExpirou(false);
+    setPausado(true);
+  };
+  const continuar = () => {
+    setPausado(false);
+    setExpirou(false);
+  };
+
+  // fora de um nível em andamento não há pausa
+  useEffect(() => {
+    if (!ativo && !expirou) setPausado(false);
+  }, [ativo, expirou]);
+
+  // o prazo: duas horas pausado e a partida recomeça
+  useEffect(() => {
+    if (!pausado || expirou) return;
+    const id = setTimeout(() => {
+      expirar.current();
+      setExpirou(true);
+    }, PAUSA_MAX_MS);
+    return () => clearTimeout(id);
+  }, [pausado, expirou]);
+
+  // a janela sumiu: pausa
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) pausar();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // P ou Esc: alterna
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' && e.key.toLowerCase() !== 'p') return;
+      if (pausado) continuar();
+      else if (ativoRef.current) pausar();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pausado]);
+
+  return { pausado, expirou, pausar, continuar };
+}
+
+/** O botão de pausar, no pé do painel da direita. */
+export function BotaoPausa({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button className="btn btn-ghost small mj-pausar" onClick={onClick} disabled={disabled} title="Pausar (P ou Esc)">
+      <Icone nome="pausa" size={14} /> Pausar
+    </button>
+  );
+}
+
+/**
+ * A tela de pausa, por cima do tabuleiro — e escondendo ele: pausar não pode virar tempo extra para
+ * estudar a jogada com o relógio parado.
+ */
+export function TelaDePausa({ expirou, onContinuar }: { expirou: boolean; onContinuar: () => void }) {
+  const botao = useRef<HTMLButtonElement>(null);
+  useEffect(() => botao.current?.focus(), []);
+  return (
+    <motion.div className="mj-pausa" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="panel mj-pausa-quadro">
+        <Icone nome="pausa" size={44} />
+        <h2 className="title-deco">{expirou ? 'A partida recomeçou' : 'Pausado'}</h2>
+        <p className="muted small">
+          {expirou
+            ? 'Ficou duas horas em pausa: a partida voltou ao nível 1. O recorde continua guardado.'
+            : 'O relógio do nível está parado. Depois de duas horas em pausa, a partida recomeça do nível 1.'}
+        </p>
+        <button ref={botao} className="btn btn-gold" onClick={onContinuar}>
+          {expirou ? 'Começar' : 'Continuar'}
+        </button>
+      </div>
+    </motion.div>
   );
 }

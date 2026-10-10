@@ -27,6 +27,7 @@ import { ehMinijogo } from '../../shared/minijogos';
 import { useBond } from './bond';
 import { useFriends } from './friends';
 import { useTable } from './table';
+import { useMaos } from './maos';
 import { director } from '../game/director';
 import { sfx } from '../audio/sfx';
 
@@ -293,7 +294,10 @@ function handle(m: ServerMsg): void {
     case 'fila':
       set({ fila: m.jogadores });
       break;
-    case 'room':
+    case 'room': {
+      // outra mesa, ou uma partida nova na mesma (o "jogar de novo"): o histórico de mãos recomeça
+      const antes = useSession.getState().room;
+      if (!antes || antes.id !== m.room.id || (antes.status === 'finished' && m.room.status !== 'finished')) useMaos.getState().limparMesa();
       // Entrar numa sala é o que põe o jogador "em jogo" — conectado, por si, é só estar no lobby.
       // A partida offline também recebe `room` (é o mesmo Lobby rodando no navegador), e ali o modo
       // tem de continuar 'local': é por ele que sair da partida fecha a sala e para os bots.
@@ -310,10 +314,14 @@ function handle(m: ServerMsg): void {
       // a mesa pedida ao servidor chegou pronta: ele mesmo sentou os bots e começou
       if (botMatch?.step === 'pedido') clearBotMatch();
       break;
+    }
     case 'left':
       // saiu da sala, mas segue conectado: volta para o menu com a conta ainda viva
       set({ mode: 'none', room: null, chat: [] });
       director.reset();
+      useMaos.getState().limparMesa();
+      // foi a mesa que fechou (a pausa longa demais): diz por quê
+      if (m.motivo) useSession.getState().toast(m.motivo);
       break;
     case 'opening':
       // a mesa está montada e conferindo os jogadores; lista vazia = a abertura acabou
@@ -369,6 +377,12 @@ function handle(m: ServerMsg): void {
       break;
     case 'perfil':
       useFriends.getState().chegouPerfil(m.perfil);
+      break;
+    case 'maos':
+      useMaos.getState().setDaMesa(m.maos);
+      break;
+    case 'maosDaPartida':
+      useMaos.getState().chegou(m.conta, m.at, m.maos);
       break;
     case 'sessaoVencida':
       // a chave guardada não vale mais: desliga, esquece a chave e volta para a tela de login

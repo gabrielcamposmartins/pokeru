@@ -2,6 +2,7 @@ import type { BondEvent, BondStats } from './bond';
 import type { Currency } from './catalog';
 import type { PlayerStats, StatEvent } from './achievements';
 import type { ResumoDaPartida } from './personality';
+import type { MaoDaPartida } from './historico';
 import type { Ranking } from './ranking';
 import type { AvatarInfo, PlayerCosmetics } from './styles';
 
@@ -222,7 +223,7 @@ export interface TableBank {
    * Opcional: uma mesa sem banca — o modo offline — não tem onde guardar, e não é por isso que
    * ela deixa de funcionar.
    */
-  play?(accountId: string, resumo: ResumoDaPartida): void;
+  play?(accountId: string, resumo: ResumoDaPartida, maos?: MaoDaPartida[]): void;
   /** Sobe um contador de conquista da conta. */
   note(accountId: string, what: StatEvent): void;
   /** Experiência acumulada da conta (dos mesmos contadores). Opcional: a mesa offline não tem conta. */
@@ -310,6 +311,8 @@ export interface AccountService extends TableBank {
   recordeMinijogo?(accountId: string, jogo: string, pontos: number, nivel: number): number | null;
   /** O ranking de todas as contas (shared/ranking.ts), com a posição de quem pediu. */
   ranking?(accountId: string | null): Ranking;
+  /** As mãos de uma partida guardada na conta (`at` = o horário da partida), ou null. */
+  maosDe?(accountId: string, at: string): MaoDaPartida[] | null;
   /**
    * Relê o que vive fora do servidor (o saldo de padocoins, que é do bot do Discord) e avisa se
    * mudou. Opcional: um serviço que não fala com ninguém de fora não precisa disso.

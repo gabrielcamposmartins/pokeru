@@ -139,17 +139,69 @@ describe('criar conta', () => {
 
   it('cria e já entra', async () => {
     const token = fakeJwt({ sub: '9', username: 'nova' });
-    const calls = server({ '/auth/register': { status: 201, body: { token, user: 'nova', discord: null } } });
+    const calls = server({ '/auth/register': { status: 201, body: { token, user: 'nova', discord: null, email: 'nova@x.com' } } });
 
-    expect(await useAuth.getState().register('nova', 'senha-boa-123')).toBe(true);
+    expect(await useAuth.getState().register('nova', 'senha-boa-123', 'nova@x.com')).toBe(true);
     expect(calls[0].url).toBe('/auth/register');
-    expect(useAuth.getState()).toMatchObject({ status: 'logged', user: 'nova', token });
+    expect(calls[0].body).toMatchObject({ user: 'nova', email: 'nova@x.com' });
+    expect(useAuth.getState()).toMatchObject({ status: 'logged', user: 'nova', token, email: 'nova@x.com' });
+  });
+
+  it('sem e-mail, o cadastro nem sai: é por ele que se recupera a senha', async () => {
+    const calls = server({});
+    expect(await useAuth.getState().register('nova', 'senha-boa-123', '  ')).toBe(false);
+    expect(useAuth.getState().error).toMatch(/e-mail/);
+    expect(calls).toEqual([]);
   });
 
   it('usuário tomado é 409 com a mensagem do serviço', async () => {
     server({ '/auth/register': { status: 409, body: { error: 'usuario ja existe' } } });
-    expect(await useAuth.getState().register('gabi', 'senha-boa-123')).toBe(false);
+    expect(await useAuth.getState().register('gabi', 'senha-boa-123', 'gabi@x.com')).toBe(false);
     expect(useAuth.getState().error).toBe('usuario ja existe');
+  });
+});
+
+describe('esqueci a senha', () => {
+  it('pedir o código devolve para onde ele foi', async () => {
+    const calls = server({ '/auth/recover': { body: { ok: true, via: 'email', destino: 'ga***@x.com' } } });
+    expect(await useAuth.getState().recuperarPedir(' gabi ', 'email')).toEqual({ destino: 'ga***@x.com' });
+    expect(calls[0].body).toEqual({ user: 'gabi', via: 'email' });
+  });
+
+  it('o erro do serviço volta como recado', async () => {
+    server({ '/auth/recover': { status: 400, body: { error: 'esta conta nao tem Discord vinculado' } } });
+    expect(await useAuth.getState().recuperarPedir('gabi', 'discord')).toEqual({ erro: 'esta conta nao tem Discord vinculado' });
+  });
+
+  it('confirmar troca a senha e já entra', async () => {
+    const token = fakeJwt({ sub: '3', username: 'gabi' });
+    const calls = server({ '/auth/recover/confirm': { body: { token, user: 'gabi', discord: null, email: 'ga@x.com' } } });
+    expect(await useAuth.getState().recuperarConfirmar('gabi', '123456', 'senhaNova99')).toBeNull();
+    expect(calls[0].body).toEqual({ user: 'gabi', code: '123456', password: 'senhaNova99' });
+    expect(useAuth.getState()).toMatchObject({ status: 'logged', user: 'gabi', token });
+  });
+
+  it('senha nova curta nem vai ao servidor', async () => {
+    const calls = server({});
+    expect(await useAuth.getState().recuperarConfirmar('gabi', '123456', 'curta')).toMatch(/8 caracteres/);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('e-mail de recuperação', () => {
+  it('trocar confirma com a senha e guarda o novo', async () => {
+    useAuth.setState({ status: 'logged', user: 'gabi' });
+    const calls = server({ '/auth/email': { body: { ok: true, email: 'novo@x.com' } } });
+    expect(await useAuth.getState().trocarEmail('novo@x.com', 'minha-senha')).toBeNull();
+    expect(calls[0].body).toEqual({ user: 'gabi', password: 'minha-senha', email: 'novo@x.com' });
+    expect(useAuth.getState().email).toBe('novo@x.com');
+  });
+
+  it('sem a senha, nem tenta', async () => {
+    useAuth.setState({ status: 'logged', user: 'gabi' });
+    const calls = server({});
+    expect(await useAuth.getState().trocarEmail('novo@x.com', '')).toMatch(/senha/);
+    expect(calls).toEqual([]);
   });
 });
 

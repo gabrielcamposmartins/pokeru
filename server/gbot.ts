@@ -25,6 +25,17 @@ export interface GbotAccount {
   discord_id: string | null;
   created_at?: string;
   linked_at?: string | null;
+  /** E-mail de recuperação (só vem nas respostas para o próprio dono da conta). */
+  email?: string | null;
+}
+
+/** Para onde o código de recuperar a senha foi mandado. */
+export interface GbotRecover {
+  ok: boolean;
+  via: 'discord' | 'email';
+  /** O apelido no Discord (`@gabi`) ou o e-mail mascarado (`ga***@gmail.com`). */
+  destino: string;
+  expires_in: number;
 }
 
 export interface GbotLogin {
@@ -157,8 +168,8 @@ export class Gbot {
 
   // ------------------------------------------------------------------ contas
 
-  async createAccount(username: string, password: string): Promise<GbotAccount> {
-    return unwrap<GbotAccount>(await this.call('POST', '/accounts', { username, password }), 'account');
+  async createAccount(username: string, password: string, email?: string): Promise<GbotAccount> {
+    return unwrap<GbotAccount>(await this.call('POST', '/accounts', { username, password, ...(email ? { email } : {}) }), 'account');
   }
 
   login(username: string, password: string): Promise<GbotLogin> {
@@ -186,6 +197,21 @@ export class Gbot {
 
   changePassword(playerToken: string, current_password: string, new_password: string): Promise<{ ok: boolean }> {
     return this.call('POST', '/accounts/password', { current_password, new_password }, this.bearer(playerToken));
+  }
+
+  /** Cadastra, troca ou apaga (vazio) o e-mail de recuperação. Pede a senha atual. */
+  async setEmail(playerToken: string, email: string, password: string): Promise<GbotAccount> {
+    return unwrap<GbotAccount>(await this.call('POST', '/accounts/email', { email, password }, this.bearer(playerToken)), 'account');
+  }
+
+  /** Esqueci a senha: o bot manda o código na DM do Discord vinculado ou no e-mail da conta. */
+  recover(username: string, via: 'discord' | 'email'): Promise<GbotRecover> {
+    return this.call('POST', '/accounts/recover', { username, via });
+  }
+
+  /** Troca a senha com o código recebido. */
+  recoverConfirm(username: string, code: string, new_password: string): Promise<{ ok: boolean }> {
+    return this.call('POST', '/accounts/recover/confirm', { username, code, new_password });
   }
 
   // ---------------------------------------------------------------- economia

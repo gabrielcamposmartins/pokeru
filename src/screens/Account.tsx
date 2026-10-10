@@ -7,7 +7,8 @@ import { fmt } from '../util/format';
 import { sfx } from '../audio/sfx';
 
 /**
- * A seção "Conta" das Configurações: quem está logado e o vínculo com o Discord.
+ * A seção "Conta" das Configurações: quem está logado, o vínculo com o Discord e o e-mail de
+ * recuperação.
  *
  * O vínculo é o que liga o jogo à economia do bot — é ele que faz os **padocoins** existirem para
  * a conta. São duas etapas, e a do meio é de propósito: o bot manda um código na DM daquele
@@ -206,6 +207,87 @@ export function AccountSection() {
         )}
         {error && <div className="login-error">{error}</div>}
       </div>
+
+      <EmailDeRecuperacao />
     </>
+  );
+}
+
+/**
+ * O e-mail de recuperação: é por ele que a senha volta sem o Discord. Para cadastrar, trocar ou
+ * apagar, confirma-se com a senha — o e-mail é a porta da conta, e um token esquecido aberto num
+ * computador não pode trocá-la.
+ */
+function EmailDeRecuperacao() {
+  const atual = useAuth((s) => s.email);
+  const busy = useAuth((s) => s.busy);
+  const trocarEmail = useAuth((s) => s.trocarEmail);
+  const toast = useSession((s) => s.toast);
+  const [editando, setEditando] = useState(false);
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+
+  const salvar = async (valor: string) => {
+    setErro(null);
+    const err = await trocarEmail(valor, senha);
+    if (err) return setErro(err);
+    setEditando(false);
+    setSenha('');
+    sfx.pop();
+    toast(valor ? 'E-mail de recuperação salvo.' : 'E-mail de recuperação apagado.');
+  };
+
+  return (
+    <div className="acc-email">
+      <div className="row gap between">
+        <div>
+          <b>E-mail de recuperação</b>
+          <div className="muted small">{atual ? atual : 'Se você esquecer a senha, o código pode chegar por aqui.'}</div>
+        </div>
+        {!editando && (
+          <button
+            className="btn btn-ghost small"
+            onClick={() => {
+              sfx.click();
+              setEmail(atual ?? '');
+              setErro(null);
+              setEditando(true);
+            }}
+          >
+            {atual ? 'Trocar' : 'Cadastrar e-mail'}
+          </button>
+        )}
+      </div>
+      {editando && (
+        <form
+          className="acc-step"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void salvar(email.trim());
+          }}
+        >
+          <span className="field-label">E-mail</span>
+          <input className="input" type="email" value={email} maxLength={254} placeholder="voce@exemplo.com" autoComplete="email" onChange={(e) => setEmail(e.target.value)} autoFocus />
+          <span className="field-label">Sua senha, para confirmar</span>
+          <input className="input" type="password" value={senha} maxLength={128} autoComplete="current-password" onChange={(e) => setSenha(e.target.value)} />
+          <div className="row gap">
+            <button className="btn btn-gold small" disabled={busy || !email.trim() || !senha}>
+              {busy ? 'Salvando…' : 'Salvar'}
+            </button>
+            {atual && (
+              <button type="button" className="btn btn-ghost small" disabled={busy || !senha} onClick={() => void salvar('')}>
+                Apagar o e-mail
+              </button>
+            )}
+            <button type="button" className="btn btn-ghost small" onClick={() => setEditando(false)}>
+              Cancelar
+            </button>
+          </div>
+          <div className="field-hint">Usado só para mandar o código de recuperar a senha.</div>
+        </form>
+      )}
+      {erro && <div className="login-error">{erro}</div>}
+    </div>
   );
 }

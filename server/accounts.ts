@@ -30,6 +30,7 @@ import type { PremioMinijogo, SpinResult } from '../shared/accounts';
 import { PREMIO_POR_NIVEL, decidirPremio, recordePlausivel, type Minijogo } from '../shared/minijogos';
 import { STAT_DO_MINIJOGO } from '../shared/achievements';
 import { montarRanking, type ContaRanking, type Ranking } from '../shared/ranking';
+import { MAOS_POR_PARTIDA, type MaoDaPartida } from '../shared/historico';
 import type { AccountCreds, AccountInfo, AccountProfile, AccountService, Aparencia, AuthIdentity, DiscordLink, FriendRow } from '../shared/accounts';
 import { BACK_PRESETS, DEFAULT_AURAS, DEFAULT_FRAME, FACE_PRESETS, sanitizeName } from '../shared/styles';
 import { GbotError, type Gbot } from './gbot';
@@ -83,6 +84,11 @@ interface Stored {
   aparencia?: Omit<Aparencia, 'character'>;
   /** Como jogou as últimas partidas (shared/personality.ts). */
   play?: ResumoDaPartida[];
+  /**
+   * As mãos de cada partida de `play`, pelo horário dela (shared/historico.ts). Fica fora da foto
+   * da conta (`info`): é pedido quando alguém abre a partida no perfil.
+   */
+  maos?: Record<string, MaoDaPartida[]>;
   /** Código de amigo (seis caracteres estáveis). Ausente nas contas de antes das amizades. */
   code?: string;
   /** Amigos, por id de conta. */
@@ -1065,12 +1071,23 @@ export class Accounts implements AccountService {
    * poder mudar — quem passou a semana pagando tudo e resolveu apertar o jogo vê o gráfico virar
    * junto, e um histórico eterno faria o contrário, congelaria a pessoa no que ela era.
    */
-  play(accountId: string, resumo: ResumoDaPartida): void {
+  play(accountId: string, resumo: ResumoDaPartida, maos?: MaoDaPartida[]): void {
     const acc = this.byId(accountId);
     if (!acc) return;
     acc.play = [...(acc.play ?? []), resumo].slice(-PARTIDAS_LEMBRADAS);
+    // as mãos andam junto com a partida: a que sai da janela leva as dela
+    const ficam = new Set(acc.play.map((p) => p.at));
+    const guardadas: Record<string, MaoDaPartida[]> = {};
+    for (const [at, lista] of Object.entries(acc.maos ?? {})) if (ficam.has(at)) guardadas[at] = lista;
+    if (maos?.length) guardadas[resumo.at] = maos.slice(-MAOS_POR_PARTIDA);
+    acc.maos = guardadas;
     this.store.flush();
     this.changed(acc.id);
+  }
+
+  /** As mãos de uma partida da conta (null = partida de antes do histórico, ou que não existe). */
+  maosDe(accountId: string, at: string): MaoDaPartida[] | null {
+    return this.byId(accountId)?.maos?.[at] ?? null;
   }
 
   note(accountId: string, what: StatEvent): void {

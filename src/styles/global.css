@@ -8613,21 +8613,6 @@ input[type='range'].som-slider {
 /* ------------------------------------------------------------------ frentes especiais */
 
 /*
- * Arco-Íris: a faixa de cor corre para o lado, dentro do recorte da carta.
- *
- * Meia largura por ciclo (a faixa tem o dobro da carta e repete a primeira cor no fim), então o
- * laço fecha sem emenda visível. Linear e devagar: cor que pulsa vira alarme.
- */
-.face-rainbow {
-  animation: face-rainbow 7s linear infinite;
-}
-@keyframes face-rainbow {
-  to {
-    transform: translateX(250px);
-  }
-}
-
-/*
  * Cristal: a espessura da carta também é de vidro.
  *
  * O `::before` do .cardv é o papel visto de lado. Opaco, ele aparecia por trás do corpo
@@ -10068,4 +10053,436 @@ input[type='range'].som-slider {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+/* as bolhas especiais, na legenda do painel */
+.mj-legenda {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.mj-legenda > small {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.mj-legenda-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mj-legenda-item b {
+  color: var(--text);
+  font-weight: 700;
+}
+.mj-esp {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow:
+    inset -3px -4px 6px rgba(0, 0, 0, 0.35),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.45);
+}
+.mj-esp.raio {
+  background: #3a9dff;
+}
+.mj-esp.raio::after {
+  content: 'ϟ';
+}
+.mj-esp.estrela {
+  background: #ffbe2e;
+}
+.mj-esp.estrela::after {
+  content: '★';
+}
+.mj-esp.pedra {
+  background: radial-gradient(circle at 35% 30%, #d5d8e0, #8f94a3 55%, #4a4e5a);
+  border-radius: 40% 55% 45% 50%;
+}
+.mj-esp.bomba {
+  background: radial-gradient(circle at 35% 30%, #7b7290, #3b3550 60%, #15121f);
+}
+.mj-esp.bomba::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ff9a3c;
+  box-shadow: 0 0 5px #ffb347;
+  transform: translate(5px, -6px);
+}
+.mj-esp.curinga {
+  background: conic-gradient(#ff4459, #ffbe2e, #3fd46a, #3a9dff, #b25bff, #2fe0cf, #ff6fd0, #ff8a1f, #ff4459);
+}
+
+/* a pausa: por cima do tabuleiro, escondendo-o */
+.mj-pausa {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 6;
+  background: rgba(8, 4, 20, 0.82);
+  backdrop-filter: blur(10px);
+}
+.mj-pausa-quadro {
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 26px;
+  text-align: center;
+  color: var(--gold-2);
+}
+.mj-pausa-quadro h2 {
+  margin: 0;
+}
+.mj-pausa-quadro p {
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+.mj-pausar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mj-pavio {
+  animation: mj-pavio 0.5s ease-in-out infinite alternate;
+}
+@keyframes mj-pavio {
+  to {
+    opacity: 0.4;
+    transform: scale(0.8);
+    transform-origin: 80px 26px;
+  }
+}
+
+/* a pausa da mesa: a faixa da votação no alto e a tela da mesa parada */
+.pausa-faixa {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  /* o meio vem do framer (x: -50%): um transform aqui seria sobrescrito pela animação */
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 18px;
+  z-index: 30;
+}
+.pausa-faixa-texto {
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+}
+.pausa-faixa-texto small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.pausa-faixa-botoes {
+  display: flex;
+  gap: 8px;
+}
+.pausa-mesa {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 35;
+  background: rgba(8, 4, 20, 0.7);
+  backdrop-filter: blur(6px);
+}
+.pausa-mesa-quadro {
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 32px;
+  text-align: center;
+}
+.pausa-mesa-quadro h2,
+.pausa-mesa-quadro p {
+  margin: 0;
+}
+.pausa-mesa-quadro .btn {
+  margin-top: 10px;
+}
+.pausa-mesa-icone {
+  font-size: 44px;
+  color: var(--gold-2);
+}
+
+/* a linha da partida no perfil virou botão: abre as mãos daquela partida */
+button.hist-linha {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+button.hist-linha:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.hist-linha.clicavel {
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+.hist-linha.clicavel:hover {
+  border-color: var(--gold);
+  transform: translateX(2px);
+}
+
+/* o histórico das mãos */
+.hm-janela {
+  width: min(760px, 94vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+}
+.hm-janela-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.hm-janela-topo h3 {
+  margin: 0;
+}
+.hm-janela-corpo {
+  overflow-y: auto;
+  min-height: 120px;
+  padding-right: 4px;
+}
+.hm-vazio {
+  margin: 24px 0;
+  text-align: center;
+}
+.hm-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hm-mao {
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.03);
+}
+.hm-mao.ganhou {
+  border-color: color-mix(in srgb, var(--mint) 45%, transparent);
+}
+.hm-mao.perdeu {
+  border-color: color-mix(in srgb, var(--pink) 35%, transparent);
+}
+.hm-cabeca {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hm-n {
+  font-family: var(--title);
+  color: var(--gold-2);
+}
+.hm-pote {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.hm-quem {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 13px;
+}
+.hm-saldo,
+.hm-tabela td.num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.hm-janela .pos {
+  color: var(--mint);
+}
+.hm-janela .neg {
+  color: var(--pink);
+}
+.hm-seta {
+  color: var(--muted);
+}
+.hm-corpo {
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hm-topo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+.hm-topo small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+.hm-cartas {
+  display: inline-flex;
+  gap: 4px;
+}
+.hm-sem {
+  color: var(--muted);
+}
+.hm-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.hm-tabela th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.hm-tabela th.num,
+.hm-tabela td.num {
+  text-align: right;
+}
+.hm-tabela td {
+  padding: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+.hm-tabela tr.eu td {
+  background: color-mix(in srgb, var(--gold) 8%, transparent);
+}
+.hm-jogador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hm-retrato {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.hm-bot {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 10px;
+}
+.hm-marcas {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+.hm-marca {
+  font-style: normal;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+}
+.hm-marca.venceu {
+  background: color-mix(in srgb, var(--gold) 25%, transparent);
+  color: var(--gold-2);
+}
+.hm-marca.allin {
+  background: color-mix(in srgb, var(--pink) 22%, transparent);
+  color: var(--text);
+}
+.hm-mostrou {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hm-mostrou small {
+  color: var(--muted);
+}
+/* em telas baixas os painéis dos minijogos rolam, em vez de cortar o que fica embaixo */
+.mj-lado {
+  overflow-y: auto;
+}
+.mj-legenda-grade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+.mj-legenda.compacta .mj-legenda-item {
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* o e-mail de recuperação, abaixo do vínculo do Discord */
+.acc-email {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* "Esqueci a senha": um link discreto embaixo da senha */
+.login-esqueci {
+  align-self: flex-end;
+  margin-top: -4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold-2);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.login-esqueci:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.login-codigo {
+  font-family: var(--num);
+  font-size: 26px;
+  letter-spacing: 0.4em;
+  text-align: center;
 }

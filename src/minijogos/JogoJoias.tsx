@@ -5,6 +5,7 @@ import { fmt } from '../util/format';
 import {
   BONUS_POR_JOGADA,
   CORES,
+  SEGUNDOS_DO_RELOGIO,
   LADO,
   cumpriu,
   dica,
@@ -21,7 +22,23 @@ import {
   type Tabuleiro,
 } from './joias';
 import { lerRecorde, gravarRecorde, mandarRecorde } from './recorde';
-import { Destaque, FaixaDoNivel, Icone, NivelMedalha, Objetivo, PainelPlacar, QuadroFim, QuadroNivel, RESERVA_LATERAL, useCaixa, type NivelFeito } from './ui';
+import {
+  BotaoPausa,
+  Destaque,
+  FaixaDoNivel,
+  Icone,
+  NivelMedalha,
+  Objetivo,
+  PainelPlacar,
+  QuadroFim,
+  QuadroNivel,
+  RESERVA_LATERAL,
+  RelogioDoNivel,
+  TelaDePausa,
+  useCaixa,
+  usePausa,
+  type NivelFeito,
+} from './ui';
 import { useMinijogos } from '../store/minijogos';
 
 /**
@@ -107,15 +124,45 @@ export function JoiaSvg({ cor, especial, size }: { cor: number; especial?: Espec
       })}
       <polygon points={pts(mesa)} fill={j.claro} opacity="0.55" />
       <ellipse cx="38" cy="30" rx="9" ry="5" fill="#fff" opacity="0.75" transform="rotate(-25 38 30)" />
-      {especial && (
+      {(especial === 'linha-h' || especial === 'linha-v' || especial === 'cruz') && (
         <g className={`mj-listras ${especial}`}>
           {[-14, 0, 14].map((d) =>
             especial === 'linha-h' ? (
               <rect key={d} x="10" y={46 + d} width="80" height="5" rx="2.5" fill="#fff" opacity="0.85" />
-            ) : (
+            ) : especial === 'linha-v' ? (
               <rect key={d} x={47 + d} y="10" width="5" height="80" rx="2.5" fill="#fff" opacity="0.85" />
-            ),
+            ) : null,
           )}
+          {especial === 'cruz' && (
+            <>
+              <rect x="8" y="44" width="84" height="12" rx="6" fill="#fff" opacity="0.9" />
+              <rect x="44" y="8" width="12" height="84" rx="6" fill="#fff" opacity="0.9" />
+              <circle cx="50" cy="50" r="10" fill={j.cor} stroke="#fff" strokeWidth="3" />
+            </>
+          )}
+        </g>
+      )}
+      {especial === 'bomba' && (
+        <g className="mj-bomba">
+          {/* a bomba: o miolo escuro com o anel aceso e o pavio */}
+          <circle cx="50" cy="54" r="21" fill="#1b1430" stroke="#fff" strokeWidth="3.5" />
+          <circle cx="44" cy="48" r="5" fill="#fff" opacity="0.5" />
+          <path d="M60 36 Q70 22 80 26" fill="none" stroke="#ffd35a" strokeWidth="4" strokeLinecap="round" />
+          <circle className="mj-pavio" cx="80" cy="26" r="6" fill="#ff8a1f" />
+        </g>
+      )}
+      {especial === 'relogio' && (
+        <g className="mj-relogio">
+          <circle cx="70" cy="70" r="20" fill="#fff" stroke="#1b1430" strokeWidth="3" />
+          <path d="M70 58 V70 L78 75" fill="none" stroke="#1b1430" strokeWidth="4" strokeLinecap="round" />
+        </g>
+      )}
+      {especial === 'x2' && (
+        <g className="mj-x2">
+          <rect x="50" y="56" width="42" height="30" rx="10" fill="#fff" stroke="#1b1430" strokeWidth="3" />
+          <text x="71" y="78" textAnchor="middle" fontSize="22" fontWeight="900" fill="#1b1430" fontFamily="sans-serif">
+            ×2
+          </text>
         </g>
       )}
     </svg>
@@ -126,6 +173,9 @@ export function JoiaSvg({ cor, especial, size }: { cor: number; especial?: Espec
 const PLURAL = ['rubis', 'esmeraldas', 'topázios', 'safiras', 'ametistas', 'âmbares'];
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Pontos por segundo que sobra quando o nível é cumprido. */
+const PONTOS_POR_SEGUNDO = 20;
 
 interface Aviso {
   id: number;
@@ -139,7 +189,8 @@ let avisoId = 0;
 
 type Fase = 'jogando' | 'concluido' | 'fim';
 
-export function JogoJoias({ onSair }: { onSair: () => void }) {
+/** `nivelInicial` é para a página de preview abrir um nível alto; o jogo de verdade começa no 1. */
+export function JogoJoias({ onSair, nivelInicial = 1 }: { onSair: () => void; nivelInicial?: number }) {
   const raiz = useRef<HTMLDivElement>(null);
   const caixa = useCaixa(raiz);
   // a casa: a altura inteira do jogo manda; a largura só limita quando os painéis já estão no mínimo
@@ -147,14 +198,14 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
   const S = Math.max(34, Math.min(116, Math.floor(Math.min((caixa.w - RESERVA_LATERAL - 70) / LADO, (caixa.h - 28) / LADO)) || 60));
   const [historico, setHistorico] = useState<NivelFeito[]>([]);
 
-  const [nivel, setNivel] = useState<NivelJoias>(() => nivelJoias(1));
-  const [t, setT] = useState<Tabuleiro>(() => criar(Math.random, nivelJoias(1).cores));
+  const [nivel, setNivel] = useState<NivelJoias>(() => nivelJoias(nivelInicial));
+  const [t, setT] = useState<Tabuleiro>(() => criar(Math.random, nivelJoias(nivelInicial).cores));
   const [sel, setSel] = useState<Pos | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [fase, setFase] = useState<Fase>('jogando');
   const [pontosNivel, setPontosNivel] = useState(0);
   const [total, setTotal] = useState(0);
-  const [jogadas, setJogadas] = useState(() => nivelJoias(1).jogadas);
+  const [jogadas, setJogadas] = useState(() => nivelJoias(nivelInicial).jogadas);
   const [juntadas, setJuntadas] = useState<number[]>(() => new Array(CORES).fill(0));
   const [bonus, setBonus] = useState(0);
   /** Os números da partida para os destaques: combos, a maior jogada e as joias juntadas. */
@@ -163,6 +214,11 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
   const [piscar, setPiscar] = useState<[Pos, Pos] | null>(null);
   const [recorde, setRecorde] = useState(() => lerRecorde('joias'));
   const [novoRecorde, setNovoRecorde] = useState(false);
+  /** Segundos que faltam no nível (a tela mostra arredondado para cima). */
+  const [tempo, setTempo] = useState(() => nivelJoias(nivelInicial).tempo);
+  const tempoRef = useRef(tempo);
+  const [bonusTempo, setBonusTempo] = useState(0);
+  const [motivo, setMotivo] = useState<'' | 'tempo' | 'jogadas'>('');
   const avisarNivel = useMinijogos((s) => s.avisarNivel);
   const vivo = useRef(true);
   // no modo estrito o React monta, desmonta e monta de novo: a marca volta a valer a cada montagem
@@ -186,7 +242,8 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
     return () => clearTimeout(id);
   }, [t, ocupado, fase]);
 
-  const acabou = (totalFinal: number) => {
+  const acabou = (totalFinal: number, por: 'tempo' | 'jogadas' = 'jogadas') => {
+    setMotivo(por);
     setFase('fim');
     sfx.lose();
     // vai sempre: a conta pode ter um recorde menor que o deste aparelho
@@ -197,8 +254,45 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
     }
   };
 
+  const pausa = usePausa({
+    ativo: fase === 'jogando',
+    onExpirar: () => {
+      // duas horas pausado: a partida recomeça (o que ela fez até aqui conta para o recorde)
+      gravarRecorde('joias', totalRef.current, nivel.n);
+      if (totalRef.current > recorde) setRecorde(totalRef.current);
+      montar(1, true);
+    },
+  });
+
+  // o total de agora, para o relógio e a pausa (que rodam fora do fluxo de uma jogada)
+  const totalRef = useRef(total);
+  totalRef.current = total;
+
+  // o relógio: corre só enquanto se pensa (parado nas cascatas, na pausa e fora do nível)
+  const correndo = fase === 'jogando' && !ocupado && !pausa.pausado;
+  useEffect(() => {
+    if (!correndo) return;
+    let antes = performance.now();
+    const id = setInterval(() => {
+      const agora = performance.now();
+      const antesS = Math.ceil(tempoRef.current);
+      tempoRef.current = Math.max(0, tempoRef.current - (agora - antes) / 1000);
+      antes = agora;
+      const s = Math.ceil(tempoRef.current);
+      if (s === antesS) return;
+      setTempo(tempoRef.current);
+      if (s <= 5 && s > 0) sfx.tick();
+      if (tempoRef.current <= 0) {
+        setSel(null);
+        acabou(totalRef.current, 'tempo');
+      }
+    }, 100);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [correndo]);
+
   const tentar = async (a: Pos, b: Pos) => {
-    if (ocupado || fase !== 'jogando' || jogadas <= 0 || !vizinhas(a, b)) return;
+    if (ocupado || fase !== 'jogando' || jogadas <= 0 || pausa.pausado || tempoRef.current <= 0 || !vizinhas(a, b)) return;
     setOcupado(true);
     setSel(null);
     const antes = t;
@@ -208,7 +302,7 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
     sfx.troca();
     await esperar(190);
     if (!vivo.current) return;
-    const j = jogar(antes, a, b, Math.random, nivel.cores);
+    const j = jogar(antes, a, b, Math.random, nivel.cores, nivel.chances);
     if (!j.valida) {
       // não alinhou nada: volta cada uma para o seu lugar
       sfx.invalida();
@@ -244,6 +338,16 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
       if (p.combo > 1) {
         avisar({ x: (LADO / 2) * S, y: (LADO / 2) * S, texto: p.combo >= 4 ? `Incrível! ×${p.combo}` : `Combo ×${p.combo}`, grande: true });
       }
+      if (p.segundos) {
+        // o relógio devolve tempo ao nível
+        tempoRef.current += p.segundos;
+        setTempo(tempoRef.current);
+        avisar({ x: (meio.c + 0.5) * S, y: (meio.r + 0.5) * S - S * 0.6, texto: `+${p.segundos}s` });
+        sfx.fx('chime');
+      }
+      if (p.multiplicador > 1) avisar({ x: (LADO / 2) * S, y: (LADO / 2) * S - S, texto: `Pontos ×${p.multiplicador}`, grande: true });
+      if (p.detonadas.includes('bomba')) sfx.fx('flame');
+      if (p.detonadas.includes('cruz') || p.detonadas.includes('linha-h') || p.detonadas.includes('linha-v')) sfx.fx('zap');
       sfx.joias(p.combo, p.limpas.length);
       await esperar(250);
       if (!vivo.current) return;
@@ -255,14 +359,17 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
     if (cumpriu(nivel, pts, jun)) {
       // passou: as jogadas que sobraram viram pontos, e o servidor decide o prêmio
       const extra = restam * BONUS_POR_JOGADA;
+      // o tempo que sobrou também vale (não conta para as estrelas, que são da meta)
+      const doTempo = Math.ceil(tempoRef.current) * PONTOS_POR_SEGUNDO;
       setBonus(extra);
+      setBonusTempo(doTempo);
       setPontosNivel(pts + extra);
-      setHistorico((h) => [...h, { nivel: nivel.n, estrelas: estrelasDoNivel(nivel, pts + extra), pontos: pts + extra }]);
-      setTotal(tot + extra);
+      setHistorico((h) => [...h, { nivel: nivel.n, estrelas: estrelasDoNivel(nivel, pts + extra), pontos: pts + extra + doTempo }]);
+      setTotal(tot + extra + doTempo);
       if (extra) avisar({ x: (LADO / 2) * S, y: (LADO / 2) * S, texto: `Jogadas que sobraram +${fmt(extra)}`, grande: true });
       sfx.win();
       avisarNivel('joias', nivel.n);
-      mandarRecorde('joias', tot + extra, nivel.n);
+      mandarRecorde('joias', tot + extra + doTempo, nivel.n);
       await esperar(extra ? 900 : 400);
       if (!vivo.current) return;
       setFase('concluido');
@@ -271,6 +378,11 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
     }
     if (restam <= 0) {
       acabou(tot);
+      setOcupado(false);
+      return;
+    }
+    if (tempoRef.current <= 0) {
+      acabou(tot, 'tempo');
       setOcupado(false);
       return;
     }
@@ -295,7 +407,7 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
   };
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     const p = casaDe(e);
-    if (!p || ocupado || fase !== 'jogando') return;
+    if (!p || ocupado || fase !== 'jogando' || pausa.pausado) return;
     inicio.current = { p, x: e.clientX, y: e.clientY };
   };
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -330,6 +442,10 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
     setJogadas(nv.jogadas);
     setJuntadas(new Array(CORES).fill(0));
     setBonus(0);
+    setBonusTempo(0);
+    setMotivo('');
+    tempoRef.current = nv.tempo;
+    setTempo(nv.tempo);
     setSel(null);
     setFase('jogando');
     if (zerar) {
@@ -357,6 +473,7 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
           ))}
         </div>
         <div className="mj-destaques">
+          <RelogioDoNivel segundos={tempo} total={nivel.tempo} />
           <Destaque icone="jogadas" rotulo="Jogadas" valor={jogadas} sub={`de ${nivel.jogadas}`} alerta={jogadas <= 5} />
           <Destaque
             icone="combo"
@@ -366,12 +483,12 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
             pulso={marcas.melhorCombo}
           />
           <Destaque icone="raio" rotulo="Maior jogada" valor={fmt(marcas.maiorJogada)} sub="pontos de uma vez" pulso={marcas.maiorJogada} />
-          <Destaque icone="joias" rotulo="Joias" valor={fmt(marcas.joias)} sub="na partida" />
         </div>
-        <p className="muted small mj-ajuda">
-          Arraste uma joia para a vizinha (ou clique numa e depois na outra). Quatro em linha dão uma joia listrada; cinco, uma estrela. As jogadas que sobrarem
-          viram pontos.
-        </p>
+        {nivel.coletar.length <= 1 && (
+          <p className="muted small mj-ajuda">
+            Arraste uma joia para a vizinha. O relógio para enquanto as joias caem; jogadas e segundos que sobram viram pontos. P pausa.
+          </p>
+        )}
       </aside>
 
       <div className="mj-centro">
@@ -429,12 +546,54 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
               ))}
             </AnimatePresence>
             {fase === 'jogando' && <FaixaDoNivel nivel={nivel.n} />}
+            <AnimatePresence>{pausa.pausado && <TelaDePausa key="pausa" expirou={pausa.expirou} onContinuar={pausa.continuar} />}</AnimatePresence>
           </div>
         </div>
       </div>
 
-      <PainelPlacar total={total} recorde={recorde} estrelas={estrelas} historico={historico}>
+      <PainelPlacar
+        total={total}
+        recorde={recorde}
+        estrelas={estrelas}
+        historico={historico}
+        legenda={
+          <div className="mj-legenda compacta">
+            <small>Joias especiais</small>
+            <span className="mj-legenda-grade">
+              <span className="mj-legenda-item" title="4 em linha: leva a linha (ou a coluna)">
+                <JoiaSvg cor={3} especial="linha-h" size={22} />
+                <b>4 em linha</b>
+              </span>
+              <span className="mj-legenda-item" title="L ou T: uma bomba que explode as oito vizinhas">
+                <JoiaSvg cor={0} especial="bomba" size={22} />
+                <b>L ou T</b>
+              </span>
+              <span className="mj-legenda-item" title="L ou T de 6: uma cruz que leva a linha e a coluna">
+                <JoiaSvg cor={1} especial="cruz" size={22} />
+                <b>L ou T de 6</b>
+              </span>
+              <span className="mj-legenda-item" title="5 em linha: uma estrela que leva todas de uma cor">
+                <JoiaSvg cor={0} especial="estrela" size={22} />
+                <b>5 em linha</b>
+              </span>
+              {nivel.chances.relogio > 0 && (
+                <span className="mj-legenda-item" title={`Relógio: devolve ${SEGUNDOS_DO_RELOGIO} segundos quando some`}>
+                  <JoiaSvg cor={2} especial="relogio" size={22} />
+                  <b>+{SEGUNDOS_DO_RELOGIO}s</b>
+                </span>
+              )}
+              {nivel.chances.x2 > 0 && (
+                <span className="mj-legenda-item" title="×2: dobra os pontos do passo em que some">
+                  <JoiaSvg cor={4} especial="x2" size={22} />
+                  <b>pontos ×2</b>
+                </span>
+              )}
+            </span>
+          </div>
+        }
+      >
         <div className="mj-botoes">
+          <BotaoPausa onClick={pausa.pausar} disabled={fase !== 'jogando' || pausa.pausado} />
           <button className="btn btn-ghost small" onClick={() => montar(1, true)} disabled={ocupado}>
             ↻ Recomeçar do nível 1
           </button>
@@ -451,13 +610,14 @@ export function JogoJoias({ onSair }: { onSair: () => void }) {
             linhas={[
               { rotulo: 'Pontos no nível', valor: fmt(pontosNivel - bonus) },
               ...(bonus ? [{ rotulo: 'Jogadas que sobraram', valor: `+${fmt(bonus)}` }] : []),
+              ...(bonusTempo ? [{ rotulo: 'Tempo que sobrou', valor: `+${fmt(bonusTempo)}` }] : []),
               { rotulo: 'Total da partida', valor: fmt(total) },
             ]}
             onProximo={() => montar(nivel.n + 1, false)}
           />
         )}
         {fase === 'fim' && (
-          <QuadroFim key="fim" titulo="Acabaram as jogadas" total={total} nivel={nivel.n} novoRecorde={novoRecorde} onDeNovo={() => montar(1, true)} onSair={onSair} />
+          <QuadroFim key="fim" titulo={motivo === 'tempo' ? 'O tempo acabou' : 'Acabaram as jogadas'} total={total} nivel={nivel.n} novoRecorde={novoRecorde} onDeNovo={() => montar(1, true)} onSair={onSair} />
         )}
       </AnimatePresence>
     </div>

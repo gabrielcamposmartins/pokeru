@@ -145,7 +145,9 @@ describe('contas no banco (banco de mentira)', () => {
     estado.falhar = 2;
     store.get().accounts['a-9'] = { id: 'a-9', name: 'Nova' };
     store.touch();
-    await new Promise((r) => setTimeout(r, 80));
+    // as novas tentativas correm no relógio de verdade: com a máquina ocupada (a suíte inteira em
+    // paralelo), um prazo fixo curto falhava sem nada estar errado — espera a gravação chegar
+    for (let t = 0; t < 2000 && !linhas.has('a-9'); t += 20) await new Promise((r) => setTimeout(r, 20));
     expect(linhas.has('a-9')).toBe(true);
   });
 

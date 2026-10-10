@@ -21,7 +21,7 @@ import {
   type TableStyle,
   type WinFxId,
 } from '../../shared/styles';
-import { KIND_LABEL, PRESETS, SANITIZE, findStyle, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
+import { KIND_LABEL, PRESETS, SANITIZE, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
 import { pecasDaConta, useMyStyles, useOwned, useOwns, usePecas } from '../store/shop';
 import { CAMPOS_DE_ESCOLHA, ehCor, encaixar, liberado, type Componentes } from '../../shared/componentes';
 import { itemKey, ownsItem, padoPrice, priceOf } from '../../shared/catalog';
@@ -574,8 +574,6 @@ function UiThemeStudio() {
   const inUse = theme.id === chosen.id;
   // aparência é item de loja como os outros: só se usa a que foi adquirida
   const mine = useOwns('ui', theme.id);
-  const kinds = Object.keys(theme.styles) as StyleKind[];
-  const stylesOn = kinds.every((k) => profile.equipped[k] === theme.styles[k]) && profile.winFx === theme.winFx;
 
   useEffect(() => setPreview(inUse ? null : theme.id), [inUse, theme.id, setPreview]);
   useEffect(() => () => setPreview(null), [setPreview]);
@@ -609,19 +607,6 @@ function UiThemeStudio() {
         <div className="preview-head">
           <h2 className="title-deco theme-title">{theme.name}</h2>
           <div className="row gap">
-            <button
-              className="btn btn-ghost small"
-              disabled={stylesOn}
-              title="Equipa as cartas, fichas, mesa e efeito de vitória que combinam com este tema"
-              onClick={() => {
-                for (const k of kinds) profile.equip(k, theme.styles[k]);
-                profile.setWinFx(theme.winFx);
-                sfx.pop();
-                toast(`Estilos do tema “${theme.name}” equipados!`);
-              }}
-            >
-              {stylesOn ? '✓ Estilos do tema' : 'Equipar estilos do tema'}
-            </button>
             <button
               className={`btn ${inUse ? 'btn-ghost' : 'btn-gold'} small`}
               disabled={inUse || !mine}
@@ -658,37 +643,6 @@ function UiThemeStudio() {
               <li key={f}>{f}</li>
             ))}
           </ul>
-        </Section>
-        <Section title="Estilos que combinam">
-          <div className="theme-styles">
-            {kinds.map((k) => {
-              const st = findStyle(profile, k, theme.styles[k]);
-              return (
-                <div key={k} className="theme-style">
-                  <span className="thumb">
-                    <Thumb kind={k} st={st} />
-                  </span>
-                  <span className="style-name">
-                    {st.name}
-                    <small className="muted">{KIND_LABEL[k]}</small>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="theme-style">
-            <span className="thumb">
-              <span className="fx-chip">
-                <span className="fx-chip-card" />
-                <CardWinFx fx={findWinFx(theme.winFx)} width={34} radius={3} seed={9} />
-              </span>
-            </span>
-            <span className="style-name">
-              {findWinFx(theme.winFx).name}
-              <small className="muted">Efeito de vitória</small>
-            </span>
-          </div>
-          <p className="field-hint">A aparência não troca seus estilos; use “Equipar estilos do tema” se quiser o conjunto completo.</p>
         </Section>
       </div>
     </div>

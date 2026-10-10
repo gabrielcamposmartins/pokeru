@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { CORES, LADO, cair, criar as criarJoias, cumpriu, dica, embaralhar, estrelasDoNivel, jogar, nivelJoias, sequencias, temJogada, type Gema, type Tabuleiro } from './joias';
+import {
+  CORES,
+  LADO,
+  SEGUNDOS_DO_RELOGIO,
+  TEMPO_MIN_JOIAS,
+  cair,
+  criar as criarJoias,
+  cumpriu,
+  dica,
+  embaralhar,
+  estrelasDoNivel,
+  jogar,
+  nivelJoias,
+  sequencias,
+  temJogada,
+  type Gema,
+  type Tabuleiro,
+} from './joias';
 import {
   COLS,
   R,
@@ -21,8 +38,19 @@ import {
   contar,
   estrelasBolhas,
   nivelBolhas,
+  BOMBA,
+  CURINGA,
+  ESTRELA,
+  PEDRA,
+  RAIO,
+  TEMPO_MIN_BOLHAS,
+  coresNaGrade,
+  corDe,
+  limpa,
+  temMira,
   type Grade,
 } from './bolhas';
+import { PONTOS_MAX_POR_NIVEL, recordePlausivel } from '../../shared/minijogos';
 
 /** Um sorteio repetível. */
 function semente(s = 7) {
@@ -292,9 +320,14 @@ describe('níveis', () => {
   });
 
   it('Bolhas: tutorial pequeno, e a cada nível mais linhas e cores até o jogo cheio', () => {
-    expect(nivelBolhas(1)).toEqual({ n: 1, linhas: 5, cores: 3, errosAteDescer: 7 });
-    expect(nivelBolhas(4).cores).toBe(PALETA.length);
+    expect(nivelBolhas(1)).toMatchObject({ n: 1, linhas: 5, cores: 3, errosAteDescer: 7 });
+    expect(nivelBolhas(4).cores).toBe(6);
+    expect(nivelBolhas(7).cores).toBe(7);
+    expect(nivelBolhas(11).cores).toBe(PALETA.length);
     expect(nivelBolhas(20)).toMatchObject({ linhas: 9, cores: PALETA.length, errosAteDescer: 4 });
+    // o tutorial não tem especial nenhuma
+    expect(nivelBolhas(1).chances).toEqual({ raio: 0, estrela: 0, pedra: 0 });
+    expect(nivelBolhas(1).sorteio).toEqual({ bomba: 0, curinga: 0 });
     const g = criarBolhas(nivelBolhas(1).linhas, nivelBolhas(1).cores, semente());
     expect(contar(g)).toBe(COLS * 3 + (COLS - 1) * 2);
     expect(g.linhas.flat().every((x) => x != null && x < 3)).toBe(true);
@@ -316,5 +349,173 @@ describe('níveis', () => {
     expect(estrelasBolhas(60, 10)).toBe(3);
     expect(estrelasBolhas(60, 30)).toBe(2);
     expect(estrelasBolhas(60, 80)).toBe(1);
+  });
+});
+
+/** Uma grade a partir de linhas de valores (null = vazia), com as linhas no tamanho certo. */
+function gradeDe(linhas: (number | null)[][], par: 0 | 1 = 0): Grade {
+  const g: Grade = { par, linhas: [] };
+  linhas.forEach((l, r) => {
+    const n = colunasDa(g, r);
+    g.linhas.push(Array.from({ length: n }, (_, c) => l[c] ?? null));
+  });
+  return g;
+}
+
+describe('bolhas especiais', () => {
+  it('raio e estrela contam pela cor delas; a pedra não tem cor', () => {
+    expect(corDe(RAIO + 3)).toBe(3);
+    expect(corDe(ESTRELA + 5)).toBe(5);
+    expect(corDe(PEDRA)).toBeNull();
+    expect(corDe(BOMBA)).toBeNull();
+    const g = gradeDe([[1, RAIO + 1, ESTRELA + 1, PEDRA]]);
+    expect(grupo(g, 0, 0)).toHaveLength(3);
+    expect(coresNaGrade(g)).toEqual([1]);
+  });
+
+  it('a bolha-raio que estoura leva a linha inteira, pedra inclusive', () => {
+    // linha 0: A A raio(A) B B pedra ... ; o tiro A ao lado fecha o grupo com o raio
+    const g = gradeDe([[0, RAIO + 0, null, 2, 2, PEDRA, 3, 3, 4, 4, 5]]);
+    const r0 = pousar(g, { r: 0, c: 2 }, 0);
+    expect(r0.raios).toEqual([0]);
+    expect(r0.grade.linhas.flat().every((x) => x == null)).toBe(true);
+  });
+
+  it('a estrela dobra os pontos do estouro', () => {
+    const sem = pousar(gradeDe([[0, 0]]), { r: 0, c: 2 }, 0);
+    const com = pousar(gradeDe([[0, ESTRELA + 0]]), { r: 0, c: 2 }, 0);
+    expect(com.multiplicador).toBe(2);
+    expect(com.pontos).toBe(sem.pontos * 2);
+  });
+
+  it('a bomba explode em volta sem olhar a cor, e o que fica solto cai', () => {
+    const g = gradeDe([
+      [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4],
+      [5, 0, 1, 2, 3, 4, 5, 0, 1, 2],
+    ]);
+    const r0 = pousar(g, { r: 2, c: 5 }, BOMBA);
+    expect(r0.explodiu).toBe(true);
+    expect(r0.estouradas.length).toBeGreaterThan(6);
+    // nada que sobrou está solto do teto
+    expect(soltas(r0.grade)).toEqual([]);
+  });
+
+  it('o curinga vira a cor que faz o maior grupo onde parou', () => {
+    // à esquerda dois de cor 2, à direita um de cor 4: o curinga vira 2 e estoura três
+    const g = gradeDe([[2, 2, null, 4]]);
+    const r0 = pousar(g, { r: 0, c: 2 }, CURINGA);
+    expect(r0.estouradas).toHaveLength(3);
+    expect(r0.valores.every((v) => corDe(v) === 2)).toBe(true);
+  });
+
+  it('pedras presas não seguram o nível: a grade sem cor está limpa', () => {
+    expect(limpa(gradeDe([[PEDRA, null, PEDRA]]))).toBe(true);
+    expect(limpa(gradeDe([[PEDRA, 1]]))).toBe(false);
+  });
+
+  it('as especiais da grade nascem só a partir do nível em que entram', () => {
+    const rng = semente(9);
+    const g1 = criarBolhas(9, 6, rng, nivelBolhas(1).chances);
+    expect(g1.linhas.flat().every((v) => v != null && v < RAIO)).toBe(true);
+    const n = nivelBolhas(12);
+    let pedras = 0;
+    let raios = 0;
+    for (let i = 0; i < 20; i++) {
+      const g = criarBolhas(9, n.cores, rng, n.chances);
+      for (const v of g.linhas.flat()) {
+        if (v === PEDRA) pedras++;
+        else if (v != null && v >= RAIO && v < ESTRELA) raios++;
+      }
+      // nenhuma linha só de pedras
+      for (const l of g.linhas) expect(l.every((v) => v === PEDRA)).toBe(false);
+    }
+    expect(pedras).toBeGreaterThan(0);
+    expect(raios).toBeGreaterThan(0);
+  });
+
+  it('o tempo cai a cada nível até o mínimo, e a mira pontilhada é só do primeiro', () => {
+    for (let n = 1; n < 30; n++) expect(nivelBolhas(n + 1).tempo).toBeLessThanOrEqual(nivelBolhas(n).tempo);
+    expect(nivelBolhas(2).tempo).toBeLessThan(nivelBolhas(1).tempo);
+    expect(nivelBolhas(50).tempo).toBe(TEMPO_MIN_BOLHAS);
+    expect(temMira(1)).toBe(true);
+    expect(temMira(2)).toBe(false);
+  });
+});
+
+describe('joias especiais', () => {
+  it('um L deixa uma bomba no cruzamento, e a bomba leva as oito vizinhas', () => {
+    const linhas = FUNDO.slice();
+    // L de cor 0 com o cruzamento em (2,2): (2,0) (2,1) na linha e (0,2) (1,2) na coluna; (3,2) traz o 0 que falta
+    const set = (r: number, c: number, ch: string) => (linhas[r] = linhas[r].slice(0, c) + ch + linhas[r].slice(c + 1));
+    set(2, 0, '0');
+    set(2, 1, '0');
+    set(0, 2, '0');
+    set(1, 2, '0');
+    set(2, 2, '1');
+    set(3, 2, '0');
+    const t = tab(linhas);
+    const j = jogar(t, { r: 2, c: 2 }, { r: 3, c: 2 }, semente());
+    expect(j.valida).toBe(true);
+    if (!j.valida) return;
+    const nasceu = j.passos[0].comBuracos[2][2];
+    expect(nasceu?.especial).toBe('bomba');
+    expect(nasceu?.cor).toBe(0);
+  });
+
+  it('o relógio que some devolve segundos, e o ×2 dobra o passo', () => {
+    const linhas = FUNDO.slice();
+    linhas[0] = '00' + linhas[0].slice(2);
+    linhas[1] = linhas[1].slice(0, 2) + '0' + linhas[1].slice(3);
+    const base = tab(linhas);
+    const comum = jogar(base, { r: 0, c: 2 }, { r: 1, c: 2 }, semente());
+    const t = tab(linhas);
+    t[0][0] = { ...t[0][0]!, especial: 'relogio' };
+    t[0][1] = { ...t[0][1]!, especial: 'x2' };
+    const j = jogar(t, { r: 0, c: 2 }, { r: 1, c: 2 }, semente());
+    expect(j.valida && comum.valida).toBe(true);
+    if (!j.valida || !comum.valida) return;
+    expect(j.passos[0].segundos).toBe(SEGUNDOS_DO_RELOGIO);
+    expect(j.passos[0].multiplicador).toBe(2);
+    expect(j.passos[0].pontos).toBe(comum.passos[0].pontos * 2);
+  });
+
+  it('a cruz leva a linha e a coluna', () => {
+    const t = tab(FUNDO);
+    t[4][4] = { ...t[4][4]!, especial: 'cruz' };
+    // uma estrela trocada com a cor da cruz faz a cruz sumir, e ela detona
+    t[4][5] = { id: 9999, cor: -1, especial: 'estrela' };
+    const j = jogar(t, { r: 4, c: 5 }, { r: 4, c: 4 }, semente());
+    expect(j.valida).toBe(true);
+    if (!j.valida) return;
+    const limpas = j.passos[0].limpas;
+    for (let c = 0; c < LADO; c++) expect(limpas).toContainEqual({ r: 4, c });
+    for (let r = 0; r < LADO; r++) expect(limpas).toContainEqual({ r, c: 5 });
+  });
+
+  it('relógio e ×2 só caem a partir dos níveis deles, e nunca no tabuleiro novo', () => {
+    expect(nivelJoias(1).chances).toEqual({ relogio: 0, x2: 0 });
+    expect(nivelJoias(2).chances.relogio).toBeGreaterThan(0);
+    expect(nivelJoias(3).chances.x2).toBeGreaterThan(0);
+    const rng = semente(4);
+    const t = criarJoias(rng);
+    expect(t.flat().every((g) => !g!.especial)).toBe(true);
+    const buracos = t.map((l, r) => l.map((g) => (r < 4 ? null : g)));
+    let extras = 0;
+    for (let i = 0; i < 40; i++) extras += cair(buracos, rng, CORES, { relogio: 0.5, x2: 0.5 }).flat().filter((g) => g!.especial).length;
+    expect(extras).toBeGreaterThan(0);
+  });
+
+  it('o tempo cai a cada nível até o mínimo', () => {
+    for (let n = 1; n < 30; n++) expect(nivelJoias(n + 1).tempo).toBeLessThanOrEqual(nivelJoias(n).tempo);
+    expect(nivelJoias(2).tempo).toBeLessThan(nivelJoias(1).tempo);
+    expect(nivelJoias(40).tempo).toBe(TEMPO_MIN_JOIAS);
+  });
+});
+
+describe('recordes de antes continuam valendo', () => {
+  it('o teto do servidor não mudou: um recorde já guardado segue plausível', () => {
+    expect(PONTOS_MAX_POR_NIVEL).toBe(80_000);
+    expect(recordePlausivel('bolhas', 12_345, 3)).toBe(true);
+    expect(recordePlausivel('joias', 40_000, 5)).toBe(true);
   });
 });

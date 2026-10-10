@@ -56,6 +56,18 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
 
 const str = (v: unknown, max = 256): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/** A resposta de quem entrou: o token e o que a tela mostra da conta. */
+const entrou = (login: { token: string; expires_in: number; account: { username: string; discord_id: string | null; email?: string | null } }) => ({
+  token: login.token,
+  expiresIn: login.expires_in,
+  user: login.account.username,
+  discord: login.account.discord_id ?? null,
+  email: login.account.email ?? null,
+});
+
+/** Um e-mail que dá para levar ao bot (quem confere de verdade é ele). */
+const pareceEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) && v.length <= 254;
+
 /** O token do cabeçalho `Authorization: Bearer <token>`. */
 function bearer(req: IncomingMessage): string {
   const raw = req.headers.authorization ?? '';
@@ -130,15 +142,20 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
       case 'POST /auth/register': {
         const user = str(body.user ?? body.username, 32);
         const password = str(body.password);
+        const email = str(body.email, 254);
         if (user.length < 3 || password.length < 8) {
           fail(res, 400, 'usuário de 3 a 32 caracteres e senha de no mínimo 8');
           return true;
         }
+        if (email && !pareceEmail(email)) {
+          fail(res, 400, 'esse e-mail não parece certo — confira o endereço');
+          return true;
+        }
         try {
-          await gbot.createAccount(user, password);
+          await gbot.createAccount(user, password, email || undefined);
           // já entra: quem acabou de criar a conta não deveria digitar a senha duas vezes
           const login = await gbot.login(user, password);
-          send(res, 201, { token: login.token, expiresIn: login.expires_in, user: login.account.username, discord: login.account.discord_id ?? null });
+          send(res, 201, entrou(login));
         } catch (err) {
           relay(res, err, 'não foi possível criar a conta');
         }
@@ -154,9 +171,83 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
         }
         try {
           const login = await gbot.login(user, password);
-          send(res, 200, { token: login.token, expiresIn: login.expires_in, user: login.account.username, discord: login.account.discord_id ?? null });
+          send(res, 200, entrou(login));
         } catch (err) {
           relay(res, err, 'não foi possível entrar');
+        }
+        return true;
+      }
+
+      // ------------------------------------------------- esqueci a senha
+      case 'POST /auth/recover': {
+        const user = str(body.user ?? body.username, 32);
+        const via = body.via === 'email' ? 'email' : body.via === 'discord' ? 'discord' : null;
+        if (!user || !via) {
+          fail(res, 400, 'informe o usuário e por onde receber o código (Discord ou e-mail)');
+          return true;
+        }
+        try {
+          const r = await gbot.recover(user, via);
+          console.log(`[auth] código de recuperação de "${user}" enviado por ${via}`);
+          send(res, 200, { ok: true, via: r.via ?? via, destino: r.destino ?? null, expiresIn: r.expires_in ?? null });
+        } catch (err) {
+          relay(res, err, 'não foi possível mandar o código', {
+            404: 'não existe conta com esse usuário. Confira como você escreveu.',
+            // o bot diz "tente de novo em 45s": o número é o que importa para quem espera
+            429: `um código acabou de ser enviado — espere ${err instanceof Error ? (err.message.match(/(\d+)\s*s/)?.[1] ?? 'alguns ') : 'alguns '}s para pedir outro`,
+          });
+        }
+        return true;
+      }
+
+      case 'POST /auth/recover/confirm': {
+        const user = str(body.user ?? body.username, 32);
+        const code = str(body.code, 16);
+        const password = str(body.password);
+        if (!user || !code || !password) {
+          fail(res, 400, 'preencha o código e a senha nova');
+          return true;
+        }
+        if (password.length < 8) {
+          fail(res, 400, 'a senha nova precisa de pelo menos 8 caracteres');
+          return true;
+        }
+        try {
+          await gbot.recoverConfirm(user, code, password);
+          console.log(`[auth] senha de "${user}" trocada pelo código de recuperação`);
+          // já entra com a senha nova: quem acabou de trocar não deveria digitá-la de novo
+          const login = await gbot.login(user, password);
+          send(res, 200, entrou(login));
+        } catch (err) {
+          relay(res, err, 'não foi possível trocar a senha');
+        }
+        return true;
+      }
+
+      // --------------------------------------------- e-mail de recuperação
+      case 'POST /auth/email': {
+        /*
+         * A senha prova quem é — e é com ela que pedimos um token novo ao bot. Assim a troca funciona
+         * mesmo quando a sessão voltou pela chave de volta do nosso servidor (sem o token do bot).
+         */
+        const user = str(body.user ?? body.username, 32);
+        const password = str(body.password);
+        const email = str(body.email, 254);
+        if (!user || !password) {
+          fail(res, 400, 'confirme com a sua senha');
+          return true;
+        }
+        if (email && !pareceEmail(email)) {
+          fail(res, 400, 'esse e-mail não parece certo — confira o endereço');
+          return true;
+        }
+        try {
+          const login = await gbot.login(user, password);
+          const conta = await gbot.setEmail(login.token, email, password);
+          console.log(`[auth] e-mail de recuperação de "${user}" ${email ? 'cadastrado' : 'apagado'}`);
+          send(res, 200, { ok: true, email: conta.email ?? null });
+        } catch (err) {
+          relay(res, err, 'não foi possível salvar o e-mail', { 401: 'senha incorreta' });
         }
         return true;
       }
@@ -166,7 +257,7 @@ export function authRoutes({ gbot, jwt, accounts }: AuthHttpOptions) {
         if (!caller) return true;
         try {
           const me = await gbot.me(caller.token);
-          send(res, 200, { user: me.username, discord: me.discord_id ?? null });
+          send(res, 200, { user: me.username, discord: me.discord_id ?? null, email: me.email ?? null });
         } catch (err) {
           relay(res, err, 'não foi possível ler a conta');
         }

@@ -158,17 +158,51 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
           </clipPath>
         )}
         {st.special === 'rainbow' && (
-          <linearGradient id={`rb${uid}`} x1="0" y1="0" x2="1" y2="0">
+          <>
             {/*
-              * Seis matizes e a volta ao primeiro.
+              * O arco-íris que anda.
               *
-              * A faixa é desenhada com o dobro da largura da carta e corre para o lado; repetir a
-              * cor inicial no fim é o que faz a emenda passar sem costura visível.
+              * Um degradê na diagonal que se **repete** (`spreadMethod="repeat"`) com o período de
+              * uma volta inteira de cor, e que desliza exatamente um período por ciclo: o último
+              * quadro é igual ao primeiro, e a volta fecha sem salto. O movimento é do próprio SVG
+              * (`animateTransform`), e não de CSS — transformação de CSS em elemento de SVG não
+              * anima em todo lugar, e era por isso que a carta ficava parada.
+              *
+              * A paleta é holográfica: matizes cheios, com o magenta e o ciano mais demorados, que
+              * são as cores que fazem a carta parecer metal iridescente e não papel pintado. O
+              * atraso negativo começa cada carta num ponto da volta — uma mão de cinco mostra cinco
+              * cores, e não cinco cópias do mesmo instante.
               */}
-            {['#ff5d5d', '#ffb547', '#ffe66d', '#6bff9e', '#5ad2ff', '#b07bff', '#ff5d5d'].map((c, i) => (
-              <stop key={c + i} offset={i / 6} stopColor={c} />
-            ))}
-          </linearGradient>
+            <linearGradient id={`rb${uid}`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={RB_PERIODO.x} y2={RB_PERIODO.y} spreadMethod="repeat">
+              {RB_CORES.map(([o, c]) => (
+                <stop key={o} offset={o} stopColor={c} />
+              ))}
+              <animateTransform
+                attributeName="gradientTransform"
+                type="translate"
+                from="0 0"
+                to={`${RB_PERIODO.x} ${RB_PERIODO.y}`}
+                dur="4.5s"
+                begin={`-${(((card.r * 3 + 'shdc'.indexOf(card.s)) % 9) * 0.5).toFixed(1)}s`}
+                repeatCount="indefinite"
+              />
+            </linearGradient>
+            {/* o brilho que atravessa a carta, mais devagar que a cor: o reflexo da luz na lâmina */}
+            <linearGradient id={`rbl${uid}`} gradientUnits="userSpaceOnUse" x1="-300" y1="0" x2="-100" y2="120">
+              <stop offset="0" stopColor="#ffffff" stopOpacity="0" />
+              <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.55" />
+              <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+              <animateTransform
+                attributeName="gradientTransform"
+                type="translate"
+                values="0 0; 700 0; 700 0"
+                keyTimes="0; 0.55; 1"
+                dur="3.8s"
+                begin={`-${((card.r + 'shdc'.indexOf(card.s)) % 5) * 0.7}s`}
+                repeatCount="indefinite"
+              />
+            </linearGradient>
+          </>
         )}
       </defs>
 
@@ -195,18 +229,11 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
             * diferente da volta — assim uma mão de cinco cartas mostra cinco cores, em vez de cinco
             * cópias do mesmo instante do arco-íris.
             */}
-          <rect
-            className="face-rainbow"
-            style={{ animationDelay: `-${(((card.r * 3 + 'shdc'.indexOf(card.s)) % 7) * 1).toFixed(2)}s` }}
-            x={-250}
-            y={-40}
-            width={500}
-            height={430}
-            fill={`url(#rb${uid})`}
-          />
+          <rect {...corpo} fill={`url(#rb${uid})`} />
           {/* verniz por cima da cor, para a carta não virar um cartaz chapado */}
-          <rect {...corpo} fill={`url(#fg${uid})`} opacity={0.1} />
-          <path d="M0 0 L250 0 L250 60 L0 150 Z" fill="#ffffff" opacity={0.16} />
+          <rect {...corpo} fill={`url(#fg${uid})`} opacity={0.14} />
+          <rect {...corpo} fill={`url(#rbl${uid})`} />
+          <path d="M0 0 L250 0 L250 60 L0 150 Z" fill="#ffffff" opacity={0.12} />
         </g>
       )}
       {st.special === 'glass' && (
@@ -440,6 +467,21 @@ export const CardBackArt = memo(function CardBackArt({ style: st }: { style: Car
     </g>
   );
 });
+
+/** O período do arco-íris da frente especial: uma volta de cor ao longo da diagonal da carta. */
+const RB_PERIODO = { x: 260, y: 150 };
+
+/** As cores do arco-íris (posição na volta, cor). A primeira e a última são a mesma: a volta fecha. */
+const RB_CORES: [number, string][] = [
+  [0, '#ff3d8b'],
+  [0.12, '#ff7a3d'],
+  [0.26, '#ffd23d'],
+  [0.4, '#4dff9a'],
+  [0.56, '#2ee6ff'],
+  [0.7, '#4d7bff'],
+  [0.84, '#b45cff'],
+  [1, '#ff3d8b'],
+];
 
 export function CardFaceSvg({ card, style, width }: { card: Card; style: CardFaceStyle; width: number }) {
   return (

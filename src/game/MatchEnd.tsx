@@ -218,11 +218,18 @@ export function MatchEndPanel({ m, rows, info, ganho }: { m: MatchEnd; rows: Mat
     sfx.pop();
   }, []);
 
+  /*
+   * Continuar sai da mesa.
+   *
+   * Havia um "Sair da mesa" ao lado do Confirmar, e o Confirmar só fechava o placar — deixando a
+   * pessoa olhando uma mesa terminada, sem nada para fazer além de achar o outro botão. Agora o
+   * placar tem uma saída só: jogar de novo (quem é o anfitrião) ou continuar, que leva de volta.
+   */
   const close = () => {
     sfx.click();
     setMatch(null);
     setGameOver(null);
-    if (m.kind === 'leave') leaveRoom();
+    leaveRoom();
   };
   const again = () => {
     sfx.click();
@@ -285,13 +292,8 @@ export function MatchEndPanel({ m, rows, info, ganho }: { m: MatchEnd; rows: Mat
             Jogar de novo
           </button>
         )}
-        {m.kind === 'over' && (
-          <button className="btn btn-ghost" onClick={() => { sfx.click(); setMatch(null); setGameOver(null); leaveRoom(); }}>
-            Sair da mesa
-          </button>
-        )}
         <button className="rr-confirm me-confirm" onClick={close}>
-          Confirmar
+          Continuar
         </button>
       </div>
     </motion.div>

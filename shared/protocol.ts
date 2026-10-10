@@ -5,6 +5,8 @@ import type { AccountCreds, AccountInfo, PremioMinijogo } from './accounts';
 import type { Ranking } from './ranking';
 import type { Currency } from './catalog';
 import type { FriendInfo, PartyInfo, PartyKind, PerfilPublico } from './friends';
+import type { PausaInfo } from './pausa';
+import type { MaoDaPartida } from './historico';
 
 export type { AccountCreds, AccountInfo, Currency };
 
@@ -361,6 +363,8 @@ export interface RoomInfo {
   hostId: string;
   status: 'waiting' | 'playing' | 'finished';
   members: MemberInfo[];
+  /** A pausa da mesa (votação, à espera do fim da mão, ou parada). Ausente = sem pausa. */
+  pausa?: PausaInfo | null;
 }
 
 export interface RoomSummary {
@@ -533,6 +537,16 @@ export type ClientMsg =
   /** Poker de 5 cartas: troca as cartas nas posições indicadas (vazio = manter todas). */
   | { type: 'draw'; discards: number[] }
   | { type: 'skipHand' }
+  /**
+   * A pausa da mesa: pedir (abre a votação), aceitar ou recusar o pedido de outro, e retomar uma
+   * mesa pausada. Todos os jogadores precisam aceitar para pausar; qualquer um retoma.
+   */
+  | { type: 'pausa'; acao: 'pedir' | 'aceitar' | 'recusar' | 'retomar' }
+  /**
+   * Pede as mãos de uma partida do perfil (`at` é o horário da partida, a chave do histórico). A
+   * conta é a própria ou a de um amigo.
+   */
+  | { type: 'maosDaPartida'; conta: string; at: string }
   | { type: 'chat'; text: string }
   | { type: 'emote'; emote: string }
   /** Compra um item do catálogo (shared/catalog.ts). Quem cobra e valida é o servidor. */
@@ -575,7 +589,12 @@ export type ServerMsg =
    */
   | { type: 'fila'; jogadores: number }
   | { type: 'room'; room: RoomInfo }
-  | { type: 'left' }
+  /** O histórico das mãos da partida em andamento, como este jogador pode ver (vem a cada mão). */
+  | { type: 'maos'; maos: MaoDaPartida[] }
+  /** As mãos de uma partida do perfil, pedidas com `maosDaPartida` (null = não há registro dela). */
+  | { type: 'maosDaPartida'; conta: string; at: string; maos: MaoDaPartida[] | null }
+  /** Saiu da sala. `motivo` vem quando quem tirou foi a mesa (a pausa longa demais, por exemplo). */
+  | { type: 'left'; motivo?: string }
   /** A mesa está montada e conferindo os jogadores (veja `Opening`). */
   | { type: 'opening'; opening: Opening }
   | { type: 'sync'; view: TableView }

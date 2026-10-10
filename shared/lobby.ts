@@ -136,6 +136,8 @@ export class Lobby {
     room.onChange = () => this.roomsChanged();
     room.onEmpty = () => {
       this.rooms.delete(id);
+      // a mesa pode se desfazer com gente dentro (a pausa longa demais): ninguém fica preso a ela
+      for (const c of this.conns) if (c.room === room) c.room = null;
       this.roomsChanged();
     };
     this.rooms.set(id, room);
@@ -986,11 +988,25 @@ export class Connection implements ClientHandle {
         // a tela de abertura acabou de carregar deste lado
         this.room?.ready(this.id);
         break;
-      case 'startGame':
+      case 'startGame': {
         if (!this.room) return;
-        if (this.room.status === 'finished') this.error(this.room.reset(this.id));
-        this.error(this.room.start(this.id));
+        const room = this.room;
+        if (room.status !== 'finished') {
+          this.error(room.start(this.id));
+          break;
+        }
+        // jogar de novo: a mesa volta, o buy-in é cobrado outra vez (pode ir à rede), e então começa
+        const erro = room.reset(this.id);
+        if (erro) {
+          this.error(erro);
+          break;
+        }
+        void room.revanche().then((e) => {
+          if (this.room !== room) return;
+          this.error(e ?? room.start(this.id));
+        });
         break;
+      }
       case 'action':
         if (!this.room) return;
         this.error(this.room.handleAction(this.id, msg.action));
@@ -998,6 +1014,29 @@ export class Connection implements ClientHandle {
       case 'skipHand':
         if (!this.room) return;
         this.error(this.room.skipHand(this.id));
+        break;
+      case 'maosDaPartida': {
+        const accounts = this.lobby.accounts;
+        if (!accounts?.maosDe || !this.accountId || typeof msg.conta !== 'string' || typeof msg.at !== 'string') return;
+        const dono = msg.conta === this.accountId;
+        // as mãos de um amigo, como as de qualquer partida dele no perfil; de estranho, não
+        if (!dono && !accounts.friends(this.accountId).friends.some((f) => f.id === msg.conta)) {
+          this.error('só dá para ver as partidas de amigos');
+          return;
+        }
+        const maos = accounts.maosDe(msg.conta, msg.at);
+        /*
+         * Para quem não é o dono, as cartas fechadas dele saem: o que ele mostrou no showdown já está
+         * em `jogadores`; o resto (as mãos em que desistiu) é dele.
+         */
+        const vistas = maos && !dono ? maos.map(({ minhas: _minhas, ...m }) => m) : maos;
+        this.send({ type: 'maosDaPartida', conta: msg.conta, at: msg.at, maos: vistas });
+        break;
+      }
+      case 'pausa':
+        if (!this.room) return;
+        if (!['pedir', 'aceitar', 'recusar', 'retomar'].includes(msg.acao)) return;
+        this.error(this.room.pausa(this.id, msg.acao));
         break;
       case 'draw':
         if (!this.room) return;

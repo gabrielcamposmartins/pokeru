@@ -235,3 +235,84 @@ describe('gateway: as rotas de conta', () => {
     expect(await handle(req('GET'), r, '/health')).toBe(false);
   });
 });
+
+describe('gateway: esqueci a senha e e-mail de recuperação', () => {
+  const login = { status: 200, body: { token: 'novo-jwt', expires_in: 3600, account: { id: 4, username: 'gabs', discord_id: null, email: 'ga@x.com' } } };
+
+  it('o cadastro leva o e-mail ao bot, e um e-mail torto nem chega lá', async () => {
+    const ok = await call({ '/accounts': { status: 201, body: { id: 4 } }, '/login': login }, 'POST', '/auth/register', { user: 'gabs', password: 'senhaboa1', email: 'ga@x.com' });
+    expect(ok.out.status).toBe(201);
+    expect(ok.calls[0].body).toMatchObject({ username: 'gabs', email: 'ga@x.com' });
+    expect(ok.out.body?.email).toBe('ga@x.com');
+
+    const torto = await call({}, 'POST', '/auth/register', { user: 'gabs', password: 'senhaboa1', email: 'nao-e-email' });
+    expect(torto.out.status).toBe(400);
+    expect(torto.calls).toEqual([]);
+  });
+
+  it('pedir o código diz para onde foi', async () => {
+    const { out, calls } = await call(
+      { '/accounts/recover': { body: { ok: true, via: 'email', destino: 'ga***@x.com', expires_in: 900 } } },
+      'POST',
+      '/auth/recover',
+      { user: 'gabs', via: 'email' },
+      '',
+    );
+    expect(out.status).toBe(200);
+    expect(out.body).toMatchObject({ via: 'email', destino: 'ga***@x.com' });
+    expect(calls[0].body).toEqual({ username: 'gabs', via: 'email' });
+  });
+
+  it('conta que não existe e pedido repetido viram recados de gente', async () => {
+    const nenhuma = await call({ '/accounts/recover': { status: 404, body: { response: 'nao existe conta' } } }, 'POST', '/auth/recover', { user: 'x', via: 'discord' }, '');
+    expect(nenhuma.out.body?.error).toMatch(/não existe conta/);
+    const cedo = await call({ '/accounts/recover': { status: 429, body: { response: 'muitas tentativas; tente de novo em 42s' } } }, 'POST', '/auth/recover', { user: 'x', via: 'discord' }, '');
+    expect(cedo.out.status).toBe(429);
+    expect(cedo.out.body?.error).toMatch(/42s/);
+  });
+
+  it('caminho que não existe nem chega ao bot', async () => {
+    const { out, calls } = await call({}, 'POST', '/auth/recover', { user: 'gabs', via: 'pombo' }, '');
+    expect(out.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  it('confirmar troca a senha e já entra com a nova', async () => {
+    const { out, calls } = await call(
+      { '/accounts/recover/confirm': { body: { ok: true } }, '/login': login },
+      'POST',
+      '/auth/recover/confirm',
+      { user: 'gabs', code: '123456', password: 'senhaNova9' },
+      '',
+    );
+    expect(out.status).toBe(200);
+    expect(out.body?.token).toBe('novo-jwt');
+    expect(calls.map((c) => c.path)).toEqual(['/accounts/recover/confirm', '/login']);
+    expect(calls[1].body).toEqual({ username: 'gabs', password: 'senhaNova9' });
+  });
+
+  it('código errado passa o recado do bot (quantas tentativas restam)', async () => {
+    const { out } = await call({ '/accounts/recover/confirm': { status: 400, body: { response: 'codigo errado; restam 3 tentativas' } } }, 'POST', '/auth/recover/confirm', { user: 'gabs', code: '000000', password: 'senhaNova9' }, '');
+    expect(out.status).toBe(400);
+    expect(out.body?.error).toMatch(/restam 3/);
+  });
+
+  it('o e-mail de recuperação se troca com a senha, sem precisar do token do bot', async () => {
+    const { out, calls } = await call(
+      { '/login': login, '/accounts/email': { body: { account: { id: 4, username: 'gabs', discord_id: null, email: 'novo@x.com' } } } },
+      'POST',
+      '/auth/email',
+      { user: 'gabs', password: 'senhaboa1', email: 'novo@x.com' },
+      '',
+    );
+    expect(out.status).toBe(200);
+    expect(out.body?.email).toBe('novo@x.com');
+    expect(calls[1]).toMatchObject({ path: '/accounts/email', auth: 'Bearer novo-jwt', body: { email: 'novo@x.com', password: 'senhaboa1' } });
+  });
+
+  it('senha errada ao trocar o e-mail diz que é a senha', async () => {
+    const { out } = await call({ '/login': { status: 401, body: { response: 'usuario ou senha invalidos' } } }, 'POST', '/auth/email', { user: 'gabs', password: 'errada', email: 'novo@x.com' }, '');
+    expect(out.status).toBe(401);
+    expect(out.body?.error).toBe('senha incorreta');
+  });
+});

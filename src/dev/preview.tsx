@@ -45,6 +45,9 @@
  *   &ui=retro&paleta=tron&crt=0        o tema retrofuturista (paleta: synthwave|tron|vaporwave|fosforo|ambar)
  *   /preview.html?cena=ranking         o ranking com contas de exemplo (&aba=poker|joias|bolhas)
  *   /preview.html?cena=menu-ranking    o menu com o botão do ranking mostrando a sua posição
+ *   /preview.html?cena=pausa-voto      a mesa com um pedido de pausa esperando o seu voto
+ *   /preview.html?cena=pausa-mesa      a mesa pausada (retomar, e o prazo de duas horas)
+ *   /preview.html?cena=maos            o histórico das mãos de uma partida
  */
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -105,6 +108,9 @@ import { OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
 import { GalleryScreen } from '../screens/Gallery';
 import { MinijogosScreen } from '../screens/Minijogos';
+import { PausaMesa } from '../game/PausaMesa';
+import { JanelaDeMaos, ListaDeMaos } from '../game/HistoricoMaos';
+import type { MaoDaPartida } from '../../shared/historico';
 import { Studio } from '../screens/Studio';
 import { xpForLevel } from '../../shared/achievements';
 import { useProfile } from '../store/profile';
@@ -595,6 +601,48 @@ if (cena === 'menu-sentando') useSession.setState({ mode: 'online', status: 'con
 if (cena === 'fila-esperando') useSession.setState({ status: 'connected', queueing: true });
 // o card do PvP Queue com gente na fila: no menu de exemplo há três pessoas jogando
 if (cena === 'menu') useSession.setState({ fila: 3 });
+if (cena === 'pausa-voto' || cena === 'pausa-mesa') {
+  const membro = (id: string, name: string, seat: number) => ({ id, name, seat, isBot: false, avatar: { color: '#fff', icon: '♠' }, character: CHARACTER_PRESETS[seat], title: null, stack: 2000, connected: true, level: 3, auras: [], frame: 'ouro', face: FACE_PRESETS[0], back: BACK_PRESETS[0] });
+  useSession.setState({
+    playerId: 'eu',
+    room: {
+      id: 'r1',
+      settings: { name: 'Mesa dos amigos' } as never,
+      hostId: 'eu',
+      status: 'playing',
+      members: [membro('eu', 'Você', 0), membro('b', 'Beto', 1), membro('c', 'Carla', 2)] as never,
+      pausa:
+        cena === 'pausa-voto'
+          ? { estado: 'votando', por: 'b', nome: 'Beto', aceitos: ['b'], votantes: ['eu', 'b', 'c'], restaMs: 23_000 }
+          : { estado: 'pausada', por: 'b', nome: 'Beto', aceitos: ['eu', 'b', 'c'], votantes: ['eu', 'b', 'c'], restaMs: 7_140_000 },
+    },
+  });
+}
+const MAOS_DE_EXEMPLO: MaoDaPartida[] = [
+  {
+    n: 1,
+    mesa: [{ r: 14, s: 'h' }, { r: 9, s: 'c' }, { r: 4, s: 'd' }],
+    pote: 300,
+    meuAssento: 0,
+    minhas: [{ r: 7, s: 's' }, { r: 2, s: 'h' }],
+    jogadores: [
+      { seat: 0, nome: 'Você', bot: false, personagem: 'marina', apostou: 100, resultado: -100, desistiu: true, venceu: false, allIn: false },
+      { seat: 1, nome: 'Ren', bot: true, personagem: 'ren', apostou: 200, resultado: 100, desistiu: false, venceu: true, allIn: false },
+    ],
+  },
+  {
+    n: 2,
+    mesa: [{ r: 13, s: 's' }, { r: 13, s: 'd' }, { r: 6, s: 'c' }, { r: 10, s: 'h' }, { r: 3, s: 's' }],
+    pote: 2400,
+    meuAssento: 0,
+    minhas: [{ r: 13, s: 'h' }, { r: 12, s: 'h' }],
+    jogadores: [
+      { seat: 0, nome: 'Você', bot: false, personagem: 'marina', cartas: [{ r: 13, s: 'h' }, { r: 12, s: 'h' }], mao: 'Trinca de Reis', apostou: 1200, resultado: 1200, desistiu: false, venceu: true, allIn: true },
+      { seat: 1, nome: 'Ren', bot: true, personagem: 'ren', cartas: [{ r: 10, s: 's' }, { r: 10, s: 'c' }], mao: 'Dois Pares', apostou: 1200, resultado: -1200, desistiu: false, venceu: false, allIn: true },
+      { seat: 2, nome: 'Yukina', bot: true, personagem: 'yukina', apostou: 0, resultado: 0, desistiu: true, venceu: false, allIn: false },
+    ],
+  },
+];
 
 // o ranking com contas de exemplo (o de verdade vem do servidor)
 if (cena === 'ranking' || cena === 'menu-ranking') {
@@ -1000,7 +1048,7 @@ createRoot(document.getElementById('root')!).render(
       ) : cena === 'menu-ranking' ? (
         <MainMenu go={() => {}} />
       ) : cena === 'minijogos' ? (
-        <MinijogosScreen onBack={() => {}} inicial={(q.get('jogo') as never) ?? null} />
+        <MinijogosScreen onBack={() => {}} inicial={(q.get('jogo') as never) ?? null} nivelInicial={Number(q.get('nivel')) || undefined} />
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} inicial={(q.get('aba') as never) ?? undefined} />
       ) : cena === 'galeria' ? (
@@ -1015,6 +1063,15 @@ createRoot(document.getElementById('root')!).render(
               <Voo />
             ) : cena === 'mesa' ? (
               <Mesa />
+            ) : cena === 'pausa-voto' || cena === 'pausa-mesa' ? (
+              <>
+                <Mesa />
+                <PausaMesa />
+              </>
+            ) : cena === 'maos' ? (
+              <JanelaDeMaos titulo="Mãos desta partida (2)" onClose={() => {}}>
+                <ListaDeMaos maos={MAOS_DE_EXEMPLO} />
+              </JanelaDeMaos>
             ) : cena === 'placa' ? (
               <Placas />
             ) : cena === 'cutin' ? (

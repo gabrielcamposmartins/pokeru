@@ -78,7 +78,7 @@ function CapaBolhas() {
   );
 }
 
-export function MinijogosScreen({ onBack, inicial = null }: { onBack: () => void; inicial?: Minijogo | null }) {
+export function MinijogosScreen({ onBack, inicial = null, nivelInicial }: { onBack: () => void; inicial?: Minijogo | null; /** Só o preview: abre o jogo neste nível. */ nivelInicial?: number }) {
   const [jogando, setJogando] = useState<Minijogo | null>(inicial);
   const jogo = JOGOS.find((j) => j.id === jogando);
   const zerarSessao = useMinijogos((s) => s.zerarSessao);
@@ -94,9 +94,9 @@ export function MinijogosScreen({ onBack, inicial = null }: { onBack: () => void
         <WalletBar />
       </ScreenHeader>
       {jogo?.id === 'joias' ? (
-        <JogoJoias onSair={() => setJogando(null)} />
+        <JogoJoias onSair={() => setJogando(null)} nivelInicial={nivelInicial} />
       ) : jogo?.id === 'bolhas' ? (
-        <JogoBolhas onSair={() => setJogando(null)} />
+        <JogoBolhas onSair={() => setJogando(null)} nivelInicial={nivelInicial} />
       ) : (
         <div className="mj-lista">
           <p className="mj-lista-premio">

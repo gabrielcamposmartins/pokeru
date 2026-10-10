@@ -11,6 +11,8 @@ import { HandGuideButton } from '../game/HandGuide';
 import { BotaoDeSom } from '../ui/Som';
 import { RoundResultScreen } from '../game/RoundResult';
 import { MatchEndScreen } from '../game/MatchEnd';
+import { BotaoPausaMesa, PausaMesa } from '../game/PausaMesa';
+import { BotaoHistoricoMaos } from '../game/HistoricoMaos';
 import { VARIANT_SHORT, fmt, matchLabel } from '../util/format';
 import { sfx } from '../audio/sfx';
 
@@ -56,6 +58,7 @@ export function GameScreen() {
         {view?.status === 'waiting' && (
           <div className="waiting-banner panel">Aguardando jogadores suficientes para continuar…</div>
         )}
+        <PausaMesa />
       </Stage>
       {/*
         * O HUD fica fora do palco, preso nos cantos da **tela**.
@@ -85,6 +88,8 @@ export function GameScreen() {
         </button>
         {/* a dúvida sobre as mãos vem no meio da partida, não antes dela */}
         <HandGuideButton className="btn hud-bt" />
+        <BotaoPausaMesa className="btn hud-bt" />
+        <BotaoHistoricoMaos className="btn hud-bt" />
         <BotaoDeSom className="btn hud-bt" lado="esquerda" />
         <button
           className="btn hud-bt"

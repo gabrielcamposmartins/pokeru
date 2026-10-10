@@ -20,6 +20,7 @@ import { Petals } from './MainMenu';
 import { ChipSvg } from '../render/Chip';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { fmt } from '../util/format';
+import { MaosDaPartidaDoPerfil } from '../game/HistoricoMaos';
 
 /**
  * "Hoje", "ontem", "há três dias".
@@ -39,13 +40,19 @@ function quando(at: string): string {
 
 const fichas = (n: number): string => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString('pt-BR')}`;
 
-/** Uma linha do histórico. */
-function LinhaDaPartida({ r }: { r: ResumoDaPartida }) {
+/** Uma linha do histórico. Clicar nela abre as mãos daquela partida. */
+function LinhaDaPartida({ r, onAbrir }: { r: ResumoDaPartida; onAbrir?: () => void }) {
   const char = findCharacter(r.personagem);
   const traco = tracoDominante(personalidadeDe(r));
   const venceu = r.lugar === 1;
   return (
-    <div className={`hist-linha ${venceu ? 'venceu' : ''}`}>
+    <button
+      type="button"
+      className={`hist-linha ${venceu ? 'venceu' : ''} ${onAbrir ? 'clicavel' : ''}`}
+      onClick={onAbrir}
+      disabled={!onAbrir}
+      title={onAbrir ? 'Ver as mãos desta partida' : undefined}
+    >
       <span className="hist-lugar">{r.lugar > 0 ? <b>{r.lugar}º</b> : <i>saiu</i>}</span>
       <span
         className="hist-char"
@@ -70,7 +77,7 @@ function LinhaDaPartida({ r }: { r: ResumoDaPartida }) {
         {traco.tag}
       </span>
       <span className={`hist-saldo ${r.saldo > 0 ? 'ganhou' : r.saldo < 0 ? 'perdeu' : ''}`}>{r.saldo === 0 ? '—' : fichas(r.saldo)}</span>
-    </div>
+    </button>
   );
 }
 
@@ -80,15 +87,35 @@ function LinhaDaPartida({ r }: { r: ResumoDaPartida }) {
  * São as mesmas que alimentam o gráfico, e é de propósito: ver a lista ao lado da mancha explica
  * de onde ela saiu.
  */
-function Historico({ play }: { play: ResumoDaPartida[] | undefined }) {
+function Historico({ play, conta }: { play: ResumoDaPartida[] | undefined; conta?: string }) {
+  const [aberta, setAberta] = useState<ResumoDaPartida | null>(null);
   if (!play) return <p className="muted small">O histórico fica na conta do servidor.</p>;
   const lista = ultimasPartidas(play, PARTIDAS_NO_HISTORICO);
   if (!lista.length) return <p className="muted small">Nenhuma partida ainda. A primeira aparece aqui assim que acabar.</p>;
   return (
     <div className="hist">
       {lista.map((r) => (
-        <LinhaDaPartida key={r.at} r={r} />
+        <LinhaDaPartida
+          key={r.at}
+          r={r}
+          onAbrir={
+            conta
+              ? () => {
+                  sfx.click();
+                  setAberta(r);
+                }
+              : undefined
+          }
+        />
       ))}
+      {aberta && conta && (
+        <MaosDaPartidaDoPerfil
+          conta={conta}
+          at={aberta.at}
+          titulo={`Mãos da partida · ${aberta.lugar > 0 ? `${aberta.lugar}º de ${aberta.jogadores}` : 'levantou da mesa'} · ${quando(aberta.at)}`}
+          onClose={() => setAberta(null)}
+        />
+      )}
     </div>
   );
 }
@@ -154,7 +181,7 @@ type Aba = 'historico' | 'conquistas';
  * Um container só, onde antes ficavam as conquistas: as duas listas crescem, e empilhadas
  * empurravam uma a outra para fora da tela.
  */
-function AbasDoPerfil({ play, conquistas }: { play: ResumoDaPartida[] | undefined; conquistas: ReactNode }) {
+function AbasDoPerfil({ play, conta, conquistas }: { play: ResumoDaPartida[] | undefined; conta?: string; conquistas: ReactNode }) {
   const [aba, setAba] = useState<Aba>('historico');
   const abas: { id: Aba; label: string }[] = [
     { id: 'historico', label: 'Histórico de partidas' },
@@ -180,7 +207,7 @@ function AbasDoPerfil({ play, conquistas }: { play: ResumoDaPartida[] | undefine
         ))}
       </nav>
       <div className="perfil-abas-corpo" role="tabpanel">
-        {aba === 'historico' ? <Historico play={play} /> : conquistas}
+        {aba === 'historico' ? <Historico play={play} conta={conta} /> : conquistas}
       </div>
     </div>
   );
@@ -230,6 +257,7 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
   const p = useProfile();
   const code = useSession((s) => s.account?.code);
   const play = useSession((s) => s.account?.play);
+  const contaId = useSession((s) => s.account?.id);
   const character = useCharacter();
   const cartao = useMeuCartao();
   const lv = levelInfo(useMyStats());
@@ -277,7 +305,7 @@ export function ProfileScreen({ onBack }: { onBack: () => void }) {
               <EscolhaDeTitulo />
             </div>
           </div>
-          <AbasDoPerfil play={play} conquistas={<ListaDeConquistas rows={conquistas} />} />
+          <AbasDoPerfil play={play} conta={contaId} conquistas={<ListaDeConquistas rows={conquistas} />} />
         </div>
         <div className="painel-col">
           <Section title="Ganhos totais">
@@ -351,7 +379,7 @@ export function PerfilAmigo() {
                   </div>
                 </div>
               </div>
-              <AbasDoPerfil play={perfil.play} conquistas={<ListaDeConquistas rows={achievementRows(perfil.stats)} />} />
+              <AbasDoPerfil play={perfil.play} conta={perfil.id} conquistas={<ListaDeConquistas rows={achievementRows(perfil.stats)} />} />
             </div>
             <div className="perfil-amigo-col">
               <Section title={`Como ${c.name} joga`}>

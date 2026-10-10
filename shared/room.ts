@@ -29,6 +29,8 @@ import {
   type TableView,
 } from './protocol';
 import type { Opening, OpeningPlayer } from './protocol';
+import { PAUSA_ESPERA_MS, PAUSA_MAX_MS, PAUSA_VOTO_MS, type PausaInfo } from './pausa';
+import { MAOS_POR_PARTIDA, type JogadorDaMao, type MaoDaPartida } from './historico';
 import {
   AVATAR_ICONS,
   BACK_PRESETS,
@@ -267,6 +269,21 @@ export class Room {
    * (o tempo limite e a última confirmação podem cair quase juntos).
    */
   private opening: { ready: Set<string>; began: boolean; at: number } | null = null;
+  /**
+   * A pausa (veja shared/pausa.ts): a votação aberta, a espera pelo fim da mão, ou a mesa parada.
+   * `ate` é o horário (deste relógio) em que a votação cai ou em que a partida é encerrada.
+   */
+  private pausaAtual: { estado: PausaInfo['estado']; por: string; nome: string; aceitos: Set<string>; ate: number } | null = null;
+  private pausaTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Quem teve um pedido de pausa recusado (ou vencido) só pede de novo depois deste horário. */
+  private pausaEspera = new Map<string, number>();
+  /**
+   * O histórico das mãos desta partida (shared/historico.ts), com as cartas fechadas de todos —
+   * quem vê recebe só o que pode ver (veja `maosPara`).
+   */
+  private registro: { n: number; mesa: Card[]; pote: number; jogadores: (JogadorDaMao & { id: string; hole: Card[] })[] }[] = [];
+  /** O que foi mostrado no showdown da mão em andamento. */
+  private revelados: { seat: number; cards: Card[]; hand: string }[] = [];
 
   constructor(id: string, settings: RoomSettings, host: ClientHandle) {
     this.id = id;
@@ -348,6 +365,7 @@ export class Room {
           back: m.cosmetics.back,
           conta: m.accountId,
         })),
+      pausa: this.pausaInfo(),
     };
   }
 
@@ -561,6 +579,7 @@ export class Room {
       const next = this.humans().find((h) => !h.leaving);
       if (next) this.hostId = next.id;
     }
+    if (this.humanCount > 0) this.conferirVotos();
     if (this.humanCount === 0) {
       /*
        * A última pessoa saiu — e pode ter saído no meio de uma mão.
@@ -711,6 +730,7 @@ export class Room {
     this.status = 'playing';
     this.handNo = 0;
     this.eliminated = [];
+    this.registro = [];
     this.smallBlind = this.settings.smallBlind;
     this.bigBlind = this.settings.bigBlind;
     for (const m of seated) {
@@ -930,6 +950,7 @@ export class Room {
   /** Retoma o jogo em modo cash quando havia menos de 2 jogadores. */
   private maybeResume(): void {
     if (this.status !== 'playing' || this.opening) return;
+    if (this.pausaAtual && this.pausaAtual.estado !== 'votando') return;
     if ((!this.hand || this.handClosed) && !this.nextHandScheduled && this.queue.length === 0 && !this.pumping) {
       this.nextHandScheduled = true;
       this.later(() => {
@@ -943,6 +964,11 @@ export class Room {
 
   private startHand(): void {
     if (this.status !== 'playing' || this.opening) return;
+    // mesa pausada não reparte (um começo de mão agendado antes da pausa cai aqui)
+    if (this.pausaAtual && this.pausaAtual.estado !== 'votando') {
+      if (this.pausaAtual.estado === 'aguardando') this.comecarPausa();
+      return;
+    }
     this.rushing = false;
     // limpa quem saiu (e resolve as fichas pela mesma regra de quem levantou na hora)
     for (const m of this.members()) {
@@ -993,7 +1019,10 @@ export class Room {
         bigBlind: this.bigBlind,
         variant: this.settings.variant,
       },
-      (ev) => this.emit(ev),
+      (ev) => {
+        if (ev.t === 'showdown') this.revelados = ev.reveals;
+        this.emit(ev);
+      },
     );
     if (this.settings.mode === 'normal') {
       const left = this.settings.rounds - this.handNo;
@@ -1041,6 +1070,7 @@ export class Room {
     });
     this.awardBond(h);
     this.notePlayHand(h);
+    this.registrarMao(h);
     this.emit({ t: 'handEnd' });
     if (this.closedGame() && (alive() <= 1 || this.semGenteViva())) this.finishGame();
     else if (this.roundsOver()) this.finishGame();
@@ -1112,6 +1142,7 @@ export class Room {
 
   private finishGame(): void {
     this.status = 'finished';
+    this.encerrarPausa();
     const alive = this.members().filter((m) => !m.busted && !m.leaving);
     const ranking = [
       ...alive.sort((a, b) => b.stack - a.stack).map((m, i) => ({ name: m.name, seat: m.seat, place: i + 1 })),
@@ -1201,7 +1232,13 @@ export class Room {
     return bonusPado(this.settings.difficulty ?? 'normal', false);
   }
 
-  /** Permite ao anfitrião reiniciar a sala após o fim do Sit & Go. */
+  /**
+   * Permite ao anfitrião reiniciar a sala após o fim do Sit & Go.
+   *
+   * Numa mesa a dinheiro a pilha **não** volta aqui: as fichas da partida que acabou já voltaram
+   * para o saldo de cada um, e a pilha da próxima é o buy-in pago de novo (veja `revanche`). Dar a
+   * pilha de graça aqui era o "jogar de novo" que não cobrava nada.
+   */
   reset(byId: string): string | null {
     if (byId !== this.hostId) return 'Apenas o anfitrião pode reiniciar';
     if (this.status !== 'finished') return null;
@@ -1209,10 +1246,269 @@ export class Room {
     this.hand = null;
     for (const m of this.members()) {
       m.busted = false;
-      m.stack = this.settings.startingStack;
+      if (!this.paid()) m.stack = this.settings.startingStack;
     }
     this.broadcastRoom();
     return null;
+  }
+
+  private cobrandoRevanche = false;
+
+  /**
+   * "Jogar de novo" numa mesa a dinheiro: cobra o buy-in outra vez de cada jogador.
+   *
+   * É a mesma régua de quem senta pela primeira vez: paga quem tem saldo; na mesa do recomeço
+   * (o fácil contra bots, ou a Custom do recomeço) quem não tem senta de graça; nas outras, quem não
+   * tem fica de fora desta partida. Se não sobrarem dois para jogar, ninguém paga nada — o que foi
+   * cobrado volta — e a revanche não acontece.
+   */
+  async revanche(): Promise<string | null> {
+    if (!this.paid()) return null;
+    if (this.cobrandoRevanche) return 'O buy-in da revanche já está sendo cobrado';
+    this.cobrandoRevanche = true;
+    try {
+      const cobrados: Member[] = [];
+      for (const m of this.members()) {
+        if (m.leaving) continue;
+        m.stack = 0;
+        m.investido = 0;
+        m.pagou = false;
+        m.adiantamento = 0;
+        if (m.isBot) {
+          m.stack = this.settings.buyIn;
+          continue;
+        }
+        if (!m.accountId) continue;
+        const pago = await this.cobra(m.accountId, this.settings.buyIn);
+        if (this.destroyed) return null;
+        if (pago > 0) {
+          m.stack = pago;
+          m.investido = pago;
+          m.pagou = true;
+          cobrados.push(m);
+        } else if (this.settings.recomeco) {
+          m.stack = this.settings.startingStack;
+          m.investido = m.stack;
+          this.system(`${m.name} joga de novo sem saldo: a partida do recomeço senta de graça.`);
+        } else if (this.recomecoCustom()) {
+          m.stack = RECOMECO_CUSTOM;
+          m.investido = m.stack;
+          m.adiantamento = RECOMECO_CUSTOM;
+          this.system(`${m.name} sentou de graça com ${RECOMECO_CUSTOM} para recomeçar: leva o que passar disso.`);
+        } else {
+          this.system(`${m.name} não tem saldo para o buy-in e fica de fora desta partida.`);
+        }
+      }
+      if (this.members().filter((m) => !m.leaving && m.stack > 0).length < 2) {
+        for (const m of cobrados) this.cashOut(m);
+        return 'Saldo insuficiente para o buy-in: a revanche não começou';
+      }
+      return null;
+    } finally {
+      this.cobrandoRevanche = false;
+    }
+  }
+
+  // ------------------------------------------------------------------ histórico das mãos
+
+  /** A mão acabou: vira registro, e cada um recebe o histórico como ele pode ver. */
+  private registrarMao(h: Hand): void {
+    const levou = new Map<number, number>();
+    for (const pot of h.results) for (const w of pot.winners) levou.set(w.seat, (levou.get(w.seat) ?? 0) + w.amount);
+    const mostradas = new Map(this.revelados.map((r) => [r.seat, r]));
+    const jogadores = h.players.map((p) => {
+      const m = this.memberById(p.id);
+      const r = mostradas.get(p.seat);
+      const ganho = levou.get(p.seat) ?? 0;
+      return {
+        id: p.id,
+        hole: p.hole.slice(),
+        seat: p.seat,
+        nome: m?.name ?? 'Jogador',
+        bot: !!m?.isBot,
+        personagem: m?.handCharacter ?? m?.cosmetics.character.id ?? '',
+        ...(r ? { cartas: r.cards.slice(), mao: r.hand } : {}),
+        apostou: p.total,
+        resultado: ganho - p.total,
+        desistiu: p.folded,
+        venceu: ganho > 0,
+        allIn: p.allIn,
+      };
+    });
+    this.registro.push({ n: this.handNo, mesa: h.board.slice(), pote: h.players.reduce((t, p) => t + p.total, 0), jogadores });
+    if (this.registro.length > MAOS_POR_PARTIDA) this.registro.shift();
+    this.revelados = [];
+    for (const m of this.humans()) if (m.connected) m.client!.send({ type: 'maos', maos: this.maosPara(m.id) });
+  }
+
+  /**
+   * O histórico visto por um membro: as cartas dele (mesmo nas mãos em que desistiu) e as que os
+   * outros mostraram no showdown. As fechadas dos outros não saem daqui.
+   */
+  private maosPara(id: string): MaoDaPartida[] {
+    return this.registro.map((r) => {
+      const eu = r.jogadores.find((j) => j.id === id);
+      return {
+        n: r.n,
+        mesa: r.mesa,
+        pote: r.pote,
+        jogadores: r.jogadores.map(({ id: _id, hole: _hole, ...j }) => j),
+        ...(eu ? { meuAssento: eu.seat, minhas: eu.hole } : {}),
+      };
+    });
+  }
+
+  // ------------------------------------------------------------------ pausa
+
+  /**
+   * Quem vota a pausa: os jogadores de verdade sentados, conectados e ainda na partida. Bot não vota;
+   * quem caiu da conexão não teria como responder (e travaria toda votação); quem já foi eliminado
+   * está só assistindo.
+   */
+  private votantes(): Member[] {
+    return this.humans().filter((m) => m.connected && !m.leaving && !m.busted);
+  }
+
+  private pausaInfo(): PausaInfo | null {
+    const p = this.pausaAtual;
+    if (!p) return null;
+    return {
+      estado: p.estado,
+      por: p.por,
+      nome: p.nome,
+      aceitos: [...p.aceitos],
+      votantes: this.votantes().map((m) => m.id),
+      restaMs: p.estado === 'aguardando' ? null : Math.max(0, p.ate - Date.now()),
+    };
+  }
+
+  private limparTimerDaPausa(): void {
+    if (!this.pausaTimer) return;
+    clearTimeout(this.pausaTimer);
+    this.timers.delete(this.pausaTimer);
+    this.pausaTimer = null;
+  }
+
+  /** Some com a pausa (sem avisar ninguém: quem chama diz o porquê). */
+  private encerrarPausa(): void {
+    this.limparTimerDaPausa();
+    this.pausaAtual = null;
+  }
+
+  /**
+   * Pedir, aceitar, recusar ou retomar a pausa. Devolve o erro, ou null.
+   *
+   * A regra: alguém pede, **todos** os votantes aceitam, e a mesa para quando a mão em andamento
+   * acabar — parar no meio de uma mão deixaria cartas e apostas no ar. Uma recusa derruba o pedido,
+   * e quem pediu espera um minuto para pedir de novo (para o pedido não virar insistência). Para
+   * voltar basta um: ninguém fica preso numa mesa parada pela vontade dos outros.
+   */
+  pausa(clientId: string, acao: 'pedir' | 'aceitar' | 'recusar' | 'retomar'): string | null {
+    const m = this.memberById(clientId);
+    if (!m || m.isBot) return 'Você não está na mesa';
+    const p = this.pausaAtual;
+    switch (acao) {
+      case 'pedir': {
+        if (this.status !== 'playing' || this.opening) return 'Só dá para pausar com a partida em andamento';
+        if (m.busted || m.leaving) return 'Só quem está jogando pede pausa';
+        if (p) return p.estado === 'votando' ? 'Já há um pedido de pausa' : 'A mesa já vai pausar';
+        const espera = (this.pausaEspera.get(m.id) ?? 0) - Date.now();
+        if (espera > 0) return `Espere ${Math.ceil(espera / 1000)}s para pedir pausa de novo`;
+        this.pausaAtual = { estado: 'votando', por: m.id, nome: m.name, aceitos: new Set([m.id]), ate: Date.now() + PAUSA_VOTO_MS };
+        this.pausaTimer = this.later(() => {
+          this.pausaTimer = null;
+          if (this.pausaAtual?.estado !== 'votando') return;
+          this.pausaEspera.set(this.pausaAtual.por, Date.now() + PAUSA_ESPERA_MS);
+          this.encerrarPausa();
+          this.system('O pedido de pausa não foi aceito por todos a tempo.');
+          this.broadcastRoom();
+        }, PAUSA_VOTO_MS);
+        if (this.votantes().length > 1) this.system(`${m.name} pediu para pausar a mesa. Todos precisam aceitar.`);
+        this.conferirVotos();
+        this.broadcastRoom();
+        return null;
+      }
+      case 'aceitar': {
+        if (!p || p.estado !== 'votando') return null;
+        p.aceitos.add(m.id);
+        this.conferirVotos();
+        this.broadcastRoom();
+        return null;
+      }
+      case 'recusar': {
+        if (!p || p.estado !== 'votando') return null;
+        this.pausaEspera.set(p.por, Date.now() + PAUSA_ESPERA_MS);
+        this.encerrarPausa();
+        this.system(`${m.name} recusou a pausa.`);
+        this.broadcastRoom();
+        return null;
+      }
+      case 'retomar': {
+        if (!p || p.estado === 'votando') return null;
+        this.encerrarPausa();
+        this.system(`${m.name} retomou a partida.`);
+        this.broadcastRoom();
+        this.maybeResume();
+        return null;
+      }
+    }
+  }
+
+  /** Todos os votantes aceitaram? Então a pausa foi aprovada (e começa já, ou no fim da mão). */
+  private conferirVotos(): void {
+    const p = this.pausaAtual;
+    if (!p || p.estado !== 'votando') return;
+    const faltam = this.votantes().filter((v) => !p.aceitos.has(v.id));
+    if (faltam.length) return;
+    this.limparTimerDaPausa();
+    const emMao = !!this.hand && !this.handClosed;
+    if (emMao) {
+      p.estado = 'aguardando';
+      this.system('Pausa aprovada: a mesa para quando esta mão acabar.');
+      return;
+    }
+    this.comecarPausa();
+  }
+
+  /**
+   * A mesa para. O prazo começa a correr: sem ninguém retomar em `PAUSA_MAX_MS`, a partida é
+   * encerrada (veja `encerrarPorPausa`).
+   */
+  private comecarPausa(): void {
+    const p = this.pausaAtual;
+    if (!p) return;
+    this.limparTimerDaPausa();
+    p.estado = 'pausada';
+    p.ate = Date.now() + PAUSA_MAX_MS;
+    this.pausaTimer = this.later(() => {
+      this.pausaTimer = null;
+      if (this.pausaAtual?.estado === 'pausada') this.encerrarPorPausa();
+    }, PAUSA_MAX_MS);
+    this.system('Mesa pausada. Qualquer jogador pode retomar; depois de duas horas parada, a partida é encerrada.');
+    this.broadcastRoom();
+  }
+
+  /**
+   * Duas horas parada: a partida acaba aqui, sem vencedor e sem prêmio — cada um recebe de volta as
+   * fichas que tinha na mesa, e todos voltam ao menu. Não é ninguém saindo no meio (que perderia as
+   * fichas numa partida normal): foi a mesa que fechou.
+   */
+  private encerrarPorPausa(): void {
+    this.encerrarPausa();
+    this.status = 'finished';
+    const motivo = 'A mesa ficou duas horas em pausa e a partida foi encerrada. As fichas que você tinha na mesa voltaram para a conta.';
+    for (const m of this.members()) {
+      this.guardarResumo(m);
+      this.cashOut(m);
+    }
+    for (const m of this.humans()) {
+      m.client?.send({ type: 'left', motivo });
+      m.client = null;
+      m.connected = false;
+    }
+    this.seats.fill(null);
+    this.destroy();
+    this.onEmpty();
   }
 
   // ------------------------------------------------------------------ fila de eventos
@@ -1293,6 +1589,11 @@ export class Room {
       this.closeHand();
       return;
     }
+    if (this.pausaAtual?.estado === 'aguardando') {
+      this.comecarPausa();
+      return;
+    }
+    if (this.pausaAtual?.estado === 'pausada') return;
     if (this.status === 'playing' && !this.nextHandScheduled) {
       this.nextHandScheduled = true;
       this.later(
@@ -1524,7 +1825,8 @@ export class Room {
     // o que sobrou na mesa menos tudo o que entrou nela (rebuy incluso)
     r.saldo = m.stack - m.investido;
     r.personagem = m.matchCharacter ?? m.handCharacter ?? m.cosmetics.character.id;
-    this.bank?.play?.(m.accountId, r);
+    // as mãos em que ele estava, cada uma vista por ele (as cartas dele, e as que os outros mostraram)
+    this.bank?.play?.(m.accountId, r, this.maosPara(m.id).filter((x) => x.meuAssento !== undefined));
   }
 
   /**

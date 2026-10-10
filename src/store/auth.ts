@@ -95,6 +95,8 @@ export interface AuthState {
   token: string | null;
   /** Id do Discord vinculado, segundo a sessão (null = sem vínculo). */
   discord: string | null;
+  /** E-mail de recuperação, quando o serviço disse qual é (null = nenhum, ou não sabido nesta sessão). */
+  email: string | null;
   remember: boolean;
   error: string | null;
   /** O serviço de contas está no ar? (descoberto no `/health` do servidor) */
@@ -114,8 +116,17 @@ export interface AuthState {
   sessaoVencida(): void;
   /** Entra: pede o token ao serviço e guarda a sessão se "lembrar" estiver marcado. */
   signIn(user: string, password: string): Promise<boolean>;
-  /** Cria a conta e já entra. */
-  register(user: string, password: string): Promise<boolean>;
+  /** Cria a conta e já entra. O e-mail é o que permite recuperar a senha sem o Discord. */
+  register(user: string, password: string, email?: string): Promise<boolean>;
+  /**
+   * Esqueci a senha: pede o código, que chega na DM do Discord vinculado ou no e-mail da conta.
+   * Devolve para onde foi (o apelido ou o e-mail mascarado), ou o erro.
+   */
+  recuperarPedir(user: string, via: 'discord' | 'email'): Promise<{ destino: string } | { erro: string }>;
+  /** Troca a senha com o código e já entra com a nova. Devolve o erro, ou null. */
+  recuperarConfirmar(user: string, code: string, password: string): Promise<string | null>;
+  /** Cadastra, troca ou apaga (vazio) o e-mail de recuperação, confirmando com a senha. */
+  trocarEmail(email: string, password: string): Promise<string | null>;
   /** Segue sem conta (o jogo offline e as mesas livres continuam valendo). */
   continueOffline(): void;
   /** Sai: esquece a sessão guardada. */
@@ -170,6 +181,7 @@ interface LoginReply {
   token: string;
   user: string;
   discord: string | null;
+  email?: string | null;
 }
 
 export const useAuth = create<AuthState>()((set, get) => ({
@@ -177,6 +189,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
   user: null,
   token: null,
   discord: null,
+  email: null,
   remember: hasSavedSession(),
   error: null,
   serviceReady: false,
@@ -222,8 +235,52 @@ export const useAuth = create<AuthState>()((set, get) => ({
     return enter(set, get, '/login', user, password);
   },
 
-  async register(user, password) {
-    return enter(set, get, '/register', user, password);
+  async register(user, password, email) {
+    return enter(set, get, '/register', user, password, email);
+  },
+
+  async recuperarPedir(user, via) {
+    const name = user.trim();
+    if (!name) return { erro: 'Digite o seu usuário.' };
+    set({ busy: true });
+    try {
+      const r = await call<{ destino: string | null }>('/recover', { method: 'POST', body: JSON.stringify({ user: name, via }) });
+      return { destino: r.destino ?? (via === 'email' ? 'o seu e-mail' : 'a sua DM do Discord') };
+    } catch (err) {
+      return { erro: why(err) };
+    } finally {
+      set({ busy: false });
+    }
+  },
+
+  async recuperarConfirmar(user, code, password) {
+    if (password.length < 8) return 'A senha nova precisa de pelo menos 8 caracteres.';
+    set({ busy: true });
+    try {
+      const r = await call<LoginReply>('/recover/confirm', { method: 'POST', body: JSON.stringify({ user: user.trim(), code: code.trim(), password }) });
+      await entrou(set, get, r);
+      return null;
+    } catch (err) {
+      return why(err);
+    } finally {
+      set({ busy: false });
+    }
+  },
+
+  async trocarEmail(email, password) {
+    const user = get().user;
+    if (!user) return 'entre na sua conta primeiro';
+    if (!password) return 'confirme com a sua senha';
+    set({ busy: true });
+    try {
+      const r = await call<{ email: string | null }>('/email', { method: 'POST', body: JSON.stringify({ user, password, email: email.trim() }) });
+      set({ email: r.email ?? null });
+      return null;
+    } catch (err) {
+      return why(err);
+    } finally {
+      set({ busy: false });
+    }
   },
 
   continueOffline: () => set({ status: 'offline', error: null }),
@@ -238,7 +295,7 @@ export const useAuth = create<AuthState>()((set, get) => ({
     await clearSession();
     // a chave de volta vai junto: sair tem de sair de verdade
     useProfile.getState().forgetAccount(SERVER_URL);
-    set({ status: 'anon', user: null, token: null, discord: null, remember: false, error: null });
+    set({ status: 'anon', user: null, token: null, discord: null, email: null, remember: false, error: null });
   },
 
   async discordCode(quem) {
@@ -289,6 +346,21 @@ export const useAuth = create<AuthState>()((set, get) => ({
   },
 }));
 
+/** O serviço devolveu o token (entrar, cadastrar ou trocar a senha pelo código): a sessão começa. */
+async function entrou(set: (p: Partial<AuthState>) => void, get: () => AuthState, r: LoginReply): Promise<void> {
+  // guarda usuário e token; a senha morre aqui
+  if (get().remember) await saveSession({ user: r.user, token: r.token });
+  set({
+    status: 'logged',
+    user: r.user,
+    token: r.token,
+    discord: r.discord ?? readClaims(r.token)?.discord_id ?? null,
+    email: r.email ?? null,
+    error: null,
+    serviceReady: true,
+  });
+}
+
 /** Entrar e cadastrar são a mesma coisa com rotas diferentes: o serviço devolve o token nos dois. */
 async function enter(
   set: (p: Partial<AuthState>) => void,
@@ -296,6 +368,7 @@ async function enter(
   path: '/login' | '/register',
   user: string,
   password: string,
+  email?: string,
 ): Promise<boolean> {
   const name = user.trim();
   if (!name || !password) {
@@ -306,12 +379,14 @@ async function enter(
     set({ error: 'A senha precisa de pelo menos 8 caracteres.' });
     return false;
   }
+  if (path === '/register' && !email?.trim()) {
+    set({ error: 'Informe um e-mail: é por ele que você recupera a senha se esquecer.' });
+    return false;
+  }
   set({ status: 'signing', error: null });
   try {
-    const r = await call<LoginReply>(path, { method: 'POST', body: JSON.stringify({ user: name, password }) });
-    // guarda usuário e token; a senha morre aqui
-    if (get().remember) await saveSession({ user: r.user, token: r.token });
-    set({ status: 'logged', user: r.user, token: r.token, discord: r.discord ?? readClaims(r.token)?.discord_id ?? null, error: null, serviceReady: true });
+    const r = await call<LoginReply>(path, { method: 'POST', body: JSON.stringify({ user: name, password, ...(email?.trim() ? { email: email.trim() } : {}) }) });
+    await entrou(set, get, r);
     return true;
   } catch (err) {
     set({ status: 'anon', error: why(err) });
