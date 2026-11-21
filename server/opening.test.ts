@@ -94,8 +94,8 @@ describe('abertura da partida', () => {
 
     a.conn.handle({ type: 'startGame' });
     a.conn.handle({ type: 'ready' });
-    // Marina nunca confirma
-    await vi.advanceTimersByTimeAsync(11_000);
+    // Marina nunca confirma (o limite é de 25 s: a abertura também modela os personagens da mesa 3D)
+    await vi.advanceTimersByTimeAsync(24_000);
     expect(comecou(a)).toBe(false);
     await vi.advanceTimersByTimeAsync(2_000);
     expect(comecou(a)).toBe(true);

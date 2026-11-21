@@ -105,7 +105,7 @@ export interface Drop {
 }
 
 /** Tipos que a roleta sorteia: cosmético e presente. Aparência da interface se compra, não se tira. */
-const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'aura', 'frame', 'back', 'face', 'chip', 'table', 'gift'];
+const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'aura', 'frame', 'acessorio', 'back', 'face', 'chip', 'table', 'gift'];
 
 /**
  * De qual roleta sai cada peça — todas, menos os personagens (esses vão pelo gênero).
@@ -124,6 +124,59 @@ const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'aura', 'frame', 'back
  * roulette.test.ts falha, que é para ninguém esquecer.
  */
 const ROLETA_DE: Record<string, 'flores' | 'dragao'> = {
+  /*
+   * Os acessórios das mãos: metade em cada roleta, e a mesma conta em cada degrau — o claro, a
+   * flor e a pérola para as Flores; o escuro, o couro e o metal para o Dragão. Assim nenhum tipo e
+   * nenhum degrau pende para um lado.
+   */
+  'acessorio:anel-coracao': 'flores',
+  'acessorio:relogio-rose': 'flores',
+  'acessorio:relogio-lua': 'flores',
+  'acessorio:luva-opera': 'flores',
+  'acessorio:anel-solitario': 'flores',
+  'acessorio:anel-trinca': 'flores',
+  'acessorio:anel-perola': 'flores',
+  'acessorio:anel-safira': 'flores',
+  'acessorio:anel-gota': 'flores',
+  'acessorio:relogio-classico': 'flores',
+  'acessorio:relogio-joia': 'flores',
+  'acessorio:pulseira-riviera': 'flores',
+  'acessorio:luva-meio-dedo-branca': 'flores',
+  'acessorio:luva-renda': 'flores',
+  'acessorio:esmalte-degrade': 'flores',
+  'acessorio:pulseira-perolas': 'flores',
+  'acessorio:luva-branca': 'flores',
+  'acessorio:esmalte-lilas': 'flores',
+  'acessorio:esmalte-francesinha': 'flores',
+  'acessorio:esmalte-cromado': 'flores',
+  'acessorio:pulseira-contas': 'flores',
+  'acessorio:esmalte-rosa': 'flores',
+  'acessorio:esmalte-branco': 'flores',
+  'acessorio:esmalte-azul': 'flores',
+  'acessorio:anel-onix': 'dragao',
+  'acessorio:relogio-noturno': 'dragao',
+  'acessorio:relogio-mergulho': 'dragao',
+  'acessorio:luva-manopla': 'dragao',
+  'acessorio:anel-esmeralda': 'dragao',
+  'acessorio:anel-serpente': 'dragao',
+  'acessorio:anel-sinete': 'dragao',
+  'acessorio:anel-rubi': 'dragao',
+  'acessorio:relogio-esportivo': 'dragao',
+  'acessorio:pulseira-espinhos': 'dragao',
+  'acessorio:pulseira-corrente': 'dragao',
+  'acessorio:pulseira-argolas': 'dragao',
+  'acessorio:luva-meio-dedo-vermelha': 'dragao',
+  'acessorio:luva-tatica': 'dragao',
+  'acessorio:esmalte-galaxia': 'dragao',
+  'acessorio:anel-ebano': 'dragao',
+  'acessorio:relogio-digital': 'dragao',
+  'acessorio:luva-couro': 'dragao',
+  'acessorio:esmalte-vinho': 'dragao',
+  'acessorio:esmalte-dourado': 'dragao',
+  'acessorio:pulseira-couro': 'dragao',
+  'acessorio:pulseira-cordao': 'dragao',
+  'acessorio:esmalte-vermelho': 'dragao',
+  'acessorio:esmalte-preto': 'dragao',
   // ---------------------------------------------------------------- Roleta das Flores
   // lendário (e a Yukina)
   'face:face-glass': 'flores',

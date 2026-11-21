@@ -15,6 +15,26 @@ import { BotaoPausaMesa, PausaMesa } from '../game/PausaMesa';
 import { BotaoHistoricoMaos } from '../game/HistoricoMaos';
 import { VARIANT_SHORT, fmt, matchLabel } from '../util/format';
 import { sfx } from '../audio/sfx';
+import { textoDoAndamento, useModelos } from '../mesa3d/modelos';
+import { usar3D } from '../mesa3d/modo';
+
+/**
+ * A mesa ainda não chegou. Na partida offline é aqui que se espera a modelagem dos personagens da
+ * mesa 3D (ela não tem abertura: começa quando os modelos ficam prontos), e o andamento aparece.
+ */
+function Preparando() {
+  const andamento = useModelos();
+  const room = useSession((s) => s.room);
+  const texto = usar3D() ? textoDoAndamento(andamento, room?.members.map((m) => m.character.id) ?? []) : null;
+  return (
+    <div className="loading">
+      <div>
+        Preparando a mesa…
+        {texto && <small className="loading-sub">{texto}</small>}
+      </div>
+    </div>
+  );
+}
 
 export function GameScreen() {
   const view = useTable((s) => s.display);
@@ -43,7 +63,7 @@ export function GameScreen() {
   return (
     <div className="game-screen">
       <Stage className="sala-fundo" style={sala}>
-        {view ? <TableStage /> : <div className="loading">Preparando a mesa…</div>}
+        {view ? <TableStage /> : <Preparando />}
         <ActionPanel />
         <WinSplash />
         <RoundResultScreen />

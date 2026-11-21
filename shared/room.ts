@@ -1,4 +1,5 @@
 import { randomInt, type Card } from './cards';
+import { TEMPO_DE_ABRIR, TEMPO_DE_PEGAR, tempoDeRepartir } from './ritmo';
 import type { TableBank } from './accounts';
 import type { BondEvent } from './bond';
 import { XP } from './achievements';
@@ -206,8 +207,15 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
  * Todos os eventos da mão passam por uma fila com pausas, para que as animações dos clientes
  * tenham tempo de acontecer antes da próxima decisão.
  */
-/** Quanto a abertura espera, no máximo, pelas confirmações. */
-const OPENING_MAX_MS = 12_000;
+/**
+ * Quanto a abertura espera, no máximo, pelas confirmações.
+ *
+ * Eram 12 s, para baixar a arte. Com a mesa 3D a abertura também modela os personagens (o corpo e
+ * as roupas, gerados por código: segundos em cada máquina, mais na primeira partida e num
+ * computador fraco), e o cliente só confirma depois. Quem ainda assim passar do limite não trava
+ * ninguém: a mesa começa, e o personagem dele senta quando ficar pronto.
+ */
+const OPENING_MAX_MS = 25_000;
 /**
  * Quanto a abertura fica no ar, no mínimo.
  *
@@ -1514,14 +1522,14 @@ export class Room {
   // ------------------------------------------------------------------ fila de eventos
 
   private delayFor(ev: TableEvent): number {
-    const n = this.hand?.players.length ?? 2;
     switch (ev.t) {
       case 'handStart':
         return 700;
       case 'blinds':
         return 900;
       case 'deal':
-        return 500 + n * 2 * 170 + 500;
+        // (o dealer reparte com as mãos, carta por carta: veja shared/ritmo.ts)
+        return 500 + TEMPO_DE_PEGAR + tempoDeRepartir(ev.order.length) + 500;
       case 'action':
         return ev.action === 'fold' ? 900 : ev.action === 'check' ? 850 : ev.action === 'allin' ? 1400 : 1050;
       case 'refund':
@@ -1530,9 +1538,9 @@ export class Room {
         return 850;
       case 'street':
         // no poker de 5 cartas as "ruas" da troca não põem cartas na mesa: pausa curta
-        return ev.street === 'flop' ? 1500 : ev.street === 'draw' || ev.street === 'postdraw' ? 700 : 1100;
+        return ev.street === 'flop' ? TEMPO_DE_ABRIR.flop + 200 : ev.street === 'draw' || ev.street === 'postdraw' ? 700 : TEMPO_DE_ABRIR.uma + 150;
       case 'draw':
-        return ev.discards.length ? 1100 : 700;
+        return ev.discards.length ? 800 + tempoDeRepartir(ev.discards.length) : 700;
       case 'showdown':
         return 900 + 700 * ev.reveals.length;
       case 'win':

@@ -19,7 +19,9 @@ import { nivelSubiu } from './nivel';
 import { playerLevel } from '../../shared/achievements';
 import { useAuth } from './auth';
 import { findGift, findItem } from '../../shared/catalog';
-import { findCharacter } from '../../shared/styles';
+import { CHARACTER_PRESETS, findCharacter } from '../../shared/styles';
+import { prepararAte, vestido } from '../mesa3d/modelos';
+import { usar3D } from '../mesa3d/modo';
 import { useRoleta } from './roleta';
 import { useMinijogos } from './minijogos';
 import { useRanking } from './ranking';
@@ -539,7 +541,22 @@ export const useSession = create<SessionState>()((set, get) => ({
     transport = t;
     t.send(hello());
     t.send({ type: 'createRoom', settings: botRoomSettings(o, 'Treino Offline') });
-    seatBotsAndStart(t, o);
+    if (!usar3D()) {
+      seatBotsAndStart(t, o);
+      return;
+    }
+    /*
+     * A mesa 3D precisa dos personagens modelados. Online isso acontece na abertura (a tela de
+     * carregamento, que espera cada um); a partida offline não tem abertura — começa direto —,
+     * então ela só começa quando os modelos ficam prontos, com o "Preparando a mesa…" da tela de
+     * jogo no ar. Os bots sentam antes: é deles que sai quem precisa ser modelado.
+     */
+    for (let i = 0; i < o.bots; i++) t.send({ type: 'addBot', difficulty: o.difficulty });
+    const quem = get().room?.members.map((m) => m.character.id) ?? CHARACTER_PRESETS.map((c) => c.id);
+    const eu = useProfile.getState();
+    void prepararAte([...quem, vestido(findCharacter(eu.character).id, eu.acessorios.luva)], 40_000).then(() => {
+      if (transport === t) t.send({ type: 'startGame' });
+    });
   },
 
   send(msg) {

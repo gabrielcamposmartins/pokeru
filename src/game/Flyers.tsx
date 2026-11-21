@@ -32,7 +32,7 @@ function CardFlyer({ f }: { f: Flyer }) {
       transition={{ duration: dur, ease: [0.25, 0.7, 0.35, 1] }}
       onAnimationComplete={() => f.onDone?.()}
     >
-      <CardView card={f.card ?? null} faceUp={!!f.faceUp && !!f.card} width={w} back={f.back} />
+      <CardView card={f.card ?? null} faceUp={!!f.faceUp && !!f.card} width={w} back={f.back} face={f.face} />
     </motion.div>
   );
 }

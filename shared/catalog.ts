@@ -1,3 +1,4 @@
+import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, findAcessorio, type Acessorios } from './acessorios';
 import { componentesDe, encaixar } from './componentes';
 import {
   AURA_IDS,
@@ -31,7 +32,7 @@ import {
  * Discord vinculado à conta.
  */
 
-export type ItemKind = 'character' | 'face' | 'back' | 'chip' | 'table' | 'winfx' | 'aura' | 'frame' | 'ui' | 'gift';
+export type ItemKind = 'character' | 'face' | 'back' | 'chip' | 'table' | 'winfx' | 'aura' | 'frame' | 'acessorio' | 'ui' | 'gift';
 
 export const KIND_LABELS: Record<ItemKind, string> = {
   character: 'Personagens',
@@ -42,6 +43,7 @@ export const KIND_LABELS: Record<ItemKind, string> = {
   winfx: 'Efeitos de vitória',
   aura: 'Auras',
   frame: 'Molduras do retrato',
+  acessorio: 'Acessórios',
   ui: 'Aparência da interface',
   gift: 'Presentes',
 };
@@ -57,7 +59,7 @@ export const KIND_LABELS: Record<ItemKind, string> = {
  * Quem decide isto é o servidor: `buy` recusa chave de tipo que não esteja em VENDIDOS.
  */
 export const VENDIDOS: readonly ItemKind[] = ['gift', 'ui'];
-export const GALERIA: readonly ItemKind[] = ['character', 'aura', 'frame', 'winfx', 'back', 'face', 'chip', 'table'];
+export const GALERIA: readonly ItemKind[] = ['character', 'aura', 'frame', 'acessorio', 'winfx', 'back', 'face', 'chip', 'table'];
 
 export const isSold = (kind: ItemKind): boolean => VENDIDOS.includes(kind);
 
@@ -195,6 +197,62 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'face:face-jade': 'incomum',
   'gift:incenso': 'incomum',
   'gift:livro': 'incomum',
+  /*
+   * Os acessórios das mãos.
+   *
+   * **Joia é rara.** Os anéis, os relógios e as pulseiras de ouro são sempre raros ou épicos: uma
+   * pedra engastada, uma caixa de relógio e uma peça de ouro não são coisa que caia a toda hora.
+   * Ficam de fora dessa regra a aliança lisa (que vem com o jogo), o aro de ébano e a serpente, e os
+   * relógios digital, noturno e das fases da lua — cada um no degrau que o feitio dele pede.
+   *
+   * Épicos: os dois anéis de pedra lapidada em forma (o coração, a placa de ônix), os relógios de
+   * caixa quadrada, o das fases da lua e o de mergulho, e as luvas de ópera e de armadura. Raros: os
+   * outros anéis de pedra, a pérola e o sinete, a serpente, os relógios clássico, esportivo e joia, a
+   * corrente e as argolas de ouro, a riviera e os espinhos, as luvas de meio dedo, de renda e táticas,
+   * e os dois esmaltes de efeito mais trabalhado. Incomuns: o aro de ébano, o relógio digital, o fio
+   * de pérolas, as luvas inteiras e os esmaltes de cor ou acabamento menos comum. O resto — as
+   * contas, o couro, o cordão e os esmaltes de sempre — é comum.
+   */
+  'acessorio:anel-coracao': 'epico',
+  'acessorio:anel-onix': 'epico',
+  'acessorio:relogio-rose': 'epico',
+  'acessorio:relogio-noturno': 'epico',
+  'acessorio:relogio-lua': 'epico',
+  'acessorio:relogio-mergulho': 'epico',
+  'acessorio:luva-opera': 'epico',
+  'acessorio:luva-manopla': 'epico',
+  'acessorio:anel-solitario': 'raro',
+  'acessorio:anel-esmeralda': 'raro',
+  'acessorio:anel-trinca': 'raro',
+  'acessorio:anel-serpente': 'raro',
+  'acessorio:anel-perola': 'raro',
+  'acessorio:anel-sinete': 'raro',
+  'acessorio:anel-safira': 'raro',
+  'acessorio:anel-rubi': 'raro',
+  'acessorio:anel-gota': 'raro',
+  'acessorio:relogio-classico': 'raro',
+  'acessorio:relogio-esportivo': 'raro',
+  'acessorio:relogio-joia': 'raro',
+  'acessorio:pulseira-riviera': 'raro',
+  'acessorio:pulseira-espinhos': 'raro',
+  'acessorio:pulseira-corrente': 'raro',
+  'acessorio:pulseira-argolas': 'raro',
+  'acessorio:luva-meio-dedo-branca': 'raro',
+  'acessorio:luva-meio-dedo-vermelha': 'raro',
+  'acessorio:luva-renda': 'raro',
+  'acessorio:luva-tatica': 'raro',
+  'acessorio:esmalte-degrade': 'raro',
+  'acessorio:esmalte-galaxia': 'raro',
+  'acessorio:anel-ebano': 'incomum',
+  'acessorio:relogio-digital': 'incomum',
+  'acessorio:pulseira-perolas': 'incomum',
+  'acessorio:luva-branca': 'incomum',
+  'acessorio:luva-couro': 'incomum',
+  'acessorio:esmalte-lilas': 'incomum',
+  'acessorio:esmalte-vinho': 'incomum',
+  'acessorio:esmalte-dourado': 'incomum',
+  'acessorio:esmalte-francesinha': 'incomum',
+  'acessorio:esmalte-cromado': 'incomum',
   // comum, por omissão: flor, chá e bolo — os presentes do primeiro coração — e a Poeira de Luz,
   // que é o brilho de graça com partículas: o primeiro degrau acima do que já vem com o jogo
 };
@@ -255,6 +313,8 @@ export const PRICES = {
   /** Molduras do retrato; as que não ficam paradas custam `frameSpecial`. */
   frame: 2500,
   frameSpecial: 6000,
+  /** Acessórios das mãos: anéis, pulseiras, relógios, esmaltes e luvas. */
+  acessorio: 1500,
   face: 2500,
   /** Frentes de material (vidro, arco-íris): não saem de uma combinação de campos, e valem mais. */
   faceSpecial: 9000,
@@ -288,6 +348,11 @@ export const FREE_KEYS: readonly string[] = [
   // o brilho que o menu sempre teve atrás do personagem, e a moldura dourada de sempre na mesa
   itemKey('aura', 'brilho'),
   itemKey('frame', 'ouro'),
+  // nas mãos: a unha natural, as mãos nuas (ou a luva do traje) e um anel liso, para já haver o que pôr no dedo
+  itemKey('acessorio', ESMALTE_PADRAO),
+  itemKey('acessorio', LUVA_PADRAO),
+  itemKey('acessorio', 'luva-traje'),
+  itemKey('acessorio', 'anel-alianca'),
   itemKey('ui', 'default'),
 ];
 
@@ -355,6 +420,7 @@ export const CATALOG: CatalogItem[] = [
    */
   ...AURA_IDS.map((id) => entry('aura', id, id)),
   ...FRAME_IDS.map((id) => entry('frame', id, id)),
+  ...ACESSORIOS.map((a) => entry('acessorio', a.id, a.nome)),
   ...FACE_PRESETS.map((s) => entry('face', s.id, s.name, s.special ? PRICES.faceSpecial : undefined)),
   ...BACK_PRESETS.map((s) => entry('back', s.id, s.name)),
   ...CHIP_PRESETS.map((s) => entry('chip', s.id, s.name)),
@@ -432,12 +498,27 @@ export function clampCosmetics(c: PlayerCosmetics, owned: readonly string[] | un
     winFx,
     auras,
     frame,
+    ...(c.acessorios ? { acessorios: clampAcessorios(c.acessorios, owned) } : {}),
     // Estes tres agora vao para a mesa dos outros (frente no showdown, fichas da
     // aposta, mesa quando o jogador e' o dealer), entao passam pela mesma trava.
     face: ownsItem(owned, 'face', c.face.id) ? c.face : freePreset('face', FACE_PRESETS),
     back: ownsBack(c.back, owned) ? versoNoQueTem(c.back, owned) : freeBack(),
     chip: ownsItem(owned, 'chip', c.chip.id) ? c.chip : freePreset('chip', CHIP_PRESETS),
     table: ownsItem(owned, 'table', c.table.id) ? c.table : freePreset('table', TABLE_PRESETS),
+  };
+}
+
+/**
+ * Os acessórios, só com o que a conta tem: o anel, a pulseira e o relógio que não são dela saem; o
+ * esmalte e a luva voltam para os que vêm com o jogo. (Como as auras: a trava tira, não põe.)
+ */
+export function clampAcessorios(a: Acessorios, owned: readonly string[] | undefined): Acessorios {
+  const tem = (id: string | null): id is string => !!id && !!findAcessorio(id) && ownsItem(owned, 'acessorio', id);
+  return {
+    aneis: a.aneis.filter((x) => tem(x.id)),
+    pulsos: { E: tem(a.pulsos.E) ? a.pulsos.E : null, D: tem(a.pulsos.D) ? a.pulsos.D : null },
+    esmalte: tem(a.esmalte) ? a.esmalte : ESMALTE_PADRAO,
+    luva: tem(a.luva) ? a.luva : LUVA_PADRAO,
   };
 }
 

@@ -13,6 +13,7 @@ import {
   priceOf,
 } from './catalog';
 import { GALERIA, GIFTS, VENDIDOS, isSold } from './catalog';
+import { ACESSORIOS } from './acessorios';
 import { AURA_IDS, BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, WIN_FX_IDS } from './styles';
 
 describe('catálogo da loja', () => {
@@ -26,6 +27,7 @@ describe('catálogo da loja', () => {
       TABLE_PRESETS.length +
       AURA_IDS.length +
       FRAME_IDS.length +
+      ACESSORIOS.length +
       GIFTS.length +
       3; // as aparências: Sakura, Vitoriano e Retrofuturista
     expect(CATALOG).toHaveLength(esperado);

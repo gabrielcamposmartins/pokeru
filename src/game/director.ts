@@ -1,6 +1,6 @@
 import { sameCard, type Card } from '../../shared/cards';
 import type { TableEvent, TableView } from '../../shared/protocol';
-import { findCharacter, type CardBackStyle } from '../../shared/styles';
+import { findCharacter, type CardBackStyle, type CardFaceStyle } from '../../shared/styles';
 import { evaluateHand, HandCategory } from '../../shared/evaluator';
 import { isFirstStreet, type Street } from '../../shared/engine';
 import type { PotResult } from '../../shared/engine';
@@ -13,7 +13,20 @@ import type { BondEvent } from './bond';
 import { findWinFx } from '../render/cardfx';
 import { nextId, useTable, type CalloutKind, type Flyer, type RoundResult, type Splash } from '../store/table';
 import { ACTION_LABEL, fmt } from '../util/format';
-import { MUCK_POS, POT_POS, betSpot, boardSlot, holeCardPos, project, seatLayout, type Pt, type SeatGeo } from './layout';
+import { dealerCardSkin } from './skins';
+import { MUCK_POS, POT_POS, betSpot, boardSlot, holeCardPos, openCardPos, project as project2d, seatLayout, type Pt, type SeatGeo } from './layout';
+import { projetar, seatLayout3d } from '../mesa3d/geometria';
+import { usar3D } from '../mesa3d/modo';
+import { palco3d } from '../mesa3d/palco';
+
+/**
+ * Um ponto do plano da mesa no palco: pela câmera da mesa 3D, ou pela perspectiva da 2D.
+ *
+ * Na mesa 3D quase nada voa em HTML (as fichas e as cartas fechadas são do palco 3D, veja
+ * `palco3d`); o que sobra — as cartas abertas — voa no plano deitado no tampo, e as contas abaixo
+ * valem para as duas mesas.
+ */
+const project = (p: Pt) => (usar3D() ? projetar(p) : project2d(p));
 
 /** Um aumento é "bet" (abre a rua), "raise" ou "reraise" (aumento sobre aumento). */
 type RaiseKind = 'bet' | 'raise' | 'reraise';
@@ -236,16 +249,35 @@ class Director {
       const item = this.queue.shift()!;
       this.updateSpeed();
       this.bond(item);
+      let tocado = false;
       try {
-        if (this.mounted && useTable.getState().display && !document.hidden) await this.play(item, epoch);
-        else this.sideEffects(item);
+        if (this.mounted && useTable.getState().display && !document.hidden) {
+          tocado = true;
+          await this.play(item, epoch);
+        } else this.sideEffects(item);
       } catch (err) {
         console.error('[director]', err);
       }
       if (epoch !== this.epoch) return;
-      useTable.getState().setDisplay(item.view, item.at);
+      useTable.getState().setDisplay(tocado ? this.semAdiantarAMesa(item) : item.view, item.at);
     }
     if (epoch === this.epoch) this.running = false;
+  }
+
+  /**
+   * A view de um evento pode já trazer as cartas da mesa que só a "rua" seguinte abre (a de
+   * recolher as apostas vem com o flop). Elas só aparecem quando a rua é tocada — na mesa 3D,
+   * quando o dealer as abre com as mãos: até lá fica na mesa o que já estava.
+   */
+  private semAdiantarAMesa({ ev, view }: Item): TableView {
+    // (e o destaque das cartas de quem ganha, aceso ao abrir as mãos, não apaga até a vitória chegar)
+    if (ev.t === 'showdown') {
+      const aceso = useTable.getState().display?.highlight ?? [];
+      return !view.highlight.length && aceso.length ? { ...view, highlight: aceso } : view;
+    }
+    if (ev.t !== 'action' && ev.t !== 'refund' && ev.t !== 'collect' && ev.t !== 'street') return view;
+    const abertas = useTable.getState().display?.board.length ?? view.board.length;
+    return view.board.length > abertas ? { ...view, board: view.board.slice(0, abertas) } : view;
   }
 
   private updateSpeed(): void {
@@ -256,10 +288,12 @@ class Director {
   }
 
   private geo(view: TableView): SeatGeo[] {
-    const key = `${view.maxPlayers}:${view.mySeat}`;
+    const tres = usar3D();
+    const key = `${view.maxPlayers}:${view.mySeat}:${tres}`;
     if (key !== this.geoKey) {
       this.geoKey = key;
-      this.geoCache = seatLayout(view.maxPlayers, view.mySeat ?? 0, view.mySeat !== null);
+      // a mesa 3D é um estádio: os assentos ficam em outros lugares (veja src/mesa3d/geometria.ts)
+      this.geoCache = (tres ? seatLayout3d : seatLayout)(view.maxPlayers, view.mySeat ?? 0, view.mySeat !== null);
     }
     return this.geoCache;
   }
@@ -348,17 +382,20 @@ class Director {
       stack: s.stack,
       split: others.map((x) => this.seatName(view, x)),
       winFx: seat === view.mySeat ? useProfile.getState().winFx : s.cosmetics.winFx,
+      face: this.baralho(view).face,
       // servidor de antes das auras não manda o campo: aí o vencedor fica sem aura, e nada quebra
       // bot não tem aura (e servidor de antes das auras não manda o campo)
       auras: seat === view.mySeat ? useProfile.getState().auras : s.isBot ? [] : (s.cosmetics.auras ?? []),
     };
   }
 
-  private backOf(view: TableView, seat: number | null): CardBackStyle {
-    const s = seat !== null ? view.seats[seat] : null;
-    if (s) return s.cosmetics.back;
+  /**
+   * O baralho da rodada: o do dealer de `view` (veja `dealerCardSkin`). Toda carta da mão — a que
+   * voa fechada, a que se abre, a do painel de quem ganhou — sai dele, seja de quem for a carta.
+   */
+  private baralho(view: TableView): { face: CardFaceStyle; back: CardBackStyle } {
     const p = useProfile.getState();
-    return findStyle(p, 'back', p.equipped.back);
+    return dealerCardSkin(view, { face: findStyle(p, 'face', p.equipped.face), back: findStyle(p, 'back', p.equipped.back) });
   }
 
   /** Efeitos que não dependem de animação (log, placar final) quando a mesa não está visível. */
@@ -397,7 +434,6 @@ class Director {
       case 'handStart': {
         this.skipping = false;
         store.setWinners([]);
-        store.setOpener(null);
         // a primeira mão chegou: a tela de abertura sai de cena (mesmo que o 'opening' vazio
         // tenha se perdido no caminho)
         store.setOpening(null);
@@ -407,18 +443,32 @@ class Director {
         // recolhe as cartas da mão anterior em direção ao novo dealer
         const target = geo[ev.dealerSeat]?.deck ?? MUCK_POS;
         const flights: Promise<number>[] = [];
+        const p3 = palco3d();
+        p3?.brilhar([]);
+        // na mesa 3D as cartas fechadas voltam ao baralho do novo dealer por lá; as abertas (do
+        // showdown) continuam voando no plano
+        const fechadas: { seat: number; n: number }[] = [];
         cur.seats.forEach((s, seat) => {
-          if (!s || !s.cards.length || !geo[seat] || seat === next.mySeat) return;
+          if (!s || !s.cards.length || !geo[seat]) return;
+          const eu = seat === next.mySeat;
+          if (eu && !p3) return;
+          // (na mesa 3D as minhas também estão na mesa: fechadas, até eu as virar no showdown)
+          if (p3 && (eu ? !s.handName : s.cards.every((c) => !c))) {
+            fechadas.push({ seat, n: s.cards.length });
+            return;
+          }
           s.cards.forEach((c, i) => {
-            const hp = holeCardPos(geo[seat], i, s.cards.length);
+            const hp = p3 ? openCardPos(geo[seat], i, s.cards.length) : holeCardPos(geo[seat], i, s.cards.length);
             flights.push(
-              this.fly({ kind: 'card', from: hp.p, to: target, dur: 420, rotFrom: hp.rot, rotTo: hp.rot + 90, card: c, faceUp: !!c, back: s.cosmetics.back, width: geo[seat].cardW, fade: true }),
+              this.fly({ kind: 'card', from: hp.p, to: target, dur: 420, rotFrom: hp.rot, rotTo: hp.rot + 90, card: c, faceUp: !!c, ...this.baralho(cur), width: p3 ? 72 : geo[seat].cardW, fade: true }),
             );
           });
         });
         cur.board.forEach((c, i) => {
-          flights.push(this.fly({ kind: 'card', from: boardSlot(i), to: target, dur: 420, rotFrom: 0, rotTo: 90, card: c, faceUp: true, back: this.backOf(next, ev.dealerSeat), width: 88, fade: true }));
+          flights.push(this.fly({ kind: 'card', from: boardSlot(i), to: target, dur: 420, rotFrom: 0, rotTo: 90, card: c, faceUp: true, ...this.baralho(cur), width: 88, fade: true }));
         });
+        // (sempre: a pilha do descarte vai junto, mesmo sem cartas fechadas na frente de ninguém)
+        if (p3) flights.push(p3.recolherCartas(ev.dealerSeat, fechadas).then(() => -1));
         store.patchDisplay({
           board: [],
           highlight: [],
@@ -456,11 +506,22 @@ class Director {
         if (!g) return;
         const s = cur.seats[ev.seat];
         store.patchSeat(ev.seat, { bet: Math.max(0, (s?.bet ?? 0) - ev.amount) });
+        const p3 = palco3d();
+        if (p3) return p3.devolver(ev.seat, ev.amount);
         this.clearFlyers([await this.flyChips(project(betSpot(g.bet, ev.seat, cur.street)), g.plate, ev.amount, 420, true)]);
         return;
       }
 
       case 'collect': {
+        const p3 = palco3d();
+        if (p3) {
+          // na mesa 3D as apostas vão para o pote em fichas de verdade
+          store.patchDisplay({ seats: cur.seats.map((s) => (s ? { ...s, bet: 0 } : s)), pot: cur.pot });
+          sfx.recolher();
+          await p3.recolherApostas(ev.bets.filter((b) => geo[b.seat]).map((b) => ({ seat: b.seat, valor: b.amount })));
+          store.patchDisplay({ pot: next.pot });
+          return;
+        }
         const pot = project(POT_POS);
         const flights = ev.bets
           .filter((b) => geo[b.seat])
@@ -485,7 +546,24 @@ class Director {
         }
         store.addLog(`— ${label}: ${ev.cards.map(cardText).join(' ')}`, 'street');
         sfx.deal();
-        store.patchDisplay({ board: next.board });
+        // na mesa 3D o dealer abre as cartas com as mãos: cada uma sai do baralho, vira no ar e pousa
+        // no lugar dela — e é quando pousa que a carta aberta 2D aparece ali
+        // (as que já estavam na mesa, e com as desta rua)
+        const ja = cur.board.length;
+        const mesa = [...cur.board, ...ev.cards];
+        const p3 = palco3d();
+        if (p3) {
+          // (o nome da rua, no console do pote, muda já: o dealer leva um instante abrindo as cartas)
+          store.patchDisplay({ street: next.street });
+          await p3.abrirMesa(ev.cards, ja, (k) => {
+            if (!alive()) return;
+            useTable.getState().patchDisplay({ board: mesa.slice(0, ja + k + 1) });
+            sfx.flip();
+          });
+          if (alive()) store.patchDisplay({ board: mesa });
+          return;
+        }
+        store.patchDisplay({ board: mesa });
         setTimeout(() => sfx.flip(), 180);
         if (ev.cards.length > 1) setTimeout(() => sfx.flip(), 420);
         await wait(ev.cards.length > 1 ? 480 : 260);
@@ -515,13 +593,16 @@ class Director {
         const cards = cur.seats[ev.seat]?.cards ?? [];
         const n = cards.length || 5;
         const isMe = ev.seat === next.mySeat;
-        const back = cur.seats[ev.seat]?.cosmetics.back ?? this.backOf(next, ev.seat);
+        const { back, face } = this.baralho(next);
         // as trocadas saem para o descarte (as minhas, de cara para cima)
         sfx.fold();
+        const p3 = palco3d();
         const land = { x: MUCK_POS.x + (Math.random() - 0.5) * 60, y: MUCK_POS.y + (Math.random() - 0.5) * 20 };
-        const outs = ev.discards.map((i, k) => {
+        // na mesa 3D as trocadas vão todas, fechadas, para a pilha do descarte (as minhas também: as que estão
+        // na frente do meu personagem); na 2D, as minhas voam abertas no plano
+        const outs = p3 ? [p3.descartar(ev.seat, ev.discards, n).then(() => -1)] : ev.discards.map((i, k) => {
           const hp = holeCardPos(g, i, n);
-          return this.fly({ kind: 'card', from: hp.p, to: { x: land.x + k * 12, y: land.y }, dur: 360, rotFrom: hp.rot, rotTo: hp.rot + 140 + k * 20, card: isMe ? (cards[i] ?? null) : null, faceUp: isMe, back, width: g.cardW, fade: true });
+          return this.fly({ kind: 'card', from: hp.p, to: { x: land.x + k * 12, y: land.y }, dur: 360, rotFrom: hp.rot, rotTo: hp.rot + 140 + k * 20, card: isMe ? (cards[i] ?? null) : null, faceUp: isMe, back, face, width: g.cardW, fade: true });
         });
         if (isMe) store.patchSeat(ev.seat, { cards: cards.map((c, i) => (ev.discards.includes(i) ? null : c)) });
         this.clearFlyers(await Promise.all(outs));
@@ -532,7 +613,9 @@ class Director {
         // e as novas chegam do baralho do dealer
         const origin = next.dealerSeat !== null && geo[next.dealerSeat] ? geo[next.dealerSeat].deck : MUCK_POS;
         const ins: Promise<number>[] = [];
-        for (const i of ev.discards) {
+        // (na mesa 3D quem as entrega é o dealer, com as mãos)
+        if (p3) await p3.darCartas(ev.discards.map((i) => ({ seat: ev.seat, i, n })), () => {}, () => sfx.deal());
+        for (const i of p3 ? [] : ev.discards) {
           const hp = holeCardPos(g, i, n);
           sfx.deal();
           ins.push(this.fly({ kind: 'card', from: origin, to: hp.p, dur: 300, rotFrom: 0, rotTo: hp.rot, card: null, faceUp: false, back, width: g.cardW }));
@@ -549,21 +632,50 @@ class Director {
 
       case 'showdown': {
         // quem abre as cartas primeiro diz a chamada comum (オープン！) — ou a fala própria, com o vínculo feito
-        // e e' a skin dele que vale nas cartas enquanto a mao esta sendo aberta
-        if (ev.reveals[0]) store.setOpener(ev.reveals[0].seat);
         if (ev.reveals[0] && !this.skipping) this.showVoice(next, ev.reveals[0].seat);
+        // na mesa 3D cada um vira as cartas com a mão (eu também): elas abrem quando pousam
+        const p3 = palco3d();
+        // (e o dealer, se ainda está com o baralho, pousa-o: não há mais cartas a dar)
+        void p3?.largarBaralho();
+        // Quem ganha já se sabe (a melhor mão das que abrem): as cartas dele começam a brilhar antes de
+        // ele as virar — as fechadas, com a cor do efeito dele; e as da mesa que fazem a mão, com o efeito inteiro.
+        if (p3 && ev.reveals.length) {
+          const maos = ev.reveals.map((r) => ({ seat: r.seat, v: evaluateHand([...r.cards, ...cur.board]) }));
+          const melhor = Math.max(...maos.map((m) => m.v.score));
+          const ganham = maos.filter((m) => m.v.score === melhor);
+          store.setWinners(ganham.map((m) => m.seat));
+          store.patchDisplay({ highlight: ganham.flatMap((m) => m.v.core ?? m.v.best ?? []) });
+          p3.brilhar(ganham.map((m) => ({ seat: m.seat, cor: findWinFx(m.seat === next.mySeat ? useProfile.getState().winFx : next.seats[m.seat]?.cosmetics.winFx).colors[1] })));
+          await wait(520);
+          if (!alive()) return;
+        }
+        const viradas: Promise<void>[] = [];
         for (const r of ev.reveals) {
           if (!alive()) return;
           store.addLog(`${this.seatName(next, r.seat)} mostra ${r.cards.map(cardText).join(' ')} — ${r.hand}`);
+          if (p3 && geo[r.seat] && r.cards.length === 2) {
+            viradas.push(
+              p3.virarCartas(r.seat, r.cards).then(() => {
+                if (!alive()) return;
+                useTable.getState().patchSeat(r.seat, { cards: r.cards, handName: r.hand });
+                sfx.flip();
+              }),
+            );
+            await wait(300);
+            continue;
+          }
           store.patchSeat(r.seat, { cards: r.cards, handName: r.hand });
           if (r.seat === next.mySeat || !geo[r.seat]) continue;
           sfx.flip();
           await wait(300);
         }
+        await Promise.all(viradas);
         return;
       }
 
       case 'win': {
+        // (a mão acabou: na mesa 3D, o baralho volta para a mesa)
+        void palco3d()?.largarBaralho();
         const me = next.mySeat;
         const winnerSeats = [...new Set(ev.pots.flatMap((p) => p.winners.map((w) => w.seat)))];
         store.setWinners(winnerSeats);
@@ -618,10 +730,12 @@ class Director {
         store.patchDisplay({ pot: 0, seats: cur.seats.map((s) => (s ? { ...s, bet: 0 } : s)) });
         const potStage = project(POT_POS);
         const flights: Promise<number>[] = [];
+        const p3 = palco3d();
         for (const pot of ev.pots) {
           for (const w of pot.winners) {
             const g = geo[w.seat];
-            if (g) flights.push(this.flyChips(potStage, g.plate, w.amount, 760, true, 30));
+            if (g && p3) flights.push(p3.pagar(w.seat, w.amount).then(() => -1));
+            else if (g) flights.push(this.flyChips(potStage, g.plate, w.amount, 760, true, 30));
           }
         }
         sfx.pote();
@@ -678,11 +792,19 @@ class Director {
       apply();
       return;
     }
-    const t = this.toss(ms);
-    const id = await this.flyChips(g.plate, project(betSpot(g.bet, seat, next.street)), amount, t.dur, false, t.arc, t);
-    if (!alive()) return;
-    apply();
-    this.clearFlyers([id]);
+    const p3 = palco3d();
+    if (p3) {
+      // na mesa 3D o personagem tira o punhado da pilha e o põe na mesa: a aposta conta quando ele pousa
+      await p3.apostar(seat, amount);
+      if (!alive()) return;
+      apply();
+    } else {
+      const t = this.toss(ms);
+      const id = await this.flyChips(g.plate, project(betSpot(g.bet, seat, next.street)), amount, t.dur, false, t.arc, t);
+      if (!alive()) return;
+      apply();
+      this.clearFlyers([id]);
+    }
     // quanto maior a aposta, mais fichas assentando
     sfx.aposta(1 + Math.min(4, Math.floor(Math.log10(Math.max(1, amount)))));
   }
@@ -693,7 +815,9 @@ class Director {
     const store = useTable.getState();
     // all-in: o arremesso é mais forte (arco alto, mais giro e quicada)
     const t = this.toss(520, 1.6);
-    const id = g && amount > 0 ? await this.flyChips(g.plate, project(betSpot(g.bet, seat, next.street)), amount, t.dur, false, t.arc, t) : null;
+    const p3 = palco3d();
+    if (p3 && g && amount > 0) await p3.apostar(seat, amount, true);
+    const id = !p3 && g && amount > 0 ? await this.flyChips(g.plate, project(betSpot(g.bet, seat, next.street)), amount, t.dur, false, t.arc, t) : null;
     if (!alive()) return;
     if (s) store.patchSeat(seat, { bet: s.bet, stack: s.stack, lastAction: s.lastAction, allIn: true });
     if (id !== null) this.clearFlyers([id]);
@@ -705,7 +829,9 @@ class Director {
   private knockMotion(next: TableView, seat: number) {
     const s = next.seats[seat];
     if (s) useTable.getState().patchSeat(seat, { lastAction: s.lastAction });
-    sfx.knock();
+    // na mesa 3D o personagem bate na mesa (não espera: o "passo" não muda nada nela), e o som cai em
+    // cada batida da mão dele; sem o gesto, as duas batidas de sempre
+    if (!palco3d()?.bater(seat, () => sfx.knock(1))) sfx.knock();
   }
 
   /** As cartas do oponente deslizam para o descarte (as minhas saem pela animação da mão). */
@@ -715,9 +841,12 @@ class Director {
     const cards = s?.cards ?? [];
     useTable.getState().patchSeat(seat, { cards: [], folded: true, lastAction: 'fold' });
     if (!cards.length) return;
+    // (na mesa 3D o meu personagem também junta as cartas dele e as joga — e o som cai quando elas saem da mão)
+    const p3 = g ? palco3d() : null;
+    if (p3) return p3.desistir(seat, cards.length, () => sfx.fold());
     sfx.fold();
     if (!g || g.isMe) return;
-    const back = s?.cosmetics.back ?? this.backOf(next, seat);
+    const { back } = this.baralho(next);
     const land = { x: MUCK_POS.x + (Math.random() - 0.5) * 70, y: MUCK_POS.y + (Math.random() - 0.5) * 20 };
     const flights = cards.map((_, i) => {
       const hp = holeCardPos(g, i, cards.length);
@@ -733,25 +862,49 @@ class Director {
     const origin: Pt = dg ? dg.deck : MUCK_POS;
     const counts: Record<number, number> = {};
     const flights: Promise<void>[] = [];
-    for (const seat of order) {
+    const p3 = palco3d();
+    const chegouA = (seat: number, i: number) => {
+      const d = useTable.getState().display;
+      const curCards = d?.seats[seat]?.cards ?? [];
+      store.patchSeat(seat, { cards: Array.from({ length: i + 1 }, (_, k) => curCards[k] ?? null) });
+    };
+    if (p3) {
+      // na mesa 3D o dealer reparte com as mãos: cada carta sai do baralho que ele segura e pousa
+      // fechada na frente do jogador — e só então a mesa (e a minha mão, em 2D) passa a contá-la
+      const cartas: { seat: number; i: number; n: number }[] = [];
+      for (const seat of order) {
+        const sv = next.seats[seat];
+        if (!geo[seat] || !sv) continue;
+        cartas.push({ seat, i: (counts[seat] = (counts[seat] ?? -1) + 1), n: sv.cards.length || 2 });
+      }
+      await p3.darCartas(
+        cartas,
+        (k) => alive() && chegouA(cartas[k].seat, cartas[k].i),
+        () => sfx.deal(),
+      );
+      if (!alive()) return;
+    }
+    // (na mesa 2D: cada carta voa do baralho, uma atrás da outra)
+    for (const seat of p3 ? [] : order) {
       if (!alive()) return;
       const g = geo[seat];
       const sv = next.seats[seat];
       if (!g || !sv) continue;
       const i = (counts[seat] = (counts[seat] ?? -1) + 1);
-      const hp = holeCardPos(g, i, sv.cards.length || 2);
+      const n = sv.cards.length || 2;
+      const hp = holeCardPos(g, i, n);
       sfx.deal();
       flights.push(
-        this.fly({ kind: 'card', from: origin, to: hp.p, dur: 300, rotFrom: dg?.cardsRot ?? 0, rotTo: hp.rot, card: null, faceUp: false, back: sv.cosmetics.back, width: g.cardW }).then((id) => {
-          const d = useTable.getState().display;
-          const curCards = d?.seats[seat]?.cards ?? [];
-          store.patchSeat(seat, { cards: Array.from({ length: i + 1 }, (_, k) => curCards[k] ?? null) });
+        this.fly({ kind: 'card', from: origin, to: hp.p, dur: 300, rotFrom: dg?.cardsRot ?? 0, rotTo: hp.rot, card: null, faceUp: false, back: this.baralho(next).back, width: g.cardW }).then((id) => {
+          chegouA(seat, i);
           this.clearFlyers([id]);
         }),
       );
       await wait(165);
     }
     await Promise.all(flights);
+    // e cada um dá uma espiada nas que recebeu
+    p3?.olharCartas([...new Set(order)]);
     // minhas cartas: aplica o valor real (elas viram para cima)
     if (next.mySeat !== null && next.seats[next.mySeat]) {
       await wait(200);

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { migrateStorageKey } from '../util/storage';
-import { freeIdOf, ownsItem } from '../../shared/catalog';
+import { clampAcessorios, freeIdOf, ownsItem } from '../../shared/catalog';
 import {
   BACK_PRESETS,
   PERSONAGEM_PADRAO,
@@ -30,6 +30,7 @@ import {
   type TableStyle,
   type WinFxId,
 } from '../../shared/styles';
+import { SEM_ACESSORIOS, sanitizeAcessorios, type Acessorios } from '../../shared/acessorios';
 
 export type StyleKind = 'face' | 'back' | 'chip' | 'table';
 
@@ -108,6 +109,8 @@ interface ProfileState {
   auras: AuraId[];
   /** Id da moldura do seu retrato (catálogo em src/render/PortraitFrame.tsx). */
   frame: FrameId;
+  /** O que você usa nas mãos na mesa 3D: anéis, pulseira, relógio, esmalte e luva (shared/acessorios.ts). */
+  acessorios: Acessorios;
   custom: { [K in StyleKind]: StyleMap[K][] };
   equipped: Record<StyleKind, string>;
   /** Conta em cada servidor (endereço → credenciais), para voltar com o mesmo saldo e vínculo. */
@@ -119,6 +122,7 @@ interface ProfileState {
   setWinFx(id: WinFxId): void;
   setAuras(ids: AuraId[]): void;
   setFrame(id: FrameId): void;
+  setAcessorios(a: Acessorios): void;
   setAccount(server: string, account: ServerAccount): void;
   /** Esquece a conta guardada de um servidor (ao sair, ou ao desmarcar "lembrar-me"). */
   forgetAccount(server: string): void;
@@ -184,6 +188,7 @@ const initial = {
   winFx: DEFAULT_WIN_FX,
   auras: [...DEFAULT_AURAS],
   frame: DEFAULT_FRAME,
+  acessorios: sanitizeAcessorios(SEM_ACESSORIOS),
   custom: { face: [], back: [], chip: [], table: [] },
   accounts: {} as Record<string, ServerAccount>,
   equipped: {
@@ -226,6 +231,7 @@ export const useProfile = create<ProfileState>()(
       setWinFx: (winFx) => set({ winFx }),
       setAuras: (ids) => set({ auras: sanitizeAuras(ids) }),
       setFrame: (frame) => set({ frame }),
+      setAcessorios: (a) => set({ acessorios: sanitizeAcessorios(a) }),
       setAccount: (server, account) => set((s) => ({ accounts: { ...s.accounts, [server]: account } })),
       forgetAccount: (server) =>
         set((s) => {
@@ -251,9 +257,15 @@ export const useProfile = create<ProfileState>()(
     }),
     {
       name: 'pokeru-profile',
-      version: 2,
-      // v2 só acrescentou settings.uiTheme, que o merge preenche com o padrão
-      migrate: (persisted) => persisted as ProfileState,
+      version: 3,
+      // v2 só acrescentou settings.uiTheme, que o merge preenche com o padrão.
+      // v3: todo mundo começa de mãos nuas. Até aqui a luva do traje era o que valia para quem não
+      // tinha escolhido nenhuma — então ela, no perfil salvo, não foi escolha de ninguém: sai.
+      migrate: (persisted, version) => {
+        const p = persisted as ProfileState;
+        if (version < 3 && p?.acessorios?.luva === 'luva-traje') return { ...p, acessorios: { ...p.acessorios, luva: 'luva-nenhuma' } };
+        return p;
+      },
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ProfileState>;
         return {
@@ -263,6 +275,8 @@ export const useProfile = create<ProfileState>()(
           custom: known(current.custom, p.custom),
           // perfil de antes das auras não tem o campo: fica o padrão; o que tem passa pela regra
           auras: p.auras === undefined ? current.auras : sanitizeAuras(p.auras),
+          // (perfil de antes dos acessórios: sem nada nas mãos)
+          acessorios: sanitizeAcessorios(p.acessorios),
           equipped: known(current.equipped, p.equipped),
           settings: known(current.settings, p.settings),
         };
@@ -312,12 +326,14 @@ export function isPreset(kind: StyleKind, id: string): boolean {
 export function ajustarAoQueTem(owned: readonly string[]): void {
   const s = useProfile.getState();
   const tem = (kind: 'character' | 'winfx' | 'aura' | 'frame', id: string) => ownsItem(owned, kind, id);
-  const patch: Partial<Pick<ProfileState, 'character' | 'winFx' | 'auras' | 'frame'>> = {};
+  const patch: Partial<Pick<ProfileState, 'character' | 'winFx' | 'auras' | 'frame' | 'acessorios'>> = {};
   if (!tem('character', s.character)) patch.character = tem('character', PERSONAGEM_PADRAO) ? PERSONAGEM_PADRAO : freeIdOf('character');
   if (!tem('winfx', s.winFx)) patch.winFx = DEFAULT_WIN_FX;
   const auras = s.auras.filter((a) => tem('aura', a));
   if (auras.length !== s.auras.length) patch.auras = auras;
   if (!tem('frame', s.frame)) patch.frame = DEFAULT_FRAME;
+  const acessorios = clampAcessorios(s.acessorios, owned);
+  if (JSON.stringify(acessorios) !== JSON.stringify(s.acessorios)) patch.acessorios = acessorios;
   if (Object.keys(patch).length) useProfile.setState(patch);
 }
 
@@ -333,5 +349,6 @@ export function myCosmetics(): PlayerCosmetics {
     winFx: sanitizeWinFx(s.winFx),
     auras: sanitizeAuras(s.auras),
     frame: sanitizeFrame(s.frame),
+    acessorios: sanitizeAcessorios(s.acessorios),
   };
 }

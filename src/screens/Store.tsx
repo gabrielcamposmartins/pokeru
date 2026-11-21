@@ -1,3 +1,5 @@
+import { findAcessorio } from '../../shared/acessorios';
+import { AcessorioArt } from '../render/AcessorioArt';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { RANKS, SUITS, rankLabel, type Card, type Suit } from '../../shared/cards';
@@ -179,6 +181,10 @@ export function Preview({ item }: { item: CatalogItem }) {
       const g = findGift(item.id);
       return <div className="shop-art">{g ? <GiftArt gift={g} size={66} /> : null}</div>;
     }
+    case 'acessorio': {
+      const a = findAcessorio(item.id);
+      return <div className="shop-art">{a ? <AcessorioArt a={a} size={92} /> : null}</div>;
+    }
   }
 }
 
@@ -236,6 +242,16 @@ export function Grande({ item }: { item: CatalogItem }) {
             <PortraitFrame frame={f} size={200} />
           </div>
           <p className="shop-sobre">{f.description}</p>
+        </div>
+      );
+    }
+    case 'acessorio': {
+      const a = findAcessorio(item.id);
+      if (!a) return null;
+      return (
+        <div className="shop-grande">
+          <AcessorioArt a={a} size={240} />
+          <p className="shop-sobre">{a.sobre}</p>
         </div>
       );
     }
@@ -850,6 +866,10 @@ function PremioArte({ item }: { item: CatalogItem }) {
     case 'aura':
       // sem a caixa preta da vitrine: aqui o fundo é a luz do prêmio, e ela não se cobre
       return <AuraAmostra aura={findAura(item.id)} className="premio-aura" />;
+    case 'acessorio': {
+      const a = findAcessorio(item.id);
+      return a ? <AcessorioArt a={a} size={200} /> : null;
+    }
     case 'frame':
       return (
         <span className="shop-moldura com-moldura" style={{ background: `linear-gradient(160deg, ${eu.bg}, ${eu.bg2})` }}>

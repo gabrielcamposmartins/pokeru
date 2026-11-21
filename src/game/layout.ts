@@ -107,6 +107,8 @@ export interface SeatGeo {
   bet: Pt;
   dealer: Pt;
   deck: Pt;
+  /** Na mesa 3D: onde as duas cartas dele pousam abertas, viradas pela mão (plano). */
+  abertas?: Pt[];
 }
 
 const add = (a: Pt, b: Pt, k = 1): Pt => ({ x: a.x + b.x * k, y: a.y + b.y * k });
@@ -203,6 +205,14 @@ export function holeCardPos(g: SeatGeo, i: number, n = 2): { p: Pt; rot: number 
  * interface cobre as cartas. A ponta de cada carta que fica por baixo é a direita, então o
  * canto com o valor continua visível.
  */
+/**
+ * Onde fica uma carta aberta do jogador (a do showdown): na mesa 3D, onde a mão a deixou ao virá-la;
+ * na 2D, onde ela já estava fechada.
+ */
+export function openCardPos(g: SeatGeo, i: number, n = 2): { p: Pt; rot: number } {
+  return g.abertas && n === 2 && g.abertas[i] ? { p: g.abertas[i], rot: g.cardsRot } : holeCardPos(g, i, n);
+}
+
 export function myHandLayout(n: number): { width: number; step: number; tilt: number; hint: Pt } {
   if (n <= 2) return { width: 136, step: 160, tilt: 6, hint: { x: 560, y: 836 } };
   // embaixo não sobra espaço entre a placa e o painel: a dica vai para cima das cartas

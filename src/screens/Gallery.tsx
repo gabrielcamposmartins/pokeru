@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { Fragment, Suspense, lazy, useState } from 'react';
 import { motion } from 'framer-motion';
 import { GALERIA, KIND_LABELS, isFree, itemsOfKind, owns, rarityLabel, rarityOf, type CatalogItem, type ItemKind } from '../../shared/catalog';
 import { ROULETTES, dropsOf, refundOf } from '../../shared/roulette';
+import { DEDOS, MAOS, MAX_ANEIS, ORDEM_DOS_DEDOS, TIPOS_DE_ACESSORIO, alternarAnel, alternarPulso, emUso, findAcessorio, type Acessorio, type Acessorios } from '../../shared/acessorios';
+import { findCharacter } from '../../shared/styles';
+import { AcessorioArt } from '../render/AcessorioArt';
+import { useEquipped, useProfile } from '../store/profile';
 import { ChipSvg } from '../render/Chip';
 import { PadoCoinSvg } from '../render/PadoCoin';
 import { useOwned, usePado } from '../store/shop';
@@ -47,7 +51,137 @@ export function Carimbo({ item, grande }: { item: CatalogItem; grande?: boolean 
  * O cartão **todo** é o clique: aqui não há nada para apertar dentro dele, e a área que a pessoa
  * mira é a peça inteira, não só a figurinha.
  */
-function GaleriaCard({ item, owned, selecionado, onVer }: { item: CatalogItem; owned: boolean; selecionado: boolean; onVer: () => void }) {
+/** A vitrine 3D das mãos (carregada à parte: o three.js só desce quando alguém abre os acessórios). */
+const VitrineDeMaos = lazy(() => import('../mesa3d/VitrineDeMaos'));
+type FocoDaVitrine = import('../mesa3d/VitrineDeMaos').FocoDaVitrine;
+
+/**
+ * Os acessórios com a peça escolhida "experimentada": se ela ainda não está em uso, entra onde
+ * costuma ir — o anel no anelar esquerdo, a pulseira e o relógio no pulso esquerdo, o esmalte e a
+ * luva no lugar dos de agora —, para a vitrine mostrá-la mesmo antes de equipar (e mesmo sem tê-la).
+ */
+function experimentando(meus: Acessorios, a: Acessorio): Acessorios {
+  if (emUso(meus, a.id)) return meus;
+  if (a.tipo === 'anel') return alternarAnel(meus, a.id, 'E', 2);
+  if (a.tipo === 'pulseira' || a.tipo === 'relogio') return alternarPulso(meus, a.id, 'E');
+  return a.tipo === 'esmalte' ? { ...meus, esmalte: a.id } : { ...meus, luva: a.id };
+}
+
+/** As mãos do jogador com a peça: a vitrine 3D, com o desenho da peça enquanto ela não chega. */
+function MaosComAPeca({ a }: { a: Acessorio }) {
+  const meus = useProfile((s) => s.acessorios);
+  const personagem = findCharacter(useProfile((s) => s.character)).id;
+  const mesa = useEquipped('table');
+  const vestidos = experimentando(meus, a);
+  // A câmera chega perto de onde a peça está: os dedos da mão que tem o anel, o pulso que tem a
+  // pulseira ou o relógio, as unhas (o esmalte). A luva se vê nas duas mãos, de longe.
+  const [perto, setPerto] = useState(true);
+  const foco: FocoDaVitrine =
+    !perto || a.tipo === 'luva'
+      ? null
+      : a.tipo === 'anel'
+        ? { mao: vestidos.aneis.find((x) => x.id === a.id)?.mao ?? 'E', onde: 'dedos', dedo: vestidos.aneis.find((x) => x.id === a.id)?.dedo ?? 2 }
+        : a.tipo === 'esmalte'
+          ? { mao: 'E', onde: 'dedos' }
+          : { mao: vestidos.pulsos.D === a.id && vestidos.pulsos.E !== a.id ? 'D' : 'E', onde: 'pulso' };
+  return (
+    <div className="shop-grande shop-maos">
+      <Suspense fallback={<AcessorioArt a={a} size={220} />}>
+        <VitrineDeMaos personagem={personagem} acessorios={vestidos} mesa={mesa} foco={foco} />
+      </Suspense>
+      {a.tipo !== 'luva' && (
+        <button className="vitrine-zoom" onClick={() => setPerto(!perto)} title={perto ? 'Ver as duas mãos' : 'Ver a peça de perto'}>
+          {perto ? '⤢ As duas mãos' : '⌕ De perto'}
+        </button>
+      )}
+      <p className="shop-sobre">{a.sobre}</p>
+    </div>
+  );
+}
+
+/**
+ * Equipar um acessório — a Galeria só mostra as outras peças, mas estas se vestem aqui mesmo: é
+ * onde a pessoa as vê nas mãos.
+ *
+ * O anel pede um dedo (um por dedo, até `MAX_ANEIS`), a pulseira e o relógio pedem um pulso (um em
+ * cada), e o esmalte e a luva são um só de cada vez — escolher outro troca. Só se equipa o que é
+ * da conta; o resto dá para ver na vitrine, e a lista abaixo diz de onde sai.
+ */
+function EquiparAcessorio({ a, owned }: { a: Acessorio; owned: boolean }) {
+  const meus = useProfile((s) => s.acessorios);
+  const setAcessorios = useProfile((s) => s.setAcessorios);
+  const por = (novo: Acessorios) => {
+    sfx.click();
+    setAcessorios(novo);
+  };
+  if (!owned) return <div className="equipar muted small">Você ainda não tem esta peça: a vitrine mostra como ela fica.</div>;
+  if (a.tipo === 'anel') {
+    return (
+      <div className="equipar">
+        <div className="equipar-titulo">Em que dedo?</div>
+        {MAOS.map((mao) => (
+          <div key={mao.id} className="equipar-linha">
+            <span className="equipar-mao">{mao.nome}</span>
+            {/* (na tela, a mão esquerda tem o polegar do lado de dentro: a ordem dos botões é a dos dedos vistos de cima) */}
+            {(mao.id === 'E' ? [...ORDEM_DOS_DEDOS].reverse() : ORDEM_DOS_DEDOS).map((dedo) => {
+              const posto = meus.aneis.find((x) => x.mao === mao.id && x.dedo === dedo);
+              const outro = posto && posto.id !== a.id ? findAcessorio(posto.id) : undefined;
+              return (
+                <button
+                  key={dedo}
+                  className={`equipar-botao ${posto?.id === a.id ? 'on' : ''} ${outro ? 'ocupado' : ''}`}
+                  title={outro ? `${DEDOS[dedo]}: tem ${outro.nome} (clicar troca)` : DEDOS[dedo]}
+                  aria-pressed={posto?.id === a.id}
+                  onClick={() => por(alternarAnel(meus, a.id, mao.id, dedo))}
+                >
+                  {DEDOS[dedo]}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+        <div className="muted small">
+          {meus.aneis.length} de {MAX_ANEIS} anéis em uso. Clicar de novo no dedo tira o anel.
+        </div>
+      </div>
+    );
+  }
+  if (a.tipo === 'pulseira' || a.tipo === 'relogio') {
+    return (
+      <div className="equipar">
+        <div className="equipar-titulo">Em que pulso?</div>
+        <div className="equipar-linha">
+          {MAOS.map((mao) => {
+            const la = meus.pulsos[mao.id];
+            const outro = la && la !== a.id ? findAcessorio(la) : undefined;
+            return (
+              <button
+                key={mao.id}
+                className={`equipar-botao largo ${la === a.id ? 'on' : ''} ${outro ? 'ocupado' : ''}`}
+                title={outro ? `Tem ${outro.nome} (clicar troca)` : undefined}
+                aria-pressed={la === a.id}
+                onClick={() => por(alternarPulso(meus, a.id, mao.id))}
+              >
+                {mao.id === 'E' ? 'Pulso esquerdo' : 'Pulso direito'}
+              </button>
+            );
+          })}
+        </div>
+        <div className="muted small">Um em cada pulso. Clicar de novo tira.</div>
+      </div>
+    );
+  }
+  const usando = a.tipo === 'esmalte' ? meus.esmalte === a.id : meus.luva === a.id;
+  return (
+    <div className="equipar">
+      <button className={`equipar-botao largo ${usando ? 'on' : ''}`} aria-pressed={usando} disabled={usando} onClick={() => por(a.tipo === 'esmalte' ? { ...meus, esmalte: a.id } : { ...meus, luva: a.id })}>
+        {usando ? '✓ Em uso' : a.tipo === 'esmalte' ? 'Usar este esmalte' : 'Usar esta luva'}
+      </button>
+    </div>
+  );
+}
+
+function GaleriaCard({ item, owned, selecionado, onVer, emUso: usando }: { item: CatalogItem; owned: boolean; selecionado: boolean; onVer: () => void; emUso?: boolean }) {
   return (
     <button
       className={`shop-card clicavel galeria ${owned ? 'owned' : 'falta'} ${selecionado ? 'on' : ''}`}
@@ -61,7 +195,7 @@ function GaleriaCard({ item, owned, selecionado, onVer }: { item: CatalogItem; o
       <Preview item={item} />
       <Carimbo item={item} />
       <div className="shop-name">{labelOf(item)}</div>
-      <div className={owned ? 'shop-owned' : 'shop-falta'}>{owned ? (isFree(item.key) ? 'Já vem com o jogo' : '✓ Seu') : 'Falta'}</div>
+      <div className={owned ? 'shop-owned' : 'shop-falta'}>{usando ? '● Em uso' : owned ? (isFree(item.key) ? 'Já vem com o jogo' : '✓ Seu') : 'Falta'}</div>
     </button>
   );
 }
@@ -101,6 +235,7 @@ export function GalleryScreen({ onBack, initial = 'character', verInicial }: { o
   const ownedList = useOwned();
   const chips = useChips();
   const pado = usePado();
+  const meusAcessorios = useProfile((s) => s.acessorios);
 
   const items = itemsOfKind(kind);
   // o palco nunca fica vazio: sem escolha (ou com uma escolha de outro tipo) ele mostra o primeiro
@@ -152,14 +287,23 @@ export function GalleryScreen({ onBack, initial = 'character', verInicial }: { o
         </nav>
 
         <motion.div key={kind} className="shop-grid" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-          {items.map((item) => (
-            <GaleriaCard
-              key={item.key}
-              item={item}
-              owned={owns(ownedList, item.key)}
-              selecionado={item.key === vendo?.key}
-              onVer={() => setVerKey(item.key)}
-            />
+          {/* os acessórios vêm separados por tipo (anéis, pulseiras, relógios, esmaltes, luvas); o resto, numa prateleira só */}
+          {(kind === 'acessorio' ? TIPOS_DE_ACESSORIO : [null]).map((grupo) => (
+            <Fragment key={grupo?.id ?? 'todos'}>
+              {grupo && <h3 className="shop-grupo">{grupo.nome}</h3>}
+              {items
+                .filter((item) => !grupo || findAcessorio(item.id)?.tipo === grupo.id)
+                .map((item) => (
+                  <GaleriaCard
+                    key={item.key}
+                    item={item}
+                    owned={owns(ownedList, item.key)}
+                    selecionado={item.key === vendo?.key}
+                    onVer={() => setVerKey(item.key)}
+                    emUso={item.kind === 'acessorio' && emUso(meusAcessorios, item.id)}
+                  />
+                ))}
+            </Fragment>
           ))}
         </motion.div>
 
@@ -167,9 +311,11 @@ export function GalleryScreen({ onBack, initial = 'character', verInicial }: { o
           <motion.div key={vendo.key} className="panel shop-stage" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
             <h2 className="title-deco">{labelOf(vendo)}</h2>
             <div className="shop-stage-art">
-              <Grande item={vendo} />
+              {/* o acessório aparece onde é usado: nas mãos do seu personagem, na mesa */}
+              {vendo.kind === 'acessorio' && findAcessorio(vendo.id) ? <MaosComAPeca a={findAcessorio(vendo.id)!} /> : <Grande item={vendo} />}
               <Carimbo item={vendo} grande />
             </div>
+            {vendo.kind === 'acessorio' && findAcessorio(vendo.id) && <EquiparAcessorio a={findAcessorio(vendo.id)!} owned={owns(ownedList, vendo.key)} />}
             <DeOndeVem item={vendo} owned={owns(ownedList, vendo.key)} />
           </motion.div>
         )}

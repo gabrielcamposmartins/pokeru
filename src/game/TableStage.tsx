@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { sameCard, type Card } from '../../shared/cards';
 import { sfx } from '../audio/sfx';
@@ -13,15 +13,39 @@ import { findWinFx, type WinFx } from '../render/cardfx';
 import { ChipStack } from '../render/Chip';
 import { FlyersLayer } from './Flyers';
 import { Nameplate } from './Nameplate';
-import { chipSkin, openerCardSkin, tableSkin } from './skins';
+import { chipSkin, dealerCardSkin, tableSkin } from './skins';
+import { planoCss, seatLayout3d } from '../mesa3d/geometria';
+import { usar3D } from '../mesa3d/modo';
 import { pisoDaMesa } from './piso';
 import { CenterConsole } from './CenterConsole';
 import { MyCountdown } from './Countdown';
 import { director } from './director';
-import { CARD_H, CARD_W, betSpot, boardSlot, holeCardPos, myHandLayout, planeStyle, project, seatLayout, type SeatGeo } from './layout';
+import { CARD_H, CARD_W, betSpot, boardSlot, holeCardPos, myHandLayout, openCardPos, planeStyle, project, seatLayout, type SeatGeo } from './layout';
+import { useJanelaNoPalco } from './Stage';
 
 const PLANE = planeStyle();
 const FLOOR = planeStyle(3200, 2200, 1600, 1100);
+/** Na mesa 3D o plano da mesa é o tampo dela, visto pela câmera do 3D. */
+const PLANO_3D = planoCss();
+/** O 3D (three.js, a modelagem) só desce quando uma partida abre. */
+const Mesa3D = lazy(() => import('../mesa3d/Mesa3D'));
+
+/**
+ * Se o 3D quebrar (o WebGL perdido, um pacote que não desceu), a partida continua: as cartas, as
+ * placas e o painel são 2D e seguem funcionando por cima do fundo da sala.
+ */
+class SemDerrubar extends Component<{ children: ReactNode }, { quebrou: boolean }> {
+  state = { quebrou: false };
+  static getDerivedStateFromError() {
+    return { quebrou: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.error('[mesa 3D]', err);
+  }
+  render() {
+    return this.state.quebrou ? null : this.props.children;
+  }
+}
 
 function isHl(hl: Card[], c: Card | null): boolean {
   return !!c && hl.some((h) => sameCard(h, c));
@@ -34,11 +58,14 @@ function Board({
   highlight,
   fx,
   skin,
+  pousadas,
 }: {
   board: Card[];
   highlight: Card[];
   fx: WinFx | null;
-  skin: { face: CardFaceStyle; back: CardBackStyle } | null;
+  skin: { face: CardFaceStyle; back: CardBackStyle };
+  /** Na mesa 3D a carta chega pelas mãos do dealer e já pousa aberta: a 2D aparece pronta, no lugar dela. */
+  pousadas?: boolean;
 }) {
   const prevLen = useRef(board.length);
   const start = prevLen.current;
@@ -49,7 +76,7 @@ function Board({
     <>
       {board.map((c, i) => {
         const p = boardSlot(i);
-        const isNew = i >= start;
+        const isNew = !pousadas && i >= start;
         const from = boardSlot(Math.max(start, 0));
         return (
           <motion.div
@@ -63,8 +90,8 @@ function Board({
             <CardView
               card={c}
               width={CARD_W}
-              face={skin?.face}
-              back={skin?.back}
+              face={skin.face}
+              back={skin.back}
               flipIn={isNew}
               flipDelay={isNew ? 0.12 + (i - start) * 0.14 : 0}
               highlight={highlight.length > 0 && isHl(highlight, c)}
@@ -83,21 +110,27 @@ function OpponentCards({
   geo,
   fxOf,
   skin,
+  soAbertas = false,
 }: {
   view: TableView;
   geo: SeatGeo[];
   fxOf: (seat: number) => WinFx | null;
-  skin: { face: CardFaceStyle; back: CardBackStyle } | null;
+  skin: { face: CardFaceStyle; back: CardBackStyle };
+  /** Na mesa 3D as fechadas são do 3D: aqui ficam só as abertas (o showdown). */
+  soAbertas?: boolean;
 }) {
   return (
     <>
       {view.seats.map((s, seat) => {
         const g = geo[seat];
-        if (!s || !g || seat === view.mySeat) return null;
+        if (!s || !g) return null;
+        // (as minhas: na mesa 3D o meu personagem também as vira no showdown, e elas ficam abertas na frente dele)
+        if (seat === view.mySeat && !(soAbertas && s.handName && !s.folded)) return null;
+        if (soAbertas && !s.cards.some(Boolean)) return null;
         const fx = fxOf(seat);
         return s.cards.map((c, i) => {
-          const hp = holeCardPos(g, i, s.cards.length);
-          const w = g.cardW;
+          const hp = soAbertas ? openCardPos(g, i, s.cards.length) : holeCardPos(g, i, s.cards.length);
+          const w = soAbertas ? 72 : g.cardW;
           return (
             <div
               key={`${seat}-${i}`}
@@ -108,8 +141,8 @@ function OpponentCards({
                 card={c}
                 faceUp={!!c}
                 width={w}
-                face={skin?.face}
-                back={skin?.back ?? s.cosmetics.back}
+                face={skin.face}
+                back={skin.back}
                 highlight={view.highlight.length > 0 && isHl(view.highlight, c)}
                 winFx={fx && isHl(view.highlight, c) ? fx : null}
               />
@@ -164,7 +197,7 @@ function MyHand({
 }: {
   view: TableView;
   fx: WinFx | null;
-  skin: { face: CardFaceStyle; back: CardBackStyle } | null;
+  skin: { face: CardFaceStyle; back: CardBackStyle };
 }) {
   const me = view.mySeat !== null ? view.seats[view.mySeat] : null;
   const cards = me && !me.folded ? me.cards : [];
@@ -202,8 +235,8 @@ function MyHand({
                     card={c}
                     faceUp={!!c}
                     width={width}
-                    face={skin?.face}
-                    back={skin?.back ?? me.cosmetics.back}
+                    face={skin.face}
+                    back={skin.back}
                     highlight={hl.length > 0 && isHl(hl, c)}
                     dim={hl.length > 0 && !isHl(hl, c)}
                     winFx={fx && isHl(hl, c) ? fx : null}
@@ -241,11 +274,14 @@ export function TableStage() {
   const myChip = useEquipped('chip');
   const myFace = useEquipped('face');
   const myBack = useEquipped('back');
-  const opener = useTable((s) => s.opener);
   const myFx = useProfile((s) => s.winFx);
   const maxPlayers = view?.maxPlayers ?? 6;
   const mySeat = view?.mySeat ?? null;
-  const geo = useMemo(() => seatLayout(maxPlayers, mySeat ?? 0, mySeat !== null), [maxPlayers, mySeat]);
+  const tres = usar3D();
+  // (na mesa 3D a tela passa do palco para os lados: as placas de quem senta nas pontas vão junto)
+  const { sobraX } = useJanelaNoPalco();
+  const sobra = tres ? Math.round(sobraX) : 0;
+  const geo = useMemo(() => (tres ? seatLayout3d(maxPlayers, mySeat ?? 0, mySeat !== null, sobra) : seatLayout(maxPlayers, mySeat ?? 0, mySeat !== null)), [maxPlayers, mySeat, tres, sobra]);
 
   useEffect(() => {
     director.mounted = true;
@@ -255,9 +291,9 @@ export function TableStage() {
   }, []);
 
   if (!view) return null;
-  // a mesa e' do dealer; as cartas abertas, de quem abre a mao
+  // a mesa é do dealer, e o baralho também: todas as cartas da rodada, abra quem abrir e ganhe quem ganhar
   const tableStyle = tableSkin(view, myTable);
-  const openSkin = openerCardSkin(view, opener, { face: myFace, back: myBack });
+  const cartas = dealerCardSkin(view, { face: myFace, back: myBack });
   /** Efeito das cartas de um vencedor (cada jogador tem o seu); null para quem não ganhou. */
   const fxOf = (seat: number | null): WinFx | null => {
     if (seat === null || !winners.includes(seat)) return null;
@@ -267,6 +303,51 @@ export function TableStage() {
   const boardFx = fxOf(winners.includes(view.mySeat ?? -1) ? view.mySeat : (winners[0] ?? null));
   const badgeOf = (seat: number): 'D' | 'SB' | 'BB' | null =>
     view.dealerSeat === seat ? 'D' : view.sbSeat === seat ? 'SB' : view.bbSeat === seat ? 'BB' : null;
+  const plates = view.seats.map((s, seat) =>
+    s && geo[seat] ? (
+      <Nameplate
+        key={seat}
+        seat={s}
+        geo={geo[seat]}
+        acting={view.toAct === seat}
+        isMe={seat === view.mySeat}
+        winner={winners.includes(seat)}
+        badge={badgeOf(seat)}
+      />
+    ) : null,
+  );
+
+  if (tres) {
+    /*
+     * A mesa 3D: a mesa, os personagens, as fichas e as cartas fechadas são desenhados em 3D, no
+     * canvas do fundo. Por cima, deitada no tampo pela mesma câmera, fica a camada 2D do que é
+     * aberto (as cartas da mesa, as do showdown) e do console do pote; e, em pé no palco, a minha
+     * mão, as placas e o resto da interface — como antes.
+     */
+    return (
+      <div className="table-stage tres-d">
+        <SemDerrubar>
+          <Suspense fallback={null}>
+            <Mesa3D />
+          </Suspense>
+        </SemDerrubar>
+        <div className="table-plane" style={PLANO_3D}>
+          <div className="console-3d">
+            <CenterConsole view={view} geo={geo} />
+          </div>
+          <Board board={view.board} highlight={view.highlight} fx={boardFx} skin={cartas} pousadas />
+          <OpponentCards view={view} geo={geo} fxOf={fxOf} skin={cartas} soAbertas />
+          <FlyersLayer space="plane" />
+        </div>
+        <FlyersLayer space="screen" />
+        <HandHint view={view} />
+        <MyHand view={view} fx={fxOf(view.mySeat)} skin={cartas} />
+        {plates}
+        <MyCountdown />
+      </div>
+    );
+  }
+
   return (
     <div className="table-stage">
       {/* o chão é da mesa que está no feltro (a do dealer, com gente): cada estampa tem o seu piso */}
@@ -274,28 +355,16 @@ export function TableStage() {
       <div className="table-plane" style={PLANE}>
         <TableFelt st={tableStyle} />
         <CenterConsole view={view} geo={geo} />
-        <Board board={view.board} highlight={view.highlight} fx={boardFx} skin={openSkin} />
-        <OpponentCards view={view} geo={geo} fxOf={fxOf} skin={openSkin} />
+        <Board board={view.board} highlight={view.highlight} fx={boardFx} skin={cartas} />
+        <OpponentCards view={view} geo={geo} fxOf={fxOf} skin={cartas} />
         <DealerButton view={view} geo={geo} />
         <FlyersLayer space="plane" />
       </div>
       <BetChips view={view} geo={geo} myChip={myChip} />
       <FlyersLayer space="screen" />
       <HandHint view={view} />
-      <MyHand view={view} fx={fxOf(view.mySeat)} skin={openSkin} />
-      {view.seats.map((s, seat) =>
-        s && geo[seat] ? (
-          <Nameplate
-            key={seat}
-            seat={s}
-            geo={geo[seat]}
-            acting={view.toAct === seat}
-            isMe={seat === view.mySeat}
-            winner={winners.includes(seat)}
-            badge={badgeOf(seat)}
-          />
-        ) : null,
-      )}
+      <MyHand view={view} fx={fxOf(view.mySeat)} skin={cartas} />
+      {plates}
       <MyCountdown />
     </div>
   );

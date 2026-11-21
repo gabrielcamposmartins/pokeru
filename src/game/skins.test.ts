@@ -8,7 +8,7 @@ import {
   TABLE_PRESETS,
   type PlayerCosmetics,
 } from '../../shared/styles';
-import { chipSkin, mainChipSkin, openerCardSkin, tableSkin } from './skins';
+import { chipSkin, dealerCardSkin, mainChipSkin, skinsDeApoio, tableSkin } from './skins';
 
 /** Cosméticos distintos por assento, para dar para diferenciar nos asserts. */
 function cosmetics(i: number): PlayerCosmetics {
@@ -91,8 +91,8 @@ describe('bot não empresta skin', () => {
     expect(chipSkin(comBots, 1, MEU_CHIP)).toBe(MEU_CHIP);
   });
 
-  it('bot abrindo a mão não empresta as cartas', () => {
-    expect(openerCardSkin(comBots, 1, MINHAS_CARTAS)).toBeNull();
+  it('o botão num bot não troca o baralho', () => {
+    expect(dealerCardSkin({ ...comBots, dealerSeat: 1 }, MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
   });
 
   it('numa mesa mista, o bot continua de fora', () => {
@@ -167,26 +167,82 @@ describe('fichas', () => {
   });
 });
 
-describe('cartas de quem abre a mão', () => {
-  it('fora do showdown ninguém abre: null', () => {
-    expect(openerCardSkin(view(), null, MINHAS_CARTAS)).toBeNull();
+describe('cartas da rodada seguem o dealer', () => {
+  it('com gente, o baralho é o do dealer: frente e verso', () => {
+    expect(dealerCardSkin(view(), MINHAS_CARTAS)).toEqual({ face: cosmetics(2).face, back: cosmetics(2).back });
   });
 
-  it('quem abre empresta frente e verso', () => {
-    const skin = openerCardSkin(view(), 1, MINHAS_CARTAS);
-    expect(skin).toEqual({ face: cosmetics(2).face, back: cosmetics(2).back });
+  it('o baralho troca junto com o botão (e com a mesa)', () => {
+    const v = view({ seats: [seat(0), seat(1), seat(2), null, null, null] });
+    expect(dealerCardSkin({ ...v, dealerSeat: 2 }, MINHAS_CARTAS).back).toBe(cosmetics(3).back);
+    expect(tableSkin({ ...v, dealerSeat: 2 }, MEU_TABLE)).toBe(cosmetics(3).table);
+    expect(dealerCardSkin({ ...v, dealerSeat: 1 }, MINHAS_CARTAS).back).toBe(cosmetics(2).back);
   });
 
-  it('se eu abro, são as minhas', () => {
-    expect(openerCardSkin(view(), 0, MINHAS_CARTAS)).toEqual(MINHAS_CARTAS);
+  it('com o botão comigo, num bot, ou sem botão, são as minhas', () => {
+    const mista = view({ seats: [seat(0), seat(1), seat(2, true), null, null, null] });
+    expect(dealerCardSkin({ ...mista, dealerSeat: 0 }, MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
+    expect(dealerCardSkin({ ...mista, dealerSeat: 2 }, MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
+    expect(dealerCardSkin({ ...mista, dealerSeat: null }, MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
   });
 
-  it('contra bots não troca nada', () => {
-    const v = view({ seats: [seat(0), seat(1, true), null, null, null, null] });
-    expect(openerCardSkin(v, 1, MINHAS_CARTAS)).toBeNull();
+  it('contra bots é sempre o meu baralho', () => {
+    const soBots = view({ seats: [seat(0), seat(1, true), seat(2, true), null, null, null] });
+    for (const dealerSeat of [0, 1, 2]) expect(dealerCardSkin({ ...soBots, dealerSeat }, MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
+  });
+});
+
+describe('as cartas da rodada são do dealer', () => {
+  it('o baralho (frente e verso) é o do dealer, quando ele é gente', () => {
+    expect(dealerCardSkin(view(), MINHAS_CARTAS)).toEqual({ face: cosmetics(2).face, back: cosmetics(2).back });
   });
 
-  it('assento que saiu da mesa não empresta skin', () => {
-    expect(openerCardSkin(view(), 3, MINHAS_CARTAS)).toBeNull();
+  it('com o botão comigo, é o meu — o do perfil', () => {
+    expect(dealerCardSkin(view({ dealerSeat: 0 }), MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
+  });
+
+  it('não depende de quem está na vez, de quem abre nem de quem ganha: só do botão', () => {
+    // três pessoas, o botão no assento 2: seja quem for agindo (ou mostrando as cartas), o baralho é o dele
+    const tres = view({ seats: [seat(0), seat(1), seat(2), null, null, null], dealerSeat: 2 });
+    for (const toAct of [0, 1, 2, null]) {
+      for (const street of ['preflop', 'river', 'showdown'] as const) {
+        expect(dealerCardSkin({ ...tres, toAct, street }, MINHAS_CARTAS)).toEqual({ face: cosmetics(3).face, back: cosmetics(3).back });
+      }
+    }
+  });
+
+  it('assento do dealer vazio: fica o meu', () => {
+    expect(dealerCardSkin(view({ dealerSeat: 3 }), MINHAS_CARTAS)).toBe(MINHAS_CARTAS);
+  });
+});
+
+describe('as skins na página de apoio', () => {
+  const mine = { table: TABLE_PRESETS[0], chip: CHIP_PRESETS[0], cards: { face: FACE_PRESETS[0], back: BACK_PRESETS[0] } };
+
+  it('de cada um: bot também empresta a mesa, o baralho e as fichas', () => {
+    const v = view({ seats: [seat(0), seat(1, true), null, null, null, null], dealerSeat: 1 });
+    expect(tableSkin(v, mine.table)).toBe(mine.table);
+    skinsDeApoio('de-cada-um');
+    try {
+      expect(tableSkin(v, mine.table)).toBe(v.seats[1]!.cosmetics.table);
+      expect(dealerCardSkin(v, mine.cards).back).toBe(v.seats[1]!.cosmetics.back);
+      expect(chipSkin(v, 1, mine.chip)).toBe(v.seats[1]!.cosmetics.chip);
+      expect(mainChipSkin(v, mine.chip)).toBe(v.seats[1]!.cosmetics.chip);
+    } finally {
+      skinsDeApoio('regra');
+    }
+  });
+
+  it('minhas: nem gente empresta', () => {
+    const v = view({ dealerSeat: 1 });
+    expect(tableSkin(v, mine.table)).toBe(v.seats[1]!.cosmetics.table);
+    skinsDeApoio('minhas');
+    try {
+      expect(tableSkin(v, mine.table)).toBe(mine.table);
+      expect(chipSkin(v, 1, mine.chip)).toBe(mine.chip);
+      expect(dealerCardSkin(v, mine.cards)).toBe(mine.cards);
+    } finally {
+      skinsDeApoio('regra');
+    }
   });
 });

@@ -46,6 +46,8 @@ export default defineConfig({
     watch: { ignored: ['**/src-tauri/**', '**/server/**'] },
   },
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
+  // os ajudantes da mesa 3D (src/mesa3d/trabalho.ts) são módulos: o WebView do Tauri e os navegadores de hoje os rodam
+  worker: { format: 'es' },
   build: {
     target: 'es2022',
     minify: !process.env.TAURI_ENV_DEBUG,

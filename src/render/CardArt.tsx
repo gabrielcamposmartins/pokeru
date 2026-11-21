@@ -104,7 +104,7 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
             fontFamily={font}
             fontWeight={900}
             fontSize={150}
-            fill={st.courtColor}
+            fill={st.special === 'rainbow' ? color : st.courtColor}
             stroke={st.courtAccent}
             strokeWidth={4}
             paintOrder="stroke"
@@ -202,6 +202,26 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
                 repeatCount="indefinite"
               />
             </linearGradient>
+            {/*
+              * A tinta do arco-íris: um fio branco rente ao desenho — é ele que separa a tinta das
+              * seis cores que passam por baixo, e sem ele o vermelho some na faixa vermelha — e, por
+              * fora do fio, um brilho na cor do naipe.
+              */}
+            <filter id={`gl${uid}`} filterUnits="userSpaceOnUse" x={0} y={0} width={250} height={350} colorInterpolationFilters="sRGB">
+              <feMorphology in="SourceAlpha" operator="dilate" radius={BRILHO_DO_NAIPE.largo} result="largo" />
+              <feGaussianBlur in="largo" stdDeviation={BRILHO_DO_NAIPE.macio} result="largoMacio" />
+              <feFlood floodColor={color} floodOpacity={BRILHO_DO_NAIPE.forca} />
+              <feComposite in2="largoMacio" operator="in" result="brilho" />
+              <feMorphology in="SourceAlpha" operator="dilate" radius={BRILHO_DO_NAIPE.fio} result="justo" />
+              <feGaussianBlur in="justo" stdDeviation={0.7} result="justoMacio" />
+              <feFlood floodColor="#ffffff" />
+              <feComposite in2="justoMacio" operator="in" result="fio" />
+              <feMerge>
+                <feMergeNode in="brilho" />
+                <feMergeNode in="fio" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </>
         )}
       </defs>
@@ -285,9 +305,11 @@ export const CardFaceArt = memo(function CardFaceArt({ card, style: st }: { card
         ].map(([x, y], i) => (
           <path key={i} transform={`translate(${x} ${y}) rotate(45)`} d="M-7 0 L0 -7 L7 0 L0 7 Z" fill={st.frameColor} />
         ))}
-      {center}
-      {index(false)}
-      {index(true)}
+      <g filter={st.special === 'rainbow' ? `url(#gl${uid})` : undefined}>
+        {center}
+        {index(false)}
+        {index(true)}
+      </g>
     </g>
   );
 });
@@ -470,6 +492,12 @@ export const CardBackArt = memo(function CardBackArt({ style: st }: { style: Car
 
 /** O período do arco-íris da frente especial: uma volta de cor ao longo da diagonal da carta. */
 const RB_PERIODO = { x: 260, y: 150 };
+
+/**
+ * O brilho da tinta na carta arco-íris (em unidades da carta, que tem 250 de largura): a grossura do
+ * fio branco em volta do desenho, e o quanto o brilho na cor do naipe passa dele, se espalha e pesa.
+ */
+const BRILHO_DO_NAIPE = { fio: 2.2, largo: 5, macio: 6, forca: 0.9 };
 
 /** As cores do arco-íris (posição na volta, cor). A primeira e a última são a mesma: a volta fecha. */
 const RB_CORES: [number, string][] = [

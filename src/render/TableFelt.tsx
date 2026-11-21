@@ -5,7 +5,8 @@ import { Damask, Flower, SuitGlyph } from './suits';
 import { CARD_H, CARD_W, CENTER, FELT, PLANE_H, PLANE_W, RAIL, boardSlot } from '../game/layout';
 import { useUiTheme } from '../ui/themes';
 
-function FeltPattern({ id, pattern, color }: { id: string; pattern: TablePattern; color: string }) {
+/** O padrão do feltro (um `<pattern>` de SVG). A mesa 3D também o usa, para estampar o feltro dela. */
+export function FeltPattern({ id, pattern, color }: { id: string; pattern: TablePattern; color: string }) {
   const common = { id, patternUnits: 'userSpaceOnUse' as const };
   switch (pattern) {
     case 'lines':
@@ -51,6 +52,20 @@ function FeltPattern({ id, pattern, color }: { id: string; pattern: TablePattern
   }
 }
 
+/**
+ * Onde a estampa do feltro aparece. Ela não cobre mais a mesa inteira — um feltro todo estampado
+ * disputava a atenção com as cartas e as fichas —, e sim dois pontos-chave, com o resto liso:
+ *  - uma **faixa** rente à beirada (`faixa` de largura, no plano da mesa);
+ *  - um **medalhão** no centro, atrás do pote e das cartas da mesa.
+ *
+ * E ela é **da cor do próprio feltro, um pouco mais escura** — tom sobre tom, como um feltro
+ * gravado, e não uma tinta de outra cor por cima: é desenhada em preto, bem transparente (`forca`),
+ * o que escurece o feltro que há embaixo, seja qual for a cor dele e o ponto do degradê. (A cor da
+ * estampa do estilo, `patternColor`, fica para a linha tracejada das apostas.) A mesa 3D usa as
+ * mesmas medidas e a mesma cor (src/mesa3d/aparencia.ts).
+ */
+export const ESTAMPA_DO_FELTRO = { faixa: 62, medalhao: { x: 800, y: 525, rx: 332, ry: 172 }, cor: '#000000', forca: 0.15, forcaDoDamasco: 0.17, filete: 0.2 };
+
 /** Tachas de latão ao longo da borda de couro (temas com mesa ornamentada). */
 const STUDS = Array.from({ length: 72 }, (_, i) => {
   const a = (i / 72) * Math.PI * 2;
@@ -85,7 +100,13 @@ export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st:
         <filter id={`sh${uid}`} x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="26" />
         </filter>
-        <FeltPattern id={`pat${uid}`} pattern={st.pattern} color={st.patternColor} />
+        <FeltPattern id={`pat${uid}`} pattern={st.pattern} color={ESTAMPA_DO_FELTRO.cor} />
+        {/* onde a estampa aparece: a faixa rente à beirada e o medalhão do centro */}
+        <mask id={`onde${uid}`} maskUnits="userSpaceOnUse" x={0} y={0} width={PLANE_W} height={PLANE_H}>
+          <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill="#fff" />
+          <ellipse cx={cx} cy={cy} rx={FELT.rx - ESTAMPA_DO_FELTRO.faixa} ry={FELT.ry - ESTAMPA_DO_FELTRO.faixa} fill="#000" />
+          <ellipse cx={ESTAMPA_DO_FELTRO.medalhao.x} cy={ESTAMPA_DO_FELTRO.medalhao.y} rx={ESTAMPA_DO_FELTRO.medalhao.rx} ry={ESTAMPA_DO_FELTRO.medalhao.ry} fill="#fff" />
+        </mask>
       </defs>
       {/* sombra no chão e espessura (saia) */}
       <ellipse cx={cx} cy={cy + 90} rx={RAIL.rx + 40} ry={RAIL.ry + 30} fill="#000" opacity={0.55} filter={`url(#sh${uid})`} />
@@ -113,7 +134,15 @@ export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st:
       <ellipse cx={cx} cy={cy} rx={FELT.rx + 10} ry={FELT.ry + 10} fill="none" stroke="#000" strokeOpacity={0.3} strokeWidth={1.5} />
       {/* feltro */}
       <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#felt${uid})`} />
-      {st.pattern !== 'none' && <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#pat${uid})`} opacity={st.pattern === 'damask' ? 0.13 : 0.1} />}
+      {st.pattern !== 'none' && (
+        <>
+          <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#pat${uid})`} opacity={st.pattern === 'damask' ? ESTAMPA_DO_FELTRO.forcaDoDamasco : ESTAMPA_DO_FELTRO.forca} mask={`url(#onde${uid})`} />
+          {/* um filete fecha a faixa por dentro, e dois cercam o medalhão: a estampa fica emoldurada, não solta no feltro */}
+          <ellipse cx={cx} cy={cy} rx={FELT.rx - ESTAMPA_DO_FELTRO.faixa} ry={FELT.ry - ESTAMPA_DO_FELTRO.faixa} fill="none" stroke={ESTAMPA_DO_FELTRO.cor} strokeOpacity={ESTAMPA_DO_FELTRO.filete} strokeWidth={2} />
+          <ellipse cx={ESTAMPA_DO_FELTRO.medalhao.x} cy={ESTAMPA_DO_FELTRO.medalhao.y} rx={ESTAMPA_DO_FELTRO.medalhao.rx} ry={ESTAMPA_DO_FELTRO.medalhao.ry} fill="none" stroke={ESTAMPA_DO_FELTRO.cor} strokeOpacity={ESTAMPA_DO_FELTRO.filete} strokeWidth={2.2} />
+          <ellipse cx={ESTAMPA_DO_FELTRO.medalhao.x} cy={ESTAMPA_DO_FELTRO.medalhao.y} rx={ESTAMPA_DO_FELTRO.medalhao.rx + 11} ry={ESTAMPA_DO_FELTRO.medalhao.ry + 11} fill="none" stroke={ESTAMPA_DO_FELTRO.cor} strokeOpacity={ESTAMPA_DO_FELTRO.filete * 0.55} strokeWidth={1.2} />
+        </>
+      )}
       <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill="none" stroke="#000" strokeOpacity={0.35} strokeWidth={16} />
       <ellipse
         cx={cx}

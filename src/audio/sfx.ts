@@ -416,8 +416,9 @@ export const sfx = {
     baque(0.4, 0.7);
     assentar(0.4, 3);
   },
-  knock(): void {
-    for (const at of [0, 0.16]) {
+  /** As batidas na mesa do "passo": duas, uma atrás da outra — ou uma só (`vezes` 1), para quem as toca na hora de cada batida da mão. */
+  knock(vezes = 2): void {
+    for (const at of vezes === 1 ? [0] : [0, 0.16]) {
       playTone({ freq: 150, freqEnd: 70, dur: 0.12, gain: 0.55, at });
       playNoise({ dur: 0.04, type: 'lowpass', freq: 900, gain: 0.25, at });
     }

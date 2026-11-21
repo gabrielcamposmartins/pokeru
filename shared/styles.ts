@@ -1,3 +1,4 @@
+import { sanitizeAcessorios, type Acessorios } from './acessorios';
 import type { Suit } from './cards';
 
 /* =====================================================================
@@ -283,6 +284,11 @@ export interface PlayerCosmetics {
   auras: AuraId[];
   /** Moldura do retrato do jogador na mesa e no placar (veja FRAME_IDS). */
   frame: FrameId;
+  /**
+   * O que o jogador usa nas mãos na mesa 3D: anéis, pulseira, relógio, esmalte e luva (veja
+   * shared/acessorios.ts). Sem o campo (um cliente ou servidor de antes dos acessórios), nada.
+   */
+  acessorios?: Acessorios;
 }
 
 // ---------------------------------------------------------------------
@@ -430,8 +436,10 @@ export const FACE_PRESETS: CardFaceStyle[] = [
      * Arco-Íris: a carta multicromática.
      *
      * O degradê corre por dentro do recorte da carta, e é o movimento que faz a cor parecer
-     * material em vez de pintura. A tinta é preta com halo claro porque ela passa por cima de seis
-     * matizes: qualquer cor fixa brigaria com dois deles.
+     * material em vez de pintura. Os naipes têm as cores de sempre (copas e ouros vermelhos, espadas
+     * e paus pretos): a tinta passa por cima de seis matizes, e uma cor fixa brigaria com dois deles
+     * — por isso o desenho da carta (src/render/CardArt.tsx) põe um fio branco em volta da tinta e,
+     * por fora dele, um brilho na cor do naipe.
      */
     id: 'face-rainbow',
     name: 'Arco-Íris',
@@ -442,7 +450,7 @@ export const FACE_PRESETS: CardFaceStyle[] = [
     radius: 20,
     frame: 'double',
     frameColor: '#ffffff',
-    suitColors: { s: '#151022', h: '#151022', d: '#151022', c: '#151022' },
+    suitColors: { s: '#151022', h: '#e3123f', d: '#e3123f', c: '#151022' },
     font: 'rounded',
     indexScale: 1.1,
     center: 'big',
@@ -1000,6 +1008,7 @@ export function sanitizeCosmetics(v: unknown): PlayerCosmetics {
     winFx: sanitizeWinFx(o.winFx),
     auras: sanitizeAuras(o.auras),
     frame: sanitizeFrame(o.frame),
+    acessorios: sanitizeAcessorios(o.acessorios),
   };
 }
 

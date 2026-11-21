@@ -10,6 +10,9 @@
  * E é aqui que cada um aparece do jeito que se montou: personagem, título, nível e o par de
  * cartas com a frente e o verso que escolheu. Uma partida com gente começa com todos se vendo.
  *
+ * É também aqui que os personagens da mesa 3D são modelados (src/mesa3d/modelos.ts): leva
+ * segundos, em ajudantes que não travam a tela, e o "pronto" só sai quando eles terminam.
+ *
  * `OpeningView` é a tela sem loja nenhuma (é o que o preview e os testes desenham); o
  * `OpeningScreen` é ela ligada na sessão, que é quem sabe quem sou eu e manda o "pronto".
  */
@@ -21,6 +24,9 @@ import { useProfile } from '../store/profile';
 import { Petals } from '../screens/MainMenu';
 import { useSession } from '../store/session';
 import { useTable } from '../store/table';
+import { findCharacter } from '../../shared/styles';
+import { prepararAte, textoDoAndamento, useModelos, vestido } from '../mesa3d/modelos';
+import { usar3D } from '../mesa3d/modo';
 
 /** Espera a imagem chegar (ou desistir): o carregamento não pode ficar preso num arquivo que falhou. */
 function carrega(url: string, ms: number): Promise<void> {
@@ -44,7 +50,7 @@ function PlayerCard({ p, isMe, delay }: { p: OpeningPlayer; isMe: boolean; delay
   return <CartaoJogador p={dados} eu={isMe} pronto={p.ready} animar={p.ready} delay={delay} />;
 }
 
-export function OpeningView({ opening, mySeat = null }: { opening: Opening; mySeat?: number | null }) {
+export function OpeningView({ opening, mySeat = null, carregando = null }: { opening: Opening; mySeat?: number | null; carregando?: string | null }) {
   const meio = Math.ceil(opening.players.length / 2);
   const linhas = [opening.players.slice(0, meio), opening.players.slice(meio)];
 
@@ -72,6 +78,7 @@ export function OpeningView({ opening, mySeat = null }: { opening: Opening; mySe
       <div className="pm-bar">
         <div className="pm-bar-fill" style={{ animationDuration: `${opening.minMs || opening.waitMs}ms` }} />
       </div>
+      {carregando && <div className="pm-carregando">{carregando}</div>}
     </div>
   );
 }
@@ -94,7 +101,7 @@ export function OpeningScreen() {
   useEffect(() => {
     if (!opening) return;
     const urls = [...new Set(opening.players.flatMap((p) => [p.character.full, p.character.portrait]))].filter(Boolean);
-    void Promise.all(urls.map((u) => carrega(u, 5_000))).then(() => {
+    void Promise.all([...urls.map((u) => carrega(u, 5_000)), modelar(personagensDa(opening))]).then(() => {
       if (avisou.current) return;
       avisou.current = true;
       send({ type: 'ready' });
@@ -103,8 +110,30 @@ export function OpeningScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const andamento = useModelos();
   if (!opening) return null;
 
   const mySeat = room?.members.find((m) => m.id === playerId)?.seat ?? null;
-  return <OpeningView opening={opening} mySeat={mySeat} />;
+  return <OpeningView opening={opening} mySeat={mySeat} carregando={usar3D() ? textoDoAndamento(andamento, personagensDa(opening)) : null} />;
+}
+
+/** Os personagens da mesa: os de todo mundo, e o meu do perfil (a troca mais recente, que o servidor pode não ter ainda). */
+function personagensDa(opening: Opening): string[] {
+  // (o meu, já com a luva que eu escolhi: é outra roupa a costurar)
+  const eu = useProfile.getState();
+  return [...opening.players.map((p) => p.character.id), vestido(findCharacter(eu.character).id, eu.acessorios.luva)];
+}
+
+/**
+ * Até quanto a tela espera pelos modelos 3D. O servidor também tem o limite dele (`waitMs`): se
+ * passar, a partida começa assim mesmo, a tela sai, e quem faltar senta na mesa quando ficar pronto.
+ */
+const ESPERA_DOS_MODELOS = 40_000;
+
+/**
+ * Modela os personagens da mesa 3D (o corpo e a roupa de cada um, em ajudantes, e as animações):
+ * a mesa só abre com eles prontos. Na mesa 2D (sem WebGL) não há o que modelar.
+ */
+function modelar(personagens: string[]): Promise<void> {
+  return usar3D() ? prepararAte(personagens, ESPERA_DOS_MODELOS) : Promise.resolve();
 }

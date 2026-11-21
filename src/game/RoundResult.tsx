@@ -17,7 +17,7 @@ const HOLD = 5;
 const BAND_TILT = -6;
 const CARD_W = 132;
 
-function Cards({ label, cards, core, fx }: { label: string; cards: Card[]; core: Card[]; fx: Result['winFx'] }) {
+function Cards({ label, cards, core, fx, face }: { label: string; cards: Card[]; core: Card[]; fx: Result['winFx']; face: Result['face'] }) {
   const effect = findWinFx(fx);
   return (
     <div className="rr-group">
@@ -32,7 +32,7 @@ function Cards({ label, cards, core, fx }: { label: string; cards: Card[]; core:
               animate={{ y: 0, opacity: 1, rotate: 0 }}
               transition={{ delay: 0.18 + i * 0.08, type: 'spring', stiffness: 220, damping: 20 }}
             >
-              <CardView card={c} width={CARD_W} highlight={used} dim={!used} winFx={used ? effect : null} />
+              <CardView card={c} width={CARD_W} face={face} highlight={used} dim={!used} winFx={used ? effect : null} />
             </motion.div>
           );
         })}
@@ -86,8 +86,8 @@ export function RoundResultPanel({ r }: { r: Result }) {
 
       <div className="rr-info">
         <div className="rr-cards">
-          <Cards label="Mão" cards={r.hole} core={r.core} fx={r.winFx} />
-          {r.board.length > 0 && <Cards label="Mesa" cards={r.board} core={r.core} fx={r.winFx} />}
+          <Cards label="Mão" cards={r.hole} core={r.core} fx={r.winFx} face={r.face} />
+          {r.board.length > 0 && <Cards label="Mesa" cards={r.board} core={r.core} fx={r.winFx} face={r.face} />}
         </div>
 
         <motion.div className="rr-hand" initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}>

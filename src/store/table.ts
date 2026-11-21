@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Card } from '../../shared/cards';
 import type { GanhoDaPartida, Opening, SeatView, TableView } from '../../shared/protocol';
-import type { AuraId, CardBackStyle, CharacterStyle, WinFxId } from '../../shared/styles';
+import type { AuraId, CardBackStyle, CardFaceStyle, CharacterStyle, WinFxId } from '../../shared/styles';
 import type { Pt } from '../game/layout';
 
 export interface Flyer {
@@ -18,7 +18,9 @@ export interface Flyer {
   scaleTo?: number;
   card?: Card | null;
   faceUp?: boolean;
+  /** O baralho da carta que voa (o do dealer): o verso e, se ela voa aberta, a frente. */
   back?: CardBackStyle;
+  face?: CardFaceStyle;
   amount?: number;
   width?: number;
   fade?: boolean;
@@ -66,6 +68,8 @@ export interface RoundResult {
   split: string[];
   /** Efeito das cartas do vencedor. */
   winFx: WinFxId;
+  /** A frente das cartas da rodada (a do baralho do dealer); sem ela, vale a de quem está olhando. */
+  face?: CardFaceStyle;
   /** Auras do vencedor: são elas que abrem atrás dele no cut-in. */
   auras: AuraId[];
 }
@@ -121,8 +125,6 @@ interface TableState {
   /** O que cada um levou da partida (xp e consolação), vindo com o fim dela. */
   ganhos: GanhoDaPartida[] | null;
   winners: number[];
-  /** Assento que esta abrindo a mao no showdown (primeiro a mostrar). */
-  opener: number | null;
   /**
    * A abertura da partida: a tela de "preparando a mesa" com o card de cada jogador.
    * null = não há abertura em curso (a partida já está rolando, ou é offline).
@@ -144,7 +146,6 @@ interface TableState {
   /** O fim da partida, e o que cada um levou dela. Limpar o fim limpa os ganhos junto. */
   setGameOver(r: Ranking[] | null, ganhos?: GanhoDaPartida[] | null): void;
   setWinners(w: number[]): void;
-  setOpener(opener: number | null): void;
   setOpening(opening: Opening | null): void;
   toggleDiscard(i: number): void;
   clearDiscards(): void;
@@ -167,7 +168,6 @@ export const useTable = create<TableState>()((set, get) => ({
   gameOver: null,
   ganhos: null,
   winners: [],
-  opener: null,
   opening: null,
   discards: [],
   setDisplay: (v, receivedAt) =>
@@ -205,7 +205,6 @@ export const useTable = create<TableState>()((set, get) => ({
   addLog: (text, kind) => set((s) => ({ log: [...s.log.slice(-120), { id: nextId(), text, kind }] })),
   setGameOver: (gameOver, ganhos = null) => set({ gameOver, ganhos: gameOver ? ganhos : null }),
   setWinners: (winners) => set({ winners }),
-  setOpener: (opener) => set({ opener }),
   setOpening: (opening) => set({ opening }),
   toggleDiscard: (i) => set((s) => ({ discards: s.discards.includes(i) ? s.discards.filter((x) => x !== i) : [...s.discards, i].sort((a, b) => a - b) })),
   clearDiscards: () => set({ discards: [] }),
@@ -223,7 +222,6 @@ export const useTable = create<TableState>()((set, get) => ({
       gameOver: null,
       ganhos: null,
       winners: [],
-      opener: null,
       opening: null,
       discards: [],
     }),

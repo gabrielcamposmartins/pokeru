@@ -48,8 +48,14 @@
  *   /preview.html?cena=pausa-voto      a mesa com um pedido de pausa esperando o seu voto
  *   /preview.html?cena=pausa-mesa      a mesa pausada (retomar, e o prazo de duas horas)
  *   /preview.html?cena=maos            o histórico das mãos de uma partida
+ *   /preview.html?cena=offline         uma partida contra bots, com a mesa 3D (&bots=, &variante=draw5, &ritmo=)
+ *   /preview.html?cena=partida         a tela da partida parada, com seis na mesa (&fechadas, &abertas)
+ *   &table= &back= &face= &chip=       equipa um estilo (o id dele) em qualquer cena
+ *   &maos=demo | muitos             põe acessórios nas mãos (anéis, relógio, pulseira); &esmalte= e &luva= (ids) trocam esses dois
+ *   &skins=cada | minhas | 0           nas duas cenas de partida: de quem são as skins (cada um com as suas,
+ *                                      ou tudo com as minhas), ou sem o painel de skins
  */
-import { StrictMode, useEffect } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionConfig } from 'framer-motion';
 import '@fontsource/m-plus-rounded-1c/400.css';
@@ -104,7 +110,7 @@ import { LoginScreen } from '../screens/Login';
 import { SettingsScreen } from '../screens/Settings';
 import { OnlineLobby } from '../screens/OnlineLobby';
 import { MainMenu } from '../screens/MainMenu';
-import { OpeningView } from '../game/Opening';
+import { OpeningScreen, OpeningView } from '../game/Opening';
 import { StoreScreen } from '../screens/Store';
 import { GalleryScreen } from '../screens/Gallery';
 import { MinijogosScreen } from '../screens/Minijogos';
@@ -113,7 +119,9 @@ import { JanelaDeMaos, ListaDeMaos } from '../game/HistoricoMaos';
 import type { MaoDaPartida } from '../../shared/historico';
 import { Studio } from '../screens/Studio';
 import { xpForLevel } from '../../shared/achievements';
-import { useProfile } from '../store/profile';
+import { PRESETS, useProfile, type StyleKind } from '../store/profile';
+import { skinsDeApoio, type SkinsDeApoio } from '../game/skins';
+import { ACESSORIOS, SEM_ACESSORIOS, sanitizeAcessorios, type Acessorios } from '../../shared/acessorios';
 import { useRoleta } from '../store/roleta';
 import { applyTheme, useUiTheme } from '../ui/themes';
 import { useSession } from '../store/session';
@@ -792,15 +800,18 @@ if (cena === 'partida') {
     isBot: false,
     avatar: { color: '#7c5cff', icon: '♠' },
     cosmetics: {
-      face: FACE_PRESETS[0],
+      // cada um com os seus (o painel de skins escolhe se valem os de cada um ou os meus em tudo)
+      face: FACE_PRESETS[i % FACE_PRESETS.length],
       back: BACK_PRESETS[i % BACK_PRESETS.length],
-      chip: CHIP_PRESETS[0],
+      chip: CHIP_PRESETS[i % CHIP_PRESETS.length],
       // `?table=` troca a mesa de todo mundo: com gente, o feltro (e o chão) são os do dealer
-      table: TABLE_PRESETS.find((t) => t.id === q.get('table')) ?? TABLE_PRESETS[0],
+      table: TABLE_PRESETS.find((t) => t.id === q.get('table')) ?? TABLE_PRESETS[i % TABLE_PRESETS.length],
       character: CHARACTER_PRESETS[i % CHARACTER_PRESETS.length],
       winFx: 'gold',
       auras: [],
       frame: FRAME_IDS[i % FRAME_IDS.length],
+      // (`?acessorios`: cada um com anéis, relógio, pulseira, esmalte e luva diferentes)
+      ...(q.has('acessorios') ? { acessorios: acessoriosDeExemplo(i) } : {}),
     },
     title: null,
     stack: 3240,
@@ -835,7 +846,14 @@ if (cena === 'partida') {
       status: 'playing',
       variant: 'holdem',
       maxPlayers: 6,
-      seats: nomes.map((n, i) => assento(i, n, { cards: i === 0 ? [{ r: 14, s: 's' }, { r: 13, s: 'h' }] : [] })),
+      // `?fechadas` dá cartas fechadas e apostas aos outros (é o que a mesa 3D desenha em 3D)
+      seats: nomes.map((n, i) =>
+        assento(i, n, {
+          // (`?abertas`: os dois de cima já mostraram as cartas, como no showdown)
+          cards: i === 0 ? [{ r: 14, s: 's' }, { r: 13, s: 'h' }] : q.has('abertas') && (i === 3 || i === 5) ? [{ r: 10, s: 'h' }, { r: 10 + (i % 3), s: 's' }] : q.has('fechadas') ? [null, null] : [],
+          bet: q.has('fechadas') && i % 2 ? 200 * i : 0,
+        }),
+      ),
       board: [{ r: 12, s: 'd' }, { r: 7, s: 'c' }, { r: 2, s: 'h' }],
       pot: 840,
       street: 'flop',
@@ -855,6 +873,37 @@ if (cena === 'partida') {
     // um balão em cada assento: os do alto são os que o HUD cobria
     emotes: nomes.map((_, i) => ({ id: 900 + i, seat: i, emote: ['😎', '🔥', '😭', 'GG', '🤔', '💖'][i] })),
   });
+}
+
+/*
+ * Uma partida de verdade contra bots, rodando no navegador (a sala offline): a tela de carregamento
+ * (que modela os personagens da mesa 3D) e depois a mesa, com os eventos do diretor. É onde se
+ * confere a mesa 3D andando — os gestos, os voos, as cartas da rodada seguindo o dealer.
+ * `?bots=` (1 a 5), `?variante=draw5`, `?ritmo=` (o pace da mesa: maior é mais devagar).
+ */
+let comecouOffline = false;
+function JogoOffline() {
+  const opening = useTable((s) => s.opening);
+  const room = useSession((s) => s.room);
+  useEffect(() => {
+    if (comecouOffline) return;
+    comecouOffline = true;
+    useSession.getState().startLocal({
+      bots: Math.max(1, Math.min(5, Number(q.get('bots') ?? 3))),
+      difficulty: 'normal',
+      startingStack: 2000,
+      smallBlind: 50,
+      bigBlind: 100,
+      mode: 'cash',
+      variant: q.get('variante') === 'draw5' ? 'draw5' : 'holdem',
+      rounds: 10,
+      turnTime: 25,
+      pace: Number(q.get('ritmo') ?? 1),
+    });
+  }, []);
+  if (opening) return <OpeningScreen />;
+  if (room && room.status !== 'waiting') return <GameScreen />;
+  return <div className="loading">Sentando à mesa…</div>;
 }
 
 // a sala de espera da Custom: três pessoas, um bot e duas cadeiras vagas, com um convite chegando
@@ -939,7 +988,8 @@ if (
       play: PARTIDAS_DE_EXEMPLO,
       code: 'K7M2PQ',
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
-      owned: ['character:ren', 'winfx:fire', 'back:back-crimson'],
+      // (com alguns acessórios, para a Galeria ter o que equipar)
+      owned: ['character:ren', 'winfx:fire', 'back:back-crimson', 'acessorio:anel-coracao', 'acessorio:anel-esmeralda', 'acessorio:relogio-classico', 'acessorio:pulseira-contas', 'acessorio:esmalte-vermelho', 'acessorio:luva-couro'],
       bond: {},
       // contadores de verdade: sem eles a lista de conquistas fica toda em zero e a tela não dá para conferir
       stats: statsDoNivel(Number(q.get('nivel') ?? 23)),
@@ -971,16 +1021,168 @@ const ABERTURA: Opening = {
 };
 
 /*
- * `?face=` e `?back=` equipam um estilo em qualquer cena.
+ * `?face=`, `?back=`, `?table=` e `?chip=` equipam um estilo em qualquer cena.
  *
  * Serve para olhar uma frente nova onde ela vai viver de verdade — na mesa, sobre o feltro, com
  * carta atrás de carta. O Estúdio mostra a carta sobre um fundo neutro, e é justamente o fundo que
  * decide se uma carta de vidro funciona.
  */
-for (const kind of ['face', 'back', 'table'] as const) {
+for (const kind of ['face', 'back', 'table', 'chip'] as const) {
   const id = q.get(kind);
   if (id) useProfile.getState().equip(kind, id);
 }
+
+/*
+ * `?maos=` põe acessórios nas mãos (os do perfil, que é de onde a mesa 3D tira os meus): `demo` é um
+ * conjunto sóbrio — dois anéis, um relógio, uma pulseira —, `muitos` enche os dedos. `?esmalte=` e
+ * `?luva=` (os ids de shared/acessorios.ts) trocam esses dois, com ou sem `maos`.
+ */
+const ACESSORIOS_DE_EXEMPLO: Record<string, Acessorios> = {
+  demo: {
+    ...SEM_ACESSORIOS,
+    aneis: [
+      { id: 'anel-esmeralda', mao: 'E', dedo: 2 },
+      { id: 'anel-solitario', mao: 'D', dedo: 0 },
+      { id: 'anel-alianca', mao: 'D', dedo: 2 },
+    ],
+    pulsos: { E: 'relogio-classico', D: 'pulseira-contas' },
+  },
+  muitos: {
+    ...SEM_ACESSORIOS,
+    aneis: [
+      { id: 'anel-rubi', mao: 'E', dedo: 0 },
+      { id: 'anel-safira', mao: 'E', dedo: 1 },
+      { id: 'anel-coracao', mao: 'E', dedo: 2 },
+      { id: 'anel-onix', mao: 'D', dedo: 0 },
+      { id: 'anel-perola', mao: 'D', dedo: 1 },
+      { id: 'anel-sinete', mao: 'D', dedo: 3 },
+    ],
+    pulsos: { E: 'pulseira-corrente', D: 'relogio-noturno' },
+  },
+};
+if (q.has('maos') || q.has('esmalte') || q.has('luva') || q.has('aneis') || q.has('pulsos')) {
+  const base = ACESSORIOS_DE_EXEMPLO[q.get('maos') ?? ''] ?? (q.has('maos') ? SEM_ACESSORIOS : useProfile.getState().acessorios);
+  // (`&aneis=anel-rubi:E0,anel-safira:D2` põe cada anel num dedo — a mão e o número do dedo, 0 = indicador … 4 = polegar;
+  //  `&pulsos=relogio-lua,pulseira-riviera` põe um em cada pulso, o esquerdo e o direito)
+  const aneis = q.has('aneis') ? q.get('aneis')!.split(',').map((x) => ({ id: x.split(':')[0], mao: x.split(':')[1]?.[0], dedo: Number(x.split(':')[1]?.[1]) })) : base.aneis;
+  const [pe, pd] = q.has('pulsos') ? q.get('pulsos')!.split(',') : [base.pulsos.E, base.pulsos.D];
+  useProfile.getState().setAcessorios(sanitizeAcessorios({ aneis, pulsos: { E: pe || null, D: pd || null }, esmalte: q.get('esmalte') ?? base.esmalte, luva: q.get('luva') ?? base.luva }));
+}
+/** Os acessórios dos jogadores de exemplo da cena `partida`: um conjunto diferente em cada lugar. */
+function acessoriosDeExemplo(i: number): Acessorios {
+  const de = (tipo: string) => ACESSORIOS.filter((a) => a.tipo === tipo);
+  const [aneis, pulseiras, relogios, esmaltes, luvas] = ['anel', 'pulseira', 'relogio', 'esmalte', 'luva'].map(de);
+  return sanitizeAcessorios({
+    aneis: [
+      { id: aneis[(i * 2 + 1) % aneis.length].id, mao: 'E', dedo: (i + 1) % 4 },
+      { id: aneis[(i * 3 + 2) % aneis.length].id, mao: 'D', dedo: i % 4 },
+      { id: aneis[(i * 5) % aneis.length].id, mao: 'D', dedo: 4 },
+    ],
+    pulsos: { E: relogios[i % relogios.length].id, D: pulseiras[i % pulseiras.length].id },
+    esmalte: esmaltes[(i * 2 + 1) % esmaltes.length].id,
+    luva: luvas[i % luvas.length].id,
+  });
+}
+
+/*
+ * O painel de skins das cenas de partida (`offline` e `partida`): troca a mesa, o verso e a frente
+ * das cartas e as fichas com a partida andando, para olhar a mesa 3D com cada uma delas.
+ *
+ * "As minhas em tudo" é o que acontece contra bots (bot não empresta skin): o que se escolhe aqui
+ * vale para a mesa inteira. "Cada um com as suas" é a mesa com várias pessoas: o feltro e o baralho
+ * são os do dealer (trocam quando o botão passa), cada aposta sai com as fichas de quem apostou — e
+ * aqui os bots, que recebem cosméticos sorteados, fazem o papel das pessoas.
+ */
+const TIPOS_DE_SKIN: { tipo: StyleKind; nome: string }[] = [
+  { tipo: 'table', nome: 'Mesa' },
+  { tipo: 'back', nome: 'Verso' },
+  { tipo: 'face', nome: 'Frente' },
+  { tipo: 'chip', nome: 'Fichas' },
+];
+const CSS_DO_PAINEL = `
+.pv-skins { position: fixed; left: 10px; top: 118px; z-index: 9999; font: 500 13px 'M PLUS Rounded 1c', sans-serif; color: #f1ecff; user-select: none; }
+.pv-skins button, .pv-skins select { font: inherit; color: inherit; background: rgba(42, 34, 66, 0.92); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 3px 7px; cursor: pointer; }
+.pv-skins button:hover { background: rgba(72, 58, 112, 0.95); }
+.pv-skins-caixa { margin-top: 6px; width: 252px; padding: 10px 12px 11px; background: rgba(16, 12, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); }
+.pv-skins-linha { display: grid; grid-template-columns: 46px 24px 1fr 24px; gap: 4px; align-items: center; margin-bottom: 5px; }
+.pv-skins-linha select { min-width: 0; width: 100%; }
+.pv-skins-linha button { padding: 3px 0; }
+.pv-skins-modo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 9px 0 7px; }
+.pv-skins-modo button.on { background: #7c5cff; border-color: #b9a6ff; }
+.pv-skins-nota { font-size: 11.5px; line-height: 1.35; opacity: 0.78; margin-top: 7px; }
+.pv-skins-pe { display: flex; gap: 4px; }
+.pv-skins-pe button { flex: 1; }
+`;
+
+function PainelDeSkins({ inicial }: { inicial: Exclude<SkinsDeApoio, 'regra'> }) {
+  const [aberto, setAberto] = useState(true);
+  const [modo, setModo] = useState(inicial);
+  const equipados = useProfile((st) => st.equipped);
+  const criados = useProfile((st) => st.custom);
+  const view = useTable((st) => st.display);
+  const lista = (tipo: StyleKind) => [...PRESETS[tipo], ...criados[tipo]] as { id: string; name: string }[];
+  const equipar = (tipo: StyleKind, id: string) => useProfile.getState().equip(tipo, id);
+  const passo = (tipo: StyleKind, d: number) => {
+    const l = lista(tipo);
+    const i = Math.max(0, l.findIndex((x) => x.id === equipados[tipo]));
+    equipar(tipo, l[(i + d + l.length) % l.length].id);
+  };
+  const trocarModo = (m: Exclude<SkinsDeApoio, 'regra'>) => {
+    skinsDeApoio(m);
+    setModo(m);
+    // (a regra mudou, e não o estado: a mesa é refeita com o mesmo estado, para todos lerem a regra de novo)
+    useTable.setState((st) => ({ display: st.display ? { ...st.display } : st.display }));
+  };
+  const dealer = view && view.dealerSeat !== null && view.dealerSeat !== view.mySeat ? view.seats[view.dealerSeat] : null;
+  return (
+    <div className="pv-skins">
+      <style>{CSS_DO_PAINEL}</style>
+      <button onClick={() => setAberto(!aberto)}>🎨 Skins {aberto ? '▴' : '▾'}</button>
+      {aberto && (
+        <div className="pv-skins-caixa">
+          {TIPOS_DE_SKIN.map(({ tipo, nome }) => (
+            <div key={tipo} className="pv-skins-linha">
+              <span>{nome}</span>
+              <button onClick={() => passo(tipo, -1)}>◀</button>
+              <select value={equipados[tipo]} onChange={(e) => equipar(tipo, e.target.value)}>
+                {lista(tipo).map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => passo(tipo, 1)}>▶</button>
+            </div>
+          ))}
+          <div className="pv-skins-pe">
+            <button onClick={() => TIPOS_DE_SKIN.forEach(({ tipo }) => passo(tipo, 1))}>Próximo conjunto</button>
+            <button onClick={() => TIPOS_DE_SKIN.forEach(({ tipo }) => equipar(tipo, lista(tipo)[Math.floor(Math.random() * lista(tipo).length)].id))}>Sortear</button>
+          </div>
+          <div className="pv-skins-modo">
+            <button className={modo === 'minhas' ? 'on' : ''} onClick={() => trocarModo('minhas')}>
+              As minhas em tudo
+            </button>
+            <button className={modo === 'de-cada-um' ? 'on' : ''} onClick={() => trocarModo('de-cada-um')}>
+              Cada um com as suas
+            </button>
+          </div>
+          <div className="pv-skins-nota">
+            {modo === 'minhas'
+              ? 'A mesa, o baralho e todas as fichas saem com o que está escolhido acima.'
+              : dealer
+                ? `Mesa e baralho de ${dealer.name} (o dealer): ${dealer.cosmetics.table.name}, verso ${dealer.cosmetics.back.name}, frente ${dealer.cosmetics.face.name}. Cada aposta com as fichas de quem apostou; as escolhas acima valem para você.`
+                : 'O botão está com você: mesa e baralho são os escolhidos acima. Cada aposta sai com as fichas de quem apostou.'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** De quem são as skins nas cenas de partida: contra bots (`offline`), as minhas; na mesa com gente (`partida`), as de cada um. `?skins=` escolhe. */
+const SKINS_DA_CENA: Exclude<SkinsDeApoio, 'regra'> | null =
+  (cena !== 'offline' && cena !== 'partida') || q.get('skins') === '0' ? null : q.get('skins') === 'cada' ? 'de-cada-um' : q.get('skins') === 'minhas' ? 'minhas' : cena === 'partida' ? 'de-cada-um' : 'minhas';
+if (SKINS_DA_CENA) skinsDeApoio(SKINS_DA_CENA);
 
 // a lista de salas: finge um servidor conectado, para a tela não tentar ligar de verdade
 if (cena === 'salas') {
@@ -1005,8 +1207,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MotionConfig reducedMotion={q.has('motion') ? 'never' : 'always'}>
       <TemaVivo />
+      {SKINS_DA_CENA && <PainelDeSkins inicial={SKINS_DA_CENA} />}
       {cena === 'abertura' ? (
-        <OpeningView opening={ABERTURA} mySeat={0} />
+        <OpeningView opening={ABERTURA} mySeat={0} carregando={q.get('carregando')} />
       ) : cena === 'personagens' ? (
         <CharactersScreen onBack={() => {}} />
       ) : cena === 'login' || cena === 'login-erro' ? (
@@ -1030,6 +1233,8 @@ createRoot(document.getElementById('root')!).render(
         </>
       ) : cena === 'partida' ? (
         <GameScreen />
+      ) : cena === 'offline' ? (
+        <JogoOffline />
       ) : cena === 'nivel' ? (
         <NivelNovoView de={Number(q.get('de') ?? 4)} para={Number(q.get('para') ?? 5)} onClose={() => {}} />
       ) : cena === 'config' || cena === 'config-logado' || cena === 'conta' ? (
