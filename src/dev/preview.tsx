@@ -36,6 +36,9 @@
  *   /preview.html?cena=giro            a cena do giro revelando um prêmio (&premio=, &dup=1)
  *   /preview.html?cena=girando         o ticket girando, antes da resposta do servidor
  *   /preview.html?cena=galeria&ver=character:yukina  a Galeria com a peça já aberta no palco
+ *   /preview.html?cena=galeria&aba=acessorio&ver=acessorio:relogio-prisma  a Galeria nos acessórios, com um deles na vitrine 3D
+ *   /preview.html?cena=loja&aba=acessorio  a aba de acessórios da loja (os que se compram)
+ *   /preview.html?cena=icones          as figurinhas dos acessórios, todas, em três tamanhos (&tipo=anel,relogio &tamanhos=44,92,200 &fundo=claro)
  *   /preview.html?cena=loja-sem-pado   a loja sem Discord vinculado (só fichas)
  *   /preview.html?cena=conta           as configurações com a conta e o vínculo do Discord
  *   /preview.html?cena=titulos         as configurações com os títulos e o progresso das conquistas
@@ -122,6 +125,7 @@ import { xpForLevel } from '../../shared/achievements';
 import { PRESETS, useProfile, type StyleKind } from '../store/profile';
 import { skinsDeApoio, type SkinsDeApoio } from '../game/skins';
 import { ACESSORIOS, SEM_ACESSORIOS, sanitizeAcessorios, type Acessorios } from '../../shared/acessorios';
+import { AcessorioArt } from '../render/AcessorioArt';
 import { useRoleta } from '../store/roleta';
 import { applyTheme, useUiTheme } from '../ui/themes';
 import { useSession } from '../store/session';
@@ -881,6 +885,9 @@ if (cena === 'partida') {
  * confere a mesa 3D andando — os gestos, os voos, as cartas da rodada seguindo o dealer.
  * `?bots=` (1 a 5), `?variante=draw5`, `?ritmo=` (o pace da mesa: maior é mais devagar).
  */
+// (para os roteiros de teste, que dirigem a página de fora: a mesa e a sessão ao alcance do console)
+(window as unknown as { pokeru: unknown }).pokeru = { useTable, useSession };
+
 let comecouOffline = false;
 function JogoOffline() {
   const opening = useTable((s) => s.opening);
@@ -891,10 +898,11 @@ function JogoOffline() {
     useSession.getState().startLocal({
       bots: Math.max(1, Math.min(5, Number(q.get('bots') ?? 3))),
       difficulty: 'normal',
-      startingStack: 2000,
+      // (`?pilha=300&modo=sitgo`: pilha curta numa partida fechada — é como se chega à pergunta de apostar um acessório)
+      startingStack: Number(q.get('pilha') ?? 2000),
       smallBlind: 50,
       bigBlind: 100,
-      mode: 'cash',
+      mode: q.get('modo') === 'sitgo' ? 'sitgo' : q.get('modo') === 'normal' ? 'normal' : 'cash',
       variant: q.get('variante') === 'draw5' ? 'draw5' : 'holdem',
       rounds: 10,
       turnTime: 25,
@@ -1200,6 +1208,29 @@ if (cena === 'salas') {
     account: { id: 'a1', money: 12_400, inPlay: 0, since: '2026-03-04T12:00:00.000Z', bond: {}, hands: 0, wins: 0 } as never,
   });
 }
+/**
+ * As figurinhas dos acessórios (src/render/AcessorioArt.tsx), todas de uma vez e em vários tamanhos:
+ * é onde se confere, lado a lado, o volume de cada uma e o contorno — do tamanho da lista de prêmios
+ * ao do palco. `fundo=claro` troca o roxo da prateleira por um fundo claro (o contorno tem de valer nos dois).
+ */
+function IconesDosAcessorios({ tipo, tamanhos, fundo }: { tipo: string | null; tamanhos: number[]; fundo: string | null }) {
+  const pecas = ACESSORIOS.filter((a) => !tipo || tipo.split(',').includes(a.tipo));
+  return (
+    <div style={{ minHeight: '100vh', padding: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start', background: fundo === 'claro' ? '#e9e2f4' : 'linear-gradient(180deg, #2b1f5c, #170f38)' }}>
+      {pecas.map((a) => (
+        <div key={a.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: 8, borderRadius: 10, background: fundo === 'claro' ? 'rgba(255,255,255,0.6)' : 'rgba(10, 6, 24, 0.35)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            {tamanhos.map((t) => (
+              <AcessorioArt key={t} a={a} size={t} />
+            ))}
+          </div>
+          <span style={{ fontSize: 11, color: fundo === 'claro' ? '#2a2140' : '#cfc6ee' }}>{a.id}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const matchRows = MATCHES[cena];
 const scene = SCENES[cena] ?? base;
 
@@ -1256,6 +1287,8 @@ createRoot(document.getElementById('root')!).render(
         <MinijogosScreen onBack={() => {}} inicial={(q.get('jogo') as never) ?? null} nivelInicial={Number(q.get('nivel')) || undefined} />
       ) : cena === 'estudio' ? (
         <Studio onBack={() => {}} inicial={(q.get('aba') as never) ?? undefined} />
+      ) : cena === 'icones' ? (
+        <IconesDosAcessorios tipo={q.get('tipo')} tamanhos={(q.get('tamanhos') ?? '44,92,200').split(',').map(Number)} fundo={q.get('fundo')} />
       ) : cena === 'galeria' ? (
         <GalleryScreen onBack={() => {}} initial={(q.get('aba') as never) ?? undefined} verInicial={q.get('ver') ?? undefined} />
       ) : cena === 'loja' || cena === 'loja-sem-pado' || cena === 'giro' || cena === 'girando' ? (

@@ -4,7 +4,10 @@ import type { TableBank } from './accounts';
 import type { BondEvent } from './bond';
 import { XP } from './achievements';
 import { HandCategory, evaluateHand } from './evaluator';
-import { Hand, isFirstStreet, type GameVariant, type HandEvent, type PlayerAction } from './engine';
+import { Hand, isFirstStreet, type GameVariant, type HandEvent, type ItemGanho, type PlayerAction } from './engine';
+import { BOT_APOSTA, BOT_COM_ACESSORIO, TEMPO_DA_OFERTA, apostaveis, chaveDoItem, devolverAsMaos, podeApostar, tirarDasMaos, usando, valorDaAposta, vestirOndeDer, type OndeEstava } from './aposta';
+import { ACESSORIOS, SEM_ACESSORIOS, findAcessorio, type Acessorios } from './acessorios';
+import { estaAVenda, itemKey, rarityOf, type Raridade } from './catalog';
 import { botDecide, botDraw, botThinkTimeMs, estimateEquity, estimateEquity5 } from './bot';
 import {
   contaComoPartida,
@@ -100,6 +103,30 @@ interface Member {
   naPartida?: { maos: number; ganhas: number };
   /** Fichas de consolação que recebeu ao ser eliminado nesta partida. */
   consolacao?: number;
+  /**
+   * Ficou sem fichas e está decidindo se aposta um acessório para continuar (veja shared/aposta.ts):
+   * o horário em que a oferta vence. Enquanto isto existe ele não foi eliminado, e a mesa espera.
+   */
+  oferta?: number;
+  /** Decidiu que sim: entra na próxima mão apostando este acessório — é o all-in dele. */
+  entrada?: string;
+  /** Por quanto: o valor dito quando ele aceitou (os blinds podem subir antes da mão seguinte; o combinado não muda). */
+  entradaValor?: number;
+  /** As peças que um bot ganhou e não tem onde vestir: continuam dele (e em jogo), guardadas. */
+  bolso?: string[];
+}
+
+/** Com que frequência cada raridade aparece nos acessórios de um bot (os comuns, mais). */
+const PESO_NO_BOT: Record<Raridade, number> = { comum: 8, incomum: 5, raro: 3, epico: 1, lendario: 0 };
+
+/** Um acessório apostado na mão em andamento: de quem é e onde estava nas mãos dele (para voltar ao lugar). */
+interface ItemDaMao {
+  seat: number;
+  /** O membro e a conta do dono — ele pode levantar antes de a mão acabar, e a peça continua em jogo. */
+  membro: string;
+  conta?: string;
+  id: string;
+  onde: OndeEstava;
 }
 
 /**
@@ -199,6 +226,7 @@ export function sanitizeSettings(s: Partial<RoomSettings> | undefined): RoomSett
      * `botMatchSettings` liga.
      */
     custom: o.custom !== false,
+    apostaDeItens: o.apostaDeItens !== false,
   };
 }
 
@@ -292,6 +320,17 @@ export class Room {
   private registro: { n: number; mesa: Card[]; pote: number; jogadores: (JogadorDaMao & { id: string; hole: Card[] })[] }[] = [];
   /** O que foi mostrado no showdown da mão em andamento. */
   private revelados: { seat: number; cards: Card[]; hand: string }[] = [];
+  /** Os acessórios apostados na mão em andamento (saíram das mãos dos donos e estão na mesa). */
+  private naMesa: ItemDaMao[] = [];
+  /** Com quem ficou cada acessório da mão que terminou: resolvido quando a mão fecha. */
+  private itensGanhos: ItemGanho[] = [];
+  /**
+   * As peças que já estiveram num pote desta partida. Elas continuam em jogo: o bot que ficar com
+   * uma a aposta sempre que zerar (veja `botAposta`).
+   */
+  private circulando = new Set<string>();
+  /** Os relógios das ofertas em aberto, por membro. */
+  private ofertaTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(id: string, settings: RoomSettings, host: ClientHandle) {
     this.id = id;
@@ -568,7 +607,7 @@ export class Room {
     if (!m) return;
     m.name = client.name;
     m.avatar = client.avatar;
-    m.cosmetics = client.cosmetics;
+    m.cosmetics = this.semOQueEstaNaMesa(m, client.cosmetics);
     m.title = client.title;
     m.level = client.level;
     this.broadcastRoom();
@@ -582,7 +621,9 @@ export class Room {
     m.client?.send({ type: 'left' });
     m.client = null;
     this.system(`${m.name} saiu da mesa.`);
+    const tinhaOferta = this.cancelarOferta(m);
     this.removeOrMark(m);
+    if (tinhaOferta) this.depoisDasOfertas();
     if (this.hostId === clientId) {
       const next = this.humans().find((h) => !h.leaving);
       if (next) this.hostId = next.id;
@@ -703,6 +744,8 @@ export class Room {
          */
         auras: [],
         frame: DEFAULT_FRAME,
+        // (acessório é outra coisa: é o que se aposta. Um em cada quatro bots vem com alguma peça)
+        ...this.acessoriosDoBot(),
       },
       seat,
       stack: this.settings.startingStack,
@@ -736,6 +779,7 @@ export class Room {
     const seated = this.members().filter((m) => !m.leaving);
     if (seated.length < 2) return 'São necessários ao menos 2 jogadores';
     this.status = 'playing';
+    this.circulando.clear();
     this.handNo = 0;
     this.eliminated = [];
     this.registro = [];
@@ -987,7 +1031,9 @@ export class Room {
       }
     }
     // quem saiu no meio da mão anterior já teve o assento liberado acima: devolve as fichas
-    const eligible = this.members().filter((m) => !m.leaving && !m.busted && m.stack > 0);
+    // (quem ficou sem fichas e apostou um acessório para continuar entra com ele: é o all-in dele)
+    for (const m of this.members()) if (m.entrada && (m.leaving || m.busted || m.stack > 0 || !(usando(m.cosmetics.acessorios, m.entrada) || m.bolso?.includes(m.entrada)))) m.entrada = undefined;
+    const eligible = this.members().filter((m) => !m.leaving && !m.busted && (m.stack > 0 || !!m.entrada));
     if (eligible.length < 2) {
       this.hand = null;
       if (this.closedGame()) {
@@ -1019,9 +1065,16 @@ export class Room {
     this.handNo++;
     this.handClosed = false;
     this.turnKey = '';
+    this.naMesa = [];
+    this.itensGanhos = [];
     this.hand = new Hand(
       {
-        players: eligible.map((m) => ({ seat: m.seat, id: m.id, stack: m.stack })),
+        players: eligible.map((m) => ({
+          seat: m.seat,
+          id: m.id,
+          stack: m.stack,
+          ...(m.entrada ? { entrada: { id: m.entrada, valor: m.entradaValor ?? valorDaAposta(m.entrada, this.bigBlind) } } : {}),
+        })),
         dealerSeat: d,
         smallBlind: this.smallBlind,
         bigBlind: this.bigBlind,
@@ -1029,6 +1082,18 @@ export class Room {
       },
       (ev) => {
         if (ev.t === 'showdown') this.revelados = ev.reveals;
+        // ninguém pagou a aposta do acessório: ele volta para as mãos do dono, na hora
+        if (ev.t === 'itemVolta') this.voltaParaODono(ev.seat, ev.item);
+        // quem entrou apostando um acessório o tira da mão agora, quando a aposta dele é anunciada
+        // (até aqui a peça ainda estava com ele: é o gesto de pô-la na mesa que a mesa vê)
+        if (ev.t === 'action' && ev.item) {
+          const dono = this.seats[ev.seat];
+          if (dono?.entrada === ev.item.id) {
+            this.tirarParaAMesa(dono, ev.item.id);
+            dono.entrada = undefined;
+          }
+        }
+        if (ev.t === 'win') this.itensGanhos = ev.pots.flatMap((p) => p.itens ?? []);
         this.emit(ev);
       },
     );
@@ -1043,6 +1108,12 @@ export class Room {
     }
     this.emit({ t: 'handStart', handNo: this.handNo, dealerSeat: d });
     this.hand.start();
+    // (a entrada de quem não foi anunciada — não devia acontecer — não fica pendurada para a mão seguinte)
+    for (const m of eligible) {
+      if (!m.entrada) continue;
+      this.tirarParaAMesa(m, m.entrada);
+      m.entrada = undefined;
+    }
     this.onChange();
   }
 
@@ -1053,13 +1124,14 @@ export class Room {
       const m = this.memberById(hp.id);
       if (m) m.stack = hp.stack;
     }
-    const alive = () => this.members().filter((m) => !m.busted && !m.leaving && m.stack > 0).length;
+    this.entregarItens();
+    const alive = () => this.vivos();
     // quem começou a mão com mais fichas fica com a melhor colocação
     const broke = this.members()
       .filter((m) => m.stack === 0 && !m.busted)
       .sort((a, b) => (h.players.find((p) => p.id === b.id)?.total ?? 0) - (h.players.find((p) => p.id === a.id)?.total ?? 0));
-    const remaining = alive();
-    broke.forEach((m, i) => {
+    const saem: Member[] = [];
+    broke.forEach((m) => {
       // cash: recompra. Na mesa a dinheiro custa outro buy-in; sem saldo, o jogador é eliminado
       const rebuy = !this.closedGame() && (!this.paid() || m.isBot || this.charge(m, this.settings.buyIn) > 0);
       if (rebuy) {
@@ -1067,21 +1139,261 @@ export class Room {
         m.investido += m.stack;
         this.emit({ t: 'rebuy', seat: m.seat, amount: m.stack });
         this.system(`${m.name} fez rebuy de ${m.stack}.`);
+      } else if (!this.roundsOver() && (this.botAposta(m) || this.oferecer(m))) {
+        // (ficou sem fichas, mas tem um acessório para apostar: a mesa pergunta e espera — o bot decide na hora)
       } else {
-        m.busted = true;
-        const place = remaining + 1 + i;
-        this.eliminated.push({ name: m.name, seat: m.seat, place });
-        this.emit({ t: 'bust', seat: m.seat, place });
-        this.system(`${m.name} foi eliminado em ${place}º lugar.`);
-        this.consolar(m);
+        saem.push(m);
       }
     });
+    // quem fica — com fichas, com a pergunta em aberto ou apostando uma peça — está à frente de quem sai
+    // agora: a colocação conta todos eles (senão quem sai dividiria o lugar com quem ainda pode cair depois)
+    const ficam = alive();
+    saem.forEach((m, i) => this.eliminar(m, ficam + 1 + i));
     this.awardBond(h);
     this.notePlayHand(h);
     this.registrarMao(h);
     this.emit({ t: 'handEnd' });
-    if (this.closedGame() && (alive() <= 1 || this.semGenteViva())) this.finishGame();
-    else if (this.roundsOver()) this.finishGame();
+    if (this.roundsOver()) this.finishGame();
+    // (com uma oferta em aberto, quem decide se a partida acabou é a resposta: veja `depoisDasOfertas`)
+    else if (!this.temOferta() && this.closedGame() && (alive() <= 1 || this.semGenteViva())) this.finishGame();
+  }
+
+  /** Quantos ainda estão na partida: quem tem fichas, quem vai entrar apostando um acessório e quem ainda está decidindo isso. */
+  private vivos(): number {
+    return this.members().filter((m) => !m.busted && !m.leaving && (m.stack > 0 || !!m.entrada || !!m.oferta)).length;
+  }
+
+  /** Elimina um jogador que ficou sem fichas. */
+  private eliminar(m: Member, place: number): void {
+    m.busted = true;
+    this.eliminated.push({ name: m.name, seat: m.seat, place });
+    this.emit({ t: 'bust', seat: m.seat, place });
+    this.system(`${m.name} foi eliminado em ${place}º lugar.`);
+    this.consolar(m);
+  }
+
+  // ------------------------------------------------------------------ acessórios apostados (shared/aposta.ts)
+
+  /** Nesta mesa os acessórios valem como aposta? (numa Custom, quem a criou decide) */
+  private valemItens(): boolean {
+    return this.settings.apostaDeItens !== false;
+  }
+
+  /** O que o membro pode apostar agora: o que está usando (e o que um bot guardou), com o valor de cada peça nesta mesa. */
+  private apostaveisDe(m: Member): { id: string; valor: number }[] {
+    if (!this.valemItens()) return [];
+    const ids = [...new Set([...apostaveis(m.cosmetics.acessorios), ...(m.bolso ?? []).filter(podeApostar)])];
+    return ids
+      .filter((id) => m.isBot || !m.accountId || !this.bank?.temItem || this.bank.temItem(m.accountId, chaveDoItem(id)))
+      .map((id) => ({ id, valor: valorDaAposta(id, this.bigBlind) }));
+  }
+
+  /** Os acessórios com que um bot senta: um em cada quatro vem com alguma peça — das que a loja vende, as comuns mais vezes. */
+  private acessoriosDoBot(): { acessorios?: Acessorios } {
+    if (Math.random() >= BOT_COM_ACESSORIO) return {};
+    const sorteia = (tipos: string[]): string | null => {
+      const pecas = ACESSORIOS.filter((a) => tipos.includes(a.tipo) && estaAVenda(itemKey('acessorio', a.id)));
+      const pesos = pecas.map((a) => PESO_NO_BOT[rarityOf(itemKey('acessorio', a.id))]);
+      let alvo = Math.random() * pesos.reduce((s, v) => s + v, 0);
+      for (let i = 0; i < pecas.length; i++) {
+        alvo -= pesos[i];
+        if (alvo < 0) return pecas[i].id;
+      }
+      return null;
+    };
+    // uma peça no pulso, ou um anel — ou os dois
+    const noPulso = Math.random() < 0.65 ? sorteia(['pulseira', 'relogio']) : null;
+    const anel = !noPulso || Math.random() < 0.4 ? sorteia(['anel']) : null;
+    return {
+      acessorios: {
+        ...SEM_ACESSORIOS,
+        aneis: anel ? [{ id: anel, mao: Math.random() < 0.5 ? 'E' : 'D', dedo: 2 }] : [],
+        pulsos: { E: noPulso, D: null },
+      },
+    };
+  }
+
+  /**
+   * O bot que ficou sem fichas aposta um acessório para continuar? A peça que já esteve num pote
+   * desta partida, sempre — ela continua em jogo, e quem a perdeu tem como ganhá-la de volta. Uma
+   * dele mesmo, uma vez em dez.
+   */
+  private botAposta(m: Member): boolean {
+    if (!m.isBot) return false;
+    const pecas = this.apostaveisDe(m);
+    const peca = pecas.find((p) => this.circulando.has(p.id)) ?? (pecas.length && Math.random() < BOT_APOSTA ? pecas[randomInt(pecas.length)] : undefined);
+    if (!peca) return false;
+    m.entrada = peca.id;
+    m.entradaValor = peca.valor;
+    this.emit({ t: 'entradaComItem', seat: m.seat, item: peca.id, valor: peca.valor });
+    this.system(`${m.name} aposta ${findAcessorio(peca.id)?.nome ?? 'um acessório'} para continuar na mesa.`);
+    return true;
+  }
+
+  /** Tira o acessório das mãos do dono (ou do que ele guardou) e o põe na mesa: está apostado, e em jogo até a partida acabar. */
+  private tirarParaAMesa(m: Member, id: string): void {
+    // (a que um bot guardou sai do que ele guardou — uma só —; a igual que ele usa continua com ele)
+    const guardada = m.bolso?.indexOf(id) ?? -1;
+    let onde: OndeEstava = { aneis: [], pulsos: [] };
+    if (guardada >= 0) m.bolso = m.bolso!.filter((_, k) => k !== guardada);
+    else {
+      const tirada = tirarDasMaos(m.cosmetics.acessorios ?? SEM_ACESSORIOS, id);
+      m.cosmetics = { ...m.cosmetics, acessorios: tirada.acessorios };
+      onde = tirada.onde;
+    }
+    this.circulando.add(id);
+    this.naMesa.push({ seat: m.seat, membro: m.id, conta: m.accountId, id, onde });
+  }
+
+  /** O acessório apostado volta para as mãos do dono, no lugar em que estava (ou para o que ele guardou). */
+  private voltaParaODono(seat: number, id: string): void {
+    const i = this.naMesa.findIndex((x) => x.seat === seat && x.id === id);
+    if (i < 0) return;
+    const [item] = this.naMesa.splice(i, 1);
+    const m = this.memberById(item.membro);
+    if (!m) return;
+    if (item.onde.aneis.length || item.onde.pulsos.length) m.cosmetics = { ...m.cosmetics, acessorios: devolverAsMaos(m.cosmetics.acessorios ?? SEM_ACESSORIOS, id, item.onde) };
+    else this.darAoBot(m, id);
+  }
+
+  /** Quem não tem conta (um bot) fica com a peça na própria mesa: veste-a onde houver lugar; senão, guarda. */
+  private darAoBot(m: Member, id: string): void {
+    // (a que ele já usa não vai para o outro pulso ou dedo: são duas peças, e a segunda fica guardada)
+    const maos = m.cosmetics.acessorios ?? SEM_ACESSORIOS;
+    const vestido = usando(maos, id) ? null : vestirOndeDer(maos, id);
+    if (vestido) m.cosmetics = { ...m.cosmetics, acessorios: vestido };
+    else m.bolso = [...(m.bolso ?? []), id];
+  }
+
+  /** O perfil que chega no meio da mão, sem as peças que estão apostadas na mesa (elas não voltam às mãos por aí). */
+  private semOQueEstaNaMesa(m: Member, c: PlayerCosmetics): PlayerCosmetics {
+    let acessorios = c.acessorios;
+    if (!acessorios) return c;
+    for (const item of this.naMesa) if (item.membro === m.id) acessorios = tirarDasMaos(acessorios, item.id).acessorios;
+    return { ...c, acessorios };
+  }
+
+  /**
+   * A mão acabou: cada acessório que estava no pote vai para quem o ganhou.
+   *
+   * Se foi o próprio dono, a peça volta às mãos dele. Se foi outro, ela **muda de conta** — é aqui,
+   * e só aqui, que isso acontece: uma mão que não termina (o servidor caiu, todos levantaram) não
+   * tira nada de ninguém. Quem ganha uma peça que já tem recebe o reembolso em fichas, na conta. O
+   * bot que ganha fica com a peça **na mesa**: ela sai da conta de quem perdeu, mas continua em jogo
+   * até a partida acabar (veja `botAposta`) — e de um bot ela vai para a conta de quem a ganhar.
+   */
+  private entregarItens(): void {
+    for (const g of this.itensGanhos) {
+      const item = this.naMesa.find((x) => x.seat === g.de && x.id === g.id);
+      if (!item) continue;
+      if (g.para === g.de) {
+        this.voltaParaODono(g.de, g.id);
+        continue;
+      }
+      this.naMesa.splice(this.naMesa.indexOf(item), 1);
+      const ganhou = this.seats[g.para];
+      const nome = findAcessorio(g.id)?.nome ?? 'o acessório';
+      const dono = this.memberById(item.membro);
+      const r = this.bank?.transferirItem?.(item.conta, ganhou && !ganhou.isBot ? ganhou.accountId : undefined, chaveDoItem(g.id));
+      if (ganhou?.isBot) this.darAoBot(ganhou, g.id);
+      const sobra = r?.repetido && r.reembolso > 0 ? ` (já tinha: +${r.reembolso} fichas)` : '';
+      this.system(`${ganhou?.name ?? 'A mesa'} ficou com ${nome} de ${dono?.name ?? 'quem saiu'}${sobra}.`);
+    }
+    // (o que sobrou sem dono certo — não devia sobrar nada — volta para quem apostou)
+    for (const item of [...this.naMesa]) this.voltaParaODono(item.seat, item.id);
+    this.itensGanhos = [];
+  }
+
+  /**
+   * Quem ficou sem fichas e está usando um acessório que se aposta recebe a pergunta: quer apostá-lo
+   * para continuar? Não é obrigatório — recusar (ou deixar o tempo passar) é ser eliminado, como antes.
+   */
+  private oferecer(m: Member): boolean {
+    if (m.isBot || m.leaving || !m.connected || !m.client) return false;
+    if (!this.apostaveisDe(m).length) return false;
+    m.oferta = Date.now() + TEMPO_DA_OFERTA;
+    this.emit({ t: 'ofertaItem', seat: m.seat, timeMs: TEMPO_DA_OFERTA });
+    this.ofertaTimers.set(
+      m.id,
+      // (a folga cobre o tempo que a pergunta leva para chegar: ela espera a vez na fila dos eventos da mesa)
+      this.later(() => this.responderOferta(m.id, null), TEMPO_DA_OFERTA + 4000),
+    );
+    return true;
+  }
+
+  private temOferta(): boolean {
+    return this.members().some((m) => !!m.oferta);
+  }
+
+  /** Desfaz a oferta de um membro (sem eliminá-lo). Devolve se havia uma. */
+  private cancelarOferta(m: Member): boolean {
+    const t = this.ofertaTimers.get(m.id);
+    if (t) {
+      clearTimeout(t);
+      this.timers.delete(t);
+      this.ofertaTimers.delete(m.id);
+    }
+    const havia = !!m.oferta;
+    m.oferta = undefined;
+    return havia;
+  }
+
+  /** A resposta de quem ficou sem fichas: o acessório que aposta para continuar, ou null (não aposta: é eliminado). */
+  responderOferta(clientId: string, itemId: string | null): string | null {
+    const m = this.memberById(clientId);
+    if (!m || !m.oferta) return 'Não há nada para responder';
+    if (itemId !== null) {
+      const peca = this.apostaveisDe(m).find((x) => x.id === itemId);
+      if (!peca) return 'Você não está usando esse acessório';
+      this.cancelarOferta(m);
+      m.entrada = peca.id;
+      m.entradaValor = peca.valor;
+      this.emit({ t: 'entradaComItem', seat: m.seat, item: peca.id, valor: peca.valor });
+      this.system(`${m.name} aposta ${findAcessorio(peca.id)?.nome ?? 'um acessório'} para continuar na mesa.`);
+    } else {
+      this.cancelarOferta(m);
+      this.eliminar(m, this.vivos() + 1);
+    }
+    this.depoisDasOfertas();
+    return null;
+  }
+
+  /** Uma oferta foi respondida: se não sobrou nenhuma, a partida acaba ou a mesa segue para a próxima mão. */
+  private depoisDasOfertas(): void {
+    if (this.temOferta() || this.status !== 'playing') return;
+    if (this.closedGame() && (this.vivos() <= 1 || this.semGenteViva())) this.finishGame();
+    else this.pump();
+  }
+
+  /** Na vez do jogador: ele aposta um acessório que está usando (veja `Hand.stake`). */
+  handleStake(clientId: string, itemId: string): string | null {
+    const m = this.memberById(clientId);
+    const h = this.hand;
+    if (!m || !h || h.finished) return 'Nenhuma mão em andamento';
+    if (h.toActSeat !== m.seat || this.turnKey !== this.currentTurnKey()) return 'Não é a sua vez';
+    if (!this.valemItens()) return 'Nesta mesa os acessórios não valem como aposta';
+    const peca = this.apostaveisDe(m).find((x) => x.id === itemId);
+    if (!peca) return 'Você não está usando esse acessório';
+    if (!h.legalActions(m.seat)?.canStake) return 'Não dá para apostar um acessório agora';
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.timers.delete(this.turnTimer);
+      this.turnTimer = null;
+    }
+    // sai das mãos antes: o evento da aposta já leva a mesa com a peça em cima dela
+    const antes = m.cosmetics;
+    this.tirarParaAMesa(m, peca.id);
+    const r = h.stake(m.seat, peca.id, peca.valor);
+    if (!r.ok) {
+      this.naMesa = this.naMesa.filter((x) => !(x.membro === m.id && x.id === peca.id));
+      m.cosmetics = antes;
+      // devolve o timer da vez
+      this.turnKey = '';
+      this.pump();
+      return r.error;
+    }
+    this.entrou.add(m.id);
+    return null;
   }
 
   /** A partida contra bots — a normal que não é Custom, montada pelo servidor para uma pessoa só. */
@@ -1099,7 +1411,7 @@ export class Room {
   private semGenteViva(): boolean {
     if (!this.contraBots()) return false;
     const gente = this.members().filter((m) => !m.isBot);
-    return gente.length > 0 && gente.every((m) => m.busted || m.leaving || m.stack <= 0);
+    return gente.length > 0 && gente.every((m) => m.busted || m.leaving || (m.stack <= 0 && !m.entrada && !m.oferta));
   }
 
   /**
@@ -1151,6 +1463,10 @@ export class Room {
   private finishGame(): void {
     this.status = 'finished';
     this.encerrarPausa();
+    for (const m of this.members()) {
+      this.cancelarOferta(m);
+      m.entrada = undefined;
+    }
     const alive = this.members().filter((m) => !m.busted && !m.leaving);
     const ranking = [
       ...alive.sort((a, b) => b.stack - a.stack).map((m, i) => ({ name: m.name, seat: m.seat, place: i + 1 })),
@@ -1531,9 +1847,18 @@ export class Room {
         // (o dealer reparte com as mãos, carta por carta: veja shared/ritmo.ts)
         return 500 + TEMPO_DE_PEGAR + tempoDeRepartir(ev.order.length) + 500;
       case 'action':
+        // (apostar um acessório é tirá-lo da mão e pô-lo na mesa: leva mais que empurrar fichas)
+        if (ev.item) return 2600;
         return ev.action === 'fold' ? 900 : ev.action === 'check' ? 850 : ev.action === 'allin' ? 1400 : 1050;
       case 'refund':
         return 650;
+      case 'itemVolta':
+        // (o dono pega a peça na mesa e a coloca de volta)
+        return 3400;
+      case 'ofertaItem':
+        return 400;
+      case 'entradaComItem':
+        return 900;
       case 'collect':
         return 850;
       case 'street':
@@ -1602,6 +1927,8 @@ export class Room {
       return;
     }
     if (this.pausaAtual?.estado === 'pausada') return;
+    // alguém ficou sem fichas e está decidindo se aposta um acessório: a próxima mão espera a resposta
+    if (this.temOferta()) return;
     if (this.status === 'playing' && !this.nextHandScheduled) {
       this.nextHandScheduled = true;
       this.later(
@@ -1964,7 +2291,33 @@ export class Room {
     });
 
     const dealerSeat = h ? h.players[h.dealerIdx].seat : null;
+    const minhaVez = toAct !== null && !!me && toAct === me.seat;
+    // o que há na mesa, em apostas e pote: a parte de cada peça apostada sai daí — e nunca passa disso
+    let restaNaMesa = h && !this.handClosed ? h.pot + h.players.reduce((s, p) => s + p.bet, 0) : 0;
+    const naMesaEmJogo = (parte: number): number => {
+      const conta = Math.max(0, Math.min(parte, restaNaMesa));
+      restaNaMesa -= conta;
+      return conta;
+    };
     return {
+      apostaDeItens: this.valemItens(),
+      itens:
+        !h || this.handClosed
+          ? []
+          : h.players.flatMap((p) =>
+              p.itens.map((i) => ({
+                seat: p.seat,
+                id: i.id,
+                valor: i.valor,
+                // (com o pote já pago a peça ainda está na mesa — vai para quem ganhou —, mas já não conta nele)
+                emJogo: naMesaEmJogo(i.ate - i.de),
+                // (a aposta desta rua é o topo do total investido: a peça está nela se passa do que já foi recolhido)
+                naAposta: i.ate > p.total - p.bet,
+                ...(this.seats[p.seat]?.entrada === i.id ? { chegando: true } : {}),
+              })),
+            ),
+      oferta: me?.oferta ? { timeLeftMs: Math.max(0, me.oferta - Date.now()), itens: this.apostaveisDe(me) } : null,
+      apostaveis: minhaVez && h!.legalActions(me!.seat)?.canStake ? this.apostaveisDe(me!) : [],
       roomId: this.id,
       handNo: this.handNo,
       rounds: this.settings.mode === 'normal' ? this.settings.rounds : null,

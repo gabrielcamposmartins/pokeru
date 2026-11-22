@@ -59,8 +59,9 @@ export default function Mesa3D() {
       fichaDoPote: mainChipSkin(view, minhaFicha),
       // o meu personagem sai do perfil (a troca mais recente), como nas vozes do diretor
       personagemDe: (seat) => (seat === view.mySeat ? findCharacter(meuPersonagem).id : (view.seats[seat]?.cosmetics.character.id ?? '')),
-      // os meus saem do perfil; os dos outros, do que o servidor mandou (bot não usa acessório, como não tem aura)
-      acessoriosDe: (seat) => (seat === view.mySeat ? meusAcessorios : view.seats[seat]?.isBot ? undefined : view.seats[seat]?.cosmetics.acessorios),
+      // os de cada um são os que a mesa diz que ele está usando — o que foi apostado saiu da mão —; os meus, sem isso, os do perfil
+      // (o bot também pode vir com alguma peça, e ficar com as que ganhar: shared/aposta.ts)
+      acessoriosDe: (seat) => (seat === view.mySeat ? (view.seats[seat]?.cosmetics.acessorios ?? meusAcessorios) : view.seats[seat]?.cosmetics.acessorios),
     });
   }, [view, minhaMesa, minhaFicha, minhaFrente, meuVerso, meuPersonagem, meusAcessorios]);
 

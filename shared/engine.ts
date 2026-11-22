@@ -28,6 +28,31 @@ export interface PlayerAction {
   amount?: number;
 }
 
+/**
+ * Um acessório apostado (um anel, uma pulseira, um relógio).
+ *
+ * Na aposta ele **vale fichas** — quem quiser continuar na mão tem de pagar o valor dele —, mas
+ * **não é ficha**: não entra na pilha de ninguém, nem na de quem ganha. Ele ocupa uma faixa
+ * `[de, ate)` do total que o dono investiu na mão; a parte do pote que é acessório não paga
+ * fichas, e a peça vai, inteira, para quem ganhar o pote em que está o topo dessa faixa.
+ */
+export interface ItemApostado {
+  id: string;
+  /** Quanto ele valia quando foi apostado. */
+  valor: number;
+  de: number;
+  /** Encolhe quando parte da aposta não é paga; se chegar a `de`, a peça volta para o dono. */
+  ate: number;
+}
+
+/** Um acessório que saiu do pote no fim da mão: de quem era e com quem ficou (pode ser o próprio dono). */
+export interface ItemGanho {
+  id: string;
+  valor: number;
+  de: number;
+  para: number;
+}
+
 export interface HandPlayer {
   seat: number;
   id: string;
@@ -46,6 +71,8 @@ export interface HandPlayer {
   revealed: boolean;
   /** Poker de 5 cartas: quantas cartas o jogador trocou (undefined = ainda não trocou). */
   drew?: number;
+  /** Os acessórios que ele apostou nesta mão e que ainda estão na mesa. */
+  itens: ItemApostado[];
 }
 
 export interface LegalActions {
@@ -58,6 +85,8 @@ export interface LegalActions {
   maxRaiseTo: number;
   /** true quando ainda não há aposta na rodada (o botão vira "Apostar"). */
   isBet: boolean;
+  /** Dá para apostar um acessório agora (para pagar a aposta, ou para apostar e aumentar com ele). */
+  canStake?: boolean;
 }
 
 export interface PotWinner {
@@ -73,15 +102,20 @@ export interface PotWinner {
 export interface PotResult {
   amount: number;
   winners: PotWinner[];
-  /** Quanto cada jogador colocou neste pote (inclui quem desistiu). */
+  /** Quanto cada jogador colocou neste pote (inclui quem desistiu). Só fichas: o acessório vai em `itens`. */
   paid: { seat: number; amount: number }[];
+  /** Os acessórios que estavam neste pote, e com quem cada um ficou. */
+  itens?: ItemGanho[];
 }
 
 export type HandEvent =
   | { t: 'blinds'; posts: { seat: number; amount: number; kind: 'sb' | 'bb' }[] }
   | { t: 'deal'; order: number[] }
-  | { t: 'action'; seat: number; action: ActionType; amount: number; betTo: number; allIn: boolean }
+  /** `amount` são as fichas que saíram da pilha; `item`, o acessório que entrou na aposta junto (ou no lugar delas). */
+  | { t: 'action'; seat: number; action: ActionType; amount: number; betTo: number; allIn: boolean; item?: { id: string; valor: number } }
   | { t: 'refund'; seat: number; amount: number }
+  /** Ninguém pagou a aposta feita com o acessório: ele volta para o dono. */
+  | { t: 'itemVolta'; seat: number; item: string }
   | { t: 'collect'; bets: { seat: number; amount: number }[] }
   | { t: 'street'; street: Street; cards: Card[] }
   | { t: 'showdown'; reveals: { seat: number; cards: Card[]; hand: string }[] }
@@ -90,7 +124,11 @@ export type HandEvent =
   | { t: 'draw'; seat: number; discards: number[] };
 
 export interface HandConfig {
-  players: { seat: number; id: string; stack: number }[];
+  /**
+   * `entrada`: o jogador entra na mão **apostando um acessório** — é o all-in dele, posto antes das
+   * cartas, como um blind. É como quem ficou sem fichas continua na mesa.
+   */
+  players: { seat: number; id: string; stack: number; entrada?: { id: string; valor: number } }[];
   dealerSeat: number;
   smallBlind: number;
   bigBlind: number;
@@ -133,6 +171,7 @@ export class Hand {
   /** Cartas descartadas na troca: voltam ao baralho (embaralhadas) se ele acabar. */
   private muck: Card[] = [];
   private drawn = new Set<number>();
+  private entradas = new Map<number, { id: string; valor: number }>();
 
   constructor(
     cfg: HandConfig,
@@ -154,7 +193,9 @@ export class Hand {
         actedAt: 0,
         lastAction: null,
         revealed: false,
+        itens: [],
       }));
+    for (const c of cfg.players) if (c.entrada && c.entrada.valor > 0) this.entradas.set(c.seat, c.entrada);
     this.variant = cfg.variant ?? 'holdem';
     this.street = FIRST_STREET[this.variant];
     this.smallBlind = cfg.smallBlind;
@@ -211,7 +252,16 @@ export class Hand {
       minRaiseTo,
       maxRaiseTo,
       isBet: this.currentBet === 0,
+      // (o acessório paga uma aposta que há, ou abre/aumenta uma — isso, só quando o aumento é permitido)
+      canStake: toCall > 0 || (reopened && othersCanAct),
     };
+  }
+
+  /** O valor, em fichas de aposta, dos acessórios que estão na mesa (nas apostas e no pote). */
+  get valorDosItens(): number {
+    let v = 0;
+    for (const p of this.players) for (const i of p.itens) v += i.ate - i.de;
+    return v;
   }
 
   // ---------- fluxo ----------
@@ -242,6 +292,26 @@ export class Hand {
     this.minRaise = this.bigBlind;
     this.onEvent({ t: 'blinds', posts });
 
+    // quem entra apostando um acessório já está all-in com ele (e os outros têm de pagar o valor dele)
+    const entrando: { p: HandPlayer; item: { id: string; valor: number } }[] = [];
+    for (const p of this.players) {
+      const item = this.entradas.get(p.seat);
+      if (!item) continue;
+      p.itens.push({ id: item.id, valor: item.valor, de: p.total, ate: p.total + item.valor });
+      p.bet += item.valor;
+      p.total += item.valor;
+      if (p.stack === 0) {
+        p.allIn = true;
+        p.lastAction = 'allin';
+      }
+      if (p.bet > this.currentBet) {
+        const aumento = p.bet - this.currentBet;
+        if (aumento >= this.minRaise) this.minRaise = aumento;
+        this.currentBet = p.bet;
+      }
+      entrando.push({ p, item });
+    }
+
     // distribuição: uma volta por carta, começando à esquerda do dealer
     const order: number[] = [];
     for (let round = 0; round < HOLE_CARDS[this.variant]; round++) {
@@ -253,6 +323,7 @@ export class Hand {
       }
     }
     this.onEvent({ t: 'deal', order });
+    for (const { p, item } of entrando) this.onEvent({ t: 'action', seat: p.seat, action: 'allin', amount: 0, betTo: p.bet, allIn: p.allIn, item });
 
     // primeiro a agir no pré-flop: à esquerda do BB (no heads-up, o dealer/SB)
     this.advanceOrNext(this.bbIdx);
@@ -344,6 +415,75 @@ export class Hand {
     return { ok: true };
   }
 
+  /**
+   * Aposta um acessório, na vez do jogador: o valor dele entra na aposta **no lugar de fichas**.
+   *
+   * Se o valor não cobre o que há para pagar, as fichas completam (até onde houver pilha); se passa,
+   * é um aumento — e aí vale a regra de quando se pode aumentar. O acessório fica na mesa até o fim
+   * da mão (veja `ItemApostado`).
+   */
+  stake(seat: number, id: string, valor: number): { ok: true } | { ok: false; error: string } {
+    if (this.finished) return { ok: false, error: 'A mão já terminou' };
+    if (this.phase === 'draw') return { ok: false, error: 'É a hora de trocar cartas' };
+    if (this.toAct === null || this.players[this.toAct].seat !== seat) return { ok: false, error: 'Não é a sua vez' };
+    if (!(valor > 0) || !Number.isInteger(valor)) return { ok: false, error: 'Acessório sem valor de aposta' };
+    const idx = this.toAct;
+    const p = this.players[idx];
+    const legal = this.legalActions(seat);
+    if (!legal?.canStake) return { ok: false, error: 'Não dá para apostar um acessório agora' };
+    const comItem = p.bet + valor;
+    // se o acessório não cobre a aposta, as fichas completam
+    const fichas = comItem < this.currentBet ? Math.min(p.stack, this.currentBet - comItem) : 0;
+    const para = comItem + fichas;
+    let type: ActionType = 'call';
+    if (para > this.currentBet) {
+      const reaberta = !p.acted || this.currentBet - p.actedAt >= this.minRaise;
+      const haQuemResponda = this.players.some((o) => o !== p && !o.folded && !o.allIn);
+      if (!reaberta || !haQuemResponda) return { ok: false, error: 'O acessório vale mais do que a aposta, e não dá para aumentar agora' };
+      const aumento = para - this.currentBet;
+      if (aumento >= this.minRaise) this.minRaise = aumento;
+      this.currentBet = para;
+      type = 'raise';
+    }
+    p.itens.push({ id, valor, de: p.total, ate: p.total + valor });
+    p.stack -= fichas;
+    p.bet = para;
+    p.total += valor + fichas;
+    if (p.stack === 0) {
+      p.allIn = true;
+      type = 'allin';
+    }
+    p.acted = true;
+    p.actedAt = this.currentBet;
+    p.lastAction = type;
+    this.seq++;
+    this.toAct = null;
+    this.onEvent({ t: 'action', seat: p.seat, action: type, amount: fichas, betTo: p.bet, allIn: p.allIn, item: { id, valor } });
+
+    this.advanceOrNext(idx);
+    return { ok: true };
+  }
+
+  /**
+   * O total investido de um jogador baixou para `total` (a aposta que ninguém pagou voltou): a parte
+   * dos acessórios dele que ficou acima disso sai da mesa. Devolve quanto da devolução era acessório
+   * (não vira ficha), e avisa de cada peça que voltou inteira para o dono.
+   */
+  private cortarItens(p: HandPlayer, total: number): number {
+    let virtual = 0;
+    for (const item of [...p.itens]) {
+      if (item.ate <= total) continue;
+      const novoAte = Math.max(item.de, total);
+      virtual += item.ate - novoAte;
+      item.ate = novoAte;
+      if (item.ate <= item.de) {
+        p.itens.splice(p.itens.indexOf(item), 1);
+        this.onEvent({ t: 'itemVolta', seat: p.seat, item: item.id });
+      }
+    }
+    return virtual;
+  }
+
   private roundComplete(): boolean {
     const active = this.activePlayers();
     if (active.length <= 1) return true;
@@ -377,9 +517,11 @@ export class Hand {
       const refund = top.bet - sorted[1].bet;
       top.bet -= refund;
       top.total -= refund;
-      top.stack += refund;
+      // a parte da devolução que era acessório não vira ficha: a peça encolhe, ou volta para o dono
+      const fichas = refund - this.cortarItens(top, top.total);
+      top.stack += fichas;
       if (top.stack > 0) top.allIn = false;
-      this.onEvent({ t: 'refund', seat: top.seat, amount: refund });
+      if (fichas > 0) this.onEvent({ t: 'refund', seat: top.seat, amount: fichas });
     }
     const bets = this.players.filter((p) => p.bet > 0).map((p) => ({ seat: p.seat, amount: p.bet }));
     if (bets.length) {
@@ -525,10 +667,20 @@ export class Hand {
     const active = this.activePlayers();
     if (active.length === 1) {
       const w = active[0];
-      const amount = this.pot;
+      // o pote paga só o que é ficha; os acessórios que estão nele vão para quem ficou
+      const amount = this.pot - this.valorDosItens;
       w.stack += amount;
       this.pot = 0;
-      this.results = [{ amount, winners: [{ seat: w.seat, amount }], paid: this.players.filter((p) => p.total > 0).map((p) => ({ seat: p.seat, amount: p.total })) }];
+      const itens: ItemGanho[] = this.players.flatMap((p) => p.itens.map((i) => ({ id: i.id, valor: i.ate - i.de, de: p.seat, para: w.seat })));
+      const emFichas = (p: HandPlayer) => p.total - p.itens.reduce((s, i) => s + i.ate - i.de, 0);
+      this.results = [
+        {
+          amount,
+          winners: [{ seat: w.seat, amount }],
+          paid: this.players.filter((p) => emFichas(p) > 0).map((p) => ({ seat: p.seat, amount: emFichas(p) })),
+          ...(itens.length ? { itens } : {}),
+        },
+      ];
       this.finished = true;
       this.onEvent({ t: 'win', pots: this.results, uncontested: true });
       return;
@@ -560,8 +712,20 @@ export class Hand {
       const winners = eligible.filter((p) => values.get(p.seat)!.score === bestScore);
       // fichas ímpares vão para o primeiro vencedor à esquerda do dealer
       winners.sort((a, b) => this.distFromDealer(a) - this.distFromDealer(b));
-      const share = Math.floor(pot.amount / winners.length);
-      let rem = pot.amount - share * winners.length;
+      // a parte deste pote que é acessório não paga fichas; e a peça cujo topo está aqui fica com
+      // quem ganhou este pote (com o próprio dono, se ele está entre os que ganharam)
+      const itens: ItemGanho[] = [];
+      const acessorio = new Map<number, number>();
+      for (const p of this.players) {
+        for (const item of p.itens) {
+          const parte = Math.min(item.ate, pot.ate) - Math.max(item.de, pot.de);
+          if (parte > 0) acessorio.set(p.seat, (acessorio.get(p.seat) ?? 0) + parte);
+          if (item.ate > pot.de && item.ate <= pot.ate) itens.push({ id: item.id, valor: item.ate - item.de, de: p.seat, para: (winners.find((w) => w === p) ?? winners[0]).seat });
+        }
+      }
+      const emFichas = pot.amount - [...acessorio.values()].reduce((s, v) => s + v, 0);
+      const share = Math.floor(emFichas / winners.length);
+      let rem = emFichas - share * winners.length;
       const pw: PotWinner[] = winners.map((w) => {
         const amt = share + (rem > 0 ? 1 : 0);
         if (rem > 0) rem--;
@@ -569,7 +733,8 @@ export class Hand {
         const v = values.get(w.seat)!;
         return { seat: w.seat, amount: amt, hand: v.name, best: v.best, core: v.core };
       });
-      results.push({ amount: pot.amount, winners: pw, paid: pot.contributions });
+      const paid = pot.contributions.map((c) => ({ seat: c.seat, amount: c.amount - (acessorio.get(c.seat) ?? 0) })).filter((c) => c.amount > 0);
+      results.push({ amount: emFichas, winners: pw, paid, ...(itens.length ? { itens } : {}) });
     }
     this.pot = 0;
     this.results = results;
@@ -593,10 +758,13 @@ export function computePots(players: { seat: number; total: number; folded: bool
   amount: number;
   eligible: number[];
   contributions: { seat: number; amount: number }[];
+  /** A faixa do total investido que este pote cobre: de `de` (fora) até `ate` (dentro). O último vai até o infinito. */
+  de: number;
+  ate: number;
 }[] {
   const active = players.filter((p) => !p.folded);
   const levels = [...new Set(active.map((p) => p.total))].filter((l) => l > 0).sort((a, b) => a - b);
-  const pots: { amount: number; eligible: number[]; contributions: { seat: number; amount: number }[] }[] = [];
+  const pots: { amount: number; eligible: number[]; contributions: { seat: number; amount: number }[]; de: number; ate: number }[] = [];
   const done = new Map<number, number>(players.map((p) => [p.seat, 0]));
   let prev = 0;
   for (const level of levels) {
@@ -611,12 +779,13 @@ export function computePots(players: { seat: number; total: number; folded: bool
       amount += part;
     }
     const eligible = active.filter((p) => p.total >= level).map((p) => p.seat);
-    if (amount > 0) pots.push({ amount, eligible, contributions });
+    if (amount > 0) pots.push({ amount, eligible, contributions, de: prev, ate: level });
     prev = level;
   }
   // sobras (fichas de quem desistiu acima do maior nível ativo) entram no último pote
   if (pots.length) {
     const last = pots[pots.length - 1];
+    last.ate = Infinity;
     for (const p of players) {
       const rest = p.total - done.get(p.seat)!;
       if (rest <= 0) continue;
@@ -632,6 +801,7 @@ export function computePots(players: { seat: number; total: number; folded: bool
     const last = merged[merged.length - 1];
     if (last && last.eligible.join(',') === pot.eligible.join(',')) {
       last.amount += pot.amount;
+      last.ate = pot.ate;
       for (const c of pot.contributions) {
         const prevC = last.contributions.find((x) => x.seat === c.seat);
         if (prevC) prevC.amount += c.amount;

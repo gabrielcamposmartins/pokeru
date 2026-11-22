@@ -274,6 +274,20 @@ function coracao(a: number, b: number, pontos = 36): Contorno {
     return [(a * (x + 2.5)) / 14.5, (b * 16 * Math.sin(t) ** 3) / 16];
   });
 }
+/** O octógono (a caixa de oito lados de um relógio moderno): `r` é a distância do meio a cada lado; os lados das doze, das três, das seis e das nove ficam retos. */
+function oitavado(r: number, porLado = 4): Contorno {
+  const canto = (k: number): [number, number] => {
+    const t = ((k + 0.5) / 8) * Math.PI * 2;
+    const d = r / Math.cos(Math.PI / 8);
+    return [d * Math.cos(t), d * Math.sin(t)];
+  };
+  const c: Contorno = [];
+  for (let k = 0; k < 8; k++) {
+    const [a, b] = [canto(k), canto(k + 1)];
+    for (let i = 0; i < porLado; i++) c.push([a[0] + ((b[0] - a[0]) * i) / porLado, a[1] + ((b[1] - a[1]) * i) / porLado]);
+  }
+  return c;
+}
 const vezes = (c: Contorno, k: number, kz = k): Contorno => c.map(([x, z]) => [x * k, z * kz]);
 
 /** Uma chapa com a forma do contorno, deitada (o contorno em x e z, a altura em y, de 0 a `alto`); `bisel`: as quinas de cima e de baixo chanfradas. */
@@ -301,11 +315,13 @@ const polido = (cor: string) => metal(shade(cor, 0.22));
 /** A pedra: lapidada (facetas chapadas) ou polida, com um fundo de luz da própria cor. */
 const pedra = (cor: string, lapidada: boolean) => material(`pedra:${cor}:${lapidada}`, () => new THREE.MeshStandardMaterial({ color: cor, roughness: 0.12, metalness: 0, flatShading: lapidada, emissive: cor, emissiveIntensity: 0.32 }));
 const fosco = (cor: string, aspero = 0.8) => material(`fosco:${cor}:${aspero}`, () => new THREE.MeshStandardMaterial({ color: cor, roughness: aspero }));
+/** O metal jateado (a caixa de um relógio de campo): a cor do metal, sem o lustro do polimento. */
+const jateado = (cor: string) => material('jateado:' + cor, () => new THREE.MeshStandardMaterial({ color: cor, metalness: 0.2, roughness: 0.68, emissive: shade(cor, -0.6), emissiveIntensity: 0.4 }));
 /** O vidro de um relógio: quase invisível, só o reflexo. */
 const vidro = () => material('vidro', () => new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, roughness: 0.04, depthWrite: false }));
 
 /** Uma textura desenhada num quadrado de `lado` pontos, com o meio na origem. */
-function desenhada(chave: string, lado: number, desenha: (x: CanvasRenderingContext2D, meio: number) => void, opcoes: { aspero?: number; dosDoisLados?: boolean } = {}): THREE.Material {
+function desenhada(chave: string, lado: number, desenha: (x: CanvasRenderingContext2D, meio: number) => void, opcoes: { aspero?: number; dosDoisLados?: boolean; depois?: (m: THREE.MeshStandardMaterial) => void } = {}): THREE.Material {
   return material(chave, () => {
     const c = document.createElement('canvas');
     c.width = c.height = lado;
@@ -315,14 +331,48 @@ function desenhada(chave: string, lado: number, desenha: (x: CanvasRenderingCont
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = 4;
-    return new THREE.MeshStandardMaterial({ map: t, roughness: opcoes.aspero ?? 0.25, side: opcoes.dosDoisLados ? THREE.DoubleSide : THREE.FrontSide });
+    const m = new THREE.MeshStandardMaterial({ map: t, roughness: opcoes.aspero ?? 0.25, side: opcoes.dosDoisLados ? THREE.DoubleSide : THREE.FrontSide });
+    opcoes.depois?.(m);
+    return m;
   });
+}
+
+/**
+ * Faz de um material desenhado um **prisma**: a parte clara do desenho ganha as cores do arco-íris,
+ * e a cor de cada ponto depende de onde ele está no mostrador (os raios de um CD: a cor dá duas
+ * voltas em torno do meio) **e do ângulo de quem olha** — o reflexo do olhar na face, que muda quando
+ * o pulso vira ou a câmera anda. É por isso que as cores correm, em vez de ficarem pintadas.
+ *
+ * Não é o `iridescence` do material físico do three.js: aquele só aparece no reflexo de um ambiente,
+ * e a mesa não tem ambiente para refletir (veja `metal`). Aqui a cor entra na própria tinta e num
+ * brilho próprio discreto, e por isso se vê com qualquer luz. O que é escuro no desenho — os
+ * ponteiros, os índices — fica como está.
+ */
+function prismatico(m: THREE.MeshStandardMaterial): void {
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <normal_fragment_maps>',
+      `#include <normal_fragment_maps>
+	{
+		vec3 prismaOlhar = normalize( vViewPosition );
+		vec3 prismaReflexo = reflect( -prismaOlhar, normal );
+		vec2 prismaP = vMapUv - 0.5;
+		float prismaTom = atan( prismaP.y, prismaP.x ) / 3.14159265 + length( prismaP ) * 0.9 + prismaReflexo.x * 1.9 + prismaReflexo.y * 1.3;
+		vec3 prismaCor = 0.56 + 0.44 * cos( 6.2831853 * ( prismaTom + vec3( 0.0, 0.33, 0.67 ) ) );
+		float prismaClaro = smoothstep( 0.3, 0.75, dot( diffuseColor.rgb, vec3( 0.3333 ) ) );
+		diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * prismaCor, prismaClaro );
+		totalEmissiveRadiance += prismaCor * prismaClaro * 0.2;
+	}`,
+    );
+  };
+  m.customProgramCacheKey = () => 'mostrador-prismatico';
 }
 
 /**
  * O mostrador de um relógio: o fundo, a trilha dos minutos, os índices das horas (os de três em três,
  * maiores), os ponteiros nas dez e dez com o dos segundos, e o que cada um tem de seu — os três
- * mostradores pequenos do esportivo, a janela da data, a lua e as estrelas, ou os algarismos do visor.
+ * mostradores pequenos do esportivo e do cronógrafo, a janela da data, a lua e as estrelas, os doze
+ * algarismos do relógio de campo, os raios do prismático, ou os algarismos do visor.
  */
 function mostrador(r: Relogio): THREE.Material {
   // (dos dois lados: o mostrador espelhado da mão direita tem as faces ao contrário)
@@ -332,6 +382,18 @@ function mostrador(r: Relogio): THREE.Material {
     (x, m) => {
       x.fillStyle = r.mostrador;
       x.fillRect(-m, -m, 2 * m, 2 * m);
+      if (r.visor === 'prisma' || r.visor === 'cronografo') {
+        // o fundo raiado (o "sol" de um mostrador escovado): gomos finos, um claro e um nem tanto — no
+        // prismático é por eles que as cores correm; no cronógrafo, é o lustro da prata
+        const gomos = 96;
+        for (let k = 0; k < gomos; k++) {
+          x.fillStyle = shade(r.mostrador, -0.02 - 0.09 * (0.5 + 0.5 * Math.sin(k * 2.4)) * (k % 2 ? 1 : 0.35));
+          x.beginPath();
+          x.moveTo(0, 0);
+          x.arc(0, 0, 2 * m, (k / gomos) * Math.PI * 2, ((k + 1) / gomos) * Math.PI * 2 + 0.01);
+          x.fill();
+        }
+      }
       x.strokeStyle = r.ponteiros;
       x.fillStyle = r.ponteiros;
       x.lineCap = 'round';
@@ -372,17 +434,20 @@ function mostrador(r: Relogio): THREE.Material {
         x.stroke();
       }
       x.globalAlpha = 1;
-      // os índices das horas: barras, e algarismos nas doze, três, seis e nove do clássico
+      // os índices das horas: barras, e algarismos nas doze, três, seis e nove do clássico — ou nas doze
+      // horas do relógio de campo, que se lê de relance; o prismático tem só barras finas, todas iguais
+      const deCampo = r.correia === 'lona';
+      const liso = r.visor === 'prisma';
       for (let h = 0; h < 12; h++) {
         const grande = h % 3 === 0;
-        if (grande && r.id === 'relogio-classico') {
-          const [cx, cy] = ponto(h, 0.76);
-          texto(String(h === 0 ? 12 : h), 34, cx, cy, 800);
+        if (deCampo || (grande && r.id === 'relogio-classico')) {
+          const [cx, cy] = ponto(h, deCampo ? 0.72 : 0.76);
+          texto(String(h === 0 ? 12 : h), deCampo ? (grande ? 36 : 28) : 34, cx, cy, 800);
           continue;
         }
-        const [ax, ay] = ponto(h, grande ? 0.7 : 0.78);
+        const [ax, ay] = ponto(h, liso ? 0.74 : grande ? 0.7 : 0.78);
         const [bx, by] = ponto(h, 0.9);
-        x.lineWidth = grande ? 11 : 6;
+        x.lineWidth = liso ? (h === 0 ? 9 : 5) : grande ? 11 : 6;
         x.beginPath();
         x.moveTo(ax, ay);
         x.lineTo(bx, by);
@@ -408,13 +473,15 @@ function mostrador(r: Relogio): THREE.Material {
         x.fill();
         x.fillStyle = r.ponteiros;
       }
-      if (r.id === 'relogio-esportivo') {
-        // os três mostradores pequenos de um cronógrafo
+      if (r.id === 'relogio-esportivo' || r.visor === 'cronografo') {
+        // os três mostradores pequenos de um cronógrafo (no bicolor, cheios do metal da caixa: o bronze sobre a prata)
         for (const [cx, cy] of [[-48, 0], [48, 0], [0, 48]]) {
-          x.globalAlpha = 0.28;
+          x.globalAlpha = r.visor === 'cronografo' ? 0.92 : 0.28;
+          if (r.visor === 'cronografo') x.fillStyle = r.metal;
           x.beginPath();
           x.arc(cx, cy, 25, 0, Math.PI * 2);
           x.fill();
+          x.fillStyle = r.ponteiros;
           x.globalAlpha = 1;
           x.lineWidth = 2.5;
           x.beginPath();
@@ -443,7 +510,7 @@ function mostrador(r: Relogio): THREE.Material {
       };
       ponteiro((-60 * Math.PI) / 180, raio * 0.48, 12, 10);
       ponteiro((60 * Math.PI) / 180, raio * 0.72, 8, 12);
-      x.strokeStyle = r.id === 'relogio-noturno' || r.id === 'relogio-lua' ? r.ponteiros : '#d8283a';
+      x.strokeStyle = r.id === 'relogio-noturno' || r.id === 'relogio-lua' || r.visor === 'prisma' ? r.ponteiros : '#d8283a';
       ponteiro((210 * Math.PI) / 180, raio * 0.8, 3, 24);
       x.beginPath();
       x.arc(0, 0, 9, 0, Math.PI * 2);
@@ -453,8 +520,51 @@ function mostrador(r: Relogio): THREE.Material {
       x.arc(0, 0, 3, 0, Math.PI * 2);
       x.fill();
     },
-    { dosDoisLados: true },
+    { dosDoisLados: true, depois: r.visor === 'prisma' ? prismatico : undefined },
   );
+}
+
+/**
+ * O aro de um cronógrafo: uma coroa chata no segundo metal, escovada, com a escala gravada em volta —
+ * um risco por unidade, um mais comprido a cada cinco e os algarismos, deitados no rumo do aro, na
+ * cor da caixa (o bronze gravado na prata).
+ */
+function aroGravado(r: Relogio, cor: string): THREE.Material {
+  return desenhada('aro-gravado:' + r.id, 256, (x, m) => {
+    x.fillStyle = shade(cor, 0.12);
+    x.fillRect(-m, -m, 2 * m, 2 * m);
+    // o escovado: gomos finos, quase da mesma cor
+    for (let k = 0; k < 120; k += 2) {
+      x.fillStyle = shade(cor, 0.02);
+      x.beginPath();
+      x.moveTo(0, 0);
+      x.arc(0, 0, 2 * m, (k / 120) * Math.PI * 2, ((k + 1) / 120) * Math.PI * 2);
+      x.fill();
+    }
+    const tinta = shade(r.metal, -0.5);
+    x.strokeStyle = tinta;
+    x.fillStyle = tinta;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.font = '800 13px "Segoe UI", sans-serif';
+    const escala = ['60', '65', '70', '80', '90', '100', '120', '140', '170', '200', '300', '500'];
+    for (let k = 0; k < 60; k++) {
+      const t = (k / 60) * Math.PI * 2;
+      const [c, s] = [Math.sin(t), -Math.cos(t)];
+      x.lineWidth = k % 5 ? 1.6 : 2.6;
+      x.beginPath();
+      x.moveTo(c * 99, s * 99);
+      x.lineTo(c * (k % 5 ? 103 : 105), s * (k % 5 ? 103 : 105));
+      x.stroke();
+      if (k % 5 === 0) {
+        x.save();
+        x.translate(c * 114, s * 114);
+        x.rotate(t);
+        x.fillText(escala[k / 5], 0, 0);
+        x.restore();
+      }
+    }
+  }, { aspero: 0.34 });
 }
 
 /** O aro giratório de um relógio de mergulho: as duas metades de cor, os riscos dos minutos, os algarismos e o triângulo do zero. */
@@ -1178,14 +1288,25 @@ function tampo(c: Contorno): THREE.BufferGeometry {
 }
 
 /**
- * Um relógio no laço do pulso: a correia (de couro pespontado, de elos de metal, de borracha, ou uma
- * corrente fina), a caixa com as quatro alças que a prendem à correia, o **aro** polido em volta do
- * vidro, a coroa serrilhada às três horas, o mostrador e o vidro por cima dele.
+ * Um relógio no laço do pulso: a correia (de couro pespontado, de lona listrada, de elos de metal —
+ * de um metal só ou de dois —, de borracha, ou uma corrente fina), a caixa com as quatro alças que a
+ * prendem à correia, o **aro** polido em volta do vidro, a coroa serrilhada às três horas, o
+ * mostrador e o vidro por cima dele.
  */
 function relogio(a: Relogio, l: Laco, folga: number, mao: Mao): Pedaco[] {
   const out: Pedaco[] = [];
-  const correia = { couro: { larg: 0.0125, gross: 0.0017 }, metal: { larg: 0.0135, gross: 0.002 }, borracha: { larg: 0.0168, gross: 0.0025 }, corrente: { larg: 0.0042, gross: 0.0014 } }[a.correia];
-  const alto = a.caixa === 'oval' ? 0.004 : a.caixa === 'digital' ? 0.0062 : 0.0054;
+  const correia = {
+    couro: { larg: 0.0125, gross: 0.0017 },
+    metal: { larg: 0.0135, gross: 0.002 },
+    bicolor: { larg: 0.0135, gross: 0.002 },
+    borracha: { larg: 0.0168, gross: 0.0025 },
+    corrente: { larg: 0.0042, gross: 0.0014 },
+    lona: { larg: 0.0128, gross: 0.0014 },
+  }[a.correia];
+  const alto = a.caixa === 'oval' ? 0.004 : a.caixa === 'digital' ? 0.0062 : a.caixa === 'oitavada' ? 0.0049 : 0.0054;
+  /** O metal da caixa e o das bordas dela: polidos, ou jateados (o aço fosco do relógio de campo). */
+  const daCaixa = a.fosca ? jateado(a.metal) : metal(a.metal);
+  const dasBordas = a.fosca ? jateado(shade(a.metal, 0.16)) : polido(a.metal);
   const m = eixosEm(l, 0, sobre(l, 0, folga + correia.gross));
   const no = (x: number, y: number, z: number) => m.clone().multiply(mover(x, y, z));
 
@@ -1199,8 +1320,17 @@ function relogio(a: Relogio, l: Laco, folga: number, mao: Mao): Pedaco[] {
   } else if (a.correia === 'corrente') {
     // duas correntes finas, lado a lado
     out.push({ geo: juntar([elos(l, folga, 0.0015, 0.00045, -0.0013), elos(l, folga, 0.0015, 0.00045, 0.0013)]), mat: metal(a.corDaCorreia) });
+  } else if (a.correia === 'lona') {
+    // a de lona: uma tira de tecido grosso, sem brilho, com a listra do meio (um nada mais alta, para as
+    // duas faces não brigarem), os pespontos das beiradas e os dois passadores de metal, do lado das seis
+    out.push({ geo: faixa(l, { larg: correia.larg, gross: correia.gross, folga, quina: 6 }), mat: fosco(a.corDaCorreia, 0.95) });
+    out.push({ geo: faixa(l, { larg: 0.0044, gross: correia.gross + 0.0002, folga, quina: 6 }), mat: fosco(shade(a.corDaCorreia, -0.3), 0.95) });
+    out.push({ geo: pespontos(l, correia.larg, folga, correia.gross + 0.00005), mat: fosco(shade(a.corDaCorreia, 0.35), 0.85) });
+    const passadores = [1.0, 1.36].map((t) => posta(new THREE.BoxGeometry(correia.larg + 0.0012, 0.0009, 0.0014), eixosEm(l, t, sobre(l, t, folga + correia.gross + 0.0002))));
+    out.push({ geo: juntar(passadores), mat: daCaixa });
   } else {
     // a pulseira de elos: fileiras de três chapas — as de fora e a do meio, desencontradas e mais polida
+    // (na bicolor, a do meio é do segundo metal: a prata entre o bronze)
     const n = Math.max(24, Math.round(volta(l, folga + 0.002) / 0.0043));
     const fora: THREE.BufferGeometry[] = [];
     const meio: THREE.BufferGeometry[] = [];
@@ -1212,14 +1342,18 @@ function relogio(a: Relogio, l: Laco, folga: number, mao: Mao): Pedaco[] {
       fora.push(elo(-0.0048, 0.0036, t), elo(0.0048, 0.0036, t));
       meio.push(elo(0, 0.0052, t + passo / 2));
     }
-    out.push({ geo: juntar(fora), mat: metal(a.corDaCorreia) }, { geo: juntar(meio), mat: polido(a.corDaCorreia) });
+    out.push({ geo: juntar(fora), mat: metal(a.corDaCorreia) }, { geo: juntar(meio), mat: polido(a.correia === 'bicolor' ? (a.metal2 ?? a.corDaCorreia) : a.corDaCorreia) });
   }
 
   // ── a caixa ──
   const caixa: THREE.BufferGeometry[] = [];
   const bordas: THREE.BufferGeometry[] = [];
-  const aro = (c: Contorno, y: number, r: number) =>
-    bordas.push(
+  /** O que é do segundo metal (num relógio bicolor): o aro e os botões. */
+  const doOutroMetal: THREE.BufferGeometry[] = [];
+  /** As cabeças dos parafusos: um tom mais escuro que a caixa. */
+  const parafusos: THREE.BufferGeometry[] = [];
+  const aro = (c: Contorno, y: number, r: number, onde = bordas) =>
+    onde.push(
       tubo(
         c.map(([x, z]) => new THREE.Vector3(x, y, z).applyMatrix4(m)),
         () => r,
@@ -1243,6 +1377,17 @@ function relogio(a: Relogio, l: Laco, folga: number, mao: Mao): Pedaco[] {
       caixa.push(posta(new THREE.CylinderGeometry(0.0141, 0.0141, 0.0011, 40, 1, true), no(0, alto + 0.0002, 0)));
       for (let k = 0; k < 40; k++) bordas.push(posta(new THREE.BoxGeometry(0.0007, 0.0012, 0.0009), no(0, alto + 0.0002, 0).multiply(new THREE.Matrix4().makeRotationY((k / 40) * Math.PI * 2)).multiply(mover(0.0143, 0, 0))));
       aro(vezes(face, 1.03), alto + 0.0008, 0.0004);
+    } else if (a.visor === 'cronografo') {
+      // o aro do cronógrafo: uma coroa larga e chata no segundo metal, com a escala gravada, no degrau
+      // dela; e o aro fino, do mesmo metal, em volta do vidro
+      const outro = a.metal2 ?? a.metal;
+      face = superelipse(0.0101, 0.0101, 2, 36);
+      const anel = new THREE.RingGeometry(0.0104, 0.0139, 48).applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+      if (mao === 'D') anel.applyMatrix4(escala(-1, 1, 1));
+      anel.applyMatrix4(no(0, alto + 0.0008, 0));
+      out.push({ geo: anel, mat: aroGravado(a, outro) });
+      doOutroMetal.push(posta(new THREE.CylinderGeometry(0.0139, 0.0142, 0.0011, 40, 1, true), no(0, alto + 0.00025, 0)));
+      aro(vezes(face, 1.03), alto + 0.0009, 0.00042, doOutroMetal);
     } else {
       face = superelipse(0.0116, 0.0116, 2, 36);
       // o aro: um degrau polido em volta do vidro
@@ -1260,6 +1405,18 @@ function relogio(a: Relogio, l: Laco, folga: number, mao: Mao): Pedaco[] {
       brilhantes.push(posta(new THREE.OctahedronGeometry(0.00052, 0), no(x, alto + 0.00045, z)));
     }
     out.push({ geo: juntar(brilhantes), mat: pedra('#eaf6ff', true) });
+  } else if (a.caixa === 'oitavada') {
+    // a caixa de oito lados de um relógio moderno: baixa, com o aro oitavado por cima, preso por oito
+    // parafusos (um em cada canto), e o vidro redondo no meio
+    caixa.push(posta(chapa(oitavado(0.0144), alto, { alto: 0.0007, dentro: 0.0007 }), no(0, 0, 0)));
+    bordas.push(posta(chapa(oitavado(0.0131), 0.001, { alto: 0.0003, dentro: 0.0003 }), no(0, alto - 0.0001, 0)));
+    for (let k = 0; k < 8; k++) {
+      const t = ((k + 0.5) / 8) * Math.PI * 2;
+      parafusos.push(posta(new THREE.CylinderGeometry(0.00078, 0.00078, 0.0004, 6), no(Math.cos(t) * 0.0123, alto + 0.00095, Math.sin(t) * 0.0123)));
+    }
+    face = superelipse(0.0103, 0.0103, 2, 36);
+    noMostrador = alto + 0.00096;
+    aro(vezes(face, 1.03), alto + 0.001, 0.00036);
   } else if (a.caixa === 'digital') {
     // a caixa de resina de um relógio de visor: retangular de cantos cortados, com a moldura do visor, quatro parafusos e os botões
     const c = superelipse(0.0147, 0.0134, 5, 36);
@@ -1281,24 +1438,27 @@ function relogio(a: Relogio, l: Laco, folga: number, mao: Mao): Pedaco[] {
   }
   // as alças: os quatro chifres que prendem a caixa à correia (para o lado das doze e o das seis)
   if (a.caixa !== 'oval') {
-    const meia = a.caixa === 'redonda' ? 0.0143 : a.caixa === 'digital' ? 0.0134 : 0.0118;
+    const meia = a.caixa === 'redonda' ? 0.0143 : a.caixa === 'oitavada' ? 0.0144 : a.caixa === 'digital' ? 0.0134 : 0.0118;
     for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       caixa.push(posta(new THREE.BoxGeometry(0.0028, 0.0032, 0.0052), no(sx * (correia.larg / 2 + 0.0008), alto * 0.36, sz * (meia + 0.0012)).multiply(new THREE.Matrix4().makeRotationX(sz * 0.42))));
     }
   }
   // a coroa, às três horas (do lado da mão): serrilhada, na haste dela — e os dois botões do cronógrafo
   if (a.caixa !== 'digital') {
-    const fora = a.caixa === 'oval' ? 0.0086 : a.caixa === 'redonda' ? 0.0152 : 0.0138;
+    const fora = a.caixa === 'oval' ? 0.0086 : a.caixa === 'redonda' || a.caixa === 'oitavada' ? 0.0152 : 0.0138;
     const k = a.caixa === 'oval' ? 0.65 : 1;
     const deitada = new THREE.Matrix4().makeRotationZ(Math.PI / 2);
     caixa.push(posta(new THREE.CylinderGeometry(0.0009 * k, 0.0009 * k, 0.0016, 8), no(fora - 0.0004, alto / 2, 0).multiply(deitada)));
     const coroa = new THREE.CylinderGeometry(0.0019 * k, 0.0019 * k, 0.0022 * k, 14).toNonIndexed();
     coroa.computeVertexNormals();
     bordas.push(posta(coroa, no(fora + 0.0012 * k, alto / 2, 0).multiply(deitada)));
-    if (a.id === 'relogio-esportivo') for (const s of [-1, 1]) caixa.push(posta(new THREE.CylinderGeometry(0.0011, 0.0011, 0.0024, 8), no(0.0136, alto / 2, s * 0.0072).multiply(new THREE.Matrix4().makeRotationY(-s * 0.5)).multiply(deitada)));
+    // (os botões do cronógrafo bicolor são do segundo metal, como o aro)
+    if (a.id === 'relogio-esportivo' || a.visor === 'cronografo') for (const s of [-1, 1]) (a.metal2 ? doOutroMetal : caixa).push(posta(new THREE.CylinderGeometry(0.0011, 0.0011, 0.0024, 8), no(0.0136, alto / 2, s * 0.0072).multiply(new THREE.Matrix4().makeRotationY(-s * 0.5)).multiply(deitada)));
   }
-  out.push({ geo: juntar(caixa), mat: a.caixa === 'digital' ? fosco(a.metal, 0.6) : metal(a.metal) });
-  if (bordas.length) out.push({ geo: juntar(bordas), mat: a.caixa === 'digital' ? metal('#8a8f99') : polido(a.metal) });
+  out.push({ geo: juntar(caixa), mat: a.caixa === 'digital' ? fosco(a.metal, 0.6) : daCaixa });
+  if (bordas.length) out.push({ geo: juntar(bordas), mat: a.caixa === 'digital' ? metal('#8a8f99') : dasBordas });
+  if (doOutroMetal.length) out.push({ geo: juntar(doOutroMetal), mat: polido(a.metal2 ?? a.metal) });
+  if (parafusos.length) out.push({ geo: juntar(parafusos), mat: metal(shade(a.metal, -0.4)) });
 
   // ── o mostrador e o vidro ──
   // O mostrador fica deitado no alto da caixa, com as doze horas no rumo da correia, do lado do

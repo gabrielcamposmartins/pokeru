@@ -1,6 +1,6 @@
 import { Fragment, Suspense, lazy, useState } from 'react';
 import { motion } from 'framer-motion';
-import { GALERIA, KIND_LABELS, isFree, itemsOfKind, owns, rarityLabel, rarityOf, type CatalogItem, type ItemKind } from '../../shared/catalog';
+import { GALERIA, KIND_LABELS, estaAVenda, isFree, itemsOfKind, owns, padoPrice, rarityLabel, rarityOf, type CatalogItem, type ItemKind } from '../../shared/catalog';
 import { ROULETTES, dropsOf, refundOf } from '../../shared/roulette';
 import { DEDOS, MAOS, MAX_ANEIS, ORDEM_DOS_DEDOS, TIPOS_DE_ACESSORIO, alternarAnel, alternarPulso, emUso, findAcessorio, type Acessorio, type Acessorios } from '../../shared/acessorios';
 import { findCharacter } from '../../shared/styles';
@@ -21,7 +21,8 @@ import { Petals } from './MainMenu';
  *
  * Nasceu dentro da loja e saiu de lá quando a loja virou vitrine de presentes e tickets: aqui não
  * se compra nada. Mostra o que é seu, o que falta, cada peça de perto e **de onde ela sai** — a
- * roleta e a chance. É a tela que responde "o que ainda me falta e onde consigo".
+ * roleta e a chance, e, para os acessórios que a loja vende, que ela se compra lá e por quanto. É a
+ * tela que responde "o que ainda me falta e onde consigo".
  *
  * O layout é o da loja antiga, que serve bem para isto: tipos na coluna da esquerda, prateleira no
  * meio, a peça grande à direita.
@@ -195,7 +196,8 @@ function GaleriaCard({ item, owned, selecionado, onVer, emUso: usando }: { item:
       <Preview item={item} />
       <Carimbo item={item} />
       <div className="shop-name">{labelOf(item)}</div>
-      <div className={owned ? 'shop-owned' : 'shop-falta'}>{usando ? '● Em uso' : owned ? (isFree(item.key) ? 'Já vem com o jogo' : '✓ Seu') : 'Falta'}</div>
+      {/* (o que falta e a loja vende diz onde está: é a diferença entre "tente a sorte" e "vá buscar") */}
+      <div className={owned ? 'shop-owned' : 'shop-falta'}>{usando ? '● Em uso' : owned ? (isFree(item.key) ? 'Já vem com o jogo' : '✓ Seu') : estaAVenda(item.key) ? 'Falta · na loja' : 'Falta'}</div>
     </button>
   );
 }
@@ -205,25 +207,48 @@ function GaleriaCard({ item, owned, selecionado, onVer, emUso: usando }: { item:
  *
  * A galeria não vende: mostra. Então o que o palco precisa dizer é em qual roleta aquilo cai e com
  * que chance — e, se já for do jogador, que não há mais o que procurar.
+ *
+ * Os acessórios que a loja vende (`estaAVenda`) têm dois caminhos, e o palco diz os dois: **compra-se
+ * na loja**, pelo preço do degrau, e também sai da roleta. O que não se vende diz que é só de roleta —
+ * para ninguém ir procurar na prateleira um anel de safira que nunca vai estar lá.
  */
-export function DeOndeVem({ item, owned }: { item: CatalogItem; owned: boolean }) {
+export function DeOndeVem({ item, owned, pado = null }: { item: CatalogItem; owned: boolean; pado?: number | null }) {
   const fontes = ROULETTES.map((r) => ({ r, drop: dropsOf(r).find((d) => d.key === item.key) })).filter((f) => f.drop);
+  const naLoja = estaAVenda(item.key);
   return (
     <div className="shop-vem">
       {owned ? (
         <div className="shop-owned">{isFree(item.key) ? 'Já vem com o jogo' : '✓ Seu'}</div>
-      ) : fontes.length ? (
+      ) : (
         <>
+          {naLoja && (
+            <div className="shop-vem-linha loja">
+              <span>Compra-se na Loja</span>
+              <b>
+                <ChipSvg value={100} size={15} /> {fmt(item.chips)}
+                {pado !== null && (
+                  <>
+                    {' '}
+                    · <PadoCoinSvg size={15} /> {fmt(padoPrice(item.chips))}
+                  </>
+                )}
+              </b>
+            </div>
+          )}
           {fontes.map(({ r, drop }) => (
             <div key={r.id} className="shop-vem-linha">
               <span>{r.name}</span>
               <b>{pct(drop!.chance)}</b>
             </div>
           ))}
-          <div className="muted small">Repetido vira {fmt(refundOf(item.key))} fichas.</div>
+          {fontes.length ? (
+            <div className="muted small">
+              {naLoja ? 'Também sai de roleta.' : 'Não se compra: só sai de roleta.'} Repetido vira {fmt(refundOf(item.key))} fichas.
+            </div>
+          ) : (
+            !naLoja && <div className="muted small">Não sai de roleta.</div>
+          )}
         </>
-      ) : (
-        <div className="muted small">Não sai de roleta.</div>
       )}
     </div>
   );
@@ -316,7 +341,7 @@ export function GalleryScreen({ onBack, initial = 'character', verInicial }: { o
               <Carimbo item={vendo} grande />
             </div>
             {vendo.kind === 'acessorio' && findAcessorio(vendo.id) && <EquiparAcessorio a={findAcessorio(vendo.id)!} owned={owns(ownedList, vendo.key)} />}
-            <DeOndeVem item={vendo} owned={owns(ownedList, vendo.key)} />
+            <DeOndeVem item={vendo} owned={owns(ownedList, vendo.key)} pado={pado} />
           </motion.div>
         )}
       </div>

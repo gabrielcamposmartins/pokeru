@@ -16,7 +16,7 @@ import {
   TABLE_PRESETS,
   findCharacter,
 } from '../shared/styles';
-import { priceOf } from '../shared/catalog';
+import { PRECO_DO_ACESSORIO, marcaDePerdido, priceOf } from '../shared/catalog';
 import { ROULETTES, dropsOf, findRoulette, refundOf, roletaDe, ticketPrice } from '../shared/roulette';
 import { bondCap, giftPoints } from '../shared/bond';
 import { bonusPado } from '../shared/protocol';
@@ -188,6 +188,126 @@ describe('loja: comprar com fichas', () => {
     expect(acc.info(a.id)!.money).toBe(999_999);
     expect(acc.info(a.id)!.owned).toEqual([]);
     acc.close();
+  });
+
+  /**
+   * Os acessórios das mãos são a exceção por peça: anel, pulseira e relógio se compram — pelo preço
+   * do degrau —, menos os lendários e as peças que o dono do jogo deixou só para a roleta. Esmalte e
+   * luva continuam de roleta. Quem decide é `estaAVenda` (shared/catalog.ts), e quem recusa é o servidor.
+   */
+  it('acessório: anel, pulseira e relógio se compram pelo preço do degrau, e viram posse', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 100_000 });
+    const a = acc.login(undefined, profile())!;
+
+    // um de cada degrau que se vende: comum, incomum, raro e épico
+    const compras: [string, number][] = [
+      ['acessorio:relogio-campo', 1000],
+      ['acessorio:anel-ebano', 2000],
+      ['acessorio:relogio-prisma', 4000],
+      ['acessorio:anel-onix', 8000],
+      ['acessorio:pulseira-terco', 4000],
+    ];
+    let saldo = 100_000;
+    for (const [key, preco] of compras) {
+      expect(priceOf(key, 'chips'), key).toBe(preco);
+      expect(await acc.buy(a.id, key, 'chips'), key).toBeNull();
+      saldo -= preco;
+      expect(acc.info(a.id)!.money, key).toBe(saldo);
+    }
+    expect(acc.info(a.id)!.owned).toEqual(compras.map(([key]) => key));
+    // posse, não estoque: a segunda compra é recusada e não cobra
+    expect(await acc.buy(a.id, 'acessorio:anel-onix', 'chips')).toMatch(/já tem/);
+    expect(acc.info(a.id)!.money).toBe(saldo);
+    acc.close();
+  });
+
+  it('acessório lendário não se compra, nem as joias de roleta, nem esmalte e luva; a aliança de início é recusada porque a conta já a tem — e nada é cobrado', async () => {
+    const acc = new Accounts({ file: newFile(), startingMoney: 999_999 });
+    const a = acc.login(undefined, profile())!;
+
+    const recusados = [
+      // lendários: as joias que mudaram de degrau e o cronógrafo novo
+      'acessorio:anel-safira',
+      'acessorio:anel-rubi',
+      'acessorio:anel-solitario',
+      'acessorio:anel-esmeralda',
+      'acessorio:anel-trinca',
+      'acessorio:pulseira-terco-madreperola',
+      'acessorio:relogio-classico',
+      'acessorio:relogio-bronze',
+      // raras, e fora da loja assim mesmo
+      'acessorio:pulseira-corrente',
+      'acessorio:pulseira-argolas',
+      // os tipos que não se vendem
+      'acessorio:esmalte-galaxia',
+      'acessorio:luva-opera',
+    ];
+    for (const key of recusados) expect(await acc.buy(a.id, key, 'chips'), key).toMatch(/sai de roleta/);
+    // o que vem com o jogo tem a recusa dele
+    expect(await acc.buy(a.id, 'acessorio:luva-traje', 'chips')).toMatch(/já vem com o jogo/);
+    expect(await acc.buy(a.id, 'acessorio:esmalte-natural', 'chips')).toMatch(/já vem com o jogo/);
+    // a aliança lisa não é mais "do jogo": está à venda, e a recusa é a de quem já tem a peça (a de início)
+    expect(await acc.buy(a.id, 'acessorio:anel-alianca', 'chips')).toMatch(/já tem/);
+    expect(acc.info(a.id)!.money).toBe(999_999);
+    expect(acc.info(a.id)!.owned).toEqual([]);
+    acc.close();
+  });
+
+  /**
+   * A aliança de início: toda conta tem uma sem ela estar na lista; quem a perde numa aposta fica com
+   * a marca de perdida (veja `DE_INICIO` em shared/catalog.ts) — e aí a loja a vende, pelo preço de comum.
+   */
+  it('quem perdeu a aliança de início compra outra pelo preço de comum; perdida de novo, é a comprada que sai', async () => {
+    const ALIANCA = 'acessorio:anel-alianca';
+    const acc = new Accounts({ file: newFile(), startingMoney: 10_000 });
+    const a = acc.login(undefined, profile())!;
+    expect(priceOf(ALIANCA, 'chips')).toBe(PRECO_DO_ACESSORIO.comum);
+    expect(priceOf(ALIANCA, 'chips')).toBe(1000);
+
+    // perdeu numa aposta (para um bot): a lista ganha a marca, e a conta deixa de ter a peça
+    expect(acc.temItem(a.id, ALIANCA)).toBe(true);
+    expect(acc.transferirItem(a.id, undefined, ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.info(a.id)!.owned).toEqual([marcaDePerdido(ALIANCA)]);
+    expect(acc.temItem(a.id, ALIANCA)).toBe(false);
+
+    // compra outra: uma cobrança, a do preço de comum, e a peça volta a ser dela
+    expect(await acc.buy(a.id, ALIANCA, 'chips')).toBeNull();
+    expect(acc.info(a.id)!.money).toBe(10_000 - 1000);
+    expect(acc.info(a.id)!.owned).toEqual([marcaDePerdido(ALIANCA), ALIANCA]);
+    expect(acc.temItem(a.id, ALIANCA)).toBe(true);
+    // posse, não estoque: a segunda compra é recusada e não cobra
+    expect(await acc.buy(a.id, ALIANCA, 'chips')).toMatch(/já tem/);
+    expect(acc.info(a.id)!.money).toBe(9000);
+
+    // perde a comprada: ela sai da lista, a marca fica (uma só), e a conta volta a não ter
+    expect(acc.transferirItem(a.id, undefined, ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.info(a.id)!.owned).toEqual([marcaDePerdido(ALIANCA)]);
+    expect(acc.temItem(a.id, ALIANCA)).toBe(false);
+    // e quem não tem não perde de novo: a lista não junta marcas
+    expect(acc.transferirItem(a.id, undefined, ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.info(a.id)!.owned).toEqual([marcaDePerdido(ALIANCA)]);
+    acc.close();
+  });
+
+  it('a marca de perdida fica gravada: o servidor reinicia e a conta continua sem a aliança', () => {
+    const ALIANCA = 'acessorio:anel-alianca';
+    const file = newFile();
+    const acc = new Accounts({ file, startingMoney: 10_000 });
+    const a = acc.login(undefined, profile())!;
+    acc.transferirItem(a.id, undefined, ALIANCA);
+    acc.close();
+
+    const depois = new Accounts({ file });
+    expect(depois.info(a.id)!.owned).toEqual([marcaDePerdido(ALIANCA)]);
+    expect(depois.temItem(a.id, ALIANCA)).toBe(false);
+    depois.close();
+  });
+
+  it('acessório repetido na roleta devolve a fração do preço do degrau', () => {
+    // (o lendário não se vende, mas tem preço: é dele que sai o reembolso)
+    expect(refundOf('acessorio:anel-safira')).toBe(3600);
+    expect(refundOf('acessorio:relogio-prisma')).toBe(1200);
+    expect(refundOf('acessorio:relogio-campo')).toBe(300);
   });
 
   it('presente é contável: comprar de novo aumenta o estoque', async () => {
@@ -732,6 +852,35 @@ describe('roleta', () => {
     const res = (await acc.spin(a.id, 'flores', 'chips')) as { key: string; dup: boolean };
     expect(res.dup).toBe(false);
     expect(acc.info(a.id)!.gifts.flor).toBe(2);
+    acc.close();
+  });
+
+  /**
+   * A aliança lisa sai da Roleta do Dragão. Para quem ainda tem a de início ela é prêmio repetido
+   * (vira fichas); para quem a perdeu numa aposta, é a peça de volta.
+   */
+  it('a aliança de início na roleta: repetida para quem ainda a tem, prêmio de verdade para quem a perdeu', async () => {
+    const ALIANCA = 'acessorio:anel-alianca';
+    expect(roletaDe(ALIANCA)?.id).toBe('dragao');
+    const acc = new Accounts({ file: newFile(), startingMoney: 10_000, rnd: () => rndPara('dragao', ALIANCA) });
+    const a = acc.login(undefined, profile())!;
+    const preco = ticketPrice(findRoulette('dragao')!, 'chips');
+
+    // conta nova: a lista está vazia, mas a aliança já é dela — sai repetida, com o reembolso de comum
+    expect(await acc.spin(a.id, 'dragao', 'chips')).toEqual({ key: ALIANCA, dup: true, refund: refundOf(ALIANCA) });
+    expect(acc.info(a.id)!.owned).toEqual([]);
+    expect(acc.info(a.id)!.money).toBe(10_000 - preco + refundOf(ALIANCA));
+
+    // perdeu a de início: agora o mesmo prêmio é a peça, sem reembolso
+    acc.transferirItem(a.id, undefined, ALIANCA);
+    expect(acc.temItem(a.id, ALIANCA)).toBe(false);
+    expect(await acc.spin(a.id, 'dragao', 'chips')).toEqual({ key: ALIANCA, dup: false, refund: 0 });
+    expect(acc.temItem(a.id, ALIANCA)).toBe(true);
+    expect(acc.info(a.id)!.owned.filter((k) => k === ALIANCA)).toHaveLength(1);
+    expect(acc.info(a.id)!.money).toBe(10_000 - preco * 2 + refundOf(ALIANCA));
+    // e tirá-la de novo volta a ser repetido
+    expect(await acc.spin(a.id, 'dragao', 'chips')).toEqual({ key: ALIANCA, dup: true, refund: refundOf(ALIANCA) });
+    expect(acc.info(a.id)!.owned.filter((k) => k === ALIANCA)).toHaveLength(1);
     acc.close();
   });
 

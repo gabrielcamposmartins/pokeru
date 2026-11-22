@@ -490,6 +490,88 @@ function fichas(b: Boneco): Clipe {
   };
 }
 
+/** De onde tirar fichas: uma coluna da pilha — onde ela fica (x, z), quantas fichas tem — e quantas levar do alto dela. */
+export interface Pegada {
+  em: [number, number];
+  altura: number;
+  leva: number;
+}
+
+/**
+ * Pegar fichas das colunas certas e jogá-las na mesa.
+ *
+ * É o que um jogador faz: a mão vai à coluna das fichas do valor que ele quer, fecha os dedos no
+ * alto dela e tira dali as que vai apostar; se a aposta pede fichas de outro valor, passa pela
+ * segunda coluna e as junta por baixo; leva o punhado à frente e o **solta no ar**, em movimento,
+ * um palmo antes de onde a aposta fica — dali em diante as fichas são da mesa (caem, quicam e se
+ * espalham: src/mesa3d/fisica.ts). Devolve o gesto e os instantes dele: quando cada punhado sai da
+ * coluna (`pegou`) e quando a mão o solta (`soltou`).
+ *
+ * As fichas na mão são objetos do gesto, com `n` dizendo de que pegada cada uma veio; antes de sair
+ * da coluna e depois de soltas, quem as desenha é a mesa.
+ */
+export function jogarFichas(b: Boneco, pegas: Pegada[], solta: [number, number], id = 'jogar-fichas'): { clipe: Clipe; pegou: number[]; soltou: number } {
+  const frente = V(0, 0, 1);
+  const quase = V(0.15, 0, 1);
+  const chaves: Chave[] = [descanso('D', 0)];
+  const pegou: number[] = [];
+  let t = 0;
+  let naMao = 0;
+  pegas.forEach((p, k) => {
+    // a pinça fecha no meio do que vai sair: as fichas que já estão na mão ficam por cima
+    const coluna = naMesa(p.em[0], p.em[1]);
+    const meio = ((p.leva + naMao) * FICHA.alto) / 2;
+    const pega = coluna.clone().setY(MESA + Math.max(0, p.altura - p.leva) * FICHA.alto + meio + 0.004);
+    const chega = t + (k === 0 ? 0.56 : 0.34);
+    chaves.push({ t: chega, ponto: 'pinca3', em: pega.clone().add(V(0.012, 0.035, -0.012)), f: naMao ? GARRA : GARRA_ABERTA, como: GARRA, dedos: frente });
+    chaves.push({ t: chega + 0.26, ponto: 'pinca3', em: pega, f: naMao ? GARRA : GARRA_ABERTA, como: GARRA, dedos: frente });
+    chaves.push({ t: chega + 0.4, ponto: 'pinca3', em: pega, f: GARRA, dedos: frente });
+    pegou.push(chega + 0.4);
+    t = chega + 0.4;
+    naMao += p.leva;
+  });
+  // solta em movimento, a um palmo da mesa e antes do lugar da aposta: o punhado segue para a frente sozinho
+  const soltou = t + 0.74;
+  const alvo = naMesa(solta[0], solta[1]);
+  const larga = alvo.clone().add(V(-0.012, 0.058, -0.075));
+  chaves.push({ t: soltou - 0.05, ponto: 'pinca3', em: larga, f: GARRA, dedos: quase });
+  chaves.push({ t: soltou + 0.14, ponto: 'pinca3', em: larga.clone().add(V(0.004, -0.006, 0.05)), f: GARRA_ABERTA, como: GARRA, dedos: quase });
+  chaves.push(descanso('D', soltou + 1.05), descanso('D', soltou + 1.5));
+  const dur = soltou + 1.5;
+  const D = trilha(b, 'D', chaves);
+  const primeira = pegou[0] ?? 0;
+  return {
+    pegou,
+    soltou,
+    clipe: {
+      id,
+      nome: 'Pegar fichas e jogar',
+      dur,
+      E: parada(b, 'E', dur),
+      D,
+      // a ida até a mesa e a volta são um arco só cada uma
+      ajuste: (tt, maos) => {
+        maos.D.punho.y += 0.05 * Math.sin(Math.PI * entre(t, soltou - 0.05, tt)) ** 2 + 0.03 * Math.sin(Math.PI * entre(soltou + 0.14, soltou + 1.05, tt)) ** 2;
+      },
+      objetos: (tt, bo) => {
+        const objs: Objeto[] = [];
+        if (tt < primeira || tt >= soltou) return objs;
+        // o punhado preso à pinça: as fichas de cada pegada, as primeiras por cima
+        const naPinca = bo.ancora('D', 'pinca3');
+        const quantas = pegas.reduce((s, p, k) => s + (tt >= pegou[k] ? p.leva : 0), 0);
+        let i = 0;
+        for (let k = pegas.length - 1; k >= 0; k--) {
+          if (tt < pegou[k]) continue;
+          for (let j = 0; j < pegas[k].leva; j++, i++) {
+            objs.push({ tipo: 'ficha', pos: naPinca.clone().add(V(0, (i + 0.5 - quantas / 2) * FICHA.alto - 0.004, 0)), quat: new THREE.Quaternion(), n: k });
+          }
+        }
+        return objs;
+      },
+    },
+  };
+}
+
 /**
  * Virar cartas: cada mão põe o polegar por baixo da beirada de baixo da carta dela (a do lado do
  * jogador) — é só o apoio, ele não se mexe —, os outros dedos fecham um pouco, de quem agarra, e a
@@ -2064,6 +2146,183 @@ function checkPalma(b: Boneco): Clipe {
   };
 }
 
+/**
+ * De onde a peça sai: de que mão, e se do pulso ou de um dedo (0 = indicador … 3 = mínimo, 4 = polegar);
+ * onde vai parar na mesa (x, z); e de que jeito sai (veja `tirarAcessorio`).
+ */
+export interface Tirada {
+  mao: Lado;
+  onde: 'pulso' | number;
+  alvo: [number, number];
+  jeito?: 'puxar' | 'jogar' | 'desabotoar';
+}
+export const TIRADA: Tirada = { mao: 'E', onde: 'pulso', alvo: [0.05, 0.52], jeito: 'desabotoar' };
+/**
+ * Os instantes de tirar um acessório. `pega`: a outra mão fecha os dedos na peça; `abre`: o fecho
+ * se solta (só quando se desabotoa); `saiu`: a peça deixa a mão de quem a usa; `joga`: o anel é
+ * solto no ar; `pousa` e `solta`: a peça chega à mesa e os dedos a largam.
+ */
+export const TIRAR = { pega: 1.2, abre: 1.62, saiu: 2.15, joga: 2.82, pousa: 3.15, solta: 3.37 };
+
+/**
+ * Tirar um acessório e pô-lo na mesa (é como se aposta um anel, uma pulseira ou um relógio). Há três
+ * jeitos, conforme a peça:
+ *
+ * - `desabotoar` (o relógio, a pulseira de fecho): a mão que usa a peça vira a **palma para cima**
+ *   no meio da mesa — o fecho fica embaixo do pulso, e assim aparece. A outra vem por cima, prende
+ *   o fecho entre os dedos e o solta com dois puxões curtos; a correia abre. Aí ela levanta a peça
+ *   do pulso, leva-a num arco até a frente e a **pousa** na mesa.
+ * - `jogar` (o anel): a mão que o usa se oferece de palma para baixo; a outra fecha os dedos no
+ *   anel, puxa-o ao longo do dedo até sair, e o **joga** à frente — solta no ar, em movimento.
+ * - `puxar` (um aro rígido, que não abre): como o anel, mas ao longo da mão inteira, e pousado.
+ *
+ * Só para onde pega e onde pousa. A peça é um objeto do clipe: até `TIRAR.saiu` ela está em quem a
+ * usa (o ponto dito é onde ela fica na mão); dali em diante vai presa à pinça; pousada, fica na mesa
+ * — e o anel jogado deixa de ser do clipe em `TIRAR.joga` (quem o leva dali é a física da mesa).
+ */
+export function tirarAcessorio(b: Boneco, { mao: lado, onde, alvo, jeito: pedido }: Tirada = TIRADA, id = 'tirar', nome = 'Tirar um acessório'): Clipe {
+  const jeito = pedido ?? (onde === 'pulso' ? 'desabotoar' : 'jogar');
+  const outra: Lado = lado === 'E' ? 'D' : 'E';
+  const s = lado === 'E' ? 1 : -1;
+  const rumo = V(-0.5 * s, 0, 0.87).normalize();
+  const frente = V(0.25 * s, 0, 1).normalize();
+  // (de punho reto: os dedos vão para onde o antebraço aponta — que, com o braço cruzando para o
+  // outro lado, já é atravessado em relação à mão que usa a peça)
+  const reto = (c: Chave) => deCimaDePunhoReto(b, outra, c, 0);
+  /** Onde a peça está, com o boneco posado: em volta do pulso (um nada para o lado do antebraço), ou no primeiro osso do dedo. */
+  const naMao = (bo: Boneco): THREE.Vector3 => {
+    if (onde === 'pulso') {
+      const punho = bo.ancora(lado, 'punho');
+      const cotovelo = new THREE.Vector3().setFromMatrixPosition(bo.osso('antebraco.' + lado).matrixWorld);
+      return punho.clone().addScaledVector(cotovelo.sub(punho).normalize(), 0.014);
+    }
+    return bo.junta(lado, onde, 1).lerp(bo.junta(lado, onde, 2), 0.45);
+  };
+  const naMesaJa = naMesa(alvo[0], alvo[1], 0.004);
+
+  if (jeito === 'desabotoar') {
+    const dur = TIRAR.solta + 1.3;
+    // a mão que usa a peça: no meio, de palma para cima, com as costas dela a quatro dedos da mesa
+    const virada = (t: number): Chave => ({ t, ponto: 'costas', em: naMesa(0.06 * s, 0.4, 0.05), f: CONCHA, dedos: rumo, palma: V(0, 1, 0) });
+    const dela = trilha(b, lado, [descanso(lado, 0), virada(0.82), virada(TIRAR.saiu + 0.15), descanso(lado, TIRAR.saiu + 1.15), descanso(lado, dur)]);
+    b.zerar();
+    b.raiz.updateMatrixWorld(true);
+    posar(b, lado, dela(1));
+    const peca = naMao(b);
+    // o fecho: em cima do pulso virado (é o lado de dentro dele)
+    const fecho = peca.clone().add(V(0, 0.027, 0));
+    // os puxões que o soltam: curtos, para um lado e para o outro da correia
+    const aoLado = V(rumo.z, 0, -rumo.x).multiplyScalar(s);
+    const larga = naMesa(alvo[0], alvo[1], 0.05);
+    const dando = trilha(b, outra, [
+      descanso(outra, 0),
+      // (espera a outra mão virar: saindo juntas, os dedos de uma cruzavam os da outra)
+      descanso(outra, 0.4),
+      reto({ t: 0.95, ponto: 'pinca3', em: fecho.clone().add(V(-0.015 * s, 0.06, -0.01)), f: GARRA_ABERTA, como: GARRA }),
+      reto({ t: TIRAR.pega - 0.14, ponto: 'pinca3', em: fecho, f: GARRA_ABERTA, como: GARRA }),
+      reto({ t: TIRAR.pega, ponto: 'pinca3', em: fecho, f: GARRA }),
+      reto({ t: TIRAR.pega + 0.2, ponto: 'pinca3', em: fecho.clone().addScaledVector(aoLado, 0.016).add(V(0, 0.004, 0)), f: GARRA }),
+      reto({ t: TIRAR.abre, ponto: 'pinca3', em: fecho.clone().addScaledVector(aoLado, -0.012).add(V(0, 0.008, 0)), f: GARRA }),
+      reto({ t: TIRAR.abre + 0.22, ponto: 'pinca3', em: fecho.clone().add(V(0, 0.012, 0)), f: GARRA }),
+      reto({ t: TIRAR.saiu, ponto: 'pinca3', em: fecho.clone().add(V(-0.01 * s, 0.085, 0.01)), f: GARRA }),
+      { t: TIRAR.pousa, ponto: 'pinca3', em: larga, f: GARRA, dedos: frente },
+      { t: TIRAR.solta, ponto: 'pinca3', em: larga, f: GARRA_ABERTA, como: GARRA, dedos: frente },
+      descanso(outra, TIRAR.solta + 0.95),
+      descanso(outra, dur),
+    ]);
+    return {
+      id,
+      nome,
+      dur,
+      E: lado === 'E' ? dela : dando,
+      D: lado === 'D' ? dela : dando,
+      ajuste: (t, maos) => {
+        maos[outra].punho.y += 0.06 * Math.sin(Math.PI * entre(TIRAR.saiu, TIRAR.pousa, t)) ** 2 + 0.03 * Math.sin(Math.PI * entre(TIRAR.solta, TIRAR.solta + 0.95, t)) ** 2;
+      },
+      objetos: (t, bo) => {
+        let pos: THREE.Vector3;
+        if (t < TIRAR.saiu - 0.25) pos = naMao(bo);
+        // (levantada do pulso, vai pendurada dos dedos; o começo é uma passagem do pulso para a pinça, sem pulo)
+        else if (t < TIRAR.pousa) pos = naMao(bo).lerp(bo.ancora(outra, 'pinca3').add(V(0, -0.026, 0)), macio(entre(TIRAR.saiu - 0.25, TIRAR.saiu + 0.05, t)));
+        else pos = naMesaJa;
+        return [{ tipo: 'ficha', pos, quat: new THREE.Quaternion(), cor: 0xe0ad3e }];
+      },
+    };
+  }
+
+  // de palma para baixo: a peça é puxada ao longo da mão (ou do dedo), para as pontas
+  const jogado = jeito === 'jogar';
+  const fim = jogado ? TIRAR.joga + 0.14 : TIRAR.solta;
+  const dur = fim + 1.3;
+  const oferecida = (t: number): Chave => ({ t, ponto: 'palma', em: naMesa(0.05 * s, 0.4, 0.075), f: POUSADA, dedos: rumo });
+  const dela = trilha(b, lado, [descanso(lado, 0), oferecida(0.78), oferecida(TIRAR.saiu + 0.12), descanso(lado, TIRAR.saiu + 1.05), descanso(lado, dur)]);
+  b.zerar();
+  b.raiz.updateMatrixWorld(true);
+  posar(b, lado, dela(1));
+  const peca = naMao(b);
+  // para onde ela sai: ao longo da mão (ou do dedo), até passar das pontas
+  const ponta = onde === 'pulso' ? b.ancora(lado, 'dedos') : b.junta(lado, onde, 3);
+  const aoLongo = ponta.clone().sub(peca).setY(0);
+  const caminho = aoLongo.length() + (onde === 'pulso' ? 0.035 : 0.04);
+  aoLongo.normalize();
+  // a outra mão pega por cima, atravessada: os quatro dedos de um lado da peça, o polegar do outro
+  const acima = onde === 'pulso' ? 0.024 : 0.012;
+  const pega = peca.clone().add(V(0, acima, 0));
+  const fora = pega.clone().addScaledVector(aoLongo, caminho).add(V(0, 0.012, 0));
+  const larga = naMesa(alvo[0], alvo[1], 0.024);
+  // (o anel é solto no ar, em movimento, um palmo antes de onde vai parar: dali ele é da mesa)
+  const noAr = naMesa(alvo[0], alvo[1]).add(V(-0.01 * s, 0.065, -0.085));
+  const dando = trilha(b, outra, [
+    descanso(outra, 0),
+    reto({ t: 0.8, ponto: 'pinca3', em: pega.clone().add(V(-0.02 * s, 0.05, -0.01)), f: GARRA_ABERTA, como: GARRA }),
+    reto({ t: TIRAR.pega - 0.14, ponto: 'pinca3', em: pega, f: GARRA_ABERTA, como: GARRA }),
+    reto({ t: TIRAR.pega, ponto: 'pinca3', em: pega, f: GARRA }),
+    reto({ t: TIRAR.saiu, ponto: 'pinca3', em: fora, f: GARRA }),
+    ...(jogado
+      ? ([
+          { t: TIRAR.joga - 0.05, ponto: 'pinca3', em: noAr, f: GARRA, dedos: frente },
+          { t: fim, ponto: 'pinca3', em: noAr.clone().add(V(0.004 * s, -0.008, 0.055)), f: GARRA_ABERTA, como: GARRA, dedos: frente },
+        ] as Chave[])
+      : ([
+          { t: TIRAR.pousa, ponto: 'pinca3', em: larga, f: GARRA, dedos: frente },
+          { t: TIRAR.solta, ponto: 'pinca3', em: larga, f: GARRA_ABERTA, como: GARRA, dedos: frente },
+        ] as Chave[])),
+    descanso(outra, fim + 0.95),
+    descanso(outra, dur),
+  ]);
+  return {
+    id,
+    nome,
+    dur,
+    E: lado === 'E' ? dela : dando,
+    D: lado === 'D' ? dela : dando,
+    // o caminho até a mesa e a volta ao descanso são um arco só cada um
+    ajuste: (t, maos) => {
+      maos[outra].punho.y += 0.045 * Math.sin(Math.PI * entre(TIRAR.saiu, jogado ? TIRAR.joga - 0.05 : TIRAR.pousa, t)) ** 2 + 0.03 * Math.sin(Math.PI * entre(fim, fim + 0.95, t)) ** 2;
+    },
+    objetos: (t, bo) => {
+      if (jogado && t >= TIRAR.joga) return [];
+      let pos: THREE.Vector3;
+      if (t < TIRAR.pega) pos = naMao(bo);
+      else if (jogado || t < TIRAR.pousa) pos = bo.ancora(outra, 'pinca3').add(V(0, -0.01, 0));
+      else pos = naMesaJa;
+      return [{ tipo: 'ficha', pos, quat: new THREE.Quaternion(), cor: 0xe0ad3e }];
+    },
+  };
+}
+
+/**
+ * Colocar um acessório de volta: o gesto de tirá-lo, de trás para a frente — a mão pega a peça na
+ * mesa, leva-a à outra e a põe no lugar (o anel entra pelo dedo; a correia é fechada no pulso, de
+ * palma para cima). É o que se faz com a peça apostada que voltou: ninguém pagou, ou ela foi ganha
+ * de volta. Os instantes são os de `TIRAR`, contados do fim (`dur − t`).
+ */
+export function colocarAcessorio(b: Boneco, tirada: Tirada, id = 'colocar', nome = 'Colocar um acessório'): Clipe {
+  // (o anel jogado não se "desjoga": para colocar, ele faz o caminho de quem é puxado e pousado)
+  const jeito = tirada.jeito === 'desabotoar' ? 'desabotoar' : 'puxar';
+  return aoContrario(tirarAcessorio(b, { ...tirada, jeito }, id, nome), id, nome);
+}
+
 /** Idle 1: as duas mãos espalmadas na mesa; de vez em quando o indicador da direita dá dois toques. */
 function idlePlana(b: Boneco): Clipe {
   const dur = 5;
@@ -2277,6 +2536,7 @@ export const MONTADORES_DE_CLIPES: ((b: Boneco) => Clipe)[] = [
   (b) => checkNos(b),
   (b) => checkDedos(b),
   (b) => checkPalma(b),
+  (b) => tirarAcessorio(b),
   (b) => idlePlana(b),
   (b) => idleSobrepostas(b),
   (b) => idleBatucando(b),

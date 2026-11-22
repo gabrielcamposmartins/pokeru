@@ -1,16 +1,18 @@
-import { findAcessorio } from '../../shared/acessorios';
+import { TIPOS_DE_ACESSORIO, findAcessorio } from '../../shared/acessorios';
 import { AcessorioArt } from '../render/AcessorioArt';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { RANKS, SUITS, rankLabel, type Card, type Suit } from '../../shared/cards';
 import {
   KIND_LABELS,
+  estaAVenda,
   findGift,
   findItem,
   isFree,
   itemsOfKind,
   owns,
   padoPrice,
+  rarityLabel,
   rarityOf,
   type CatalogItem,
   type Currency,
@@ -54,15 +56,18 @@ import { Petals } from './MainMenu';
 /**
  * A loja.
  *
- * Três abas, três coisas à venda: **tickets** (de onde vêm os cosméticos), **presentes** (que o
- * vínculo com os personagens consome) e a **aparência da interface**. O resto do catálogo é
- * coleção e mora na Galeria, com botão próprio no menu (src/screens/Gallery.tsx).
+ * Quatro abas, quatro coisas à venda: **tickets** (de onde vêm os cosméticos), **presentes** (que o
+ * vínculo com os personagens consome), os **acessórios** das mãos que se compram (anéis, pulseiras e
+ * relógios — menos os lendários; quem decide é `estaAVenda`, em shared/catalog.ts) e a **aparência
+ * da interface**. O resto do catálogo é coleção e mora na Galeria, com botão próprio no menu
+ * (src/screens/Gallery.tsx).
  *
  * Os tickets vêm primeiro — e é a aba que abre — porque é o que se vem fazer aqui: presente é
  * compra de reposição e aparência se compra uma vez. Quem entra na loja está atrás de sorteio.
  *
- * Presente é compra miúda e repetida, então a aba é uma prateleira de cartõezinhos. Ticket e
- * aparência são decisão, e poucas: as abas viram **carrossel**, uma peça grande por vez.
+ * Presente é compra miúda e repetida, então a aba é uma prateleira de cartõezinhos — e a dos
+ * acessórios também, que são dezenas, separados por tipo como na Galeria. Ticket e aparência são
+ * decisão, e poucas: as abas viram **carrossel**, uma peça grande por vez.
  *
  * Vitrine só: o preço vem do catálogo compartilhado (shared/catalog.ts, o mesmo que o servidor usa
  * para cobrar), o sorteio é do servidor (shared/roulette.ts) e toda compra é um pedido que ele
@@ -73,13 +78,17 @@ import { Petals } from './MainMenu';
  */
 
 /** As abas da loja. */
-type Aba = 'gift' | 'ticket' | 'ui';
+type Aba = 'gift' | 'ticket' | 'acessorio' | 'ui';
 
 const ABAS: { key: Aba; label: string }[] = [
   { key: 'ticket', label: 'Tickets' },
   { key: 'gift', label: 'Presentes' },
+  { key: 'acessorio', label: 'Acessórios' },
   { key: 'ui', label: 'Aparências' },
 ];
+
+/** O que a aba põe à venda: o tipo inteiro, ou — nos acessórios — só as peças que se compram. */
+const aVendaNaAba = (aba: Exclude<Aba, 'ticket'>): CatalogItem[] => itemsOfKind(aba).filter((i) => estaAVenda(i.key));
 
 /** O símbolo do naipe nos botões de escolher a carta (a carta em si desenha o seu próprio). */
 const SUIT_CHAR: Record<Suit, string> = { s: '♠', h: '♥', d: '♦', c: '♣' };
@@ -406,6 +415,7 @@ export function ItemCard({
   semArte,
   estoque,
   semCompra,
+  comPreco,
   grande,
 }: {
   item: CatalogItem;
@@ -436,6 +446,13 @@ export function ItemCard({
    * preservado pelo CSS (`.shop-card.k-gift`), para a grade não dançar.
    */
   semCompra?: boolean;
+  /**
+   * Com `semCompra`: o degrau e o preço em fichas numa linha (ou "✓ Seu"), no lugar dos botões.
+   *
+   * É o cartão dos acessórios: cada um custa pelo degrau dele, então a prateleira precisa dizer
+   * quanto — o presente não precisa, porque quem o escolhe já está olhando o palco.
+   */
+  comPreco?: boolean;
   /** Botões de compra em tamanho grande, lado a lado — é assim que eles ficam no palco. */
   grande?: boolean;
 }) {
@@ -486,6 +503,20 @@ export function ItemCard({
       {!semArte && Raiz === 'button' && <Preview item={item} />}
       {!semArte && <div className="shop-name">{labelOf(item)}</div>}
       {estoque !== undefined && <div className={`shop-estoque ${estoque ? '' : 'zero'}`}>você tem {estoque}</div>}
+      {semCompra && comPreco && (
+        <>
+          <div className="shop-degrau" style={{ color: rarityColor(item.key) }}>
+            {rarityLabel(rarityOf(item.key))}
+          </div>
+          {owned ? (
+            <div className="shop-owned">✓ Seu</div>
+          ) : (
+            <div className="shop-preco">
+              <ChipSvg value={100} size={15} /> {fmt(precoChips)}
+            </div>
+          )}
+        </>
+      )}
       {semCompra ? null : owned && estoque === undefined ? (
         <div className="shop-owned">{isFree(item.key) ? 'Já vem com o jogo' : '✓ Seu'}</div>
       ) : (
@@ -719,14 +750,15 @@ export function StoreScreen({
     pedeSaldo();
   }, []);
 
-  const items = aba === 'ticket' ? [] : itemsOfKind(aba);
+  const items = aba === 'ticket' ? [] : aVendaNaAba(aba);
   // o palco nunca fica vazio: sem escolha (ou com uma escolha de outra aba) ele mostra o primeiro
   const vendo = items.find((i) => i.key === verKey) ?? items[0];
   const roleta = aba === 'ticket' ? (findRoulette(verKey ?? '') ?? ROULETTES[0]) : null;
   // a posição do carrossel sai da escolha: é o mesmo estado, visto de outro jeito
   const iCarrossel = aba === 'ticket' ? Math.max(0, ROULETTES.findIndex((r) => r.id === roleta?.id)) : Math.max(0, items.findIndex((x) => x.key === vendo?.key));
+  // (só o que se compra aqui: dos acessórios, os que estão à venda — os de roleta são conta da Galeria)
   const conta = (k: ItemKind) => {
-    const pagos = itemsOfKind(k).filter((i) => !isFree(i.key));
+    const pagos = itemsOfKind(k).filter((i) => !isFree(i.key) && estaAVenda(i.key));
     return { meus: pagos.filter((i) => owns(ownedList, i.key)).length, total: pagos.length };
   };
   const presentes = Object.values(gifts).reduce((t, n) => t + n, 0);
@@ -746,7 +778,7 @@ export function StoreScreen({
           </span>
         )}
         <span className="muted small">
-          {presentes} presente{presentes === 1 ? '' : 's'} · {conta('ui').meus} de {conta('ui').total} aparências
+          {presentes} presente{presentes === 1 ? '' : 's'} · {conta('acessorio').meus} de {conta('acessorio').total} acessórios · {conta('ui').meus} de {conta('ui').total} aparências
         </span>
       </ScreenHeader>
 
@@ -763,7 +795,7 @@ export function StoreScreen({
         </div>
       )}
 
-      {/* a navegação da loja fica em cima: são três abas, e a largura toda é da vitrine */}
+      {/* a navegação da loja fica em cima: são poucas abas, e a largura toda é da vitrine */}
       <nav className="shop-abas">
         {ABAS.map((a) => (
           <button
@@ -776,16 +808,16 @@ export function StoreScreen({
           >
             <span>{a.label}</span>
             {a.key === 'gift' && <b className="shop-tab-conta">{presentes}</b>}
-            {a.key === 'ui' && (
+            {(a.key === 'ui' || a.key === 'acessorio') && (
               <b className="shop-tab-conta">
-                {conta('ui').meus}/{conta('ui').total}
+                {conta(a.key).meus}/{conta(a.key).total}
               </b>
             )}
           </button>
         ))}
       </nav>
 
-      <div className={`shop-body ${aba === 'gift' ? 'prateleira' : 'vitrine'}`}>
+      <div className={`shop-body ${aba === 'gift' || aba === 'acessorio' ? 'prateleira' : 'vitrine'}`}>
         {aba === 'gift' ? (
           <motion.div key={aba} className="shop-grid" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {items.map((item) => (
@@ -802,6 +834,33 @@ export function StoreScreen({
                 semCompra
               />
             ))}
+          </motion.div>
+        ) : aba === 'acessorio' ? (
+          <motion.div key={aba} className="shop-grid" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            {/* separados por tipo, como na Galeria — e só os tipos que têm o que vender (esmalte e luva saem de roleta) */}
+            {TIPOS_DE_ACESSORIO.map((grupo) => {
+              const doGrupo = items.filter((item) => findAcessorio(item.id)?.tipo === grupo.id);
+              if (!doGrupo.length) return null;
+              return (
+                <Fragment key={grupo.id}>
+                  <h3 className="shop-grupo">{grupo.nome}</h3>
+                  {doGrupo.map((item) => (
+                    <ItemCard
+                      key={item.key}
+                      item={item}
+                      owned={owns(ownedList, item.key)}
+                      chips={chips}
+                      pado={pado}
+                      canShop={canShop}
+                      selecionado={item.key === vendo?.key}
+                      onVer={() => setVerKey(item.key)}
+                      semCompra
+                      comPreco
+                    />
+                  ))}
+                </Fragment>
+              );
+            })}
           </motion.div>
         ) : aba === 'ticket' ? (
           <Carrossel total={ROULETTES.length} i={iCarrossel} onIr={(n) => setVerKey(ROULETTES[n].id)}>

@@ -114,6 +114,8 @@ interface TableState {
   display: TableView | null;
   /** Momento local (ms) em que a vez atual expira. */
   deadline: number | null;
+  /** Momento local (ms) em que vence a pergunta "apostar um acessório para continuar?" (null = não há pergunta). */
+  ofertaAte: number | null;
   flyers: Flyer[];
   splash: Splash | null;
   result: RoundResult | null;
@@ -158,6 +160,7 @@ export const nextId = () => uid++;
 export const useTable = create<TableState>()((set, get) => ({
   display: null,
   deadline: null,
+  ofertaAte: null,
   flyers: [],
   splash: null,
   result: null,
@@ -174,6 +177,7 @@ export const useTable = create<TableState>()((set, get) => ({
     set({
       display: v,
       deadline: v && v.toAct !== null && v.timeLeftMs !== null ? (receivedAt ?? Date.now()) + v.timeLeftMs : null,
+      ofertaAte: v?.oferta ? (receivedAt ?? Date.now()) + v.oferta.timeLeftMs : null,
     }),
   patchSeat: (seat, patch) => {
     const d = get().display;

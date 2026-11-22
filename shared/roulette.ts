@@ -76,10 +76,11 @@ export function ticketPrice(r: Roulette, currency: Currency): number {
  * mesas do mesmo degrau e não mexe nos degraus de cima.
  *
  * Um detalhe honesto: a fatia de um degrau é **fixa** e se reparte entre as peças dele, então cada
- * lendário novo dilui os outros. Hoje o degrau lendário de cada roleta tem quatro peças — nas
- * Flores, Yukina, as duas frentes de material e o Círculo Prismático; no Dragão, Ren, as asas e a
- * moldura de dragão e o kimono —, pouco mais de 0,6% cada. Para o personagem valer mais que as
- * outras peças, o caminho é dar fatia própria a ele, e não mexer nesta tabela.
+ * lendário novo dilui os outros. Hoje o degrau lendário tem treze peças nas Flores e doze no Dragão
+ * — os personagens, as frentes de material, o Círculo Prismático, as peças de dragão, o kimono e,
+ * desde que as joias subiram de degrau, quatro acessórios em cada uma (os anéis de pedra preciosa, o
+ * terço de madrepérola, o relógio clássico e o cronógrafo) —, cerca de 0,2% cada. Para o personagem
+ * valer mais que as outras peças, o caminho é dar fatia própria a ele, e não mexer nesta tabela.
  */
 const PESOS: Record<Raridade, number> = {
   lendario: 2.5,
@@ -125,56 +126,79 @@ const TIPOS: readonly ItemKind[] = ['character', 'winfx', 'aura', 'frame', 'aces
  */
 const ROLETA_DE: Record<string, 'flores' | 'dragao'> = {
   /*
-   * Os acessórios das mãos: metade em cada roleta, e a mesma conta em cada degrau — o claro, a
-   * flor e a pérola para as Flores; o escuro, o couro e o metal para o Dragão. Assim nenhum tipo e
-   * nenhum degrau pende para um lado.
+   * Os acessórios das mãos: metade em cada roleta, e a mesma conta em cada degrau — o claro, a flor e a pérola para as Flores; o escuro,
+   * o couro e o metal para o Dragão. Assim nenhum tipo e nenhum degrau pende para um lado.
+   *
+   * Os lendários se dividem quatro a quatro: nas Flores, a safira, o solitário, a trinca de brilhantes
+   * e o terço de madrepérola; no Dragão, o rubi, a esmeralda, o cronógrafo de bronze e prata e o
+   * relógio clássico — que é de ouro e **couro**, e veio para cá quando as joias viraram lendárias,
+   * para o degrau não pender. Pela mesma conta as três argolas de ouro e rosé, a mais delicada das
+   * pulseiras de metal, passaram para as Flores, onde o degrau raro ficou curto sem os anéis de pedra.
+   *
+   * (Os que a loja vende — veja `estaAVenda`, em shared/catalog.ts — continuam aqui: comprar é o
+   * caminho certo, a roleta é a sorte.)
    */
+  // lendário
+  'acessorio:anel-safira': 'flores',
+  'acessorio:anel-solitario': 'flores',
+  'acessorio:anel-trinca': 'flores',
+  'acessorio:pulseira-terco-madreperola': 'flores',
+  // comum — a aliança lisa: toda conta começa com uma, mas ela se perde numa aposta — e aqui se tira outra
+  'acessorio:anel-alianca': 'dragao',
+  // épico
   'acessorio:anel-coracao': 'flores',
   'acessorio:relogio-rose': 'flores',
   'acessorio:relogio-lua': 'flores',
   'acessorio:luva-opera': 'flores',
-  'acessorio:anel-solitario': 'flores',
-  'acessorio:anel-trinca': 'flores',
+  // raro
   'acessorio:anel-perola': 'flores',
-  'acessorio:anel-safira': 'flores',
   'acessorio:anel-gota': 'flores',
-  'acessorio:relogio-classico': 'flores',
   'acessorio:relogio-joia': 'flores',
+  'acessorio:relogio-prisma': 'flores',
   'acessorio:pulseira-riviera': 'flores',
-  'acessorio:pulseira-terco-madreperola': 'flores',
+  'acessorio:pulseira-argolas': 'flores',
   'acessorio:luva-meio-dedo-branca': 'flores',
   'acessorio:luva-renda': 'flores',
   'acessorio:esmalte-degrade': 'flores',
+  // incomum
   'acessorio:pulseira-perolas': 'flores',
   'acessorio:luva-branca': 'flores',
   'acessorio:esmalte-lilas': 'flores',
   'acessorio:esmalte-francesinha': 'flores',
   'acessorio:esmalte-cromado': 'flores',
+  // comum (o relógio de campo, de mostrador creme e lona cor de areia, é a peça a mais das Flores)
   'acessorio:pulseira-contas': 'flores',
+  'acessorio:relogio-campo': 'flores',
   'acessorio:esmalte-rosa': 'flores',
   'acessorio:esmalte-branco': 'flores',
   'acessorio:esmalte-azul': 'flores',
+  // lendário
+  'acessorio:anel-rubi': 'dragao',
+  'acessorio:anel-esmeralda': 'dragao',
+  'acessorio:relogio-classico': 'dragao',
+  'acessorio:relogio-bronze': 'dragao',
+  // épico
   'acessorio:anel-onix': 'dragao',
   'acessorio:relogio-noturno': 'dragao',
   'acessorio:relogio-mergulho': 'dragao',
   'acessorio:luva-manopla': 'dragao',
-  'acessorio:anel-esmeralda': 'dragao',
+  // raro
   'acessorio:anel-serpente': 'dragao',
   'acessorio:anel-sinete': 'dragao',
-  'acessorio:anel-rubi': 'dragao',
   'acessorio:relogio-esportivo': 'dragao',
   'acessorio:pulseira-espinhos': 'dragao',
   'acessorio:pulseira-terco': 'dragao',
   'acessorio:pulseira-corrente': 'dragao',
-  'acessorio:pulseira-argolas': 'dragao',
   'acessorio:luva-meio-dedo-vermelha': 'dragao',
   'acessorio:luva-tatica': 'dragao',
   'acessorio:esmalte-galaxia': 'dragao',
+  // incomum
   'acessorio:anel-ebano': 'dragao',
   'acessorio:relogio-digital': 'dragao',
   'acessorio:luva-couro': 'dragao',
   'acessorio:esmalte-vinho': 'dragao',
   'acessorio:esmalte-dourado': 'dragao',
+  // comum
   'acessorio:pulseira-couro': 'dragao',
   'acessorio:pulseira-cordao': 'dragao',
   'acessorio:esmalte-vermelho': 'dragao',

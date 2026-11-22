@@ -119,6 +119,8 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
   const [stack, setStack] = useState(1000);
   const [bb, setBb] = useState(NORMAL_BLINDS.bb);
   const [turnTime, setTurnTime] = useState(25);
+  /** Os acessórios valem como aposta nesta mesa? (quem cria decide) */
+  const [apostaDeItens, setApostaDeItens] = useState(true);
   const [password, setPassword] = useState('');
   const chips = useChips();
   const pado = usePado();
@@ -277,6 +279,15 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
               </>
             )}
             <Segmented label="Tempo por jogada" value={turnTime} onChange={setTurnTime} options={[15, 25, 45, 90].map((v) => ({ value: v, label: `${v}s` }))} />
+            <Segmented
+              label="Apostar acessórios"
+              value={apostaDeItens ? 'sim' : 'nao'}
+              onChange={(v) => setApostaDeItens(v === 'sim')}
+              options={[
+                { value: 'sim', label: 'Vale' },
+                { value: 'nao', label: 'Não vale' },
+              ]}
+            />
             <Field label="Senha (opcional)" hint="Com senha, a sala aparece com 🔒 e só entra quem souber.">
               <input className="input" type="password" value={password} maxLength={32} onChange={(e) => setPassword(e.target.value)} />
             </Field>
@@ -312,6 +323,7 @@ export function OnlineLobby({ onBack }: { onBack: () => void }) {
                   smallBlind: fixa ? NORMAL_BLINDS.sb : blindStep(bbMesa).sb,
                   bigBlind: fixa ? NORMAL_BLINDS.bb : bbMesa,
                   turnTime,
+                  apostaDeItens,
                   password: password || undefined,
                 },
               })

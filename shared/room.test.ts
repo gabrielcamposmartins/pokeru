@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Acessorios } from './acessorios';
+import { BOT_APOSTA, BOT_COM_ACESSORIO, apostaveis, chaveDoItem, podeApostar, usando, valorDaAposta } from './aposta';
+import { estaAVenda } from './catalog';
 import { Lobby, type Connection } from './lobby';
-import { DEFAULT_SETTINGS, type RoomSettings, type ServerMsg, type TableView } from './protocol';
+import { DEFAULT_SETTINGS, type RoomSettings, type ServerMsg, type TableEvent, type TableView } from './protocol';
+import { sanitizeSettings } from './room';
 import type { PlayerAction } from './engine';
+
+/** O acaso de verdade, guardado antes de qualquer espião. */
+const acasoDeVerdade = Math.random.bind(Math);
+/** O espião do acaso, quando um teste o fixa (as chances dos bots saem de `Math.random`). */
+let acaso: ReturnType<typeof vi.spyOn> | null = null;
 
 afterEach(() => {
   vi.useRealTimers();
+  // o acaso volta ao normal
+  acaso?.mockRestore();
+  acaso = null;
 });
 
 interface Harness {
@@ -48,12 +60,27 @@ const fast: Partial<RoomSettings> = { pace: 0.4, turnTime: 5 };
 /** Passa quando pode, paga quando não pode (nunca manda ação ilegal). */
 const passive = (v: TableView): PlayerAction => (v.legal!.canCheck ? { type: 'check' } : { type: 'call' });
 
+/**
+ * As fichas da mesa: pilhas, apostas e pote. O valor de um acessório apostado (shared/aposta.ts)
+ * entra no número da aposta e do pote sem ser ficha — e os bots apostam peças —, então sai da conta.
+ */
 function totalChips(v: TableView): number {
-  return v.seats.reduce((s, x) => s + (x ? x.stack + x.bet : 0), 0) + v.pot;
+  const naMesa = v.seats.reduce((s, x) => s + (x ? x.bet : 0), 0) + v.pot;
+  // (o desconto não passa do que há nas apostas e no pote: paga a mão, o pote zera, mas a foto do
+  // `win` ainda traz a peça com `emJogo` cheio até a mão fechar — veja o teste marcado `fails` abaixo)
+  const emPecas = Math.min(naMesa, pecasEmJogo(v));
+  return v.seats.reduce((s, x) => s + (x ? x.stack : 0), 0) + naMesa - emPecas;
 }
 
+/** Quanto das apostas e do pote é acessório, pelo que a foto da mesa diz. */
+const pecasEmJogo = (v: TableView): number => (v.itens ?? []).reduce((s, i) => s + i.emJogo, 0);
+
 async function runUntil(cond: () => boolean, maxMs = 3_000_000) {
-  for (let t = 0; t < maxMs && !cond(); t += 250) await vi.advanceTimersByTimeAsync(250);
+  for (let t = 0; t < maxMs && !cond(); t += 250) {
+    await vi.advanceTimersByTimeAsync(250);
+    // (o espião do acaso guarda cada chamada, e os bots sorteiam aos milhares: esvazia para não juntar)
+    acaso?.mockClear();
+  }
 }
 
 describe('sala', () => {
@@ -315,4 +342,303 @@ describe('poker de 5 cartas (draw) na sala', () => {
     p.conn.handle({ type: 'action', action: { type: 'check' } });
     expect(p.errors.length).toBeGreaterThan(before);
   }, 30_000);
+});
+
+/**
+ * Bots com acessórios (shared/aposta.ts). As chances saem de `Math.random`: um em cada quatro bots
+ * senta com alguma peça (`BOT_COM_ACESSORIO`) e, sem fichas, aposta uma delas uma vez em dez
+ * (`BOT_APOSTA`). Os testes fixam o acaso de um lado ou do outro da chance; o resto do jogo dos bots
+ * continua ao acaso, só que dentro dessa faixa. (O baralho não muda: ele é embaralhado com `crypto`.)
+ */
+describe('bots com acessórios', () => {
+  /** Todo sorteio dá abaixo de `teto`: a chance a favor. */
+  function acasoAbaixoDe(teto: number): void {
+    acaso = vi.spyOn(Math, 'random').mockImplementation(() => acasoDeVerdade() * teto);
+  }
+  /** Todo sorteio dá de `piso` para cima: a chance contra. */
+  function acasoAPartirDe(piso: number): void {
+    acaso = vi.spyOn(Math, 'random').mockImplementation(() => Math.min(0.999999, piso + acasoDeVerdade() * (1 - piso)));
+  }
+  /** O acaso num número só. */
+  function acasoFixo(valor: number): void {
+    acaso = vi.spyOn(Math, 'random').mockReturnValue(valor);
+  }
+  const A_FAVOR = Math.min(BOT_COM_ACESSORIO, BOT_APOSTA);
+  const CONTRA = Math.max(BOT_COM_ACESSORIO, BOT_APOSTA);
+
+  /** As peças que alguém está usando (pulsos e anéis), sem repetição. */
+  const pecasDe = (a: Acessorios | undefined): string[] => (a ? [...new Set([a.pulsos.E, a.pulsos.D, ...a.aneis.map((x) => x.id)].filter((id): id is string => !!id))] : []);
+
+  interface Olheiro {
+    conn: Connection;
+    eventos: TableEvent[];
+    visoes: TableView[];
+    erros: string[];
+  }
+
+  /** Uma pessoa sem acessório nenhum, que só olha: passa quando pode e desiste do resto. */
+  function olheiro(lobby: Lobby): Olheiro {
+    const o: Olheiro = { conn: null as unknown as Connection, eventos: [], visoes: [], erros: [] };
+    o.conn = lobby.connect((m: ServerMsg) => {
+      if (m.type === 'error') o.erros.push(m.message);
+      if (m.type !== 'event') return;
+      o.eventos.push(m.ev);
+      o.visoes.push(m.view);
+      if (m.ev.t === 'turn' && m.view.legal && m.view.toAct === m.view.mySeat) {
+        const action: PlayerAction = m.view.legal.canCheck ? { type: 'check' } : { type: 'fold' };
+        setTimeout(() => o.conn.handle({ type: 'action', action }), 5);
+      }
+    });
+    o.conn.handle({ type: 'hello', name: 'Olheiro', avatar: {}, cosmetics: {} });
+    return o;
+  }
+
+  /** A sala do lobby, por dentro (os testes abrem uma só). */
+  const salaDe = (lobby: Lobby) => [...lobby.rooms.values()][0];
+  const botsDe = (lobby: Lobby) => salaDe(lobby).seats.filter((m) => !!m && m.isBot).map((m) => m!);
+
+  /**
+   * Um Sit & Go de três bots (e o olheiro), todos os bots com peça: sentam com a chance a favor, e a
+   * partida corre com o acaso que `noJogo` fixar.
+   */
+  function partidaDeBots(regras: Partial<RoomSettings>, noJogo: () => void) {
+    const lobby = new Lobby('teste');
+    const o = olheiro(lobby);
+    o.conn.handle({
+      type: 'createRoom',
+      settings: { ...DEFAULT_SETTINGS, ...fast, mode: 'sitgo', maxPlayers: 4, startingStack: 1000, smallBlind: 25, bigBlind: 50, blindLevelHands: 3, ...regras },
+    });
+    acasoAbaixoDe(A_FAVOR);
+    for (let i = 0; i < 3; i++) o.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    const bots = botsDe(lobby);
+    /** O que cada bot tinha ao sentar, por assento. */
+    const aoSentar = new Map(bots.map((b) => [b.seat, pecasDe(b.cosmetics.acessorios)]));
+    for (const [seat, pecas] of aoSentar) expect(pecas.length, `assento ${seat}`).toBeGreaterThan(0);
+    noJogo();
+    o.conn.handle({ type: 'startGame' });
+    return { lobby, o, bots, aoSentar };
+  }
+
+  const eBot = (o: Olheiro, seat: number) => !!o.visoes[0]?.seats[seat]?.isBot;
+
+  it('com o acaso baixo o bot senta com alguma peça — só das que a loja vende, e todas das que se apostam', () => {
+    const lobby = new Lobby('teste');
+    const o = olheiro(lobby);
+    o.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    const vistas = new Set<string>();
+    for (let n = 0; n < 80; n++) {
+      // a primeira consulta é "vem com peça?" (um pouco abaixo da chance); as outras — que peça, em que mão — ficam ao acaso de verdade
+      let consulta = 0;
+      acaso = vi.spyOn(Math, 'random').mockImplementation(() => (consulta++ === 0 ? BOT_COM_ACESSORIO - 0.001 : acasoDeVerdade()));
+      o.conn.handle({ type: 'addBot', difficulty: 'easy' });
+      const [bot] = botsDe(lobby);
+      const pecas = pecasDe(bot.cosmetics.acessorios);
+      expect(pecas.length).toBeGreaterThan(0);
+      for (const id of pecas) {
+        expect(estaAVenda(chaveDoItem(id)), id).toBe(true);
+        expect(podeApostar(id), id).toBe(true);
+        vistas.add(id);
+      }
+      // tudo o que ele usa é peça de apostar: nem esmalte nem luva
+      expect(apostaveis(bot.cosmetics.acessorios).sort()).toEqual([...pecas].sort());
+      // uma peça no pulso esquerdo, ou um anel no anelar — ou os dois
+      expect(bot.cosmetics.acessorios!.pulsos.D).toBeNull();
+      expect(bot.cosmetics.acessorios!.aneis.length).toBeLessThanOrEqual(1);
+      for (const anel of bot.cosmetics.acessorios!.aneis) expect(anel.dedo).toBe(2);
+      o.conn.handle({ type: 'removeBot', seat: bot.seat });
+      expect(botsDe(lobby)).toHaveLength(0);
+    }
+    // (o sorteio da peça não está preso numa só)
+    expect(vistas.size).toBeGreaterThan(3);
+    expect(o.erros).toEqual([]);
+  });
+
+  it('a chance de vir com peça é BOT_COM_ACESSORIO: abaixo dela vem com alguma, dela para cima vem sem nenhuma', () => {
+    expect(BOT_COM_ACESSORIO).toBe(0.25);
+    const lobby = new Lobby('teste');
+    const o = olheiro(lobby);
+    o.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    const senta = (valor: number) => {
+      acasoFixo(valor);
+      o.conn.handle({ type: 'addBot', difficulty: 'easy' });
+      const [bot] = botsDe(lobby);
+      const acessorios = bot.cosmetics.acessorios;
+      o.conn.handle({ type: 'removeBot', seat: bot.seat });
+      return acessorios;
+    };
+    for (const baixo of [0, 0.1, BOT_COM_ACESSORIO - 0.0001]) {
+      const pecas = pecasDe(senta(baixo));
+      expect(pecas.length, String(baixo)).toBeGreaterThan(0);
+      for (const id of pecas) expect(estaAVenda(chaveDoItem(id)), id).toBe(true);
+    }
+    // sem peça nenhuma: o bot nem leva a lista de acessórios
+    for (const alto of [BOT_COM_ACESSORIO, 0.5, 0.999]) expect(senta(alto), String(alto)).toBeUndefined();
+    expect(o.erros).toEqual([]);
+  });
+
+  it('mesa cheia de bots: com o acaso baixo todos vêm com peça; com o acaso alto, nenhum', () => {
+    const lobby = new Lobby('teste');
+    const o = olheiro(lobby);
+    o.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS } });
+    acasoAbaixoDe(BOT_COM_ACESSORIO);
+    for (let i = 0; i < 5; i++) o.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    expect(botsDe(lobby)).toHaveLength(5);
+    for (const b of botsDe(lobby)) {
+      expect(pecasDe(b.cosmetics.acessorios).length, b.name).toBeGreaterThan(0);
+      for (const id of pecasDe(b.cosmetics.acessorios)) expect(estaAVenda(chaveDoItem(id)), id).toBe(true);
+    }
+    for (const b of botsDe(lobby)) o.conn.handle({ type: 'removeBot', seat: b.seat });
+    acasoAPartirDe(BOT_COM_ACESSORIO);
+    for (let i = 0; i < 5; i++) o.conn.handle({ type: 'addBot', difficulty: 'easy' });
+    expect(botsDe(lobby)).toHaveLength(5);
+    for (const b of botsDe(lobby)) expect(pecasDe(b.cosmetics.acessorios), b.name).toEqual([]);
+    expect(o.erros).toEqual([]);
+  });
+
+  it('partida fechada, chance a favor: o bot com peça que zera entra na mão seguinte all-in com ela, e a peça aparece na mesa', async () => {
+    vi.useFakeTimers();
+    expect(BOT_APOSTA).toBe(0.1);
+    const { o, bots, aoSentar } = partidaDeBots({}, () => acasoAbaixoDe(BOT_APOSTA));
+    const entradas = () => o.eventos.filter((e) => e.t === 'entradaComItem');
+    await runUntil(() => entradas().length > 0 || o.eventos.some((e) => e.t === 'gameOver'));
+    const entrada = entradas()[0];
+    expect(entrada).toBeTruthy();
+    if (entrada.t !== 'entradaComItem') throw new Error('sem entrada');
+    const i = o.eventos.indexOf(entrada);
+    const bot = bots.find((b) => b.seat === entrada.seat)!;
+    // foi um bot que ficou sem fichas, com uma peça das dele — pelo valor dela nos blinds daquela hora
+    expect(bot).toBeTruthy();
+    expect(aoSentar.get(entrada.seat)).toContain(entrada.item);
+    expect(o.visoes[i].seats[entrada.seat]).toMatchObject({ isBot: true, stack: 0, busted: false });
+    expect(entrada.valor).toBe(valorDaAposta(entrada.item, o.visoes[i].bigBlind));
+    // não foi eliminado: nenhum bot cai enquanto tiver peça e a chance a favor
+    expect(o.eventos.slice(0, i).some((e) => e.t === 'bust' && eBot(o, e.seat))).toBe(false);
+
+    // na mão seguinte: a aposta dele é a peça, que sai das mãos para a mesa
+    const iAposta = () => o.eventos.findIndex((e, k) => k > i && e.t === 'action' && !!e.item && e.seat === entrada.seat);
+    await runUntil(() => iAposta() >= 0);
+    const aposta = o.eventos[iAposta()];
+    expect(aposta).toMatchObject({ t: 'action', seat: entrada.seat, action: 'allin', amount: 0, item: { id: entrada.item } });
+    const naMesa = o.visoes[iAposta()];
+    // (pelo valor dito quando ele aceitou: se os blinds subiram de uma mão para a outra, o combinado não muda)
+    const valor = entrada.valor;
+    expect(aposta).toMatchObject({ item: { valor } });
+    expect(naMesa.itens).toContainEqual(expect.objectContaining({ seat: entrada.seat, id: entrada.item, valor }));
+    expect(usando(naMesa.seats[entrada.seat]!.cosmetics.acessorios, entrada.item)).toBe(false);
+    // (até anunciar a aposta, a peça ainda estava com ele)
+    expect(usando(o.visoes[iAposta() - 1].seats[entrada.seat]!.cosmetics.acessorios, entrada.item)).toBe(true);
+    expect(o.eventos.slice(0, iAposta()).some((e) => e.t === 'bust' && e.seat === entrada.seat)).toBe(false);
+    // e as fichas se conservam, com a peça na conta da aposta e do pote sem ser ficha
+    for (const v of o.visoes) expect(totalChips(v)).toBe(4000);
+    expect(o.erros).toEqual([]);
+  }, 60_000);
+
+  it('partida fechada, chance contra: o bot com peça que zera é eliminado, e fica com a peça', async () => {
+    vi.useFakeTimers();
+    const { o, bots, aoSentar } = partidaDeBots({}, () => acasoAPartirDe(CONTRA));
+    const quedas = () => o.eventos.filter((e) => e.t === 'bust' && eBot(o, e.seat));
+    await runUntil(() => quedas().length > 0 || o.eventos.some((e) => e.t === 'gameOver'));
+    const queda = quedas()[0];
+    expect(queda).toBeTruthy();
+    if (queda.t !== 'bust') throw new Error('sem eliminação');
+    const i = o.eventos.indexOf(queda);
+    expect(o.visoes[i].seats[queda.seat]).toMatchObject({ isBot: true, stack: 0, busted: true });
+    // tinha o que apostar, e não apostou: nenhuma entrada com peça, nenhuma peça na mesa
+    const bot = bots.find((b) => b.seat === queda.seat)!;
+    expect(aoSentar.get(queda.seat)!.length).toBeGreaterThan(0);
+    expect(pecasDe(bot.cosmetics.acessorios)).toEqual(aoSentar.get(queda.seat));
+    expect(o.eventos.some((e) => e.t === 'entradaComItem')).toBe(false);
+    expect(o.eventos.some((e) => e.t === 'action' && !!e.item)).toBe(false);
+    for (const v of o.visoes) {
+      expect(v.itens).toEqual([]);
+      expect(totalChips(v)).toBe(4000);
+    }
+    expect(o.erros).toEqual([]);
+  }, 60_000);
+
+  it('na mesa que não deixa apostar (apostaDeItens: false), o bot com peça que zera é eliminado mesmo com a chance a favor', async () => {
+    vi.useFakeTimers();
+    const { lobby, o, aoSentar } = partidaDeBots({ apostaDeItens: false }, () => acasoAbaixoDe(BOT_APOSTA));
+    expect(salaDe(lobby).settings.apostaDeItens).toBe(false);
+    const quedas = () => o.eventos.filter((e) => e.t === 'bust' && eBot(o, e.seat));
+    await runUntil(() => quedas().length > 0 || o.eventos.some((e) => e.t === 'gameOver'));
+    const queda = quedas()[0];
+    expect(queda).toBeTruthy();
+    if (queda.t !== 'bust') throw new Error('sem eliminação');
+    expect(aoSentar.get(queda.seat)!.length).toBeGreaterThan(0);
+    expect(o.eventos.some((e) => e.t === 'entradaComItem')).toBe(false);
+    expect(o.eventos.some((e) => e.t === 'action' && !!e.item)).toBe(false);
+    for (const v of o.visoes) {
+      expect(v.apostaDeItens).toBe(false);
+      expect(v.apostaveis).toEqual([]);
+      expect(v.itens).toEqual([]);
+      expect(totalChips(v)).toBe(4000);
+    }
+    expect(o.erros).toEqual([]);
+  }, 60_000);
+
+  /*
+   * Paga a mão, o motor zera o pote mas a peça continua na mesa (vai para quem ganhou): a foto do `win`
+   * sai com `pot: 0`, e a parte da peça que conta (`emJogo`) tem de sair zerada também — quem a desconta
+   * do pote para desenhar as fichas não pode chegar a um número negativo.
+   */
+  it('a peça nunca conta mais do que há nas apostas e no pote — nem na foto do `win`, com o pote já pago', async () => {
+    vi.useFakeTimers();
+    const { o } = partidaDeBots({}, () => acasoAbaixoDe(BOT_APOSTA));
+    // até o fim de uma mão em que um bot entrou com peça
+    const iAposta = () => o.eventos.findIndex((e) => e.t === 'action' && !!e.item);
+    const iFim = () => o.eventos.findIndex((e, k) => iAposta() >= 0 && k > iAposta() && e.t === 'handEnd');
+    await runUntil(() => iFim() >= 0 || o.eventos.some((e) => e.t === 'gameOver'));
+    expect(iFim()).toBeGreaterThan(0);
+    for (const [k, v] of o.visoes.entries()) {
+      const naMesa = v.seats.reduce((s, x) => s + (x ? x.bet : 0), 0) + v.pot;
+      expect(pecasEmJogo(v), `foto ${k} (${o.eventos[k].t})`).toBeLessThanOrEqual(naMesa);
+    }
+  }, 60_000);
+
+  it('partida inteira com os bots apostando peças termina, e conserva as fichas descontando o que é peça', async () => {
+    vi.useFakeTimers();
+    const { o } = partidaDeBots({}, () => acasoAbaixoDe(BOT_APOSTA));
+    await runUntil(() => o.eventos.some((e) => e.t === 'gameOver'));
+    expect(o.eventos.some((e) => e.t === 'gameOver')).toBe(true);
+    expect(o.eventos.some((e) => e.t === 'entradaComItem')).toBe(true);
+    for (const v of o.visoes) expect(totalChips(v)).toBe(4000);
+    // houve peça contada na aposta ou no pote: sem o desconto, a conta das fichas não fecharia
+    expect(o.visoes.some((v) => (v.itens ?? []).some((i) => i.emJogo > 0))).toBe(true);
+    // no fim não sobra peça na mesa, e as fichas estão todas nas pilhas
+    const ultima = o.visoes.at(-1)!;
+    expect(ultima.itens).toEqual([]);
+    expect(ultima.seats.reduce((s, x) => s + (x?.stack ?? 0), 0)).toBe(4000);
+    expect(o.erros).toEqual([]);
+  }, 120_000);
+});
+
+describe('as regras da sala: acessório como aposta', () => {
+  it('sem o campo, vale; só `false` desliga', () => {
+    expect('apostaDeItens' in DEFAULT_SETTINGS).toBe(false);
+    expect(sanitizeSettings(undefined).apostaDeItens).toBe(true);
+    expect(sanitizeSettings({}).apostaDeItens).toBe(true);
+    expect(sanitizeSettings({ ...DEFAULT_SETTINGS }).apostaDeItens).toBe(true);
+    expect(sanitizeSettings({ apostaDeItens: true }).apostaDeItens).toBe(true);
+    expect(sanitizeSettings({ apostaDeItens: false }).apostaDeItens).toBe(false);
+    // (o que não é `false` de verdade não desliga: um cliente antigo ou torto não tira a regra da mesa)
+    expect(sanitizeSettings({ apostaDeItens: undefined }).apostaDeItens).toBe(true);
+    expect(sanitizeSettings({ apostaDeItens: 0 as never }).apostaDeItens).toBe(true);
+  });
+
+  it('a sala criada sem o campo diz na mesa que vale; criada com `false`, que não', async () => {
+    vi.useFakeTimers();
+    for (const [regra, esperado] of [[undefined, true], [true, true], [false, false]] as const) {
+      const lobby = new Lobby('teste');
+      const p = autoPlayer(lobby, 'Tester', passive);
+      p.conn.handle({ type: 'createRoom', settings: { ...DEFAULT_SETTINGS, ...fast, maxPlayers: 2, ...(regra === undefined ? {} : { apostaDeItens: regra }) } });
+      p.conn.handle({ type: 'addBot', difficulty: 'easy' });
+      p.conn.handle({ type: 'startGame' });
+      await runUntil(() => p.views.length > 0);
+      expect(p.views.length).toBeGreaterThan(0);
+      for (const v of p.views) expect(v.apostaDeItens, String(regra)).toBe(esperado);
+      expect(p.views[0].apostaDeItens !== false).toBe(esperado);
+      p.conn.handle({ type: 'leaveRoom' });
+    }
+  });
 });

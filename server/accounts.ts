@@ -22,7 +22,7 @@ import {
   type BondEvent,
   type BondStats,
 } from '../shared/bond';
-import { findItem, freeIdOf, isFree, isSold, ownsItem, priceOf, type Currency } from '../shared/catalog';
+import { estaAVenda, findItem, freeIdOf, isFree, ownsItem, priceOf, type Currency, owns, eDeInicio, marcaDePerdido } from '../shared/catalog';
 import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
 import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
 import { MAX_REQUESTS, isFriendCode, makeFriendCode, normalizeFriendCode, podeMaisAmigos } from '../shared/friends';
@@ -431,6 +431,54 @@ export class Accounts implements AccountService {
     return this.byId(accountId)?.owned ?? [];
   }
 
+  /** A conta tem esta peça? (a mesa confere antes de aceitar um acessório como aposta) */
+  temItem(accountId: string, key: string): boolean {
+    const acc = this.byId(accountId);
+    return !!acc && owns(acc.owned, key);
+  }
+
+  /**
+   * Um acessório apostado mudou de dono (veja shared/aposta.ts).
+   *
+   * Sai da conta de quem perdeu e entra na de quem ganhou. Quem ganha uma peça que já tem recebe as
+   * fichas do reembolso — a mesma conta de um prêmio repetido de roleta —, e o que um bot ganha
+   * fica com ele, na mesa (não há conta `para`). A peça de início (a aliança) sai deixando a marca de
+   * perdida, e volta apagando a marca.
+   */
+  transferirItem(de: string | undefined, para: string | undefined, key: string): { repetido: boolean; reembolso: number } {
+    const item = findItem(key);
+    const perdeu = de ? this.byId(de) : undefined;
+    const ganhou = para ? this.byId(para) : undefined;
+    // só troca de dono o que é de quem perdeu (e não é das peças que vêm com o jogo)
+    if (!item || item.kind !== 'acessorio' || isFree(key) || (de && !(perdeu && owns(perdeu.owned, key)))) return { repetido: false, reembolso: 0 };
+    if (perdeu) {
+      // (uma que ele ganhou sai da lista; a de início, que não está nela, deixa a marca de perdida)
+      const i = perdeu.owned.indexOf(key);
+      if (i >= 0) perdeu.owned = perdeu.owned.filter((_, k) => k !== i);
+      else if (eDeInicio(key)) perdeu.owned = [...perdeu.owned, marcaDePerdido(key)];
+      this.changed(perdeu.id);
+    }
+    let repetido = false;
+    let reembolso = 0;
+    if (ganhou) {
+      if (owns(ganhou.owned, key)) {
+        repetido = true;
+        reembolso = refundOf(key);
+        ganhou.money += reembolso;
+      } else if (eDeInicio(key) && ganhou.owned.includes(marcaDePerdido(key))) {
+        // (tinha perdido a de início: volta a tê-la)
+        ganhou.owned = ganhou.owned.filter((k) => k !== marcaDePerdido(key));
+      } else {
+        ganhou.owned.push(key);
+      }
+      this.changed(ganhou.id);
+    }
+    this.store.flush();
+    const sobra = repetido ? ` (repetido: +${reembolso} fichas)` : '';
+    console.log(`[aposta] ${item.name}: de ${perdeu?.name ?? 'ninguém'} para ${ganhou?.name ?? 'um bot'}${sobra}`);
+    return { repetido, reembolso };
+  }
+
   private snapshot(acc: Stored): AccountInfo {
     const pado = acc.discord ? (this.pado.get(acc.id)?.value ?? null) : null;
     return {
@@ -526,9 +574,10 @@ export class Accounts implements AccountService {
   /**
    * Compra um item da loja.
    *
-   * Duas famílias passam por aqui: **presentes**, que são contáveis (comprar de novo aumenta o
-   * estoque), e **aparência da interface**, que é posse. O resto do catálogo virou galeria e só sai
-   * de roleta — quem recusa é este método, não a tela.
+   * Três famílias passam por aqui: **presentes**, que são contáveis (comprar de novo aumenta o
+   * estoque), **aparência da interface** e os **acessórios à venda** (anel, pulseira e relógio que
+   * não são lendários: veja `estaAVenda`), que são posse. O resto do catálogo é galeria e só sai de
+   * roleta — quem recusa é este método, não a tela.
    */
   async buy(accountId: string, key: string, currency: Currency): Promise<string | null> {
     const acc = this.byId(accountId);
@@ -536,9 +585,10 @@ export class Accounts implements AccountService {
     const item = findItem(key);
     if (!item) return 'esse item não existe';
     if (isFree(key)) return 'esse item já vem com o jogo';
-    if (!isSold(item.kind)) return 'esse item não está à venda: ele sai de roleta';
+    // (por peça, e não por tipo: há acessório que se compra — anel, pulseira e relógio que não são lendários)
+    if (!estaAVenda(key)) return 'esse item não está à venda: ele sai de roleta';
     const contavel = isCountable(key);
-    if (!contavel && acc.owned.includes(key)) return 'você já tem esse item';
+    if (!contavel && owns(acc.owned, key)) return 'você já tem esse item';
     const price = priceOf(key, currency);
     if (!price) return 'esse item não está à venda';
 
@@ -615,7 +665,7 @@ export class Accounts implements AccountService {
     let refund = 0;
     if (gift) {
       acc.gifts = { ...(acc.gifts ?? {}), [gift.id]: (acc.gifts?.[gift.id] ?? 0) + 1 };
-    } else if (acc.owned.includes(prize.key)) {
+    } else if (owns(acc.owned, prize.key)) {
       dup = true;
       refund = refundOf(prize.key);
       acc.money += refund;
@@ -1178,7 +1228,7 @@ export class Accounts implements AccountService {
   /** Lista resumida, para o /health e para o console. */
   list(): { id: string; name: string; user?: string; money: number; inPlay: number; items: number; seen: string }[] {
     return Object.values(this.store.get().accounts)
-      .map((a) => ({ id: a.id, name: a.name, user: a.user, money: a.money, inPlay: this.inPlayOf?.(a.id) ?? 0, items: a.owned.length, seen: a.seen }))
+      .map((a) => ({ id: a.id, name: a.name, user: a.user, money: a.money, inPlay: this.inPlayOf?.(a.id) ?? 0, items: a.owned.filter((k) => !k.startsWith('perdeu:')).length, seen: a.seen }))
       .sort((a, b) => b.money + b.inPlay - (a.money + a.inPlay));
   }
 }

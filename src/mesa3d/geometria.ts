@@ -157,6 +157,13 @@ export const MARCAS = {
  */
 export const DESCARTE: readonly [number, number] = [0.42, 0.04];
 
+/**
+ * O monte das peças apostadas (relógios, pulseiras, anéis), no tampo: do lado oposto ao do descarte,
+ * à esquerda das cartas abertas do meio da mesa. É para onde elas vão quando as apostas são
+ * recolhidas — as fichas para o pote, as peças para o monte — e de onde saem para quem ganhar.
+ */
+export const MONTE_DAS_PECAS: readonly [number, number] = [-DESCARTE[0], DESCARTE[1]];
+
 /** Como o baralho parado fica deitado na mesa: o giro dele em volta de y, a contar do rumo de quem dá as cartas. */
 export const GIRO_DO_BARALHO = 0.35;
 

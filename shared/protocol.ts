@@ -68,6 +68,11 @@ export interface RoomSettings {
    */
   custom?: boolean;
   /**
+   * Os acessórios valem como aposta nesta mesa? (shared/aposta.ts) Numa Custom, quem cria decide;
+   * sem dizer nada, valem — é como jogam as partidas do jogo.
+   */
+  apostaDeItens?: boolean;
+  /**
    * A sala aparece na lista pública do lobby?
    * As partidas contra bots ficam de fora: são suas, não têm por que poluir a lista.
    */
@@ -435,6 +440,39 @@ export interface TableView {
   legal: LegalActions | null;
   /** Cartas vencedoras em destaque (após o showdown). */
   highlight: Card[];
+  /**
+   * Os acessórios apostados que estão na mesa agora (veja shared/aposta.ts): de quem é cada um e
+   * quanto vale na aposta. Ficam ali até a mão acabar. (Opcional: um servidor antigo não manda.)
+   */
+  itens?: ItemNaMesa[];
+  /**
+   * Fiquei sem fichas e a mesa está esperando eu dizer se aposto um acessório para continuar:
+   * quantos ms ainda tenho, e o que posso apostar (com o valor de cada peça nesta mesa).
+   */
+  oferta?: { timeLeftMs: number; itens: { id: string; valor: number }[] } | null;
+  /** Os acessórios que eu posso apostar na minha vez, com o valor de cada um nesta mesa. */
+  apostaveis?: { id: string; valor: number }[];
+  /** Nesta mesa os acessórios valem como aposta? (false: quem a criou não quis; aí o menu nem aparece) */
+  apostaDeItens?: boolean;
+}
+
+/** Um acessório apostado, em cima da mesa. */
+export interface ItemNaMesa {
+  /** O assento do dono. */
+  seat: number;
+  id: string;
+  /** Quanto ele valia ao ser apostado (é o que se mostra). */
+  valor: number;
+  /**
+   * Quanto dele está contado na aposta ou no pote agora (pode ser menos que `valor`, quando parte da
+   * aposta não foi paga). É o que se desconta das fichas desenhadas: o valor do acessório entra no
+   * número da aposta e do pote, mas não é ficha.
+   */
+  emJogo: number;
+  /** Está na aposta desta rua, na frente do dono (false: já foi para o pote). */
+  naAposta: boolean;
+  /** Ainda não saiu da mão do dono: é a entrada de quem ficou sem fichas, antes de ele a pôr na mesa. */
+  chegando?: boolean;
 }
 
 export type TableEvent =
@@ -448,6 +486,10 @@ export type TableEvent =
   | { t: 'seatLeave'; seat: number }
   | { t: 'rebuy'; seat: number; amount: number }
   | { t: 'bust'; seat: number; place: number }
+  /** Quem ficou sem fichas está decidindo se aposta um acessório para continuar na mesa. */
+  | { t: 'ofertaItem'; seat: number; timeMs: number }
+  /** Decidiu: vai entrar na próxima mão apostando o acessório (o all-in dele). */
+  | { t: 'entradaComItem'; seat: number; item: string; valor: number }
   | { t: 'blindsUp'; smallBlind: number; bigBlind: number }
   | { t: 'gameOver'; ranking: { name: string; place: number; seat: number }[]; ganhos?: GanhoDaPartida[] };
 
@@ -534,6 +576,10 @@ export type ClientMsg =
   /** "Terminei de carregar": a mesa espera isso de cada jogador antes da primeira mão. */
   | { type: 'ready' }
   | { type: 'action'; action: PlayerAction }
+  /** Na minha vez: aposto o acessório que estou usando (ele entra na aposta no lugar de fichas). */
+  | { type: 'apostarItem'; item: string }
+  /** Fiquei sem fichas: aposto este acessório para continuar na mesa (null = não, obrigado). */
+  | { type: 'entrarComItem'; item: string | null }
   /** Poker de 5 cartas: troca as cartas nas posições indicadas (vazio = manter todas). */
   | { type: 'draw'; discards: number[] }
   | { type: 'skipHand' }

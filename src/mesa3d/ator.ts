@@ -159,12 +159,16 @@ export class Ator {
   /** As fichas e cartas que o clipe atual mostra (no espaço do personagem). */
   objetos: Objeto[] = [];
   /** Os acessórios que ele usa (a chave deles: muda quando o jogador troca alguma coisa). */
-  readonly enfeites: string;
+  enfeites: string;
   /** As peças dos acessórios (anéis, pulseira, relógio): cada uma vai com um osso. */
-  private readonly presas: { malha: THREE.Mesh; osso: THREE.Bone; inversa: THREE.Matrix4 }[] = [];
+  private presas: { malha: THREE.Mesh; osso: THREE.Bone; inversa: THREE.Matrix4 }[] = [];
+  /** O que ele veste nas mãos agora, e as inversas dos ossos na pose de repouso (para prender as peças). */
+  private acessorios: Acessorios;
+  private inversasDosOssos: THREE.Matrix4[] = [];
 
   constructor(personagem: string, corpo: Corpo, roupa: Roupa, acessorios: Acessorios = SEM_ACESSORIOS) {
     this.personagem = personagem;
+    this.acessorios = acessorios;
     this.enfeites = chaveDosAcessorios(acessorios);
     this.traje = TRAJES.find((t) => t.id === trajeDe(personagem)) ?? TRAJES[0];
     this.boneco = new Boneco(esqueletoDoJogo());
@@ -260,23 +264,59 @@ export class Ator {
       this.pele.uniforms.uEsmalteBrilho.value = esmalte.metalico ? 0.75 : 0.3;
       this.pele.uniforms.uEsmalteTipo.value = { liso: 0, francesinha: 1, degrade: 2, glitter: 3, cromado: 4 }[esmalte.efeito ?? 'liso'];
     }
-    // os anéis, a pulseira e o relógio: peças rígidas, cada uma presa a um osso (por cima da luva, se houver)
-    const luva = findAcessorio(acessorios.luva);
+    this.inversasDosOssos = ossos.boneInverses;
+    this.prenderPecas();
+  }
+
+  /** Os anéis, a pulseira e o relógio: peças rígidas, cada uma presa a um osso (por cima da luva, se houver). */
+  private prenderPecas() {
+    const luva = findAcessorio(this.acessorios.luva);
     const cobre = luva?.tipo === 'luva' && luva.feitio !== 'traje' ? luva.feitio : trajeTemLuva(this.traje);
-    for (const peca of pecasDosAcessorios(acessorios, cobre)) {
+    for (const peca of pecasDosAcessorios(this.acessorios, cobre)) {
       const i = this.boneco.esq.indice[`${peca.osso}.${peca.mao}`];
       if (i === undefined) continue;
-      const inversa = ossos.boneInverses[i].clone();
+      const inversa = this.inversasDosOssos[i].clone();
       if (peca.mao === 'D') inversa.multiply(ESPELHO);
       for (const pedaco of peca.pedacos) {
         const malha = new THREE.Mesh(pedaco.geo, pedaco.mat);
         malha.matrixAutoUpdate = false;
         malha.frustumCulled = false;
         malha.castShadow = !pedaco.semSombra;
+        // (já no lugar: um quadro com a peça na origem do personagem apareceria como um risco na mesa)
+        malha.matrix.multiplyMatrices(this.boneco.ossos[i].matrixWorld, inversa);
         this.grupo.add(malha);
         this.presas.push({ malha, osso: this.boneco.ossos[i], inversa });
       }
     }
+  }
+
+  /**
+   * A matriz que leva uma peça da pose de repouso, presa a este osso, para o mundo — neste quadro. É
+   * com ela que um acessório que acabou de sair da mão (a correia desabotoada, ainda no pulso)
+   * aparece exatamente onde o do personagem estava.
+   */
+  matrizDaPeca(osso: string, mao: 'E' | 'D'): THREE.Matrix4 | null {
+    const i = this.boneco.esq.indice[`${osso}.${mao}`];
+    if (i === undefined || !this.inversasDosOssos[i]) return null;
+    return new THREE.Matrix4().multiplyMatrices(this.grupo.matrixWorld, this.boneco.ossos[i].matrixWorld).multiply(this.inversasDosOssos[i]);
+  }
+
+  /**
+   * Troca os anéis e o que vai nos pulsos **sem refazer o personagem** — é o que acontece quando ele
+   * aposta um acessório (a peça sai da mão) ou o ganha de volta. Só as peças rígidas: se o esmalte ou
+   * a luva mudaram, devolve false, e aí quem chama refaz o personagem (a luva é costurada com a roupa).
+   */
+  trocarEnfeites(novos: Acessorios): boolean {
+    if (novos.esmalte !== this.acessorios.esmalte || novos.luva !== this.acessorios.luva) return false;
+    for (const p of this.presas) {
+      p.malha.removeFromParent();
+      p.malha.geometry.dispose();
+    }
+    this.presas = [];
+    this.acessorios = novos;
+    this.enfeites = chaveDosAcessorios(novos);
+    this.prenderPecas();
+    return true;
   }
 
   /** Põe o personagem no lugar e diz ao pano onde fica a mesa (nas coordenadas dele). */

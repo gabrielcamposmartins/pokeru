@@ -62,16 +62,31 @@ export interface Pulseira extends Base {
 
 export interface Relogio extends Base {
   tipo: 'relogio';
-  /** `oval`: a caixa pequena de um relógio-joia; `digital`: a caixa retangular de um relógio de visor. */
-  caixa: 'redonda' | 'quadrada' | 'oval' | 'digital';
+  /**
+   * `oval`: a caixa pequena de um relógio-joia; `digital`: a caixa retangular de um relógio de visor;
+   * `oitavada`: a caixa de oito lados de um relógio moderno, com o aro preso por parafusos.
+   */
+  caixa: 'redonda' | 'quadrada' | 'oval' | 'digital' | 'oitavada';
   metal: string;
+  /** O segundo metal de um relógio bicolor: o aro, os botões e os elos do meio da pulseira. */
+  metal2?: string;
+  /** A caixa jateada, sem polimento: o aço fosco de um relógio de campo. */
+  fosca?: boolean;
   mostrador: string;
   ponteiros: string;
-  /** `borracha`: larga e fosca; `corrente`: fina, de elos. */
-  correia: 'couro' | 'metal' | 'borracha' | 'corrente';
+  /**
+   * `borracha`: larga e fosca; `corrente`: fina, de elos; `lona`: uma tira de tecido grosso, com a
+   * listra do meio e os passadores de metal; `bicolor`: a pulseira de elos em dois metais — os de fora
+   * na cor da correia, os do meio em `metal2`.
+   */
+  correia: 'couro' | 'metal' | 'borracha' | 'corrente' | 'lona' | 'bicolor';
   corDaCorreia: string;
-  /** O que o mostrador tem além dos ponteiros: a lua e as estrelas, ou os algarismos de um visor. */
-  visor?: 'lua' | 'digital';
+  /**
+   * O que o mostrador tem além dos ponteiros: a lua e as estrelas, os algarismos de um visor, o
+   * `prisma` (um mostrador iridescente, em que as cores correm conforme o ângulo) ou os três
+   * mostradores pequenos e os botões de um `cronografo`.
+   */
+  visor?: 'lua' | 'digital' | 'prisma' | 'cronografo';
   /** O aro giratório de um relógio de mergulho: as duas cores dele. */
   aro?: [string, string];
 }
@@ -118,6 +133,7 @@ export type Acessorio = Anel | Pulseira | Relogio | Esmalte | Luva;
 const OURO = '#e0ad3e';
 const PRATA = '#cfd3dc';
 const ROSE = '#e6a48f';
+const BRONZE = '#b5763c';
 
 export const ACESSORIOS: Acessorio[] = [
   // ───────────── anéis ─────────────
@@ -154,6 +170,9 @@ export const ACESSORIOS: Acessorio[] = [
   { tipo: 'relogio', id: 'relogio-digital', nome: 'Relógio digital', sobre: 'Caixa retangular de resina preta, visor de cristal líquido e pulseira de borracha.', caixa: 'digital', metal: '#22212a', mostrador: '#b9c7a6', ponteiros: '#1c2418', correia: 'borracha', corDaCorreia: '#19181d', visor: 'digital' },
   { tipo: 'relogio', id: 'relogio-lua', nome: 'Fases da lua', sobre: 'Caixa redonda de prata, mostrador azul-noite com a lua e as estrelas, correia azul.', caixa: 'redonda', metal: PRATA, mostrador: '#14204a', ponteiros: '#f3e9c6', correia: 'couro', corDaCorreia: '#1d2a5c', visor: 'lua' },
   { tipo: 'relogio', id: 'relogio-mergulho', nome: 'Relógio de mergulho', sobre: 'Caixa de aço com o aro giratório em azul e vermelho, mostrador preto e pulseira de elos.', caixa: 'redonda', metal: PRATA, mostrador: '#101014', ponteiros: '#f4f4f8', correia: 'metal', corDaCorreia: PRATA, aro: ['#1f4fb0', '#c4202f'] },
+  { tipo: 'relogio', id: 'relogio-campo', nome: 'Relógio de campo', sobre: 'Caixa redonda de aço fosco, mostrador creme com todos os algarismos e correia de lona cor de areia: o relógio simples, de todo dia.', caixa: 'redonda', metal: '#a2a7b0', fosca: true, mostrador: '#efe7d2', ponteiros: '#2b2a26', correia: 'lona', corDaCorreia: '#b8a77e' },
+  { tipo: 'relogio', id: 'relogio-prisma', nome: 'Relógio prismático', sobre: 'Caixa de oito lados em aço claro e pulseira branca, sem um algarismo: o mostrador é um prisma, e as cores correm por ele conforme o pulso vira.', caixa: 'oitavada', metal: '#dfe4ec', mostrador: '#f4f2ff', ponteiros: '#23212e', correia: 'borracha', corDaCorreia: '#f1f2f6', visor: 'prisma' },
+  { tipo: 'relogio', id: 'relogio-bronze', nome: 'Cronógrafo de bronze e prata', sobre: 'Um cronógrafo bicolor: caixa de bronze, aro de prata com a escala gravada, três mostradores pequenos e a pulseira de elos alternando prata e bronze.', caixa: 'redonda', metal: BRONZE, metal2: PRATA, mostrador: '#e9ebf0', ponteiros: '#4a2c17', correia: 'bicolor', corDaCorreia: BRONZE, visor: 'cronografo' },
   // ───────────── esmaltes ─────────────
   { tipo: 'esmalte', id: 'esmalte-natural', nome: 'Natural', sobre: 'A unha como ela é: clara, com um lustro discreto.', cor: null },
   { tipo: 'esmalte', id: 'esmalte-rosa', nome: 'Rosa sakura', sobre: 'Rosa claro, da cor da flor.', cor: '#ff9ec2' },

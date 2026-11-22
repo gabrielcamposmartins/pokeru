@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, MAX_ANEIS, SEM_ACESSORIOS, TIPOS_DE_ACESSORIO, acessoriosDoTipo, alternarAnel, alternarPulso, chaveDosAcessorios, emUso, findAcessorio, sanitizeAcessorios } from './acessorios';
-import { clampAcessorios, clampCosmetics, isFree, itemKey, itemsOfKind, rarityOf } from './catalog';
+import { DE_INICIO, FREE_KEYS, PRECO_DO_ACESSORIO, SO_DE_ROLETA, clampAcessorios, clampCosmetics, eDeInicio, estaAVenda, findItem, isFree, itemKey, itemsOfKind, marcaDePerdido, rarityOf } from './catalog';
 import { ROULETTES, dropsOf } from './roulette';
 import { sanitizeCosmetics } from './styles';
 
@@ -13,25 +13,129 @@ describe('os acessórios das mãos', () => {
     expect(pedras.size).toBeGreaterThanOrEqual(8);
   });
 
-  it('estão todos no catálogo, e o que vem com o jogo é a unha natural, as mãos nuas, a luva do traje e um anel liso', () => {
+  it('estão todos no catálogo; o que vem com o jogo é a unha natural, as mãos nuas e a luva do traje — o anel liso é de início, não de graça', () => {
     expect(itemsOfKind('acessorio').map((i) => i.id)).toEqual(ACESSORIOS.map((a) => a.id));
     const gratis = ACESSORIOS.filter((a) => isFree(itemKey('acessorio', a.id))).map((a) => a.id);
-    expect(gratis.sort()).toEqual(['anel-alianca', ESMALTE_PADRAO, 'luva-traje', LUVA_PADRAO].sort());
+    expect(gratis.sort()).toEqual([ESMALTE_PADRAO, 'luva-traje', LUVA_PADRAO].sort());
+    // a aliança lisa saiu dessa lista: toda conta começa com uma, mas ela tem preço e pode ser perdida numa aposta
+    expect(DE_INICIO).toEqual([itemKey('acessorio', 'anel-alianca')]);
+    expect(ACESSORIOS.filter((a) => eDeInicio(itemKey('acessorio', a.id))).map((a) => a.id)).toEqual(['anel-alianca']);
+    expect(FREE_KEYS).not.toContain(itemKey('acessorio', 'anel-alianca'));
     // todo mundo começa de mãos nuas, mesmo que o traje tenha luva
     expect(LUVA_PADRAO).toBe('luva-nenhuma');
     expect(SEM_ACESSORIOS.luva).toBe('luva-nenhuma');
     expect(sanitizeAcessorios(undefined).luva).toBe('luva-nenhuma');
   });
 
-  it('todo acessório pago sai de uma roleta, metade de cada', () => {
+  it('todo acessório pago sai de uma roleta, metade de cada — com a aliança, que agora é paga e sai do Dragão, são pares: 27 e 27', () => {
     const pagos = ACESSORIOS.filter((a) => !isFree(itemKey('acessorio', a.id)));
     const [flores, dragao] = ROULETTES.map((r) => dropsOf(r).filter((d) => d.kind === 'acessorio'));
     expect(flores.length + dragao.length).toBe(pagos.length);
-    expect(flores.length).toBe(dragao.length);
-    // e em cada degrau também
-    for (const r of ['epico', 'raro', 'incomum', 'comum'] as const) {
-      expect(flores.filter((d) => rarityOf(d.key) === r).length, r).toBe(dragao.filter((d) => rarityOf(d.key) === r).length);
+    expect(pagos).toHaveLength(54);
+    expect(flores).toHaveLength(27);
+    expect(dragao).toHaveLength(27);
+    // e em cada degrau também: a mesma conta — a aliança lisa (comum, no Dragão) fechou o par do relógio de campo (nas Flores)
+    const conta = (l: typeof flores, r: string) => l.filter((d) => rarityOf(d.key) === r).length;
+    for (const r of ['lendario', 'epico', 'raro', 'incomum', 'comum'] as const) expect(conta(flores, r), r).toBe(conta(dragao, r));
+    expect(conta(flores, 'lendario')).toBe(4);
+    expect(conta(flores, 'comum')).toBe(5);
+    expect(dragao.map((d) => d.key)).toContain('acessorio:anel-alianca');
+    expect(flores.map((d) => d.key)).not.toContain('acessorio:anel-alianca');
+  });
+
+  it('cada tipo de acessório se divide entre as duas roletas (no máximo um de diferença)', () => {
+    const [flores, dragao] = ROULETTES.map((r) => dropsOf(r).filter((d) => d.kind === 'acessorio'));
+    const doTipo = (l: typeof flores, tipo: string) => l.filter((d) => findAcessorio(d.key.slice('acessorio:'.length))?.tipo === tipo).length;
+    // (os esmaltes já pendiam para as Flores antes: sete a cinco; os que a loja vende ficam ao meio)
+    for (const tipo of ['anel', 'pulseira', 'relogio', 'luva']) expect(Math.abs(doTipo(flores, tipo) - doTipo(dragao, tipo)), tipo).toBeLessThanOrEqual(1);
+  });
+
+  it('há três relógios novos: o de campo (comum), o prismático (raro) e o cronógrafo de bronze e prata (lendário)', () => {
+    const degrau = (id: string) => rarityOf(itemKey('acessorio', id));
+    const relogio = (id: string) => {
+      const a = findAcessorio(id);
+      if (a?.tipo !== 'relogio') throw new Error(`${id} não é um relógio`);
+      return a;
+    };
+    expect(degrau('relogio-campo')).toBe('comum');
+    expect(relogio('relogio-campo')).toMatchObject({ caixa: 'redonda', fosca: true, correia: 'lona' });
+    expect(degrau('relogio-prisma')).toBe('raro');
+    expect(relogio('relogio-prisma')).toMatchObject({ caixa: 'oitavada', visor: 'prisma' });
+    expect(degrau('relogio-bronze')).toBe('lendario');
+    const bronze = relogio('relogio-bronze');
+    expect(bronze).toMatchObject({ correia: 'bicolor', visor: 'cronografo' });
+    // bicolor: o segundo metal é outro, e a pulseira alterna os dois
+    expect(bronze.metal2).toBeTruthy();
+    expect(bronze.metal2).not.toBe(bronze.metal);
+    expect(bronze.corDaCorreia).toBe(bronze.metal);
+  });
+});
+
+describe('o que a loja vende', () => {
+  const chave = (id: string) => itemKey('acessorio', id);
+  const vendidos = ACESSORIOS.filter((a) => estaAVenda(chave(a.id))).map((a) => a.id);
+
+  it('anel, pulseira e relógio se compram — menos os lendários e as exceções; a aliança de início também está na prateleira', () => {
+    for (const a of ACESSORIOS) {
+      const key = chave(a.id);
+      const deveria = ['anel', 'pulseira', 'relogio'].includes(a.tipo) && rarityOf(key) !== 'lendario' && !isFree(key) && !SO_DE_ROLETA.includes(key);
+      expect(estaAVenda(key), a.id).toBe(deveria);
     }
+    expect([...vendidos].sort()).toEqual(
+      [
+        // (a aliança lisa: quem a perdeu numa aposta compra outra)
+        'anel-alianca',
+        'anel-perola', 'anel-sinete', 'anel-coracao', 'anel-onix', 'anel-gota', 'anel-ebano', 'anel-serpente',
+        'pulseira-contas', 'pulseira-couro', 'pulseira-perolas', 'pulseira-cordao', 'pulseira-riviera', 'pulseira-espinhos', 'pulseira-terco',
+        'relogio-esportivo', 'relogio-rose', 'relogio-noturno', 'relogio-joia', 'relogio-digital', 'relogio-lua', 'relogio-mergulho', 'relogio-campo', 'relogio-prisma',
+      ].sort(),
+    );
+  });
+
+  it('as joias ficam de fora: os anéis de pedra preciosa, o terço de madrepérola e o relógio clássico são lendários; a corrente e as argolas, raras e só de roleta', () => {
+    for (const id of ['anel-safira', 'anel-rubi', 'anel-solitario', 'anel-esmeralda', 'anel-trinca', 'pulseira-terco-madreperola', 'relogio-classico']) {
+      expect(rarityOf(chave(id)), id).toBe('lendario');
+      expect(estaAVenda(chave(id)), id).toBe(false);
+    }
+    for (const id of ['pulseira-corrente', 'pulseira-argolas']) {
+      expect(rarityOf(chave(id)), id).toBe('raro');
+      expect(estaAVenda(chave(id)), id).toBe(false);
+    }
+    // o lendário novo também não se vende, mesmo fora da lista: é a regra do degrau que o barra
+    expect(SO_DE_ROLETA).not.toContain(chave('relogio-bronze'));
+    expect(estaAVenda(chave('relogio-bronze'))).toBe(false);
+    // e toda exceção é uma peça que existe
+    for (const key of SO_DE_ROLETA) expect(findItem(key), key).toBeTruthy();
+  });
+
+  it('esmalte e luva continuam só de roleta, e o que vem com o jogo não se vende; a aliança de início se vende, pelo preço de comum', () => {
+    for (const a of ACESSORIOS.filter((x) => x.tipo === 'esmalte' || x.tipo === 'luva')) expect(estaAVenda(chave(a.id)), a.id).toBe(false);
+    for (const a of ACESSORIOS.filter((x) => isFree(chave(x.id)))) expect(estaAVenda(chave(a.id)), a.id).toBe(false);
+    // a aliança deixou de ser "do jogo": tem preço e está à venda
+    expect(isFree(chave('anel-alianca'))).toBe(false);
+    expect(estaAVenda(chave('anel-alianca'))).toBe(true);
+    expect(rarityOf(chave('anel-alianca'))).toBe('comum');
+    expect(findItem(chave('anel-alianca'))!.chips).toBe(PRECO_DO_ACESSORIO.comum);
+    expect(findItem(chave('anel-alianca'))!.chips).toBe(1000);
+  });
+
+  it('o que se vende continua saindo de roleta', () => {
+    const naRoleta = new Set(ROULETTES.flatMap((r) => dropsOf(r).map((d) => d.key)));
+    for (const id of vendidos) expect(naRoleta.has(chave(id)), id).toBe(true);
+  });
+
+  it('o preço do acessório é o do degrau dele', () => {
+    expect(PRECO_DO_ACESSORIO).toEqual({ comum: 1000, incomum: 2000, raro: 4000, epico: 8000, lendario: 12_000 });
+    for (const a of ACESSORIOS) {
+      const key = chave(a.id);
+      expect(findItem(key)!.chips, a.id).toBe(isFree(key) ? 0 : PRECO_DO_ACESSORIO[rarityOf(key)]);
+    }
+    expect(findItem(chave('pulseira-contas'))!.chips).toBe(1000);
+    expect(findItem(chave('anel-ebano'))!.chips).toBe(2000);
+    expect(findItem(chave('relogio-prisma'))!.chips).toBe(4000);
+    expect(findItem(chave('relogio-mergulho'))!.chips).toBe(8000);
+    // (o lendário não se vende: o preço dele só serve ao reembolso de repetido)
+    expect(findItem(chave('anel-safira'))!.chips).toBe(12_000);
   });
 });
 
@@ -88,6 +192,32 @@ describe('o que chega de fora', () => {
     expect(c.acessorios?.aneis.map((x) => x.id)).toEqual(['anel-alianca']);
     expect(c.acessorios?.pulsos).toEqual({ E: null, D: null });
   });
+
+  it('a aliança de início fica nas mãos de quem ainda a tem — e sai das de quem a perdeu numa aposta', () => {
+    const ALIANCA = itemKey('acessorio', 'anel-alianca');
+    const pedido = sanitizeAcessorios({
+      aneis: [
+        { id: 'anel-alianca', mao: 'E', dedo: 2 },
+        { id: 'anel-coracao', mao: 'D', dedo: 2 },
+        { id: 'anel-alianca', mao: 'D', dedo: 0 },
+      ],
+      pulsos: { E: 'pulseira-contas', D: null },
+    });
+    const aneis = (owned: readonly string[] | undefined) => clampAcessorios(pedido, owned).aneis.map((x) => x.id);
+    // conta nova (lista vazia) e quem joga sem conta: a aliança é dela, nos dois dedos
+    expect(aneis(['acessorio:anel-coracao'])).toEqual(['anel-alianca', 'anel-coracao', 'anel-alianca']);
+    expect(aneis(undefined)).toEqual(['anel-alianca', 'anel-alianca']);
+    // perdeu: a marca tira a aliança de todos os dedos, e não mexe no resto
+    const perdeu = clampAcessorios(pedido, [marcaDePerdido(ALIANCA), 'acessorio:anel-coracao', 'acessorio:pulseira-contas']);
+    expect(perdeu.aneis).toEqual([{ id: 'anel-coracao', mao: 'D', dedo: 2 }]);
+    expect(perdeu.pulsos).toEqual({ E: 'pulseira-contas', D: null });
+    expect(aneis([marcaDePerdido(ALIANCA)])).toEqual([]);
+    // comprou (ou tirou na roleta) outra: a chave na lista vale mais que a marca
+    expect(aneis([marcaDePerdido(ALIANCA), ALIANCA])).toEqual(['anel-alianca', 'anel-alianca']);
+    // e a trava dos cosméticos leva a marca junto
+    const c = clampCosmetics({ ...sanitizeCosmetics({}), acessorios: pedido }, [marcaDePerdido(ALIANCA)]);
+    expect(c.acessorios?.aneis).toEqual([]);
+  });
 });
 
 describe('equipar', () => {
@@ -125,22 +255,30 @@ describe('equipar', () => {
 
 describe('joia é rara', () => {
   const degrau = (id: string) => rarityOf(itemKey('acessorio', id));
-  const alta = (id: string) => degrau(id) === 'raro' || degrau(id) === 'epico';
+  const alta = (id: string) => ['raro', 'epico', 'lendario'].includes(degrau(id));
 
-  it('os anéis são raros ou épicos — menos a aliança lisa, o aro de ébano e a serpente, que ficam no degrau deles', () => {
-    const livres = ['anel-alianca', 'anel-ebano', 'anel-serpente'];
+  it('os anéis são raros ou mais — menos a aliança lisa (comum: de início, e não mais de graça) e o aro de ébano (incomum); os de pedra preciosa são lendários', () => {
+    const livres = ['anel-alianca', 'anel-ebano'];
     for (const a of acessoriosDoTipo('anel')) if (!livres.includes(a.id)) expect(alta(a.id), a.id).toBe(true);
-    expect(isFree(itemKey('acessorio', 'anel-alianca'))).toBe(true);
+    expect(isFree(itemKey('acessorio', 'anel-alianca'))).toBe(false);
+    expect(eDeInicio(itemKey('acessorio', 'anel-alianca'))).toBe(true);
+    expect(degrau('anel-alianca')).toBe('comum');
     expect(degrau('anel-ebano')).toBe('incomum');
+    const lendarios = acessoriosDoTipo('anel').filter((a) => degrau(a.id) === 'lendario').map((a) => a.id);
+    expect(lendarios.sort()).toEqual(['anel-esmeralda', 'anel-rubi', 'anel-safira', 'anel-solitario', 'anel-trinca']);
   });
 
-  it('os relógios são raros ou épicos — menos o digital, o noturno e o das fases da lua', () => {
-    const livres = ['relogio-digital', 'relogio-noturno', 'relogio-lua'];
+  it('os relógios são raros ou mais — menos o digital e o de campo; o clássico e o cronógrafo são lendários', () => {
+    const livres = ['relogio-digital', 'relogio-campo'];
     for (const a of acessoriosDoTipo('relogio')) if (!livres.includes(a.id)) expect(alta(a.id), a.id).toBe(true);
     expect(degrau('relogio-digital')).toBe('incomum');
+    expect(degrau('relogio-campo')).toBe('comum');
+    const lendarios = acessoriosDoTipo('relogio').filter((a) => degrau(a.id) === 'lendario').map((a) => a.id);
+    expect(lendarios.sort()).toEqual(['relogio-bronze', 'relogio-classico']);
   });
 
-  it('as pulseiras de ouro são raras ou épicas', () => {
+  it('as pulseiras de ouro são raras ou épicas, e o terço de madrepérola é a única lendária', () => {
+    expect(acessoriosDoTipo('pulseira').filter((a) => degrau(a.id) === 'lendario').map((a) => a.id)).toEqual(['pulseira-terco-madreperola']);
     const deOuro = acessoriosDoTipo('pulseira').filter((a) => a.tipo === 'pulseira' && a.cor.toLowerCase() === '#e0ad3e');
     expect(deOuro.map((a) => a.id).sort()).toEqual(['pulseira-argolas', 'pulseira-corrente']);
     for (const a of deOuro) expect(alta(a.id), a.id).toBe(true);

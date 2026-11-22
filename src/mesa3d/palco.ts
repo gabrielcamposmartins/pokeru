@@ -64,6 +64,18 @@ export interface Palco3D {
    * pilha com uma mão enquanto comemora com a outra. A promessa se cumpre quando ele o larga.
    */
   pagar(seat: number, valor: number): Promise<void>;
+  /**
+   * A aposta de um acessório (shared/aposta.ts): o personagem tira a peça da mão e a pousa na mesa, na
+   * frente dele. `aoTirar` avisa no instante em que ela sai da mão — é quando o estado da mesa deixa de
+   * tê-la no personagem. A promessa se cumpre quando ela pousa.
+   */
+  apostarItem(seat: number, id: string, aoTirar: () => void): Promise<void>;
+  /** Ninguém pagou a aposta: a peça volta da mesa para a mão do dono. */
+  devolverItem(seat: number, id: string): Promise<void>;
+  /** As peças apostadas nesta rua vão para junto do pote, com as fichas. */
+  recolherItens(): Promise<void>;
+  /** As peças do pote vão para quem as ganhou (`seat` é o dono; `para`, quem ficou com ela). */
+  entregarItens(itens: { seat: number; id: string; para: number }[]): Promise<void>;
 }
 
 let atual: Palco3D | null = null;

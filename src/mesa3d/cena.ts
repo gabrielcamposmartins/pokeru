@@ -21,6 +21,13 @@ import type { CardBackStyle, CardFaceStyle, ChipStyle, TableStyle } from '../../
 import { CARD_W, MUCK_POS, STAGE_H, STAGE_W, boardSlot, type Pt } from '../game/layout';
 import { breakdown } from '../render/Chip';
 import { getTimeScale, scaled } from '../anim/tween';
+import { TIRADA, TIRAR, colocarAcessorio, jogarFichas, tirarAcessorio } from '../personagem/animacoes';
+import { tirarDasMaos } from '../../shared/aposta';
+import { Mesa as MesaDeFisica, disco, type Disco } from './fisica';
+import { CHIP_VALUES } from '../../shared/styles';
+import { Correia, anelSolto, pecaNaMesa, soltarPeca } from './itemNaMesa';
+import { medidasDosLacos } from './acessorios3d';
+import { findAcessorio } from '../../shared/acessorios';
 import { BARALHO, BATIDAS, CARTA, DESISTIR_SOLTA, FICHA, GANHAR, RITMO_MAIS_LIGEIRO, abrirCartas, desistir as desistirDaMao, entregarCartas, meioDoMonteGanho, vistoDoLugar, type Clipe, type Objeto, CARTA_ABERTA } from '../personagem/animacoes';
 import { Boneco } from '../personagem/boneco';
 import { materiaisDaCarta, materiaisDaCartaAberta, materiaisDaFicha, materiaisDoBaralho, materiaisDoBotao, chaveDoEstilo, texturaDoFeltro, FELTRO } from './aparencia';
@@ -28,7 +35,7 @@ import { geometriaDaFicha } from './ficha';
 import { prepararSombra, RUMO_DA_LUZ, SOMBRA, SombrasDeContato } from './sombras';
 import { Ator, DESCANSOS } from './ator';
 import { bonecoDeConta, clipe, clipesProntos, ehDoBaralho, esqueletoDoJogo, maoQueSegura, prepararClipes, descansoComAbertas } from './clipes';
-import { ALTURA_DA_MESA as MESA, CAMERA_DO_JOGO, DESCARTE, GIRO_DO_BARALHO, MARCAS, MEIO, METRO_POR_PX, POTE_3D, RAIO, TRILHO, lenteDaTela, planoParaMundo, seatLayout3d, type SeatGeo3D } from './geometria';
+import { ALTURA_DA_MESA as MESA, CAMERA_DO_JOGO, DESCARTE, MONTE_DAS_PECAS, GIRO_DO_BARALHO, MARCAS, MEIO, METRO_POR_PX, POTE_3D, RAIO, TRILHO, lenteDaTela, planoParaMundo, seatLayout3d, type SeatGeo3D } from './geometria';
 import { modeloPronto, prepararRoupa, useModelos, vestido } from './modelos';
 import { SEM_ACESSORIOS, chaveDosAcessorios, type Acessorios } from '../../shared/acessorios';
 import type { Palco3D } from './palco';
@@ -184,17 +191,97 @@ interface Voo {
   some: boolean;
   valor?: number;
   estilo?: ChipStyle;
+  /**
+   * As fichas vão **empurradas pelo feltro**, e não pelo ar: cada coluna escorrega rente à mesa, uma
+   * um nada atrás da outra, pendendo para trás ao arrancar e para a frente ao parar; a fila delas vira
+   * do rumo em que estava (`ladoDe`) para o de quem as recebe (`ladoAte`). A semente é a do monte em
+   * que elas viram ao chegar — para cada ficha pousar já como vai ficar.
+   */
+  empurrado?: { ladoDe: THREE.Vector3; ladoAte: THREE.Vector3; semente: number };
+  /** Uma coluna só, de um valor de ficha (em vez do monte que soma `valor`): a que vai para cima da pilha de quem ganhou. */
+  coluna?: { ti: number; count: number; semente: number };
   pronto: () => void;
+}
+
+/** No empurrão do pote, quanto do caminho a última coluna sai depois da primeira. */
+const FILA_DO_POTE = 0.16;
+/** O que quem ganhou acabou de pôr junto da pilha: fica ali até o estado da mesa contar as fichas na pilha dele. */
+interface Recebidas {
+  estilo: ChipStyle;
+  cols: { ti: number; count: number; semente: number; x: number; z: number; y0: number }[];
+  /** A pilha dele quando as fichas chegaram (quando ela mudar, é a pilha que as mostra). */
+  pilhaAntes: number;
+  /** Até quando esperar pelo estado (ms do relógio do quadro). */
+  ate: number;
 }
 
 /** Uma aposta em curso: o personagem está levando o punhado da pilha para a mesa. */
 interface Apostando {
   valor: number;
-  /** A aposta que o estado tinha quando o gesto começou: enquanto ela não muda, o punhado pousado continua à vista. */
+  /** A aposta que o estado tinha quando o gesto começou: enquanto ela não muda, as colunas continuam sem as fichas que saíram. */
   antes: number;
   estado: 'pilha' | 'mao' | 'pousou';
+  /** As fichas que estão na mão (cada uma diz, em `n`, de que pegada veio). */
   objs: Objeto[];
+  /** De que colunas da pilha as fichas saem: a coluna, o valor das fichas dela, quantas vão, e se a mão já as tirou. */
+  pegas: { coluna: number; ti: number; leva: number; pegou: boolean }[];
 }
+
+/** Uma ficha solta na mesa: jogada numa aposta, com corpo (src/mesa3d/fisica.ts), até a rua ser recolhida. */
+interface FichaSolta {
+  d: Disco;
+  ti: number;
+  estilo: ChipStyle;
+}
+
+/** A mesa é um estádio: dois meios círculos de raio `RAIO` em volta de (±MEIO, 0). Um ponto está no feltro, com folga? */
+const noFeltro = (x: number, z: number): boolean => Math.hypot(x - Math.max(-MEIO, Math.min(MEIO, x)), z) < RAIO - 0.07;
+
+/** Um acessório apostado, em cima da mesa: parado, indo de um lugar a outro, ou ainda na mão de quem o tira. */
+interface ItemNaCena {
+  seat: number;
+  id: string;
+  grupo: THREE.Group;
+  /** Onde está (ou para onde o voo o leva). */
+  em: THREE.Vector3;
+  /** Na frente do dono (apostado nesta rua) ou no monte das peças (o pote delas). */
+  lugar: 'aposta' | 'pote';
+  /** A altura do que está por baixo dela, a contar do tampo (no monte, as peças que chegaram antes). */
+  base: number;
+  voo?: { de: THREE.Vector3; inicio: number; dur: number; arco: number; some: boolean; pronto: () => void; giroDe: THREE.Quaternion };
+  /** Vai na mão de quem o está pondo na mesa (segue o gesto). */
+  naMao: boolean;
+  /** O estado da mesa já o conta (antes disso é só do gesto: não some por não estar no estado). */
+  contado: boolean;
+  desde: number;
+  /** A que altura do tampo fica a origem do desenho, com a peça pousada (o anel é centrado; a correia mede-se do meio do laço). */
+  alto: number;
+  /** O anel jogado: o corpo dele na física da mesa, enquanto não é levado dali. */
+  corpo?: Disco;
+  /** A pulseira ou o relógio que desabotoa (o corpo mole dela). */
+  correia?: Correia;
+  /** O giro em volta do eixo vertical com que a peça foi posta (o de quem a pôs). */
+  giro: number;
+  /** De onde ela saiu, em quem a apostou: é para onde volta, se voltar. */
+  usa?: { mao: 'E' | 'D'; onde: 'pulso' | number };
+  /** Está sendo colocada de volta pelo dono (o estado da mesa já não a conta, mas ela ainda está em cena). */
+  voltando?: boolean;
+  /** Largada na mesa, a correia tomba até o jeito em que fica: de onde partiu, e quando. */
+  tombando?: { de: THREE.Quaternion; inicio: number };
+}
+
+/** Quanto a correia leva para tombar e deitar, depois de largada (ms). */
+const TOMBO = 420;
+
+/** O tamanho da correia em cima da mesa (no pulso ela tem o de verdade; cresce no caminho). */
+const ESCALA_DA_CORREIA = 1.3;
+/** Como o aro (o anel, a argola) vai entre os dedos de quem o leva: de pé, pendurado — o eixo dele deitado. */
+const DE_PE = new THREE.Quaternion().setFromEuler(new THREE.Euler(1.35, 0, 0.12));
+
+/** Quanto uma peça fica ao lado da outra, quando o mesmo jogador aposta mais de uma (metros). */
+const ENTRE_ITENS = 0.05;
+/** No monte das peças: até onde cada uma cai fora do meio dele, e quanto cada uma sobe sobre as que já estão. */
+const MONTE = { espalha: 0.034, sobe: 0.0055, aneis: 0.085 };
 
 export class Cena3D implements Palco3D {
   private readonly renderer: THREE.WebGLRenderer;
@@ -234,6 +321,8 @@ export class Cena3D implements Palco3D {
   private readonly lancou = new Set<number>();
   /** O pote que cada vencedor está puxando: quanto, com que fichas, se já pousou na frente dele e o instante do gesto. */
   private readonly ganhando = new Map<number, { valor: number; estilo: ChipStyle | undefined; naMesa: boolean; t: number }>();
+  /** As fichas que cada um ganhou e já pôs na pilha, enquanto o estado da mesa não as conta. */
+  private readonly recebidas = new Map<number, Recebidas>();
   /** As cartas fechadas que brilham (as de quem ganhou, antes de virar): a cor do brilho de cada assento. */
   private readonly brilhando = new Map<number, THREE.Color>();
   /** De que mão são os brilhos (eles acabam com ela). */
@@ -251,6 +340,23 @@ export class Cena3D implements Palco3D {
   /** Os gestos de repartir e de abrir, por arrumação da mesa (montar um custa um instante). */
   private readonly entregas = new Map<string, Clipe | undefined>();
   private voos: Voo[] = [];
+  /** A física do que é jogado na mesa (as fichas das apostas, os anéis). */
+  private readonly fisica = new MesaDeFisica(MESA, noFeltro);
+  private antesDaFisica = 0;
+  private antesDasPecas = 0;
+  /** As fichas soltas da aposta de cada um: jogadas na mesa, ficam onde caíram até a rua ser recolhida. */
+  private readonly soltas = new Map<number, FichaSolta[]>();
+  /** O gesto de pegar fichas e jogar, por colunas visitadas (a coluna, a altura dela e quantas saem). */
+  private readonly jogadas = new Map<string, ReturnType<typeof jogarFichas> | undefined>();
+  /** Os acessórios apostados que estão em cima da mesa (por dono e peça). */
+  private readonly itens = new Map<string, ItemNaCena>();
+  /** O gesto de tirar um acessório (e o de colocá-lo de volta), por mão e lugar (do pulso, de cada dedo) e por onde ele é pousado. */
+  private readonly tiradas = new Map<string, Clipe | undefined>();
+  /**
+   * As peças que o estado da mesa já dá como postas em alguém, mas que ele ainda está colocando (o
+   * gesto de pôr de volta o que voltou): até acabar, o personagem aparece sem elas.
+   */
+  private readonly escondidos = new Map<number, Set<string>>();
   private readonly geoCarta = new THREE.BoxGeometry(CARTA.larg, CARTA.alto, CARTA.comp);
   private readonly geoBaralho = new THREE.BoxGeometry(CARTA.larg, BARALHO.alto, CARTA.comp);
   private readonly geoFicha = geometriaDaFicha();
@@ -407,6 +513,8 @@ export class Cena3D implements Palco3D {
       this.pe.color.set(shade(e.mesa.rail, -0.55));
     }
     this.baralho.material = materiaisDoBaralho(e.cartas.back);
+    this.acertarItens();
+    for (const seat of [...this.soltas.keys()]) if ((v.seats[seat]?.bet ?? 0) === 0 && !this.apostando.has(seat)) this.tirarSoltas(seat);
     // a aposta que o estado já conta: o punhado pousado sai de cena
     for (const [seat, a] of this.apostando) if ((v.seats[seat]?.bet ?? 0) !== a.antes && a.estado === 'pousou') this.apostando.delete(seat);
     // (quem senta e quem sai é visto no próximo quadro: montar um personagem aqui travava o quadro em que o estado chega)
@@ -425,8 +533,11 @@ export class Cena3D implements Palco3D {
     }
     for (const [seat, ator] of this.atores) {
       const s = v.seats[seat];
-      // (trocou de personagem, ou de acessórios: o personagem é refeito)
-      if (!s || !this.geo[seat] || e.personagemDe(seat) !== ator.personagem || chaveDosAcessorios(e.acessoriosDe?.(seat) ?? SEM_ACESSORIOS) !== ator.enfeites) {
+      // (só os anéis ou o que vai no pulso mudaram — ele apostou um acessório, ou ganhou um de volta: troca as peças, sem refazê-lo)
+      const acessorios = this.acessoriosVisiveis(seat);
+      if (s && this.geo[seat] && e.personagemDe(seat) === ator.personagem && chaveDosAcessorios(acessorios) !== ator.enfeites && ator.trocarEnfeites(acessorios)) continue;
+      // (trocou de personagem, de luva ou de esmalte: o personagem é refeito)
+      if (!s || !this.geo[seat] || e.personagemDe(seat) !== ator.personagem || chaveDosAcessorios(acessorios) !== ator.enfeites) {
         ator.destruir();
         this.chegando.delete(ator);
         this.atores.delete(seat);
@@ -438,7 +549,7 @@ export class Cena3D implements Palco3D {
       const g = this.geo[seat];
       if (!s || !g || this.atores.has(seat)) return;
       const id = e.personagemDe(seat);
-      const acessorios = e.acessoriosDe?.(seat) ?? SEM_ACESSORIOS;
+      const acessorios = this.acessoriosVisiveis(seat);
       // (a roupa é a do traje com a luva que o jogador escolheu)
       const comLuva = vestido(id, acessorios.luva);
       const modelo = modeloPronto(comLuva);
@@ -555,20 +666,85 @@ export class Cena3D implements Palco3D {
     return new Promise((pronto) => this.voos.push({ ...v, inicio: performance.now(), dur, pronto }));
   }
 
-  apostar(seat: number, valor: number): Promise<void> {
-    const ator = this.atores.get(seat);
-    const fichas = clipe('fichas');
-    const s = this.entrada?.view.seats[seat];
-    if (!ator || !fichas || valor <= 0) {
-      // sem personagem (ainda modelando): as fichas voam da pilha para a aposta
-      return this.voar({ tipo: 'fichas', de: this.pontoDaPilha(seat), ate: this.pontoDaAposta(seat), giroDe: 0, giroAte: 0, arco: 0.06, some: false, valor, estilo: this.entrada?.fichaDe(seat), ms: VOO.aposta });
+  /** Onde fica a coluna `j` da pilha de um jogador, nas coordenadas dele: a primeira na marca, as outras para fora, em ziguezague. */
+  private colunaDaPilha(j: number): [number, number] {
+    return j === 0 ? [MARCAS.pilha[0], MARCAS.pilha[1]] : [MARCAS.pilha[0] - j * ENTRE_COLUNAS * 1.02, MARCAS.pilha[1] - ((j - 1) % 2) * 0.012];
+  }
+
+  private tirarSoltas(seat: number, ateValor = Infinity): void {
+    const lista = this.soltas.get(seat);
+    if (!lista) return;
+    let saiu = 0;
+    while (lista.length && saiu < ateValor) {
+      const f = lista.pop()!;
+      saiu += CHIP_VALUES[f.ti] ?? 0;
+      this.fisica.tirar(f.d);
     }
+    if (!lista.length) this.soltas.delete(seat);
+  }
+
+  /** As fichas saem da mão: daqui em diante são da mesa — cada uma com a velocidade da mão, um giro e um desvio dela. */
+  private soltar(seat: number, ator: Ator, objs: Objeto[], pegas: Apostando['pegas'], forte: boolean) {
+    const estilo = this.entrada?.fichaDe(seat);
+    if (!estilo) return;
+    const origem = ator.noMundo(V(0, 0, 0));
+    const frente = ator.noMundo(V(0, 0, 1)).sub(origem).setY(0).normalize();
+    const lado = V(frente.z, 0, -frente.x);
+    const lista = this.soltas.get(seat) ?? [];
+    this.soltas.set(seat, lista);
+    const giroDoAtor = new THREE.Quaternion().setFromAxisAngle(EIXO_Y, Math.atan2(frente.x, frente.z));
+    objs.forEach((o, i) => {
+      const r = (k: number) => hash01(seat * 131 + i * 17 + k, performance.now() | 0);
+      const impulso = (forte ? 0.62 : 0.44) * (0.82 + 0.36 * r(1));
+      const vel = frente.clone().multiplyScalar(impulso).addScaledVector(lado, (r(2) - 0.5) * 0.2).add(V(0, 0.04 + 0.12 * r(3), 0));
+      // (saem quase deitadas, cada uma um pouco torta: é o que as faz cair de quina e rodopiar)
+      const torta = new THREE.Quaternion().setFromEuler(new THREE.Euler((r(4) - 0.5) * 0.7, r(5) * 6.28, (r(6) - 0.5) * 0.7));
+      const giro = V((r(7) - 0.5) * 9, (r(8) - 0.5) * 10, (r(9) - 0.5) * 9);
+      const d = this.fisica.por(disco(ator.noMundo(o.pos.clone()), giroDoAtor.clone().multiply(torta), vel, giro, FICHA.raio, FICHA.alto / 2));
+      lista.push({ d, ti: pegas[o.n ?? 0]?.ti ?? pegas[0]?.ti ?? 0, estilo });
+    });
+  }
+
+  apostar(seat: number, valor: number, allin = false): Promise<void> {
+    const ator = this.atores.get(seat);
+    const s = this.entrada?.view.seats[seat];
+    // sem personagem (ainda modelando): as fichas voam da pilha para a aposta
+    const voando = () =>
+      this.voar({ tipo: 'fichas', de: this.pontoDaPilha(seat), ate: this.pontoDaAposta(seat), giroDe: 0, giroAte: 0, arco: 0.06, some: false, valor, estilo: this.entrada?.fichaDe(seat), ms: VOO.aposta });
+    if (!ator || !s || valor <= 0 || !this.geo[seat]) return voando();
+    // As fichas que vão para a mesa são as da aposta (200 são duas de 100), e a mão vai buscá-las nas
+    // colunas desses valores — no máximo duas colunas, as que mais pesam na aposta, um punhado de cada.
+    // Quando a pilha não tem ficha daquele valor, sai da menor coluna que o cobre: é o troco.
+    const antes = breakdown(s.stack, 4, 99);
+    if (!antes.length) return voando();
+    const partes = breakdown(valor, 4, 99)
+      .sort((x, y) => (CHIP_VALUES[y.ti] ?? 0) * y.count - (CHIP_VALUES[x.ti] ?? 0) * x.count)
+      .slice(0, 2);
+    if (!partes.length) return voando();
+    const pegas: (Apostando['pegas'][number] & { altura: number })[] = [];
+    for (const parte of partes) {
+      let coluna = antes.findIndex((c) => c.ti === parte.ti);
+      // (as colunas vão do maior valor para o menor: a última que vale mais é a menor que cobre)
+      if (coluna < 0) for (let j = antes.length - 1; j >= 0 && coluna < 0; j--) if (antes[j].ti > parte.ti) coluna = j;
+      if (coluna < 0) coluna = 0;
+      // (duas partes da mesma coluna: uma pegada só)
+      if (pegas.some((x) => x.coluna === coluna)) continue;
+      pegas.push({ coluna, ti: parte.ti, leva: Math.min(parte.count, NO_PUNHADO), pegou: false, altura: Math.min(antes[coluna].count, NA_PILHA) });
+    }
+    const chave = pegas.map((x) => `${x.coluna}:${x.altura}:${x.leva}`).join('|');
+    if (!this.jogadas.has(chave)) {
+      try {
+        this.jogadas.set(chave, jogarFichas(bonecoDeConta(), pegas.map((x) => ({ em: this.colunaDaPilha(x.coluna), altura: x.altura, leva: x.leva })), [MARCAS.aposta[0], MARCAS.aposta[1]]));
+      } catch (err) {
+        console.warn('[mesa 3D] sem o gesto de pegar as fichas', err);
+        this.jogadas.set(chave, undefined);
+      }
+    }
+    const jogada = this.jogadas.get(chave);
+    if (!jogada) return voando();
     return new Promise((pronto) => {
-      const a: Apostando = { valor, antes: s?.bet ?? 0, estado: 'pilha', objs: [] };
+      const a: Apostando = { valor, antes: s.bet ?? 0, estado: 'pilha', objs: [], pegas };
       this.apostando.set(seat, a);
-      // os pontos do clipe (no espaço do personagem) para saber onde o punhado está
-      const [px, pz] = MARCAS.pilha;
-      const [ax, az] = MARCAS.aposta;
       let avisou = false;
       const avisar = () => {
         if (!avisou) {
@@ -576,19 +752,26 @@ export class Cena3D implements Palco3D {
           pronto();
         }
       };
-      ator.tocar(fichas, {
+      let naMao: Objeto[] = [];
+      ator.tocar(jogada.clipe, {
         vel: 1.7,
-        aoAndar: (_t, objs, fim) => {
-          const punhado = objs.slice(-NO_PUNHADO);
-          a.objs = punhado;
-          const p = punhado[0]?.pos;
-          if (p) {
-            const naPilha = Math.hypot(p.x - px, p.z - pz) < 0.004;
-            const naAposta = Math.hypot(p.x - ax, p.z - az) < 0.004 && p.y < MESA + 0.02;
-            if (naAposta) a.estado = 'pousou';
-            else if (!naPilha) a.estado = 'mao';
+        aoAndar: (t, objs, fim) => {
+          pegas.forEach((x, k) => {
+            if (t >= jogada.pegou[k]) x.pegou = true;
+          });
+          if (t < jogada.soltou) {
+            a.objs = objs;
+            if (objs.length) {
+              a.estado = 'mao';
+              naMao = objs;
+            }
+          } else if (a.estado !== 'pousou') {
+            // a mão abriu: as fichas são da mesa, e o estado conta a aposta quando elas batem nela
+            a.estado = 'pousou';
+            a.objs = [];
+            this.soltar(seat, ator, naMao, pegas, allin);
+            setTimeout(avisar, scaled(240));
           }
-          if (a.estado === 'pousou') avisar();
           if (fim) {
             avisar();
             if (this.apostando.get(seat) === a) this.apostando.delete(seat);
@@ -596,11 +779,431 @@ export class Cena3D implements Palco3D {
         },
       });
       // (uma rede: se o gesto não acabar — a aba escondida, um clipe diferente —, a mesa não trava)
-      setTimeout(avisar, scaled(3200));
+      setTimeout(avisar, scaled(3600));
     });
   }
 
+  // ─────────────────────────────── os acessórios apostados ───────────────────────────────
+
+  /** Onde a peça de um jogador fica pousada, na frente dele (`k`: quantas ele já tem ali). */
+  private pontoDoItem(seat: number, k = 0): THREE.Vector3 {
+    return this.doAssento(seat, TIRADA.alvo[0] + ENTRE_ITENS * k, MESA, TIRADA.alvo[1]);
+  }
+
+  /**
+   * Onde a peça fica no monte das peças (o "pote" delas: do lado oposto ao do descarte). É um monte
+   * como o das cartas: a correia cai um pouco fora do meio, por cima das que já estão;
+   * o anel e a argola, miúdos, ficam ao pé dele, no feltro — por baixo de um relógio sumiriam.
+   */
+  private pontoNoPote(id: string, menos?: ItemNaCena): THREE.Vector3 {
+    const eMiudo = (qual: string) => {
+      const def = findAcessorio(qual);
+      return def?.tipo === 'anel' || (def?.tipo === 'pulseira' && (def.feitio === 'argola' || def.feitio === 'argolas'));
+    };
+    const miudo = eMiudo(id);
+    // (quantas do mesmo tipo já estão lá: as correias empilham; os miúdos espalham-se ao pé do monte)
+    const k = [...this.itens.values()].filter((i) => i !== menos && i.lugar === 'pote' && eMiudo(i.id) === miudo).length;
+    const [x, z] = MONTE_DAS_PECAS;
+    if (miudo) return V(x + jitter(613, k, 3) * 0.06, MESA, z + MONTE.aneis + jitter(613, k, 4) * 0.012);
+    return V(x + jitter(613, k) * MONTE.espalha, MESA + k * MONTE.sobe, z + jitter(613, k, 5) * MONTE.espalha);
+  }
+
+  /** A mão do dono, em descanso: de onde a peça sai (e para onde volta) quando não há o gesto. */
+  private maoDe(seat: number): THREE.Vector3 {
+    return this.doAssento(seat, 0.17, MESA + 0.03, 0.31);
+  }
+
+  /** O que o personagem veste nas mãos agora: o que o estado diz, menos as peças que ele ainda está colocando de volta. */
+  private acessoriosVisiveis(seat: number): Acessorios {
+    let a = this.entrada?.acessoriosDe?.(seat) ?? SEM_ACESSORIOS;
+    for (const id of this.escondidos.get(seat) ?? []) a = tirarDasMaos(a, id).acessorios;
+    return a;
+  }
+
+  private esconder(seat: number, id: string, sim: boolean) {
+    const s = this.escondidos.get(seat) ?? new Set<string>();
+    if (sim) s.add(id);
+    else s.delete(id);
+    if (s.size) this.escondidos.set(seat, s);
+    else this.escondidos.delete(seat);
+    this.faltaSentar = true;
+  }
+
+  /** As medidas do pulso na pose de repouso (o centro do laço e o raio médio): é de onde a correia é medida. */
+  private pulso(): { centro: [number, number, number]; raio: number } {
+    const m = medidasDosLacos();
+    const c = m.centros[m.centros.length - 1];
+    return { centro: [c[0], c[1], c[2]], raio: m.pulso };
+  }
+
+  /**
+   * Põe uma peça na cena. O anel é um desenho centrado, pronto para a física; a pulseira e o relógio
+   * de fecho são uma correia que abre (`mao`: de que pulso saiu — o desenho da direita é espelhado);
+   * o aro rígido é a peça deitada. `pousada`: já chega no lugar, aberta e do tamanho da mesa.
+   */
+  private porItem(seat: number, id: string, em: THREE.Vector3, lugar: ItemNaCena['lugar'], mao: 'E' | 'D' = 'E', pousada = true): ItemNaCena | null {
+    const chave = `${seat}:${id}`;
+    const ja = this.itens.get(chave);
+    if (ja) return ja;
+    const def = findAcessorio(id);
+    let grupo: THREE.Group | null = null;
+    let alto = 0;
+    let correia: Correia | undefined;
+    const aro = def?.tipo === 'anel' || (def?.tipo === 'pulseira' && (def.feitio === 'argola' || def.feitio === 'argolas'));
+    if (aro) {
+      const solto = anelSolto(id);
+      if (solto) {
+        grupo = solto.grupo;
+        alto = solto.meia;
+        grupo.userData.raio = solto.raio;
+      }
+    } else if (def?.tipo === 'pulseira' || def?.tipo === 'relogio') {
+      const { centro, raio } = this.pulso();
+      const c = new Correia(id, mao, centro, raio);
+      if (c.rigida) c.soltar();
+      else {
+        correia = c;
+        grupo = c.grupo;
+        if (pousada) {
+          c.ja('deitada');
+          grupo.scale.setScalar(ESCALA_DA_CORREIA);
+          grupo.quaternion.copy(c.largada());
+          alto = c.abaixo(grupo.quaternion, ESCALA_DA_CORREIA);
+        }
+      }
+    }
+    grupo ??= pecaNaMesa(id);
+    if (!grupo) return null;
+    const giro = this.giroDo(seat);
+    if (!correia) grupo.rotation.y = giro;
+    grupo.position.copy(em);
+    // (só a que já chega pousada tem algo por baixo — as do monte; a que nasce na mão do dono vai para o tampo)
+    const base = pousada ? Math.max(0, em.y - MESA) : 0;
+    if (pousada) grupo.position.y = MESA + base + alto;
+    this.cena.add(grupo);
+    const item: ItemNaCena = { seat, id, grupo, em: grupo.position.clone(), lugar, base, naMao: false, contado: false, desde: performance.now(), alto, correia, giro, usa: this.ondeUsa(seat, id) ?? undefined };
+    this.itens.set(chave, item);
+    return item;
+  }
+
+  private tirarItem(item: ItemNaCena) {
+    item.voo?.pronto();
+    if (item.corpo) this.fisica.tirar(item.corpo);
+    soltarPeca(item.grupo);
+    this.itens.delete(`${item.seat}:${item.id}`);
+  }
+
+  /** A peça vai de onde está até `ate` (um ponto do tampo: ela pousa na altura dela); some ao chegar, se for o caso. */
+  private levarItem(item: ItemNaCena, ate: THREE.Vector3, ms: number, arco: number, some = false): Promise<void> {
+    item.voo?.pronto();
+    // (a que foi jogada deixa de ser da física: daqui em diante ela é levada)
+    if (item.corpo) {
+      this.fisica.tirar(item.corpo);
+      item.corpo = undefined;
+    }
+    const dur = scaled(ms);
+    return new Promise((pronto) => {
+      item.voo = { de: item.grupo.position.clone(), inicio: performance.now(), dur: Math.max(1, dur), arco, some, pronto, giroDe: item.grupo.quaternion.clone() };
+      item.em.copy(ate);
+      // (pousa na altura dela, por cima do que já houver ali — no monte, as peças que chegaram antes)
+      item.base = some ? 0 : Math.max(0, ate.y - MESA);
+      if (!some) item.em.y = MESA + item.base + item.alto;
+    });
+  }
+
+  /** O estado da mesa mudou: põe na mesa as peças que ele conta e ainda não estão, e tira as que ele deixou de contar. */
+  private acertarItens() {
+    const v = this.entrada?.view;
+    if (!v) return;
+    const noEstado = new Set((v.itens ?? []).map((i) => `${i.seat}:${i.id}`));
+    for (const item of [...this.itens.values()]) {
+      const chave = `${item.seat}:${item.id}`;
+      if (noEstado.has(chave)) item.contado = true;
+      // (a que só o gesto conhece espera o estado alcançá-la — mas não para sempre)
+      else if (!item.voo && !item.naMao && !item.voltando && (item.contado || performance.now() - item.desde > 9000)) this.tirarItem(item);
+    }
+    for (const i of v.itens ?? []) {
+      // (a que ainda está na mão do dono — a entrada de quem ficou sem fichas — espera o gesto dele)
+      if (i.chegando || this.itens.has(`${i.seat}:${i.id}`) || !this.geo[i.seat]) continue;
+      // (chegou com a mão andando — uma reconexão, a mesa aberta no meio: na frente de quem ainda tem aposta na rua, senão no pote)
+      const naRua = (v.seats[i.seat]?.bet ?? 0) > 0;
+      const item = this.porItem(i.seat, i.id, i.naAposta && naRua ? this.pontoDoItem(i.seat) : this.pontoNoPote(i.id), i.naAposta && naRua ? 'aposta' : 'pote');
+      if (item) item.contado = true;
+    }
+  }
+
+  /** Onde o jogador usa a peça: em que mão, e se no pulso ou em que dedo (pelo que ele veste agora). */
+  private ondeUsa(seat: number, id: string): { mao: 'E' | 'D'; onde: 'pulso' | number } | null {
+    const a = this.entrada?.acessoriosDe?.(seat);
+    if (!a) return null;
+    for (const m of ['E', 'D'] as const) if (a.pulsos[m] === id) return { mao: m, onde: 'pulso' };
+    const anel = a.aneis.find((x) => x.id === id);
+    return anel ? { mao: anel.mao, onde: anel.dedo } : null;
+  }
+
+  apostarItem(seat: number, id: string, aoTirar: () => void): Promise<void> {
+    const k = [...this.itens.values()].filter((i) => i.seat === seat && i.lugar === 'aposta').length;
+    const destino = this.pontoDoItem(seat, k);
+    const ator = this.atores.get(seat);
+    const usa = this.ondeUsa(seat, id);
+    const semGesto = () => {
+      // sem o personagem (ainda modelando) ou sem saber de onde a peça sai: ela voa da mão para a mesa
+      aoTirar();
+      const item = this.porItem(seat, id, this.maoDe(seat), 'aposta', usa?.mao);
+      return item ? this.levarItem(item, destino, 520, 0.07) : Promise.resolve();
+    };
+    if (!ator || !usa || !this.geo[seat]) return semGesto();
+    // O jeito de tirar: o anel é puxado do dedo e jogado; a pulseira e o relógio de fecho são
+    // desabotoados e pousados; o aro rígido sai pela mão e é pousado.
+    const def = findAcessorio(id);
+    const rigido = def?.tipo === 'pulseira' && (def.feitio === 'argola' || def.feitio === 'argolas');
+    const jeito = usa.onde !== 'pulso' ? 'jogar' : rigido ? 'puxar' : 'desabotoar';
+    const chave = `${usa.mao}:${usa.onde}:${k}:${jeito}`;
+    if (!this.tiradas.has(chave)) {
+      try {
+        this.tiradas.set(chave, tirarAcessorio(bonecoDeConta(), { mao: usa.mao, onde: usa.onde, alvo: [TIRADA.alvo[0] + ENTRE_ITENS * k, TIRADA.alvo[1]], jeito }));
+      } catch (err) {
+        console.warn('[mesa 3D] sem o gesto de tirar o acessório', err);
+        this.tiradas.set(chave, undefined);
+      }
+    }
+    const gesto = this.tiradas.get(chave);
+    if (!gesto) return semGesto();
+    return new Promise((pronto) => {
+      let item: ItemNaCena | null = null;
+      let avisou = false;
+      let noPulso: THREE.Quaternion | null = null;
+      const emPe = new THREE.Quaternion().setFromAxisAngle(EIXO_Y, this.giroDo(seat));
+      const avisar = () => {
+        if (!avisou) {
+          avisou = true;
+          pronto();
+        }
+      };
+      /** A peça chegou à mesa (pousada pela mão): fica no lugar dela, e a correia cede com a batida. */
+      const pousou = () => {
+        if (avisou) return;
+        if (!item) {
+          aoTirar();
+          item = this.porItem(seat, id, destino, 'aposta', usa.mao);
+          if (item) item.usa = usa;
+        }
+        if (item) {
+          item.naMao = false;
+          if (item.correia) {
+            // solta na mesa, a correia não fica em pé: as metades desenrolam, ela tomba para um lado e deita
+            item.grupo.scale.setScalar(ESCALA_DA_CORREIA);
+            item.correia.ir('deitada');
+            item.tombando = { de: item.grupo.quaternion.clone(), inicio: performance.now() };
+            item.alto = item.correia.abaixo(item.grupo.quaternion, ESCALA_DA_CORREIA);
+            item.base = 0;
+            item.em.copy(destino).setY(MESA + item.alto);
+            item.grupo.position.copy(item.em);
+          } else {
+            // o aro que não abre é largado de pé, rente à mesa: tomba e deita de lado, pelo próprio peso
+            const r = (n: number) => hash01(seat * 53 + n, performance.now() | 0);
+            const cai = V((r(1) - 0.5) * 0.05, 0, 0.03 + 0.04 * r(2));
+            item.corpo = this.fisica.por(disco(item.grupo.position, item.grupo.quaternion, cai, V(2.5 + 2 * r(3), (r(4) - 0.5) * 3, (r(5) - 0.5) * 2), (item.grupo.userData.raio as number) ?? 0.03, Math.max(0.003, item.alto)));
+          }
+        }
+        avisar();
+      };
+      /** O anel saiu dos dedos no ar: vira um corpo da mesa, com a velocidade da mão e um giro. */
+      const jogou = () => {
+        if (avisou || !item) return;
+        item.naMao = false;
+        const frente = ator.noMundo(V(0, 0, 1)).sub(ator.noMundo(V(0, 0, 0))).setY(0).normalize();
+        const r = (n: number) => hash01(seat * 71 + n, performance.now() | 0);
+        const vel = frente.clone().multiplyScalar(0.46 + 0.14 * r(1)).addScaledVector(V(frente.z, 0, -frente.x), (r(2) - 0.5) * 0.12).add(V(0, 0.1 + 0.1 * r(3), 0));
+        const torto = item.grupo.quaternion.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler((r(4) - 0.5) * 0.5, 0, (r(5) - 0.5) * 0.5)));
+        item.corpo = this.fisica.por(disco(item.grupo.position, torto, vel, V((r(6) - 0.5) * 10, (r(7) - 0.5) * 6, (r(8) - 0.5) * 10 + 4), (item.grupo.userData.raio as number) ?? 0.018, Math.max(0.003, item.alto)));
+        // o estado conta a aposta quando ele bate na mesa
+        setTimeout(avisar, scaled(300));
+      };
+      ator.tocar(gesto, {
+        vel: 1.5,
+        aoAndar: (t, objs, fim) => {
+          const o = objs[0];
+          if (!avisou && t >= TIRAR.pega) {
+            // a peça saiu de quem a usava: daqui em diante é da mesa (o personagem deixa de tê-la)
+            if (!item && o) {
+              aoTirar();
+              item = this.porItem(seat, id, ator.noMundo(o.pos.clone()), 'aposta', usa.mao, false);
+              if (item) {
+                item.naMao = true;
+                item.usa = usa;
+              }
+            }
+            if (item?.naMao && item.correia) {
+              // a correia: no pulso (onde a do personagem estava) até ser levantada; aí vai pendurada dos dedos,
+              // virando-se de pé e crescendo até o tamanho da mesa
+              const c = item.correia;
+              // desabotoada, as metades caem para os lados do pulso; levantada, ela pende dos dedos
+              c.ir(t >= TIRAR.saiu - 0.25 ? 'pendurada' : t >= TIRAR.abre ? 'solta' : 'fechada');
+              const m = ator.matrizDaPeca(c.osso, usa.mao);
+              const { centro } = this.pulso();
+              const sobe = macio(Math.min(1, Math.max(0, (t - (TIRAR.saiu - 0.25)) / (TIRAR.pousa - (TIRAR.saiu - 0.25)))));
+              if (m) {
+                const meio = V(usa.mao === 'D' ? -centro[0] : centro[0], centro[1], centro[2]).applyMatrix4(m);
+                noPulso = new THREE.Quaternion().setFromRotationMatrix(m);
+                if (t < TIRAR.saiu - 0.25) item.grupo.position.copy(meio);
+                else if (o) item.grupo.position.copy(ator.noMundo(o.pos.clone()));
+                item.grupo.quaternion.copy(noPulso).slerp(emPe, sobe);
+              } else if (o) item.grupo.position.copy(ator.noMundo(o.pos.clone()));
+              item.grupo.scale.setScalar(1 + (ESCALA_DA_CORREIA - 1) * sobe);
+              item.em.copy(item.grupo.position);
+            } else if (item?.naMao && o) {
+              // o aro vai de pé entre os dedos (pendurado deles), um pouco abaixo da pinça
+              item.grupo.position.copy(ator.noMundo(o.pos.clone()));
+              item.grupo.quaternion.copy(emPe).multiply(DE_PE);
+              item.em.copy(item.grupo.position);
+            }
+          }
+          if (jeito === 'jogar') {
+            if (t >= TIRAR.joga && item?.naMao) jogou();
+          } else if (t >= TIRAR.pousa) pousou();
+          if (fim) {
+            if (jeito === 'jogar' && item?.naMao) jogou();
+            else if (jeito !== 'jogar') pousou();
+            avisar();
+          }
+        },
+      });
+      // (uma rede: se o gesto não acabar — a aba escondida —, a mesa não trava)
+      setTimeout(() => (jeito === 'jogar' ? avisar() : pousou()), scaled(4600));
+    });
+  }
+
+  devolverItem(seat: number, id: string): Promise<void> {
+    const item = this.itens.get(`${seat}:${id}`);
+    if (!item) return Promise.resolve();
+    return this.colocarItem(item);
+  }
+
+  /**
+   * O dono põe de volta a peça que voltou para ele: pega-a na mesa e a coloca onde estava — o anel
+   * no dedo, a correia fechada no pulso. Enquanto isso o personagem aparece sem ela (o estado da mesa
+   * já a dá como posta). Sem o gesto (o personagem ainda modelando, a peça sem lugar sabido), ela voa
+   * para a mão dele.
+   */
+  private colocarItem(item: ItemNaCena): Promise<void> {
+    const { seat, id } = item;
+    const ator = this.atores.get(seat);
+    const usa = item.usa;
+    const voando = () => this.levarItem(item, this.maoDe(seat), 560, 0.07, true);
+    if (!ator || !usa || !this.geo[seat]) return voando();
+    const def = findAcessorio(id);
+    const rigido = def?.tipo === 'pulseira' && (def.feitio === 'argola' || def.feitio === 'argolas');
+    const jeito = usa.onde !== 'pulso' || rigido ? 'puxar' : 'desabotoar';
+    const chave = `por:${usa.mao}:${usa.onde}:${jeito}`;
+    if (!this.tiradas.has(chave)) {
+      try {
+        this.tiradas.set(chave, colocarAcessorio(bonecoDeConta(), { mao: usa.mao, onde: usa.onde, alvo: [TIRADA.alvo[0], TIRADA.alvo[1]], jeito }));
+      } catch (err) {
+        console.warn('[mesa 3D] sem o gesto de colocar o acessório', err);
+        this.tiradas.set(chave, undefined);
+      }
+    }
+    const gesto = this.tiradas.get(chave);
+    if (!gesto) return voando();
+    item.voltando = true;
+    this.esconder(seat, id, true);
+    const acabou = () => {
+      if (this.itens.get(`${seat}:${id}`) === item) this.tirarItem(item);
+      this.esconder(seat, id, false);
+    };
+    const emPe = new THREE.Quaternion().setFromAxisAngle(EIXO_Y, this.giroDo(seat));
+    // primeiro a peça vai para a frente dele, onde a mão a alcança; aí ele a pega
+    return this.levarItem(item, this.pontoDoItem(seat), 340, 0.035).then(
+      () =>
+        new Promise<void>((pronto) => {
+          const desde = performance.now();
+          let feito = false;
+          const fim = () => {
+            if (feito) return;
+            feito = true;
+            acabou();
+            pronto();
+          };
+          const comecar = () => {
+            if (feito) return;
+            if (this.itens.get(`${seat}:${id}`) !== item) return fim();
+            // (ocupado com outro gesto — puxando o pote que ganhou: espera; demorou demais, a peça voa para a mão)
+            if (this.emGesto(ator) || this.ganhando.has(seat) || this.apostando.has(seat)) {
+              if (performance.now() - desde > 7000) void voando().then(fim);
+              else setTimeout(comecar, 160);
+              return;
+            }
+            ator.tocar(gesto, {
+              vel: 1.5,
+              aoAndar: (t, objs, acabouOGesto) => {
+                // (o gesto é o de tirar, de trás para a frente: os instantes contam do fim)
+                const tt = gesto.dur - t;
+                const o = objs[0];
+                if (!feito && tt < TIRAR.pousa && tt >= TIRAR.pega) {
+                  item.naMao = true;
+                  if (item.correia) {
+                    const c = item.correia;
+                    c.ir(tt >= TIRAR.saiu - 0.25 ? 'pendurada' : tt >= TIRAR.abre ? 'solta' : 'fechada');
+                    const m = ator.matrizDaPeca(c.osso, usa.mao);
+                    const { centro } = this.pulso();
+                    const sobe = macio(Math.min(1, Math.max(0, (tt - (TIRAR.saiu - 0.25)) / (TIRAR.pousa - (TIRAR.saiu - 0.25)))));
+                    if (m) {
+                      if (tt < TIRAR.saiu - 0.25) item.grupo.position.copy(V(usa.mao === 'D' ? -centro[0] : centro[0], centro[1], centro[2]).applyMatrix4(m));
+                      else if (o) item.grupo.position.copy(ator.noMundo(o.pos.clone()));
+                      item.grupo.quaternion.setFromRotationMatrix(m).slerp(emPe, sobe);
+                    } else if (o) item.grupo.position.copy(ator.noMundo(o.pos.clone()));
+                    item.grupo.scale.setScalar(1 + (ESCALA_DA_CORREIA - 1) * sobe);
+                  } else if (o) {
+                    item.grupo.position.copy(ator.noMundo(o.pos.clone()));
+                    item.grupo.quaternion.copy(emPe).multiply(DE_PE);
+                  }
+                  item.em.copy(item.grupo.position);
+                }
+                // chegou ao lugar (o dedo, o pulso fechado): dali em diante é do personagem
+                if (tt < TIRAR.pega || acabouOGesto) fim();
+              },
+            });
+          };
+          comecar();
+          setTimeout(fim, scaled(9000));
+        }),
+    );
+  }
+
+  recolherItens(): Promise<void> {
+    const indo = [...this.itens.values()].filter((i) => i.lugar === 'aposta' && !i.naMao);
+    return Promise.all(
+      indo.map((item) => {
+        item.lugar = 'pote';
+        return this.levarItem(item, this.pontoNoPote(item.id, item), VOO.recolherFichas + 260, 0.07);
+      }),
+    ).then(() => {});
+  }
+
+  entregarItens(itens: { seat: number; id: string; para: number }[]): Promise<void> {
+    return Promise.all(
+      itens.map(async ({ seat, id, para }, k) => {
+        const item = this.itens.get(`${seat}:${id}`);
+        if (!item || !this.geo[para]) return;
+        // voltou para o dono: ele a coloca de volta (sem prender a mesa à espera do gesto)
+        if (para === seat) {
+          item.voltando = true;
+          void this.colocarItem(item);
+          await new Promise<void>((r) => setTimeout(r, scaled(700)));
+          return;
+        }
+        // pousa na frente de quem ganhou, fica um instante à vista e vai para a mão dele
+        await this.levarItem(item, this.pontoDoItem(para, k), VOO.pote + 120, 0.11);
+        await new Promise<void>((r) => setTimeout(r, scaled(650)));
+        if (this.itens.get(`${seat}:${id}`) === item) await this.levarItem(item, this.maoDe(para), 520, 0.05, true);
+      }),
+    ).then(() => {});
+  }
+
   devolver(seat: number, valor: number): Promise<void> {
+    // (as fichas soltas que voltam saem da mesa; o que sobrar da aposta fica onde caiu)
+    this.tirarSoltas(seat, valor);
     return this.voar({ tipo: 'fichas', de: this.pontoDaAposta(seat), ate: this.pontoDaPilha(seat), giroDe: 0, giroAte: 0, arco: 0.04, some: true, valor, estilo: this.entrada?.fichaDe(seat), ms: VOO.aposta });
   }
 
@@ -979,6 +1582,19 @@ export class Cena3D implements Palco3D {
           const canto = V(cx * (M.x + folga), 0, cz);
           const por = V(2 * canto.x - (de.x + ate.x) / 2, de.y, 2 * canto.z - (de.z + ate.z) / 2);
           const comprido = Math.hypot(canto.x - de.x, canto.z - de.z) + Math.hypot(ate.x - canto.x, ate.z - canto.z);
+          // (a curva não pode passar do destino e voltar: a carta de quem desiste para no monte, não o ultrapassa)
+          const rx = ate.x - de.x;
+          const rz = ate.z - de.z;
+          const reta = rx * rx + rz * rz || 1;
+          let passa = false;
+          for (let k = 1; k < 16 && !passa; k++) {
+            const u = k / 16;
+            const x = (1 - u) * (1 - u) * de.x + 2 * u * (1 - u) * por.x + u * u * ate.x;
+            const z = (1 - u) * (1 - u) * de.z + 2 * u * (1 - u) * por.z + u * u * ate.z;
+            const ao = ((x - de.x) * rx + (z - de.z) * rz) / reta;
+            passa = ao > 1.03 || ao < -0.03;
+          }
+          if (passa) continue;
           if (comprido < menor && !cruza(por)) {
             menor = comprido;
             melhor = por;
@@ -1100,6 +1716,8 @@ export class Cena3D implements Palco3D {
   }
 
   recolherApostas(apostas: { seat: number; valor: number }[]): Promise<void> {
+    // (as fichas soltas de cada aposta juntam-se num monte, que é o que voa para o pote)
+    for (const a of apostas) this.tirarSoltas(a.seat);
     const pote = this.doPlano(POTE_3D);
     const estilo = this.entrada?.fichaDoPote;
     return Promise.all(
@@ -1107,39 +1725,86 @@ export class Cena3D implements Palco3D {
     ).then(() => {});
   }
 
+  /**
+   * Onde cada coluna do que ele ganhou fica junto da pilha dele: ao lado das colunas que já tem,
+   * enquanto houver lugar (são quatro); depois, em cima da mais baixa.
+   */
+  private lugaresNaPilha(seat: number, cols: { count: number }[]): { x: number; z: number; y0: number }[] {
+    const pilha = this.entrada?.view.seats[seat]?.stack ?? 0;
+    const alturas = pilha > 0 ? breakdown(pilha, 4, 99).map((c) => Math.min(c.count, NA_PILHA)) : [];
+    return cols.map((c) => {
+      const j = alturas.length < 4 ? alturas.push(0) - 1 : alturas.indexOf(Math.min(...alturas));
+      const [cx, cz] = this.colunaDaPilha(j);
+      const w = this.doAssento(seat, cx, 0, cz);
+      const y0 = MESA + alturas[j] * FICHA.alto;
+      alturas[j] += c.count;
+      return { x: w.x, z: w.z, y0 };
+    });
+  }
+
+  /**
+   * O pote vai para quem ganhou — como numa mesa de verdade: **empurrado pelo feltro** até a frente
+   * dele (não voa), ele o puxa com as pontas dos dedos para junto da pilha e as colunas sobem para a
+   * pilha, onde ficam até o estado da mesa contar as fichas (nada some no caminho).
+   */
   pagar(seat: number, valor: number): Promise<void> {
     const estilo = this.entrada?.fichaDoPote;
-    const direto = () => this.voar({ tipo: 'fichas', de: this.doPlano(POTE_3D), ate: this.pontoDaPilha(seat), giroDe: 0, giroAte: 0, arco: 0.1, some: true, valor, estilo, ms: VOO.pote });
+    const pote = this.doPlano(POTE_3D);
+    const semente = seat * 29 + 5;
+    const lado = this.geo[seat] ? this.doAssento(seat, 1, 0, 0).sub(this.doAssento(seat, 0, 0, 0)).setY(0).normalize() : V(1, 0, 0);
+    const empurrar = (ate: THREE.Vector3, some: boolean, ms: number) =>
+      this.voar({ tipo: 'fichas', de: pote, ate, por: this.contorno(pote, ate), giroDe: 0, giroAte: 0, arco: 0, some, valor, estilo, empurrado: { ladoDe: V(1, 0, 0), ladoAte: lado, semente }, ms });
+    const direto = () => empurrar(this.pontoDaPilha(seat), true, VOO.pote);
     const ator = this.atores.get(seat);
     // (com as cartas abertas na frente, o gesto parte do descanso de mãos fora delas, e volta para ele)
     const gesto = (this.comAbertas(seat) ? clipe('ganhar-abertas') : undefined) ?? clipe('ganhar');
-    // (sem o personagem ou o gesto — ou já puxando outro pote —, as fichas voam direto para a pilha dele)
+    // (sem o personagem ou o gesto — ou já puxando outro pote —, as fichas vão direto para a pilha dele)
     if (!ator || !gesto || !this.geo[seat] || this.ganhando.has(seat)) return direto();
     // (quem está pousando o baralho puxa o pote quando acabar)
     if (this.largando?.seat === seat) return this.largando.fim.then(() => this.pagar(seat, valor));
-    // O pote voa do meio da mesa e pousa na frente de quem ganhou no instante em que a mão dele chega
-    // para puxá-lo; dali vai com as pontas dos dedos até junto da pilha dele — e a outra mão comemora.
+    // O pote escorrega do meio da mesa e para na frente de quem ganhou no instante em que a mão dele
+    // chega para puxá-lo; dali vai com as pontas dos dedos até junto da pilha dele — e a outra mão comemora.
     const g = { valor, estilo, naMesa: false, t: 0 };
     this.ganhando.set(seat, g);
-    void this.voar({ tipo: 'fichas', de: this.doPlano(POTE_3D), ate: this.doAssento(seat, GANHAR.chega[0], MESA, GANHAR.chega[1]), giroDe: 0, giroAte: 0, arco: 0.1, some: false, valor, estilo, ms: (GANHAR.toca / VEL_DE_GANHAR) * 1000 }).then(() => {
+    void empurrar(this.doAssento(seat, GANHAR.chega[0], MESA, GANHAR.chega[1]), false, (GANHAR.toca / VEL_DE_GANHAR) * 1000).then(() => {
       g.naMesa = true;
     });
     return new Promise((pronto) => {
       let feito = false;
-      const puxou = () => {
+      /** A mão largou o monte junto da pilha: cada coluna sobe para o lugar dela na pilha. */
+      const guardar = () => {
         if (feito) return;
         feito = true;
+        const meio = meioDoMonteGanho(ator.objetos) ?? V(GANHAR.fica[0], MESA, GANHAR.fica[1]);
         if (this.ganhando.get(seat) === g) this.ganhando.delete(seat);
-        pronto();
+        if (!estilo || !g.naMesa) return pronto();
+        const centro = this.doAssento(seat, meio.x, MESA, meio.z);
+        const cols = breakdown(valor, 3, 6);
+        const lugares = this.lugaresNaPilha(seat, cols);
+        const rec: Recebidas = this.recebidas.get(seat) ?? { estilo, cols: [], pilhaAntes: this.entrada?.view.seats[seat]?.stack ?? 0, ate: performance.now() + 15000 };
+        this.recebidas.set(seat, rec);
+        void Promise.all(
+          cols.map((c, i) => {
+            const k = i - (cols.length - 1) / 2;
+            const l = lugares[i];
+            const coluna = { ti: c.ti, count: c.count, semente: semente + i * 31 };
+            const de = V(centro.x + lado.x * k * ENTRE_COLUNAS, MESA, centro.z + lado.z * k * ENTRE_COLUNAS);
+            // (a que vai mais longe sai junto e chega depois; o salto passa por cima do que a pilha já tem)
+            return this.voar({ tipo: 'fichas', de, ate: V(l.x, l.y0, l.z), giroDe: 0, giroAte: 0, arco: 0.026 + (l.y0 - MESA) * 0.5, some: false, estilo, coluna, ms: 250 + i * 70 }).then(() => {
+              rec.cols.push({ ...coluna, ...l });
+            });
+          }),
+        ).then(() => pronto());
       };
       ator.tocar(gesto, {
         vel: VEL_DE_GANHAR,
         aoAndar: (t, _objs, fim) => {
           g.t = t;
-          if (t >= GANHAR.solta || fim) puxou();
+          // (um instante depois de largar: a mão já subiu de cima do monte)
+          if (t >= GANHAR.solta + 0.1 || fim) guardar();
         },
       });
-      setTimeout(puxou, scaled((GANHAR.solta / VEL_DE_GANHAR) * 1000) + 1500);
+      setTimeout(guardar, scaled((GANHAR.solta / VEL_DE_GANHAR) * 1000) + 1500);
     });
   }
 
@@ -1231,6 +1896,57 @@ export class Cena3D implements Palco3D {
 
   /** Põe na mesa, neste quadro, tudo o que é ficha e carta: o que está parado, o que as mãos levam e o que voa. */
   private montar(agora: number) {
+    // o que foi jogado na mesa cai, quica e assenta
+    this.fisica.passo(this.antesDaFisica ? Math.min(0.05, (agora - this.antesDaFisica) / 1000) : 0);
+    this.antesDaFisica = agora;
+    // os acessórios apostados: cada um no lugar dele, ou no meio do caminho
+    const dtDasPecas = Math.min(0.05, Math.max(0, (agora - this.antesDasPecas) / 1000));
+    this.antesDasPecas = agora;
+    for (const item of [...this.itens.values()]) {
+      // o anel jogado: vai com o corpo dele (e, parado, é ali que ele fica)
+      if (item.corpo) {
+        item.grupo.position.copy(item.corpo.pos);
+        item.grupo.quaternion.copy(item.corpo.quat);
+        item.em.copy(item.corpo.pos);
+        if (item.corpo.dorme) item.alto = item.corpo.pos.y - MESA;
+      }
+      // a correia: a mola dela anda e, largada, ela tomba até o jeito em que fica; pousada, a peça acompanha
+      // a própria forma — o ponto mais baixo dela é o que encosta na mesa (não afunda nem flutua)
+      if (item.correia) {
+        const mudou = item.correia.passo(dtDasPecas);
+        const tombo = item.tombando;
+        if (tombo && !item.naMao && !item.voo) {
+          const u = Math.min(1, (agora - tombo.inicio) / scaled(TOMBO));
+          item.grupo.quaternion.copy(tombo.de).slerp(item.correia.largada(), macio(u));
+          if (u >= 1) item.tombando = undefined;
+        }
+        if ((mudou || tombo) && !item.naMao && !item.voo) {
+          item.alto = item.correia.abaixo(item.grupo.quaternion, item.grupo.scale.x);
+          item.em.y = MESA + item.base + item.alto;
+          item.grupo.position.y = item.em.y;
+        }
+      }
+      const voo = item.voo;
+      if (!voo) continue;
+      const u = Math.min(1, (agora - voo.inicio) / voo.dur);
+      item.grupo.position.lerpVectors(voo.de, item.em, macio(u));
+      item.grupo.position.y += voo.arco * Math.sin(Math.PI * u);
+      // (levada, a peça toma o jeito em que fica pousada: o anel que caiu torto endireita no caminho, a correia chega já deitada)
+      item.grupo.quaternion.copy(voo.giroDe).slerp(item.correia && !voo.some ? item.correia.largada() : new THREE.Quaternion().setFromAxisAngle(EIXO_Y, item.giro), macio(Math.min(1, u * 1.6)));
+      if (item.correia && !voo.some) {
+        // (e pousa na altura do jeito com que chega)
+        item.alto = item.correia.abaixo(item.correia.largada(), ESCALA_DA_CORREIA);
+        item.em.y = MESA + item.base + item.alto;
+      }
+      // (a que some encolhe no fim do caminho: chega à mão e desaparece nela)
+      const tamanho = item.correia ? ESCALA_DA_CORREIA : 1;
+      item.grupo.scale.setScalar(tamanho * (voo.some ? 1 - 0.75 * macio(Math.max(0, (u - 0.6) / 0.4)) : 1));
+      if (u >= 1) {
+        item.voo = undefined;
+        voo.pronto();
+        if (voo.some) this.tirarItem(item);
+      }
+    }
     for (const f of this.fichas.values()) f.usadas = 0;
     this.sombraDasFichas.usar();
     this.sombraDasCartas.usar();
@@ -1333,28 +2049,36 @@ export class Cena3D implements Palco3D {
         const st = e.fichaDe(seat);
         const lado = this.doAssento(seat, 1, 0, 0).sub(this.doAssento(seat, 0, 0, 0));
         // a pilha do jogador: a coluna de onde o punhado sai, e o resto do que ele tem ao lado
-        if (s.stack > 0 || ap) {
-          const cols = breakdown(s.stack, 4, NA_PILHA);
-          const p = this.pontoDaPilha(seat);
-          const ti0 = cols[0]?.ti ?? breakdown(Math.max(1, ap?.valor ?? 1))[0]?.ti ?? 0;
-          const fora = ap && ap.estado !== 'pilha' ? NA_PILHA - NO_PUNHADO : NA_PILHA;
-          coluna(st, ti0, fora, p.x, p.z, seat * 97);
-          cols.slice(1).forEach((c, i) => {
-            // as outras colunas vão para fora da aposta (para a direita do jogador) e um pouco para trás
-            const w = this.doAssento(seat, MARCAS.pilha[0] - (i + 1) * ENTRE_COLUNAS * 1.02, 0, MARCAS.pilha[1] - (i % 2) * 0.012);
-            coluna(st, c.ti, c.count, w.x, w.z, seat * 97 + i + 1);
+        if (s.stack > 0) {
+          // uma coluna por valor de ficha; as outras vão para fora da aposta (para a direita do jogador), em ziguezague
+          breakdown(s.stack, 4, 99).forEach((c, j) => {
+            const [cx, cz] = this.colunaDaPilha(j);
+            const w = this.doAssento(seat, cx, 0, cz);
+            // (a coluna de onde a mão já tirou fichas fica sem elas, até o estado contar a aposta)
+            const saiu = ap?.pegas.find((x) => x.coluna === j && x.pegou)?.leva ?? 0;
+            coluna(st, c.ti, Math.max(0, Math.min(c.count, NA_PILHA) - saiu), w.x, w.z, seat * 97 + j);
           });
         }
-        // o punhado na mão (ou já pousado, até o estado contar a aposta)
-        if (ap && ap.estado !== 'pilha' && ator) {
-          const ti = breakdown(ap.valor)[0]?.ti ?? 0;
-          for (const o of ap.objs) {
-            const w = ator.noMundo(o.pos.clone());
-            ficha(st, ti, w, 0);
-          }
+        // o que ele acabou de ganhar e pôr na pilha: ali fica até o estado contar (aí a pilha é que mostra)
+        const rec = this.recebidas.get(seat);
+        if (rec) {
+          if (s.stack !== rec.pilhaAntes || agora > rec.ate) this.recebidas.delete(seat);
+          else for (const c of rec.cols) coluna(rec.estilo, c.ti, c.count, c.x, c.z, c.semente, c.y0);
         }
-        // a aposta
-        if (s.bet > 0) monte(st, s.bet, this.pontoDaAposta(seat), lado, seat * 13 + 1, 3, 10);
+        // as fichas na mão, cada uma com o valor da coluna de onde saiu
+        if (ap && ator) {
+          for (const o of ap.objs) ficha(st, ap.pegas[o.n ?? 0]?.ti ?? ap.pegas[0]?.ti ?? 0, ator.noMundo(o.pos.clone()), 0);
+        }
+        // a aposta: só as fichas (o valor de um acessório apostado está no número dela, mas a peça é que está na mesa)
+        const emFichas = s.bet - (v.itens ?? []).reduce((t, i) => t + (i.seat === seat && i.naAposta ? i.emJogo : 0), 0);
+        const soltas = this.soltas.get(seat);
+        if (soltas?.length) {
+          // jogadas na mesa: cada uma onde caiu (a sombra, só debaixo das que já deitaram)
+          for (const f of soltas) {
+            ficha(f.estilo, f.ti, f.d.pos, 0, f.d.quat);
+            if (f.d.pos.y < MESA + FICHA.alto) this.sombraDasFichas.por(f.d.pos.x + DESVIO_DA_SOMBRA.x, NIVEL_DA_SOMBRA, f.d.pos.z + DESVIO_DA_SOMBRA.z, 0);
+          }
+        } else if (emFichas > 0) monte(st, emFichas, this.pontoDaAposta(seat), lado, seat * 13 + 1, 3, 10);
         // as cartas fechadas na frente dele. As minhas também ficam na mesa, na frente do meu personagem
         // (abertas, grandes, só embaixo da tela), até eu as virar no showdown — que é quando a mão ganha nome
         const fechadas = s.cards.length > 0 && !s.folded && (seat === v.mySeat ? !s.handName : s.cards.every((c) => !c));
@@ -1433,7 +2157,9 @@ export class Cena3D implements Palco3D {
         m.quaternion.setFromAxisAngle(EIXO_Y, c.giro);
       }
       // o pote
-      if (v.pot > 0) monte(e.fichaDoPote, v.pot, this.doPlano(POTE_3D), V(1, 0, 0), 777, 5, 12);
+      // (o pote em fichas: o que é acessório está ao lado, em peça)
+      const poteEmFichas = v.pot - (v.itens ?? []).reduce((t, i) => t + (i.naAposta ? 0 : i.emJogo), 0);
+      if (poteEmFichas > 0) monte(e.fichaDoPote, poteEmFichas, this.doPlano(POTE_3D), V(1, 0, 0), 777, 5, 12);
       // o baralho do dealer, na mesa (quando não está na mão dele) e o botão
       const d = v.dealerSeat;
       const dealer = d !== null ? this.atores.get(d) : undefined;
@@ -1457,9 +2183,13 @@ export class Cena3D implements Palco3D {
       const u = Math.min(1, (agora - vo.inicio) / vo.dur);
       const k = sai(u);
       // (reto, ou curvando pelo ponto dado)
-      const pos = vo.por ? vo.de.clone().multiplyScalar((1 - k) * (1 - k)).addScaledVector(vo.por, 2 * k * (1 - k)).addScaledVector(vo.ate, k * k) : vo.de.clone().lerp(vo.ate, k);
-      if (vo.por) pos.y = vo.de.y + (vo.ate.y - vo.de.y) * k;
-      pos.y += vo.arco * Math.sin(Math.PI * k);
+      const noCaminho = (k: number) => {
+        const pos = vo.por ? vo.de.clone().multiplyScalar((1 - k) * (1 - k)).addScaledVector(vo.por, 2 * k * (1 - k)).addScaledVector(vo.ate, k * k) : vo.de.clone().lerp(vo.ate, k);
+        if (vo.por) pos.y = vo.de.y + (vo.ate.y - vo.de.y) * k;
+        pos.y += vo.arco * Math.sin(Math.PI * k);
+        return pos;
+      };
+      const pos = noCaminho(k);
       const giro = vo.giroDe + (vo.giroAte - vo.giroDe) * macio(u);
       const escala = vo.some ? 1 - macio((u - 0.75) / 0.25) : 1;
       if (vo.tipo === 'carta' && e) {
@@ -1467,6 +2197,33 @@ export class Cena3D implements Palco3D {
         m.position.copy(pos);
         m.quaternion.setFromAxisAngle(EIXO_Y, giro);
         m.scale.setScalar(Math.max(0.001, escala));
+      } else if (vo.tipo === 'fichas' && vo.estilo && vo.coluna) {
+        // uma coluna que sobe para a pilha de quem ganhou: as fichas vão como estavam no monte
+        const c = vo.coluna;
+        for (let j = 0; j < c.count; j++) ficha(vo.estilo, c.ti, V(pos.x + jitter(c.semente, c.ti, j) * 0.0012, pos.y + (j + 0.5) * FICHA.alto, pos.z + jitter(c.semente, c.ti, j, 7) * 0.0012), hash01(c.semente, j) * 6.28);
+      } else if (vo.tipo === 'fichas' && vo.estilo && vo.valor && vo.empurrado && escala > 0.05) {
+        // o pote empurrado pelo feltro: cada coluna escorrega, uma um nada atrás da outra
+        const em = vo.empurrado;
+        const cols = breakdown(vo.valor, 3, 6);
+        cols.forEach((c, i) => {
+          const ui = Math.min(1, Math.max(0, (u - (i / cols.length) * FILA_DO_POTE) / (1 - FILA_DO_POTE)));
+          const ki = macio(ui);
+          const p = noCaminho(ki);
+          const lado = em.ladoDe.clone().lerp(em.ladoAte, ki).normalize();
+          const off = (i - (cols.length - 1) / 2) * ENTRE_COLUNAS;
+          const x = p.x + lado.x * off;
+          const z = p.z + lado.z * off;
+          // (para onde vai: a coluna pende para trás enquanto ganha velocidade e para a frente enquanto a perde)
+          const rumo = noCaminho(Math.min(1, ki + 0.02)).sub(noCaminho(Math.max(0, ki - 0.02))).setY(0);
+          if (rumo.lengthSq() > 1e-10) rumo.normalize();
+          const pende = Math.sin(2 * Math.PI * ui) * 0.32 * FICHA.alto;
+          const sem = em.semente + i * 31;
+          const n = Math.ceil(c.count * escala);
+          if (n > 0) this.sombraDasFichas.por(x + DESVIO_DA_SOMBRA.x, NIVEL_DA_SOMBRA, z + DESVIO_DA_SOMBRA.z, 0);
+          for (let j = 0; j < n; j++) {
+            ficha(vo.estilo!, c.ti, V(x + jitter(sem, c.ti, j) * 0.0012 - rumo.x * pende * j, MESA + (j + 0.5) * FICHA.alto, z + jitter(sem, c.ti, j, 7) * 0.0012 - rumo.z * pende * j), hash01(sem, j) * 6.28);
+          }
+        });
       } else if (vo.tipo === 'fichas' && vo.estilo && vo.valor && escala > 0.05) {
         const cols = breakdown(vo.valor, 3, 6);
         cols.forEach((c, i) => {
@@ -1526,6 +2283,7 @@ export class Cena3D implements Palco3D {
     for (const d of this.desligar) d();
     for (const v of this.voos) v.pronto();
     this.voos = [];
+    for (const item of [...this.itens.values()]) this.tirarItem(item);
     for (const a of this.atores.values()) a.destruir();
     this.atores.clear();
     this.chegando.clear();

@@ -67,7 +67,8 @@ describe('potes laterais', () => {
       { seat: 2, total: 300, folded: false },
       { seat: 3, total: 50, folded: true },
     ]);
-    expect(pots).toEqual([
+    // (cada pote traz também a faixa do total investido que ele cobre: `de` e `ate`)
+    expect(pots).toMatchObject([
       {
         amount: 350,
         eligible: [0, 1, 2],
@@ -86,6 +87,10 @@ describe('potes laterais', () => {
           { seat: 2, amount: 200 },
         ],
       },
+    ]);
+    expect(pots.map((p) => [p.de, p.ate])).toEqual([
+      [0, 100],
+      [100, Infinity],
     ]);
     // cada pote fecha com a soma do que entrou nele
     for (const pot of pots) expect(pot.contributions.reduce((s, c) => s + c.amount, 0)).toBe(pot.amount);

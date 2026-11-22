@@ -74,3 +74,37 @@ describe('cartão da loja', () => {
     expect(card({ canShop: false }).split('<button')[1]).toContain('shop-ver');
   });
 });
+
+/**
+ * O cartão de um acessório na prateleira da loja: sem botões (a compra é no palco), mas com o degrau
+ * e o preço — que sai do degrau — ou a marca de que já é do jogador.
+ */
+describe('cartão de acessório na prateleira', () => {
+  const prisma = findItem('acessorio:relogio-prisma')!;
+  const naPrateleira = (over: Partial<Parameters<typeof ItemCard>[0]> = {}) =>
+    renderToStaticMarkup(<ItemCard item={prisma} owned={false} chips={99_999} pado={50_000} canShop semCompra comPreco onVer={() => {}} {...over} />);
+
+  it('diz o degrau e o preço em fichas, sem botão de compra dentro', () => {
+    const html = naPrateleira();
+    expect(html).toContain('Relógio prismático');
+    expect(html).toContain('Raro');
+    expect(html).toContain('4.000');
+    // o cartão inteiro é o clique que leva a peça ao palco: um botão só, e nenhum de preço
+    expect(html.split('<button')).toHaveLength(2);
+    expect(html).not.toContain('btn-gold');
+    expect(html).not.toContain(padoPrice(prisma.chips).toLocaleString('pt-BR'));
+  });
+
+  it('o que já é seu troca o preço por "Seu"', () => {
+    const html = naPrateleira({ owned: true });
+    expect(html).toContain('Seu');
+    expect(html).not.toContain('4.000');
+  });
+
+  it('no palco, o acessório tem os botões nas duas moedas, pelo preço do degrau', () => {
+    const html = renderToStaticMarkup(<ItemCard item={prisma} owned={false} chips={99_999} pado={50_000} canShop semArte grande />);
+    expect(html).toContain('4.000');
+    expect(html).toContain('8.000');
+    expect(botoesDeCompra(html)).toHaveLength(2);
+  });
+});

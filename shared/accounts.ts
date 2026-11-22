@@ -230,6 +230,15 @@ export interface TableBank {
   xp?(accountId: string): number;
   /** Equipa um titulo. Recusa silenciosamente o que as conquistas nao sustentam. */
   setTitle(accountId: string, title: string | null): void;
+  /**
+   * Um acessório apostado mudou de dono (veja shared/aposta.ts): sai da conta `de` e entra na conta
+   * `para`. Qualquer das duas pode faltar — um bot não tem conta: o que ele ganha some, e ele não
+   * perde nada. Quem ganhou uma peça que já tinha recebe as fichas do reembolso, como num prêmio
+   * repetido de roleta. Opcional: a mesa offline não tem contas, e ali nada muda de dono.
+   */
+  transferirItem?(de: string | undefined, para: string | undefined, key: string): { repetido: boolean; reembolso: number };
+  /** A conta tem esta peça? (a mesa confere antes de aceitar a aposta) */
+  temItem?(accountId: string, key: string): boolean;
 
   // ---------------------------------------------------------------- amizades
 

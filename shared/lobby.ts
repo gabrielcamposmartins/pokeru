@@ -90,8 +90,11 @@ export class Lobby {
     for (const c of this.conns) {
       if (c.accountId !== accountId) continue;
       c.send({ type: 'account', account });
-      // subiu de nível (ou o título deixou de valer) no meio da partida: a mesa precisa saber
-      if (c.applyAccount(account)) c.room?.updateProfile(c);
+      // subiu de nível (ou o título deixou de valer) no meio da partida: a mesa precisa saber. E o que
+      // a conta tem pode ter mudado sem ela pedir — um acessório apostado que trocou de dono
+      // (shared/aposta.ts): o que ela não tem mais sai do que ela veste
+      const mudouOQueTem = c.applyPosse(account.owned ?? []);
+      if (c.applyAccount(account) || mudouOQueTem) c.room?.updateProfile(c);
     }
   }
 
@@ -599,6 +602,13 @@ export class Connection implements ClientHandle {
     return true;
   }
 
+  /** A conta passou a ter (ou deixou de ter) alguma coisa? Refaz o que ela veste e devolve se mudou. */
+  applyPosse(owned: readonly string[]): boolean {
+    if (owned.length === this.owns.length && owned.every((k, i) => k === this.owns[i])) return false;
+    this.applyOwned(owned);
+    return true;
+  }
+
   private applyOwned(owned: readonly string[]): void {
     this.owns = owned;
     this.cosmetics = this.lobby.accounts ? clampCosmetics(this.wanted, owned) : this.wanted;
@@ -1010,6 +1020,14 @@ export class Connection implements ClientHandle {
       case 'action':
         if (!this.room) return;
         this.error(this.room.handleAction(this.id, msg.action));
+        break;
+      case 'apostarItem':
+        if (!this.room || typeof msg.item !== 'string') return;
+        this.error(this.room.handleStake(this.id, msg.item));
+        break;
+      case 'entrarComItem':
+        if (!this.room || (msg.item !== null && typeof msg.item !== 'string')) return;
+        this.error(this.room.responderOferta(this.id, msg.item));
         break;
       case 'skipHand':
         if (!this.room) return;

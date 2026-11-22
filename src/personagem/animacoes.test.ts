@@ -86,8 +86,8 @@ describe('as animações', () => {
   const b = new Boneco(montarEsqueleto());
   const clipes = criarClipes(b);
 
-  it('são as dezenove pedidas', () => {
-    expect(clipes.map((c) => c.id)).toEqual(['fichas', 'virar', 'virar-pilha', 'olhar', 'baralho', 'entregar', 'entregar-mesa', 'abrir', 'desistir', 'ganhar', 'girar', 'check-nos', 'check-dedos', 'check-palma', 'idle-plana', 'idle-sobrepostas', 'idle-batucando', 'idle-concha', 'idle-abertas']);
+  it('são as vinte pedidas', () => {
+    expect(clipes.map((c) => c.id)).toEqual(['fichas', 'virar', 'virar-pilha', 'olhar', 'baralho', 'entregar', 'entregar-mesa', 'abrir', 'desistir', 'ganhar', 'girar', 'check-nos', 'check-dedos', 'check-palma', 'tirar', 'idle-plana', 'idle-sobrepostas', 'idle-batucando', 'idle-concha', 'idle-abertas']);
   });
 
   it('em nenhum instante a mão entra na mesa, e nada sai do lugar (sem números inválidos)', () => {

@@ -1,4 +1,4 @@
-import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, findAcessorio, type Acessorios } from './acessorios';
+import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, findAcessorio, type Acessorios, type TipoDeAcessorio } from './acessorios';
 import { componentesDe, encaixar } from './componentes';
 import {
   AURA_IDS,
@@ -56,12 +56,41 @@ export const KIND_LABELS: Record<ItemKind, string> = {
  * aparência da interface é a exceção que continua à venda, porque é a única que muda a cara do
  * jogo inteiro e não faria sentido depender de sorte.
  *
- * Quem decide isto é o servidor: `buy` recusa chave de tipo que não esteja em VENDIDOS.
+ * VENDIDOS são os **tipos inteiros** à venda. Os acessórios das mãos ficam no meio do caminho: o
+ * tipo é de galeria, mas uma parte dele também se compra — os anéis, as pulseiras e os relógios que
+ * não são lendários (veja `estaAVenda`, que decide **peça por peça**). Essas peças continuam saindo
+ * das roletas: a loja é o caminho certo para quem quer aquela, a roleta é a sorte de sempre.
+ *
+ * Quem decide isto é o servidor: `buy` recusa a chave que `estaAVenda` não aprova.
  */
 export const VENDIDOS: readonly ItemKind[] = ['gift', 'ui'];
 export const GALERIA: readonly ItemKind[] = ['character', 'aura', 'frame', 'acessorio', 'winfx', 'back', 'face', 'chip', 'table'];
 
+/** O tipo inteiro está à venda? (Para uma peça, pergunte a `estaAVenda`: há acessório que se compra.) */
 export const isSold = (kind: ItemKind): boolean => VENDIDOS.includes(kind);
+
+/** Os tipos de acessório que a loja vende. Esmalte e luva continuam só de roleta. */
+export const ACESSORIOS_VENDIDOS: readonly TipoDeAcessorio[] = ['anel', 'pulseira', 'relogio'];
+
+/**
+ * As peças desses tipos que **não** se compram: só saem de roleta.
+ *
+ * São as joias de verdade — os anéis de pedra preciosa, o terço de madrepérola e o relógio clássico,
+ * que são lendários (e lendário nenhum se vende: a regra de `estaAVenda` já os barra, e eles estão
+ * aqui para a lista dizer por inteiro o que o dono do jogo tirou da prateleira) — e as duas pulseiras
+ * de ouro, a corrente e as três argolas, que são raras mas ficam de fora da loja assim mesmo.
+ */
+export const SO_DE_ROLETA: readonly string[] = [
+  'acessorio:anel-safira',
+  'acessorio:anel-rubi',
+  'acessorio:anel-solitario',
+  'acessorio:anel-esmeralda',
+  'acessorio:anel-trinca',
+  'acessorio:pulseira-corrente',
+  'acessorio:pulseira-argolas',
+  'acessorio:pulseira-terco-madreperola',
+  'acessorio:relogio-classico',
+];
 
 /**
  * Raridade — o degrau de cada peça.
@@ -209,19 +238,36 @@ const RARIDADE_DE: Record<string, Raridade> = {
   /*
    * Os acessórios das mãos.
    *
-   * **Joia é rara.** Os anéis, os relógios e as pulseiras de ouro são sempre raros ou épicos: uma
-   * pedra engastada, uma caixa de relógio e uma peça de ouro não são coisa que caia a toda hora.
-   * Ficam de fora dessa regra a aliança lisa (que vem com o jogo), o aro de ébano e a serpente, e os
-   * relógios digital, noturno e das fases da lua — cada um no degrau que o feitio dele pede.
+   * **Joia é rara.** Os anéis, os relógios e as pulseiras de ouro quase nunca ficam abaixo de raro:
+   * uma pedra engastada, uma caixa de relógio e uma peça de ouro não são coisa que caia a toda hora.
+   * Ficam de fora dessa regra a aliança lisa (a de início de toda conta), o aro de ébano, e os relógios
+   * digital e de campo — cada um no degrau que o feitio dele pede.
+   *
+   * **Lendários: as joias que não se compram.** Os cinco anéis de pedra preciosa (a safira, o rubi, o
+   * solitário, a esmeralda e a trinca de brilhantes), o terço de madrepérola, o relógio clássico de
+   * ouro e o cronógrafo de bronze e prata. É o degrau que separa a prateleira da sorte: anel, pulseira
+   * e relógio se compram na loja (`estaAVenda`), **menos** os lendários — esses só saem de roleta.
    *
    * Épicos: os dois anéis de pedra lapidada em forma (o coração, a placa de ônix), os relógios de
-   * caixa quadrada, o das fases da lua e o de mergulho, e as luvas de ópera e de armadura. Raros: os
-   * outros anéis de pedra, a pérola e o sinete, a serpente, os relógios clássico, esportivo e joia, a
-   * corrente e as argolas de ouro, a riviera, os espinhos e os dois terços, as luvas de meio dedo, de renda e táticas,
-   * e os dois esmaltes de efeito mais trabalhado. Incomuns: o aro de ébano, o relógio digital, o fio
-   * de pérolas, as luvas inteiras e os esmaltes de cor ou acabamento menos comum. O resto — as
-   * contas, o couro, o cordão e os esmaltes de sempre — é comum.
+   * caixa quadrada, o das fases da lua e o de mergulho, e as luvas de ópera e de armadura. Raros: a
+   * gota de ametista, a pérola, o sinete e a serpente, os relógios esportivo, joia e prismático, a
+   * corrente e as argolas de ouro (raras, e mesmo assim fora da loja: veja SO_DE_ROLETA), a riviera,
+   * os espinhos e o terço de prata, as luvas de meio dedo, de renda e táticas, e os dois esmaltes de
+   * efeito mais trabalhado. Incomuns: o aro de ébano, o relógio digital, o fio de pérolas, as luvas
+   * inteiras e os esmaltes de cor ou acabamento menos comum. O resto — as contas, o couro, o cordão,
+   * o relógio de campo e os esmaltes de sempre — é comum.
+   *
+   * O degrau também é o **preço** do acessório (veja PRECO_DO_ACESSORIO): o que a loja cobra pelos
+   * que vende, e a base do reembolso de repetido para todos.
    */
+  'acessorio:anel-safira': 'lendario',
+  'acessorio:anel-rubi': 'lendario',
+  'acessorio:anel-solitario': 'lendario',
+  'acessorio:anel-esmeralda': 'lendario',
+  'acessorio:anel-trinca': 'lendario',
+  'acessorio:pulseira-terco-madreperola': 'lendario',
+  'acessorio:relogio-classico': 'lendario',
+  'acessorio:relogio-bronze': 'lendario',
   'acessorio:anel-coracao': 'epico',
   'acessorio:anel-onix': 'epico',
   'acessorio:relogio-rose': 'epico',
@@ -230,22 +276,16 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'acessorio:relogio-mergulho': 'epico',
   'acessorio:luva-opera': 'epico',
   'acessorio:luva-manopla': 'epico',
-  'acessorio:anel-solitario': 'raro',
-  'acessorio:anel-esmeralda': 'raro',
-  'acessorio:anel-trinca': 'raro',
   'acessorio:anel-serpente': 'raro',
   'acessorio:anel-perola': 'raro',
   'acessorio:anel-sinete': 'raro',
-  'acessorio:anel-safira': 'raro',
-  'acessorio:anel-rubi': 'raro',
   'acessorio:anel-gota': 'raro',
-  'acessorio:relogio-classico': 'raro',
   'acessorio:relogio-esportivo': 'raro',
   'acessorio:relogio-joia': 'raro',
+  'acessorio:relogio-prisma': 'raro',
   'acessorio:pulseira-riviera': 'raro',
   'acessorio:pulseira-espinhos': 'raro',
   'acessorio:pulseira-terco': 'raro',
-  'acessorio:pulseira-terco-madreperola': 'raro',
   'acessorio:pulseira-corrente': 'raro',
   'acessorio:pulseira-argolas': 'raro',
   'acessorio:luva-meio-dedo-branca': 'raro',
@@ -264,8 +304,9 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'acessorio:esmalte-dourado': 'incomum',
   'acessorio:esmalte-francesinha': 'incomum',
   'acessorio:esmalte-cromado': 'incomum',
-  // comum, por omissão: flor, chá e bolo — os presentes do primeiro coração — e a Poeira de Luz,
-  // que é o brilho de graça com partículas: o primeiro degrau acima do que já vem com o jogo
+  // comum, por omissão: flor, chá e bolo — os presentes do primeiro coração —, a Poeira de Luz, que é
+  // o brilho de graça com partículas (o primeiro degrau acima do que já vem com o jogo), e, entre os
+  // acessórios, as contas, o couro, o cordão, o relógio de campo e os esmaltes de sempre
 };
 
 export function rarityOf(key: string): Raridade {
@@ -324,8 +365,8 @@ export const PRICES = {
   /** Molduras do retrato; as que não ficam paradas custam `frameSpecial`. */
   frame: 2500,
   frameSpecial: 6000,
-  /** Acessórios das mãos: anéis, pulseiras, relógios, esmaltes e luvas. */
-  acessorio: 1500,
+  /** Acessórios das mãos: o piso do tipo, que é o preço do comum — cada peça custa pelo degrau dela (PRECO_DO_ACESSORIO). */
+  acessorio: 1000,
   face: 2500,
   /** Frentes de material (vidro, arco-íris): não saem de uma combinação de campos, e valem mais. */
   faceSpecial: 9000,
@@ -359,15 +400,33 @@ export const FREE_KEYS: readonly string[] = [
   // o brilho que o menu sempre teve atrás do personagem, e a moldura dourada de sempre na mesa
   itemKey('aura', 'brilho'),
   itemKey('frame', 'ouro'),
-  // nas mãos: a unha natural, as mãos nuas (ou a luva do traje) e um anel liso, para já haver o que pôr no dedo
+  // nas mãos: a unha natural e as mãos nuas (ou a luva do traje) — o anel liso é de início, e não grátis: veja `DE_INICIO`
   itemKey('acessorio', ESMALTE_PADRAO),
   itemKey('acessorio', LUVA_PADRAO),
   itemKey('acessorio', 'luva-traje'),
-  itemKey('acessorio', 'anel-alianca'),
   itemKey('ui', 'default'),
 ];
 
 const free = new Set(FREE_KEYS);
+
+/**
+ * O que toda conta tem **de início**, mas pode perder: a aliança lisa.
+ *
+ * Não é como o que vem de graça com o jogo (que ninguém perde e ninguém cobra): a aliança é uma peça
+ * de verdade — tem preço, sai de roleta e pode ser apostada (shared/aposta.ts). Toda conta começa
+ * com uma; quem a perde numa aposta fica sem, e pode ganhar outra de alguém, tirá-la na roleta ou
+ * comprá-la na loja.
+ *
+ * A lista do que a conta tem guarda só o que foi **ganho**; para o que é de início, guarda o
+ * contrário: a marca de que foi perdido (`marcaDePerdido`). Assim uma conta antiga não precisa ser
+ * mexida para "receber" a aliança, e quem joga sem conta também a tem.
+ */
+export const DE_INICIO: readonly string[] = [itemKey('acessorio', 'anel-alianca')];
+const deInicio = new Set(DE_INICIO);
+/** A marca, na lista da conta, de que uma peça de início foi perdida. */
+export const marcaDePerdido = (key: string): string => `perdeu:${key}`;
+/** A peça é das que toda conta tem de início? */
+export const eDeInicio = (key: string): boolean => deInicio.has(key);
 
 /**
  * Presentes.
@@ -405,8 +464,25 @@ const UI_THEMES: { id: string; name: string }[] = [
   { id: 'retro', name: 'Retrofuturista' },
 ];
 
+/**
+ * O preço de um acessório das mãos, pelo degrau dele.
+ *
+ * Era um preço só para todos (1.500), o que servia enquanto nenhum se comprava: agora que a loja
+ * vende anéis, pulseiras e relógios, um fio de contas não pode custar o mesmo que um relógio de
+ * mergulho. Cada degrau custa o dobro do anterior. O lendário **não se vende** — o preço dele existe
+ * para o reembolso de repetido da roleta (shared/roulette.ts, `refundOf`), que sai desta tabela.
+ */
+export const PRECO_DO_ACESSORIO: Record<Raridade, number> = {
+  comum: 1000,
+  incomum: 2000,
+  raro: 4000,
+  epico: 8000,
+  lendario: 12_000,
+};
+
 /** O preço de tabela de uma peça: o do tipo, com as exceções declaradas acima. */
 function precoDe(kind: ItemKind, id: string): number {
+  if (kind === 'acessorio') return PRECO_DO_ACESSORIO[rarityOf(itemKey(kind, id))];
   if (kind === 'winfx' && SPECIAL_FX.has(id)) return PRICES.winfxSpecial;
   if (kind === 'aura' && ASAS.has(id)) return PRICES.auraWings;
   if (kind === 'frame' && MOLDURAS_VIVAS.has(id)) return PRICES.frameSpecial;
@@ -455,9 +531,28 @@ export function isFree(key: string): boolean {
   return free.has(key);
 }
 
-/** O jogador tem este item? O que é grátis conta como tendo, sempre. */
+/**
+ * Esta peça se compra na loja?
+ *
+ * A pergunta é **por peça**, não por tipo. Presentes e aparências se vendem todos (`isSold`). Dos
+ * acessórios, vende-se o que é anel, pulseira ou relógio, **não é lendário**, não vem com o jogo e
+ * não está em SO_DE_ROLETA. O resto do catálogo só sai de roleta.
+ *
+ * É a mesma função dos dois lados: a loja monta a prateleira com ela e o servidor (`buy`, em
+ * server/accounts.ts) recusa com ela — não há como a vitrine oferecer o que a cobrança não aceita.
+ */
+export function estaAVenda(key: string): boolean {
+  const item = findItem(key);
+  if (!item) return false;
+  if (isSold(item.kind)) return true;
+  if (item.kind !== 'acessorio' || isFree(key)) return false;
+  const tipo = findAcessorio(item.id)?.tipo;
+  return !!tipo && ACESSORIOS_VENDIDOS.includes(tipo) && rarityOf(key) !== 'lendario' && !SO_DE_ROLETA.includes(key);
+}
+
+/** O jogador tem este item? O que é grátis conta como tendo, sempre; o que é de início, enquanto não foi perdido. */
 export function owns(owned: readonly string[] | undefined, key: string): boolean {
-  return isFree(key) || !!owned?.includes(key);
+  return isFree(key) || !!owned?.includes(key) || (deInicio.has(key) && !owned?.includes(marcaDePerdido(key)));
 }
 
 export function ownsItem(owned: readonly string[] | undefined, kind: ItemKind, id: string): boolean {

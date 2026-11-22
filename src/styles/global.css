@@ -6856,6 +6856,37 @@ input[type='range'].som-slider {
   font-family: var(--num);
   color: var(--gold-2);
 }
+/* a linha da loja (o acessório que se compra): dourada, para não se confundir com as das roletas */
+.shop-vem-linha.loja {
+  box-shadow: inset 0 0 0 1px var(--gold);
+  background: linear-gradient(180deg, rgba(255, 210, 120, 0.2), rgba(255, 170, 60, 0.08));
+}
+.shop-vem-linha.loja b {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+/*
+ * O cartão de um acessório na prateleira da loja: o degrau (na cor dele) e o preço em fichas.
+ *
+ * A compra é no palco, como a dos presentes; aqui fica só o que se precisa para escolher — o preço
+ * sai do degrau, então os dois vêm juntos.
+ */
+.shop-degrau {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.shop-preco {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--num);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--gold-2);
+}
 
 /* ------------------------------------------------------------------ a cena do giro */
 
@@ -10671,3 +10702,588 @@ button.hist-linha:disabled {
   border-color: var(--line);
 }
 
+/* ───────────── apostar um acessório (src/game/ApostaDeAcessorio.tsx) ───────────── */
+
+/*
+ * A cor de cada peça é a da raridade dela — a mesma da Galeria e da loja (`--raro-cor`, das classes
+ * `.r-lendario` & cia., mais acima). O bloco tinha uma escala só dele, com as cores trocadas: o raro
+ * era azul aqui e vermelho na Galeria.
+ *
+ * As medidas da bandeja são do **palco** (ela mora nele, em cima do painel de ação, e é escalada
+ * junto); o botão da coluna e a pergunta ficam presos à tela.
+ */
+.cartao-peca,
+.menu-acessorios .confirma,
+.menu-acessorios .na-mesa li,
+.itens-na-mesa .item {
+  --raridade: var(--raro-cor, #9aa3b5);
+}
+
+/* o botão da coluna da direita: quantas peças dá para apostar e, na minha vez, o aro aceso */
+.bt-acessorios .conta,
+.aba-acessorios .conta {
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-family: var(--num);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+  text-shadow: none;
+  color: #2a1800;
+  background: var(--gold-2);
+  box-shadow: 0 0 0 1.5px rgba(8, 5, 20, 0.7);
+}
+/* (por dentro da placa: o recorte dos cantos do botão cortaria um selo pendurado para fora) */
+.bt-acessorios .conta {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+}
+/* (o halo é `drop-shadow`, como o do foco: uma sombra de caixa some no recorte dos cantos) */
+.bt-acessorios.na-vez {
+  --aro: linear-gradient(180deg, #fff8dd, #ffe7a0 45%, #d9a83e);
+  animation: acessorioNaVez 1.6s ease-in-out infinite;
+}
+@keyframes acessorioNaVez {
+  0%,
+  100% {
+    filter: var(--sombra) drop-shadow(0 0 2px rgba(255, 215, 106, 0.5));
+  }
+  50% {
+    filter: var(--sombra) drop-shadow(0 0 8px rgba(255, 215, 106, 0.95));
+  }
+}
+
+/* onde a bandeja se prende: no palco, encostada em cima do painel de ação (a altura vem medida) */
+.doca-acessorios {
+  position: absolute;
+  right: 26px;
+  bottom: 22px;
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.doca-acessorios > * {
+  pointer-events: auto;
+}
+/* sem palco por perto (o componente usado fora da partida): presa à tela, ao lado da coluna */
+.doca-acessorios.solta {
+  position: fixed;
+  right: 62px;
+  bottom: 16px;
+  z-index: 60;
+}
+.doca-acessorios.solta .menu-acessorios {
+  max-height: calc(100vh - 32px);
+}
+
+/* a chamada da minha vez, em cima dos botões de ação */
+.aba-acessorios {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px 6px 11px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: linear-gradient(180deg, var(--panel-a), var(--panel-b));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--gold-2);
+  transition:
+    transform 0.12s,
+    border-color 0.12s;
+  animation: actIn 0.3s;
+}
+.aba-acessorios:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+.aba-acessorios .conta {
+  min-width: 17px;
+  height: 17px;
+  font-size: 11px;
+  line-height: 17px;
+}
+
+/* a bandeja */
+.menu-acessorios {
+  width: 500px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 6px 8px 16px;
+  overflow: hidden;
+  /* (o painel do jogo é meio transparente; aqui embaixo há fichas, cartas e mãos, e elas apareciam por trás do texto) */
+  background:
+    linear-gradient(180deg, var(--panel-a), var(--panel-b)),
+    var(--bg1);
+  /* (e para os temas que trocam o fundo do painel por um transparente: o que está atrás fica borrado e escuro) */
+  backdrop-filter: blur(12px) brightness(0.45);
+  transform-origin: 100% 100%;
+  animation: bandejaAbre 0.2s cubic-bezier(0.3, 1.25, 0.5, 1);
+}
+@keyframes bandejaAbre {
+  from {
+    transform: translateY(14px) scale(0.96);
+    opacity: 0;
+  }
+}
+.menu-acessorios:focus {
+  outline: none;
+}
+.menu-acessorios header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 6px;
+  font-size: 17px;
+  color: var(--gold-2);
+}
+.menu-acessorios .fechar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  opacity: 0.7;
+}
+.menu-acessorios .fechar:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+/* (só o miolo rola: o cabeçalho, com o fechar, fica sempre à mão) */
+.menu-acessorios .corpo {
+  position: relative;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 10px 6px 0;
+}
+.menu-acessorios p {
+  margin: 0;
+}
+.menu-acessorios .sobre {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+/* os cartões das peças (os mesmos na bandeja e na pergunta de quando as fichas acabam) */
+.menu-acessorios .pecas,
+.oferta-acessorio .pecas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.menu-acessorios .pecas {
+  /* (a folga de cima é do cartão escolhido, que sobe um pouco, e do aro dele) */
+  padding: 4px 3px 3px;
+}
+.cartao-peca {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px 9px;
+  border-radius: min(12px, calc(var(--radius) * 0.85));
+  border: 1.5px solid color-mix(in srgb, var(--raridade) 50%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--raridade) 20%, transparent), transparent 58%),
+    rgba(8, 5, 20, 0.55);
+  color: var(--text);
+  font: inherit;
+  text-align: center;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease,
+    opacity 0.15s ease;
+}
+.cartao-peca .arte {
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.2), rgba(0, 0, 0, 0.32) 72%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--raridade) 35%, transparent);
+}
+/* com mais de quatro peças são duas fileiras: os cartões encolhem, para elas e a confirmação caberem sem rolar */
+.menu-acessorios .pecas.muitas .cartao-peca {
+  padding: 6px 5px 7px;
+}
+.menu-acessorios .pecas.muitas .arte {
+  width: 58px;
+  height: 58px;
+}
+.menu-acessorios .pecas.muitas .valor {
+  padding-top: 2px;
+}
+/* (o nome ocupa sempre duas linhas: as raridades e os valores ficam na mesma altura em todos os cartões) */
+.cartao-peca .nome {
+  display: flex;
+  align-items: center;
+  min-height: 2.3em;
+  margin-top: 3px;
+  font-size: 13.5px;
+  line-height: 1.15;
+}
+.cartao-peca .nome span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.cartao-peca .raridade {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--raridade);
+}
+.cartao-peca .onde {
+  min-height: 1.2em;
+  font-size: 11.5px;
+  line-height: 1.2;
+  color: var(--muted);
+}
+.cartao-peca .valor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 5px;
+  line-height: 1.1;
+}
+.cartao-peca .valor b {
+  font-family: var(--num);
+  font-size: 18px;
+  color: var(--gold-2);
+}
+.cartao-peca .valor small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.cartao-peca:not([aria-disabled='true']):hover {
+  transform: translateY(-2px);
+  border-color: var(--raridade);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--raridade) 30%, transparent);
+}
+.cartao-peca:focus-visible,
+.aba-acessorios:focus-visible,
+.menu-acessorios .fechar:focus-visible {
+  outline: 2px solid var(--gold-2);
+  outline-offset: 2px;
+}
+/* a escolhida: sobe, acende na cor dela e ganha o visto; as outras recuam */
+.cartao-peca[aria-pressed='true'] {
+  transform: translateY(-3px);
+  border-color: var(--raridade);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--raridade) 34%, transparent), transparent 70%),
+    rgba(8, 5, 20, 0.55);
+  box-shadow:
+    0 0 0 2px var(--raridade),
+    0 8px 20px color-mix(in srgb, var(--raridade) 40%, transparent);
+}
+.cartao-peca[aria-pressed='true']::after {
+  content: '✓';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 19px;
+  color: #14101f;
+  background: var(--raridade);
+}
+.menu-acessorios .pecas.tem-escolha .cartao-peca[aria-pressed='false'] {
+  opacity: 0.6;
+}
+/* fora da vez (ou a peça que o servidor não deixa apostar): apagada, e sem se oferecer ao clique */
+.cartao-peca[aria-disabled='true'] {
+  opacity: 0.66;
+  filter: saturate(0.45);
+  cursor: default;
+}
+
+/* o que se diz embaixo dos cartões: a espera, a dica, ou o efeito com a confirmação */
+.menu-acessorios .aviso {
+  padding: 9px 12px;
+  border-radius: min(10px, var(--radius));
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.24);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+}
+.menu-acessorios .aviso.dica {
+  border-color: var(--line);
+  color: var(--gold-2);
+}
+.menu-acessorios .confirma {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px 12px;
+  border-radius: min(12px, var(--radius));
+  border: 1.5px solid color-mix(in srgb, var(--raridade) 60%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--raridade) 15%, transparent), transparent),
+    rgba(0, 0, 0, 0.3);
+  animation: confirmaEntra 0.16s ease-out;
+}
+@keyframes confirmaEntra {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+.menu-acessorios .confirma .rotulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* o efeito é a maior coisa da bandeja: é o que se confere antes de confirmar */
+.menu-acessorios .confirma .efeito {
+  font-family: var(--num);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.15;
+  color: var(--gold-2);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+.menu-acessorios .confirma .detalhe {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--text);
+  opacity: 0.88;
+}
+.menu-acessorios .confirma.barrada .efeito {
+  font-size: 18px;
+  color: #ffd0d6;
+}
+.menu-acessorios .risco,
+.oferta-acessorio .risco {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: min(8px, var(--radius));
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #ffd0d6;
+}
+.menu-acessorios .confirma .acoes {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+}
+.menu-acessorios .confirma .apostar {
+  min-width: 0;
+  padding: 10px 18px;
+}
+/* (um nome comprido — o cronógrafo de bronze e prata — encurta com reticências em vez de estourar a bandeja) */
+.menu-acessorios .confirma .apostar span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* o que já está em cima da mesa: de quem é cada peça e quanto vale */
+.menu-acessorios .na-mesa h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.menu-acessorios .na-mesa h4::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.menu-acessorios .na-mesa ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.menu-acessorios .na-mesa li {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 12px 2px 3px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--raridade) 50%, transparent);
+  background: rgba(0, 0, 0, 0.26);
+  font-size: 13px;
+}
+.menu-acessorios .na-mesa .arte {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+.menu-acessorios .na-mesa .nome {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.menu-acessorios .na-mesa .nome b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-acessorios .na-mesa .nome small {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.menu-acessorios .na-mesa .valor {
+  font-family: var(--num);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold-2);
+}
+
+/* a pergunta de quando as fichas acabam */
+.oferta-acessorio {
+  width: min(600px, 92vw);
+  text-align: center;
+}
+.oferta-acessorio > p {
+  margin: 0;
+  line-height: 1.4;
+}
+.oferta-acessorio .pecas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+.oferta-acessorio .pecas li {
+  width: 128px;
+}
+.oferta-acessorio .escolha {
+  cursor: pointer;
+}
+/* (aqui o cartão responde num clique só: ele diz o que o clique faz) */
+.oferta-acessorio .chamada {
+  margin-top: 7px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--raridade) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--raridade) 55%, transparent);
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.oferta-acessorio .escolha:hover .chamada,
+.oferta-acessorio .escolha:focus-visible .chamada {
+  background: var(--raridade);
+  color: #14101f;
+}
+.oferta-acessorio .risco {
+  margin: 0 auto;
+  max-width: 470px;
+}
+.oferta-acessorio .tempo {
+  height: 5px;
+  margin: 14px auto 12px;
+  max-width: 320px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.oferta-acessorio .tempo i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gold);
+  transition: width 0.25s linear;
+}
+.oferta-acessorio .tempo.acabando i {
+  background: var(--danger);
+}
+.oferta-acessorio .nota {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+/* as peças em cima da mesa, penduradas embaixo do console do pote */
+.itens-na-mesa {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+.itens-na-mesa .item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 10px 1px 2px;
+  border-radius: 999px;
+  background: rgba(12, 10, 24, 0.86);
+  border: 1.5px solid var(--raridade);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 0 10px color-mix(in srgb, var(--raridade) 35%, transparent);
+}
+.itens-na-mesa .item small {
+  font-family: var(--num);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bt-acessorios.na-vez,
+  .aba-acessorios,
+  .menu-acessorios,
+  .menu-acessorios .confirma {
+    animation: none;
+  }
+  .bt-acessorios.na-vez {
+    filter: var(--sombra) drop-shadow(0 0 6px rgba(255, 215, 106, 0.9));
+  }
+}

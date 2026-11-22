@@ -1,3 +1,4 @@
+import { findAcessorio } from '../../shared/acessorios';
 import { sameCard, type Card } from '../../shared/cards';
 import type { TableEvent, TableView } from '../../shared/protocol';
 import { findCharacter, type CardBackStyle, type CardFaceStyle } from '../../shared/styles';
@@ -412,7 +413,23 @@ class Director {
       t.setResult(null);
       t.addLog(`Mão #${ev.handNo}`, 'hand');
     }
-    if (ev.t === 'action') t.addLog(this.actionText(view, ev.seat, ev.action, ev.amount, view.seats[ev.seat]?.bet ?? 0));
+    if (ev.t === 'action') t.addLog(ev.item ? this.itemText(view, ev.seat, ev.item) : this.actionText(view, ev.seat, ev.action, ev.amount, view.seats[ev.seat]?.bet ?? 0));
+    if (ev.t === 'win') for (const linha of this.itensGanhos(view, ev.pots)) t.addLog(linha, 'win');
+  }
+
+  /** "Fulano apostou o Relógio (vale 120)". */
+  private itemText(view: TableView, seat: number, item: { id: string; valor: number }): string {
+    return `${this.seatName(view, seat)} apostou ${findAcessorio(item.id)?.nome ?? 'um acessório'} (vale ${fmt(item.valor)})`;
+  }
+
+  /** O que aconteceu com cada acessório do pote: ficou com quem ganhou, ou voltou para o dono. */
+  private itensGanhos(view: TableView, pots: PotResult[]): string[] {
+    return pots
+      .flatMap((p) => p.itens ?? [])
+      .map((i) => {
+        const nome = findAcessorio(i.id)?.nome ?? 'o acessório';
+        return i.para === i.de ? `${nome} volta para ${this.seatName(view, i.de)}` : `${this.seatName(view, i.para)} fica com ${nome} de ${this.seatName(view, i.de)}`;
+      });
   }
 
   private actionText(view: TableView, seat: number, action: string, amount: number, betTo: number): string {
@@ -487,19 +504,46 @@ class Director {
         return;
 
       case 'action': {
-        store.addLog(this.actionText(next, ev.seat, ev.action, ev.amount, ev.betTo));
+        store.addLog(ev.item ? this.itemText(next, ev.seat, ev.item) : this.actionText(next, ev.seat, ev.action, ev.amount, ev.betTo));
         const co = CALLOUT[ev.action];
         if (co) store.addCallout(ev.seat, co[0], co[1]);
         // voz: a chamada comum (チェック, ベット, コール, レイズ/リレイズ, フォールド); no all-in, a fala própria
         const slot: ComumSlot = ev.action === 'raise' ? (item.raise ?? 'raise') : ev.action;
         const who = this.charId(next, ev.seat);
         if (!this.skipping) sayAction(`${ev.seat}:${who}`, who, slot);
-        if (ev.action === 'fold') await this.foldMotion(cur, next, geo, ev.seat);
+        if (ev.item) {
+          // o acessório sai da mão (é aí que o personagem deixa de usá-lo) e pousa na mesa; as fichas, se houver, vão depois
+          const tirar = () => {
+            const depois = next.seats[ev.seat];
+            if (depois) store.patchSeat(ev.seat, { cosmetics: depois.cosmetics });
+          };
+          const p3 = palco3d();
+          if (p3) await p3.apostarItem(ev.seat, ev.item.id, tirar);
+          else tirar();
+          sfx.pop();
+          if (ev.amount > 0 && alive()) await this.betMotion(next, geo, ev.seat, ev.amount, 420, alive);
+        } else if (ev.action === 'fold') await this.foldMotion(cur, next, geo, ev.seat);
         else if (ev.action === 'check') this.knockMotion(next, ev.seat);
         else if (ev.action === 'allin') await this.allinMotion(next, geo, ev.seat, ev.amount, alive);
         else await this.betMotion(next, geo, ev.seat, ev.amount, 420, alive);
         return;
       }
+
+      case 'itemVolta': {
+        store.addLog(`${findAcessorio(ev.item)?.nome ?? 'O acessório'} volta para ${this.seatName(next, ev.seat)}: ninguém pagou`);
+        await palco3d()?.devolverItem(ev.seat, ev.item);
+        return;
+      }
+
+      case 'ofertaItem':
+        store.addLog(`${this.seatName(next, ev.seat)} ficou sem fichas: pode apostar um acessório para continuar`);
+        return;
+
+      case 'entradaComItem':
+        store.addLog(`${this.seatName(next, ev.seat)} aposta ${findAcessorio(ev.item)?.nome ?? 'um acessório'} para continuar (vale ${fmt(ev.valor)})`);
+        store.setSplash({ id: nextId(), title: 'Aposta de acessório', subtitle: `${this.seatName(next, ev.seat)} entra all-in com ${findAcessorio(ev.item)?.nome ?? 'um acessório'}`, kind: 'info' });
+        await wait(700);
+        return;
 
       case 'refund': {
         const g = geo[ev.seat];
@@ -518,7 +562,8 @@ class Director {
           // na mesa 3D as apostas vão para o pote em fichas de verdade
           store.patchDisplay({ seats: cur.seats.map((s) => (s ? { ...s, bet: 0 } : s)), pot: cur.pot });
           sfx.recolher();
-          await p3.recolherApostas(ev.bets.filter((b) => geo[b.seat]).map((b) => ({ seat: b.seat, valor: b.amount })));
+          // (os acessórios apostados na rua vão junto, para perto do pote)
+          await Promise.all([p3.recolherApostas(ev.bets.filter((b) => geo[b.seat]).map((b) => ({ seat: b.seat, valor: b.amount }))), p3.recolherItens()]);
           store.patchDisplay({ pot: next.pot });
           return;
         }
@@ -685,6 +730,9 @@ class Director {
             store.addLog(`${this.seatName(next, w.seat)} ganha ${fmt(w.amount)}${w.hand ? ` com ${w.hand}` : ''}`, 'win');
           }
         }
+        // os acessórios do pote: com quem cada um ficou
+        const ganhos = ev.pots.flatMap((p) => p.itens ?? []);
+        for (const linha of this.itensGanhos(next, ev.pots)) store.addLog(linha, 'win');
         const iWon = me !== null && winnerSeats.includes(me);
         if (main) {
           const name = this.seatName(next, main.seat);
@@ -738,6 +786,7 @@ class Director {
             else if (g) flights.push(this.flyChips(potStage, g.plate, w.amount, 760, true, 30));
           }
         }
+        if (p3 && ganhos.length) flights.push(p3.entregarItens(ganhos.map((i) => ({ seat: i.de, id: i.id, para: i.para }))).then(() => -1));
         sfx.pote();
         this.clearFlyers(await Promise.all(flights));
         // showdown: tela de resultado do round (personagem, mão feita e fichas ganhas)

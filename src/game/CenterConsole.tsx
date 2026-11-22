@@ -6,6 +6,7 @@ import { shade } from '../util/color';
 import { CONSOLE, type SeatGeo } from './layout';
 import { useUiTheme } from '../ui/themes';
 import { tableSkin } from './skins';
+import { ItensNaMesa } from './ApostaDeAcessorio';
 
 const STREET: Record<string, string> = {
   preflop: 'Pré-flop',
@@ -89,6 +90,8 @@ export function CenterConsole({ view, geo }: { view: TableView; geo: SeatGeo[] }
           {view.street ? STREET[view.street] : 'Aguardando'} · {view.rounds ? `Rodada ${Math.min(view.handNo, view.rounds)}/${view.rounds}` : `Mão #${view.handNo}`}
         </span>
       </div>
+      {/* os acessórios apostados (o valor deles já está somado no pote): o desenho de cada um, com quanto vale */}
+      <ItensNaMesa itens={view.itens ?? []} nomes={(seat) => view.seats[seat]?.name ?? 'alguém'} />
     </div>
   );
 }
