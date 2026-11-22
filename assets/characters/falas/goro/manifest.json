@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_とざい東西！五郎、ただいま見参！.wav",
+    "tipo": "audio",
+    "texto": "とざい東西！五郎、ただいま見参！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_さあ、五郎の出番だ！.wav",
+    "tipo": "audio",
+    "texto": "さあ、五郎の出番だ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_ここは間を取る…チェックだ。.wav",
+    "tipo": "audio",
+    "texto": "ここは間を取る…チェックだ。",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_受けて立とう！コールだ！.wav",
+    "tipo": "audio",
+    "texto": "受けて立とう！コールだ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_いよーっ！幕が上がればお主の負けだ！.wav",
+    "tipo": "audio",
+    "texto": "いよーっ！幕が上がればお主の負けだ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_見得を切るぞ！レイズだ！.wav",
+    "tipo": "audio",
+    "texto": "見得を切るぞ！レイズだ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_一世一代の大芝居よ！.wav",
+    "tipo": "audio",
+    "texto": "一世一代の大芝居よ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_ふむ…今宵はここで幕引きだ。.wav",
+    "tipo": "audio",
+    "texto": "ふむ…今宵はここで幕引きだ。",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_さあ、正体を現せい！.wav",
+    "tipo": "audio",
+    "texto": "さあ、正体を現せい！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_これぞ千両役者の芸よ！.wav",
+    "tipo": "audio",
+    "texto": "これぞ千両役者の芸よ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_大入り満員！大当たりだ！.wav",
+    "tipo": "audio",
+    "texto": "大入り満員！大当たりだ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_ぬう…台本にない展開だ！.wav",
+    "tipo": "audio",
+    "texto": "ぬう…台本にない展開だ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_幕は下りた…だが再演はあるぞ！.wav",
+    "tipo": "audio",
+    "texto": "幕は下りた…だが再演はあるぞ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_第二幕の開演だ！.wav",
+    "tipo": "audio",
+    "texto": "第二幕の開演だ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_舞台が熱くなってきたな！.wav",
+    "tipo": "audio",
+    "texto": "舞台が熱くなってきたな！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_客を待たせるな、早う出よ！.wav",
+    "tipo": "audio",
+    "texto": "客を待たせるな、早う出よ！",
+    "seed": 42,
+    "voice": "Goro",
+    "language": "Japanese"
+  }
+]

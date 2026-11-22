@@ -1,0 +1,23 @@
+// Falas de Abel por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Abel",
+  "falas": [
+    "迷える子羊たちよ、懺悔の時間です。", // join: Ovelhas perdidas, é hora da confissão.
+    "私の番ですか。では、祈りましょう。", // turn: Minha vez? Então, rezemos.
+    "チェック。沈黙もまた告白ですよ。", // check: Passo. O silêncio também é uma confissão.
+    "お聞きしましょう、あなたの罪を。", // call: Pago. Vou ouvir o seu pecado.
+    "少しばかり、献金をお願いしますね。", // bet: Peço uma pequena oferta, sim?
+    "罪が重いほど、償いも重いのです。", // raise: Quanto maior o pecado, maior a penitência.
+    "すべてを神の御手に委ねましょう。", // allin: Entreguemos tudo nas mãos de Deus.
+    "今日のところは、赦してあげましょう。", // fold: Por hoje, eu o perdoo.
+    "さあ、その罪を告白なさい。", // showdown: Vamos, confesse o seu pecado.
+    "告白、確かに受け取りました。", // win: Sua confissão foi devidamente recebida.
+    "罪を話しなさい、子よ…もう知っています。", // big_win: Conte-me seu pecado, filho... eu já sei qual é.
+    "おや…神は試練をお与えになる。", // lose: Ora... Deus nos envia provações.
+    "これもまた、私への罰ですか…", // bust: Isso também é uma punição para mim...?
+    "献金箱は、まだ空ではありませんよ。", // rebuy: A caixa de ofertas ainda não está vazia.
+    "審判の時が近づいていますね。", // blinds_up: A hora do juízo se aproxima.
+    "迷いは罪の始まりですよ、子羊よ。" // idle: A hesitação é o começo do pecado, ovelhinha.
+  ]
+}

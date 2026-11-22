@@ -219,6 +219,29 @@ export class Boneco {
   }
 
   /**
+   * Só o polegar: os cinco ângulos dele (os últimos de `dedos`), com as matrizes dele já em dia — o
+   * resto da mão fica como está. É para quem procura um jeito do polegar por tentativas (milhares
+   * delas): reposar a mão inteira a cada uma custava segundos.
+   */
+  polegar(lado: Lado, a: readonly number[]) {
+    const q = new THREE.Quaternion();
+    const r = new THREE.Quaternion();
+    const ossos = (this.doPolegar[lado] ??= [this.osso(`polegar1.${lado}`), this.osso(`polegar2.${lado}`), this.osso(`polegar3.${lado}`)]);
+    const poe = (b: THREE.Bone, valor: THREE.Quaternion) => {
+      b.quaternion.copy(valor);
+      if (lado === 'D') espelhar(b.quaternion);
+    };
+    q.setFromAxisAngle(EIXO_X, a[0] * RAD)
+      .multiply(r.setFromAxisAngle(EIXO_Y, a[1] * RAD))
+      .multiply(r.setFromAxisAngle(this.dobra[4], a[2] * RAD));
+    poe(ossos[0], q);
+    poe(ossos[1], q.setFromAxisAngle(this.dobra[4], a[3] * RAD));
+    poe(ossos[2], q.setFromAxisAngle(this.dobra[4], a[4] * RAD));
+    ossos[0].updateWorldMatrix(false, true);
+  }
+  private readonly doPolegar: Partial<Record<Lado, THREE.Bone[]>> = {};
+
+  /**
    * A rotação da mão no mundo, dado para onde os dedos apontam e para onde a palma olha (a palma é
    * acertada para ficar a 90° dos dedos).
    */

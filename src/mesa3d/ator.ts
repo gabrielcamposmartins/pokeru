@@ -9,8 +9,9 @@
  * o mesmo clipe sempre para o mesmo assento (cada personagem descansa de um jeito), em laço.
  *
  * O pano (mangas largas, jaqueta, casaco) é simulado só enquanto o personagem mexe as mãos e um
- * pouco depois, até assentar; parado, ele deixa de ser simulado — como na página da mesa
- * (src/dev/mesa.ts). E mesmo mexendo, um personagem por vez: veja `precisaDePano`.
+ * pouco depois, até assentar; parado, ele deixa de ser simulado. A conta é feita fora da linha
+ * principal, num ajudante por personagem (src/personagem/panoRemoto.ts), a cada quadro; sem ajudante
+ * (um navegador sem Web Worker), é feita aqui, um personagem por vez: veja `precisaDePano`.
  */
 import * as THREE from 'three';
 import { descansoDe, entrePoses, entreRelaxos, poseDe, posarPose, relaxar, relaxoAoAcaso, type Clipe, type EstadoDaMao, type Objeto, type Pose, type Relaxo } from '../personagem/animacoes';
@@ -18,6 +19,7 @@ import type { Lado } from '../personagem/esqueleto';
 import { Boneco, MESA } from '../personagem/boneco';
 import { juntas } from '../personagem/corpo';
 import { Pano, type MesaDoPano } from '../personagem/pano';
+import { PanosRemotos, podeSimularFora } from '../personagem/panoRemoto';
 import { TRAJES, trajeTemLuva, type Roupa, type Traje } from '../personagem/roupa';
 import { SEM_ACESSORIOS, chaveDosAcessorios, findAcessorio, type Acessorios } from '../../shared/acessorios';
 import { ESPELHO, pecasDosAcessorios } from './acessorios3d';
@@ -35,6 +37,8 @@ export const DESCANSOS = ['idle-plana', 'idle-concha', 'idle-sobrepostas', 'idle
 const PASSAGEM = 0.32;
 /** Quantos passos o pano continua simulado depois que as mãos param (para assentar). */
 const ASSENTAR = 18;
+/** O mesmo, com o pano num ajudante (aí é um passo por quadro: uns três quartos de segundo). */
+const ASSENTAR_FORA = 45;
 /** Quantos passos de 1/60 s o pano dá para assentar na primeira pose. */
 const PASSOS_PARA_ASSENTAR = 48;
 
@@ -122,6 +126,9 @@ export class Ator {
   /** O traço do desenho (o contorno), do corpo e da roupa. */
   private readonly traco: THREE.ShaderMaterial;
   private readonly panos: { pano: Pano }[] = [];
+  /** Quem simula o pano fora da linha principal (null: sem pano, ou sem ajudante). */
+  private remoto: PanosRemotos | null = null;
+  private pediuAssentar = false;
   private mesaDoPano: MesaDoPano = { y: MESA, alto: 0.6, z0: 0.08 };
   private tocando: Tocando | null = null;
   private descanso: Clipe | null = null;
@@ -181,16 +188,21 @@ export class Ator {
     const geo = new THREE.BufferGeometry();
     for (const [nome, attr] of Object.entries(atributosDoCorpo(corpo))) geo.setAttribute(nome, attr);
     geo.setAttribute('coberto', new THREE.BufferAttribute(roupa.coberto, 1));
-    const idx: number[] = [];
     const cob = roupa.coberto;
     const mi = corpo.malha.idx;
+    const idx = new Uint32Array(mi.length);
+    let ni = 0;
     for (let k = 0; k < mi.length; k += 3) {
       const a = mi[k];
       const b = mi[k + 1];
       const c = mi[k + 2];
-      if (!(cob[a] && cob[b] && cob[c])) idx.push(a, b, c);
+      if (!(cob[a] && cob[b] && cob[c])) {
+        idx[ni++] = a;
+        idx[ni++] = b;
+        idx[ni++] = c;
+      }
     }
-    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+    geo.setIndex(new THREE.BufferAttribute(idx.slice(0, ni), 1));
     // a roupa
     const r = roupa.malha;
     const geoRoupa = new THREE.BufferGeometry();
@@ -199,7 +211,9 @@ export class Ator {
     geoRoupa.setAttribute('ar', new THREE.BufferAttribute(r.ar, 1));
     geoRoupa.setAttribute('cor', new THREE.BufferAttribute(r.cor, 3));
     geoRoupa.setAttribute('cor2', new THREE.BufferAttribute(r.cor2, 3));
-    geoRoupa.setAttribute('avesso', new THREE.BufferAttribute(r.cor.map((v) => v * 0.72), 3));
+    const avesso = new Float32Array(r.cor.length);
+    for (let k = 0; k < avesso.length; k++) avesso[k] = r.cor[k] * 0.72;
+    geoRoupa.setAttribute('avesso', new THREE.BufferAttribute(avesso, 3));
     geoRoupa.setAttribute('enfeite', new THREE.BufferAttribute(r.enfeite, 1));
     geoRoupa.setAttribute('repouso', new THREE.BufferAttribute(r.pos, 3));
     geoRoupa.setAttribute('skinIndex', new THREE.BufferAttribute(roupa.indices, 4));
@@ -210,6 +224,9 @@ export class Ator {
       m.bindMode = THREE.DetachedBindMode;
       m.bind(ossos, new THREE.Matrix4());
       m.frustumCulled = false;
+      // (a esfera em volta do personagem, dada de antemão: sem ela o three.js a calcula no primeiro
+      // desenho, passando osso por osso em cada vértice — um quarto de segundo de página travada por mesa)
+      m.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1.1, 0), 1.6);
       // (o traço não faz sombra; e do corpo e da roupa, só os braços e as mãos — veja sombras.ts)
       if (material !== this.traco) {
         m.castShadow = true;
@@ -221,8 +238,11 @@ export class Ator {
     comOssos(geo, this.traco);
     comOssos(geoRoupa, this.tecido);
     comOssos(geoRoupa, this.traco);
-    for (const def of this.traje.panos?.() ?? []) {
-      const pano = new Pano(this.boneco, def);
+    const defs = this.traje.panos?.() ?? [];
+    // (com um ajudante para simular, os panos daqui são só o desenho)
+    const fora = defs.length > 0 && podeSimularFora();
+    for (const def of defs) {
+      const pano = new Pano(this.boneco, def, fora);
       const m = new THREE.Mesh(pano.geometria, this.tecido);
       m.frustumCulled = false;
       m.castShadow = true;
@@ -230,6 +250,7 @@ export class Ator {
       this.grupo.add(m);
       this.panos.push({ pano });
     }
+    if (fora) this.remoto = new PanosRemotos(this.boneco, this.traje.id, this.panos.map((x) => x.pano));
     // o esmalte: a cor das unhas (a natural não pinta nada)
     const esmalte = findAcessorio(acessorios.esmalte);
     if (esmalte?.tipo === 'esmalte' && esmalte.cor) {
@@ -338,6 +359,11 @@ export class Ator {
     return this.ocupado ? this.tocando!.clipe.id : null;
   }
 
+  /** O instante do que está tocando agora (segundos, no tempo do clipe). */
+  get instante(): number {
+    return this.tocando?.t ?? 0;
+  }
+
   /** Está num gesto (não no descanso)? */
   get ocupado(): boolean {
     return !!this.tocando && this.tocando.clipe !== this.descanso;
@@ -444,7 +470,38 @@ export class Ator {
    * no balanço).
    */
   get precisaDePano(): boolean {
+    // (com um ajudante, a conta não é feita aqui — os panos daqui nem têm elásticos)
+    if (this.remoto) return false;
     return this.panos.length > 0 && (this.assentados < PASSOS_PARA_ASSENTAR || this.semMexer <= ASSENTAR);
+  }
+
+  /**
+   * O pano num ajudante: a cada quadro, depois de posar. Na primeira vez pede que ele assente na pose
+   * de agora; depois, enquanto as mãos mexem (e um pouco além), pede o passo do quadro. E a costura
+   * acompanha os ossos de agora.
+   */
+  quadroDoPano(dt: number) {
+    const r = this.remoto;
+    if (!r || r.falhou || !this.tocando) return;
+    if (!r.assentado) {
+      if (!this.pediuAssentar) this.pediuAssentar = r.assentar(this.mesaDoPano, PASSOS_PARA_ASSENTAR);
+      return;
+    }
+    if (this.semMexer <= ASSENTAR_FORA) {
+      if (r.passo(dt, this.mesaDoPano)) this.semMexer++;
+      this.custoDoPano = r.custo;
+    }
+    r.repregar();
+  }
+
+  /**
+   * Pronto para aparecer: o pano (se há) já assentou na primeira pose. Antes disso as mangas estariam
+   * esticadas como na T-pose, ou nem estariam.
+   */
+  get pronto(): boolean {
+    if (!this.panos.length) return true;
+    if (this.remoto) return this.remoto.assentado || this.remoto.falhou;
+    return this.assentados >= PASSOS_PARA_ASSENTAR;
   }
 
   /** Há quanto tempo (s) o pano não dá um passo: é por isso que a cena escolhe de quem é a vez. */
@@ -485,6 +542,7 @@ export class Ator {
   }
 
   destruir() {
+    this.remoto?.destruir();
     this.grupo.traverse((o) => {
       if (o instanceof THREE.Mesh) {
         // (a geometria do corpo é dividida: só os índices são dele, e somem com ela)

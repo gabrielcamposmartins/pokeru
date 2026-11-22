@@ -73,7 +73,12 @@ export type MesaDoPano = { y: number; alto: number } & ({ z0: number } | { estad
 const GRAVIDADE = 9.8;
 /** O quanto da velocidade sobra a cada sexagésimo de segundo (o ar e o próprio pano freiam). */
 const AMORTECE = 0.9;
-/** Em quantos passos miúdos se divide um passo. */
+/**
+ * Em quantos passos miúdos se divide um passo de um sexagésimo de segundo. Um passo mais comprido (um
+ * quadro que demorou, um ajudante que atrasou) é dividido em mais passos miúdos, do mesmo tamanho, até
+ * o dobro deles: com o passo miúdo maior, os elásticos cediam e a manga comprida ficava mole,
+ * balançando como ao vento.
+ */
 const MIUDOS = 12;
 /** O atrito do pano no que ele encosta (o coeficiente de Coulomb). */
 const ATRITO = 0.4;
@@ -159,11 +164,17 @@ export class Pano {
   private readonly pontasAntes: Float64Array;
   private readonly pontasAgora: Float64Array;
   private semHistoria = true;
+  /** As listas dos elásticos em vetores de números, para a conta (feitos no primeiro passo). */
+  private rapidas: { ligas: Int32Array; comprimento: Float64Array; forca: Float64Array; vizinhos: Int32Array; presos: Int32Array } | null = null;
   readonly geometria = new THREE.BufferGeometry();
-  private readonly normais: Float32Array;
+  readonly normais: Float32Array;
   readonly indices: Uint32Array;
 
-  constructor(b: Boneco, def: DefDePano) {
+  /**
+   * `soDesenho`: este pano só é desenhado — quem o simula é outro, num ajudante (panoRemoto.ts). Os
+   * elásticos não são montados (é metade do custo de fazer um pano, e a linha principal não os usa).
+   */
+  constructor(b: Boneco, def: DefDePano, soDesenho = false) {
     const { cols, rows, fechado } = def;
     this.nome = def.nome;
     this.n = cols * rows;
@@ -175,7 +186,12 @@ export class Pano {
     this.solto = new Uint8Array(this.n);
     this.vivo = new Uint8Array(this.n);
     const i = (c: number, r: number) => r * cols + (((c % cols) + cols) % cols);
-    const noRepouso = (osso: string) => new THREE.Vector3(...b.esq.ossos[b.esq.indice[osso]].pos);
+    const repousos = new Map<string, THREE.Vector3>();
+    const noRepouso = (osso: string) => {
+      let p = repousos.get(osso);
+      if (!p) repousos.set(osso, (p = new THREE.Vector3(...b.esq.ossos[b.esq.indice[osso]].pos)));
+      return p;
+    };
     const cores = new Float32Array(this.n * 3);
     const avessos = new Float32Array(this.n * 3);
     const cores2 = new Float32Array(this.n * 3);
@@ -216,7 +232,7 @@ export class Pano {
       if (vizinho && this.solto[a] && this.solto[z]) this.vizinhos.push(a, z);
     };
     const ultima = fechado ? cols : cols - 1;
-    for (let r = 0; r < rows; r++) {
+    for (let r = 0; r < (soDesenho ? 0 : rows); r++) {
       for (let c = 0; c < cols; c++) {
         if (c < ultima) liga(i(c, r), i(c + 1, r), 1, true);
         if (r + 1 < rows) liga(i(c, r), i(c, r + 1), 1, true);
@@ -348,22 +364,32 @@ export class Pano {
     const ncp = capsulasPerto.length;
     const nep = elipsoidesPerto.length;
 
-    const h = dt / MIUDOS;
+    const miudos = Math.max(6, Math.min(2 * MIUDOS, Math.round(dt * 60 * MIUDOS)));
+    const h = dt / miudos;
     const cai = GRAVIDADE * h * h;
-    const freio = Math.pow(AMORTECE, (dt * 60) / MIUDOS);
+    const freio = Math.pow(AMORTECE, (dt * 60) / miudos);
     const limite = VELOCIDADE_MAXIMA * h;
     const sossego = Math.min(SOSSEGO * h, cai * 0.65);
     /** O quanto um ponto encostado pode andar num passo miúdo e ainda contar como parado. */
     const grude = cai * 1.2;
-    const ligas = this.ligas;
-    const comprimento = this.comprimento;
-    const forca = this.forca;
+    const rapidas = (this.rapidas ??= {
+      ligas: Int32Array.from(this.ligas),
+      comprimento: Float64Array.from(this.comprimento),
+      forca: Float64Array.from(this.forca),
+      vizinhos: Int32Array.from(this.vizinhos),
+      presos: Int32Array.from(this.presos, (preso) => preso.i),
+    });
+    const { ligas, comprimento, forca, vizinhos, presos } = rapidas;
     const nl = comprimento.length;
-    const vizinhos = this.vizinhos;
-    for (let miudo = 1; miudo <= MIUDOS; miudo++) {
-      const f = miudo / MIUDOS;
+    const nv = vizinhos.length;
+    const np = presos.length;
+    const { pinosAntes, pinosAgora, pontasAntes, pontasAgora } = this;
+    /** A caixa em volta de cada cápsula neste passo miúdo (com o raio): o ponto que está fora dela nem faz a conta. */
+    const caixaDe = new Float64Array(nc * 6);
+    for (let miudo = 1; miudo <= miudos; miudo++) {
+      const f = miudo / miudos;
       // 0. o freio interno: a velocidade de cada ponto se aproxima da dos vizinhos
-      for (let l = 0; l < vizinhos.length; l += 2) {
+      for (let l = 0; l < nv; l += 2) {
         const oa = vizinhos[l] * 3;
         const oz = vizinhos[l + 1] * 3;
         for (let e = 0; e < 3; e++) {
@@ -398,9 +424,9 @@ export class Pano {
         x[o + 2] += dz;
       }
       // 2. os pontos presos vão para onde o osso deles está neste instante
-      for (let k = 0; k < this.presos.length; k++) {
-        const o = this.presos[k].i * 3;
-        for (let e = 0; e < 3; e++) x[o + e] = this.pinosAntes[k * 3 + e] + (this.pinosAgora[k * 3 + e] - this.pinosAntes[k * 3 + e]) * f;
+      for (let k = 0; k < np; k++) {
+        const o = presos[k] * 3;
+        for (let e = 0; e < 3; e++) x[o + e] = pinosAntes[k * 3 + e] + (pinosAgora[k * 3 + e] - pinosAntes[k * 3 + e]) * f;
       }
       // 3. os elásticos voltam ao comprimento deles
       for (let l = 0; l < nl; l++) {
@@ -431,13 +457,32 @@ export class Pano {
       for (let j = 0; j < ncp; j++) {
         const k = capsulasPerto[j];
         const o = k * 6;
-        const ax = this.pontasAntes[o] + (this.pontasAgora[o] - this.pontasAntes[o]) * f;
-        const ay = this.pontasAntes[o + 1] + (this.pontasAgora[o + 1] - this.pontasAntes[o + 1]) * f;
-        const az = this.pontasAntes[o + 2] + (this.pontasAgora[o + 2] - this.pontasAntes[o + 2]) * f;
-        const ex = this.pontasAntes[o + 3] + (this.pontasAgora[o + 3] - this.pontasAntes[o + 3]) * f - ax;
-        const ey = this.pontasAntes[o + 4] + (this.pontasAgora[o + 4] - this.pontasAntes[o + 4]) * f - ay;
-        const ez = this.pontasAntes[o + 5] + (this.pontasAgora[o + 5] - this.pontasAntes[o + 5]) * f - az;
-        capa.set([ax, ay, az, ex, ey, ez, ex * ex + ey * ey + ez * ez || 1, this.capsulas[k].ra + folga, this.capsulas[k].rb + folga], k * 9);
+        const ax = pontasAntes[o] + (pontasAgora[o] - pontasAntes[o]) * f;
+        const ay = pontasAntes[o + 1] + (pontasAgora[o + 1] - pontasAntes[o + 1]) * f;
+        const az = pontasAntes[o + 2] + (pontasAgora[o + 2] - pontasAntes[o + 2]) * f;
+        const ex = pontasAntes[o + 3] + (pontasAgora[o + 3] - pontasAntes[o + 3]) * f - ax;
+        const ey = pontasAntes[o + 4] + (pontasAgora[o + 4] - pontasAntes[o + 4]) * f - ay;
+        const ez = pontasAntes[o + 5] + (pontasAgora[o + 5] - pontasAntes[o + 5]) * f - az;
+        const ra = this.capsulas[k].ra + folga;
+        const rb = this.capsulas[k].rb + folga;
+        const q = k * 9;
+        capa[q] = ax;
+        capa[q + 1] = ay;
+        capa[q + 2] = az;
+        capa[q + 3] = ex;
+        capa[q + 4] = ey;
+        capa[q + 5] = ez;
+        capa[q + 6] = ex * ex + ey * ey + ez * ez || 1;
+        capa[q + 7] = ra;
+        capa[q + 8] = rb;
+        const r = ra > rb ? ra : rb;
+        const c = k * 6;
+        caixaDe[c] = (ex < 0 ? ax + ex : ax) - r;
+        caixaDe[c + 1] = (ey < 0 ? ay + ey : ay) - r;
+        caixaDe[c + 2] = (ez < 0 ? az + ez : az) - r;
+        caixaDe[c + 3] = (ex > 0 ? ax + ex : ax) + r;
+        caixaDe[c + 4] = (ey > 0 ? ay + ey : ay) + r;
+        caixaDe[c + 5] = (ez > 0 ? az + ez : az) + r;
       }
       for (let k = 0; k < n; k++) {
         if (!solto[k]) continue;
@@ -446,6 +491,8 @@ export class Pano {
         let py = x[o + 1];
         let pz = x[o + 2];
         for (let j = 0; j < ncp; j++) {
+          const c = capsulasPerto[j] * 6;
+          if (px < caixaDe[c] || px > caixaDe[c + 3] || py < caixaDe[c + 1] || py > caixaDe[c + 4] || pz < caixaDe[c + 2] || pz > caixaDe[c + 5]) continue;
           const q = capsulasPerto[j] * 9;
           const rx = px - capa[q];
           const ry = py - capa[q + 1];
@@ -571,6 +618,33 @@ export class Pano {
       }
     }
     this.pos.set(x);
+  }
+
+  /**
+   * Recebe os pontos e as normais de quem simulou este pano em outro lugar (um ajudante em segundo
+   * plano: veja panoRemoto.ts). Este pano só os desenha.
+   */
+  receber(pos: Float32Array, normais: Float32Array) {
+    this.pos.set(pos);
+    this.normais.set(normais);
+    this.geometria.getAttribute('position').needsUpdate = true;
+    this.geometria.getAttribute('normal').needsUpdate = true;
+  }
+
+  /**
+   * Leva os pontos presos para onde os ossos deles estão agora. O pano simulado num ajudante chega
+   * com um quadro de atraso: o miolo dele não mostra isso, mas a costura (onde ele segura no braço)
+   * se soltaria do corpo num gesto rápido.
+   */
+  repregar() {
+    const v = new THREE.Vector3();
+    for (const preso of this.presos) {
+      v.copy(preso.local).applyMatrix4(preso.osso.matrixWorld);
+      this.pos[preso.i * 3] = v.x;
+      this.pos[preso.i * 3 + 1] = v.y;
+      this.pos[preso.i * 3 + 2] = v.z;
+    }
+    this.geometria.getAttribute('position').needsUpdate = true;
   }
 
   /** Põe cada ponto onde o osso-guia dele o levaria, parado: o recomeço depois de um pulo de pose. */

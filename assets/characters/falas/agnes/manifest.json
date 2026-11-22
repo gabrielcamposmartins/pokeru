@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_救いは有料です。払えぬ方は…地獄へ。.wav",
+    "tipo": "audio",
+    "texto": "救いは有料です。払えぬ方は…地獄へ。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_わたくしの番。皆様の魂、量らせていただきます。.wav",
+    "tipo": "audio",
+    "texto": "わたくしの番。皆様の魂、量らせていただきます。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック。審判の日は、まだ先です。.wav",
+    "tipo": "audio",
+    "texto": "チェック。審判の日は、まだ先です。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール。最期まで看取って差し上げます。.wav",
+    "tipo": "audio",
+    "texto": "コール。最期まで看取って差し上げます。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_献金を。天国への切符…片道ですけれど。.wav",
+    "tipo": "audio",
+    "texto": "献金を。天国への切符…片道ですけれど。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_もっと深く…奈落の底までお導きします。.wav",
+    "tipo": "audio",
+    "texto": "もっと深く…奈落の底までお導きします。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_すべてを祭壇へ。生贄は…どなたかしら？.wav",
+    "tipo": "audio",
+    "texto": "すべてを祭壇へ。生贄は…どなたかしら？",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_赦しましょう。…今回だけは。.wav",
+    "tipo": "audio",
+    "texto": "赦しましょう。…今回だけは。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_告解の時間です。救われるのは、お一人だけ。.wav",
+    "tipo": "audio",
+    "texto": "告解の時間です。救われるのは、お一人だけ。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_皆様の魂、確かにお預かりしました。.wav",
+    "tipo": "audio",
+    "texto": "皆様の魂、確かにお預かりしました。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_主よ、なんと豊かな魂の刈り入れでしょう！.wav",
+    "tipo": "audio",
+    "texto": "主よ、なんと豊かな魂の刈り入れでしょう！",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_…この負債、地獄の果てまで取り立てますわ。.wav",
+    "tipo": "audio",
+    "texto": "…この負債、地獄の果てまで取り立てますわ。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_主よ…わたくしまで、お召しになるのですか。.wav",
+    "tipo": "audio",
+    "texto": "主よ…わたくしまで、お召しになるのですか。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_三日も待てません。今すぐ復活ですわ。.wav",
+    "tipo": "audio",
+    "texto": "三日も待てません。今すぐ復活ですわ。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_まあ、終末が近づいていますわ。素敵。.wav",
+    "tipo": "audio",
+    "texto": "まあ、終末が近づいていますわ。素敵。",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_迷える子羊さん…狼が来ますよ？.wav",
+    "tipo": "audio",
+    "texto": "迷える子羊さん…狼が来ますよ？",
+    "seed": 42,
+    "voice": "Agnes",
+    "language": "Japanese"
+  }
+]

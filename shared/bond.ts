@@ -299,6 +299,24 @@ export const BOND_GOSTOS: Record<string, readonly string[]> = {
   tobi: ['joia', 'bolo', 'fone'],
   // Yukina: flores, chá e o leque
   yukina: ['flor', 'cha', 'leque'],
+  // Alistair: o brilho de um bom relógio, um livro e chá na hora certa
+  alistair: ['joia', 'livro', 'cha'],
+  // Violetta: chá de salão, o leque e joias
+  violetta: ['cha', 'leque', 'joia'],
+  // Abel: incenso, escritura e as flores do altar
+  abel: ['incenso', 'livro', 'flor'],
+  // Agnes: o dízimo em joias, incenso e o leque de renda
+  agnes: ['joia', 'incenso', 'leque'],
+  // Goro: o leque do palco, chá e doce de camarim
+  goro: ['leque', 'cha', 'bolo'],
+  // Hina: flores, doce e chá
+  hina: ['flor', 'bolo', 'cha'],
+  // Glitch: fones, açúcar e um bom manual
+  zuzu: ['fone', 'bolo', 'livro'],
+  // Nobu: algo quente para beber, algo para comer e um incenso para chamar a sorte
+  nobu: ['cha', 'bolo', 'incenso'],
+  // Saeko: joias discretas, chá no fim do expediente e flores na mesa do escritório
+  saeko: ['joia', 'cha', 'flor'],
 };
 
 /** O bônus de acertar o gosto. */

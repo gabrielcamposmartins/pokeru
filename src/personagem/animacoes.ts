@@ -269,13 +269,17 @@ const LIMITES_DO_POLEGAR: [number, number][] = [
 function polegarEm(b: Boneco, lado: Lado, f: Dedos, alvo: THREE.Vector3, pena?: () => number, ponto?: () => THREE.Vector3, partida?: number[]): { ang: number[]; falta: number } {
   const osso = b.osso('mao.' + lado);
   osso.updateWorldMatrix(true, false);
+  let melhor = partida ?? [20, 0, 0, 10, 10];
+  // os outros dedos não mudam durante a procura: são posados uma vez, e cada tentativa mexe só no
+  // polegar (são milhares de tentativas: reposar a mão inteira em cada uma levava mais de um segundo)
+  b.dedos(lado, [...f.slice(0, 16), ...melhor]);
+  osso.updateWorldMatrix(false, true);
+  const paraAMao = new THREE.Matrix4().copy(osso.matrixWorld).invert();
   const falta = (a: number[]) => {
-    b.dedos(lado, [...f.slice(0, 16), ...a]);
-    osso.updateWorldMatrix(false, true);
-    return osso.worldToLocal(ponto ? ponto() : b.ancora(lado, 'ponta_p')).distanceTo(alvo);
+    b.polegar(lado, a);
+    return (ponto ? ponto() : b.ancora(lado, 'ponta_p')).applyMatrix4(paraAMao).distanceTo(alvo);
   };
   const custo = (a: number[]) => falta(a) + (pena ? pena() : 0) + 0.00002 * (Math.abs(a[0]) + Math.abs(a[1]) + 2 * Math.abs(a[2]) + a[3] + a[4]);
-  let melhor = partida ?? [20, 0, 0, 10, 10];
   let nota = custo(melhor);
   const tenta = (a: number[]) => {
     const n = custo(a);
@@ -1743,10 +1747,11 @@ export function desistir(b: Boneco, { cartas, alvo }: Desistencia = DESISTENCIA)
  * Empurra uma ficha no rumo `fora` até ela não entrar em nenhuma das esferas da mão (as do polegar
  * não contam: é ele quem a carrega). A ficha descansa na mão; não passa por dentro dela.
  */
-function livrarFicha(esferas: { p: THREE.Vector3; r: number }[], pos: THREE.Vector3, quat: THREE.Quaternion, fora: THREE.Vector3) {
+function livrarFicha(esferas: { p: THREE.Vector3; r: number }[], pos: THREE.Vector3, quat: THREE.Quaternion, fora: THREE.Vector3, aperta = 0) {
   const inv = quat.clone().invert();
   const q = new THREE.Vector3();
-  const MARGEM = 0.0004;
+  // (`aperta`: o quanto a ficha pode entrar nas esferas — elas são mais gordas que o dedo no meio do osso, onde a ficha deita)
+  const MARGEM = 0.0004 - aperta;
   for (let volta = 0; volta < 8; volta++) {
     let pior = Infinity;
     for (let i = 0; i < esferas.length; i++) {
@@ -1771,6 +1776,13 @@ function girarFicha(b: Boneco): Clipe {
   const IDA = 1.6;
   /** A que distância do meio do osso do dedo fica o meio da ficha deitada nele (antes de ser empurrada para fora do que estiver no caminho). */
   const ENCOSTADA = 0.0092;
+  /** O quanto a ficha sobe a mais quando está de pé, no vão entre dois dedos. */
+  const DE_PE = 0.0046;
+  /**
+   * Onde, ao longo do primeiro osso de cada dedo, a ficha passa: 0 no nó, 1 na dobra do meio do dedo.
+   * Mais para a dobra do que para o nó — é ali, perto das pontas, que se rola uma ficha.
+   */
+  const NO_DEDO = 0.72;
   /** As fatias da volta: a ficha dá a volta no mínimo, passa por baixo e dá a volta no indicador. */
   const VOLTA = { minimo: 0.28, indicador: 0.72 };
   const pose: Chave = { t: 0, ponto: 'punho', em: naMesa(-0.13, 0.33, 0.1), f: PALCO, dedos: V(0.62, 0, 0.78) };
@@ -1798,7 +1810,7 @@ function girarFicha(b: Boneco): Clipe {
   };
   /** A ficha no instante t, com a mão direita já posada: o lugar, a rotação, e para que lado fica "fora da mão". */
   const fichaEm = (bo: Boneco, t: number) => {
-    const meio = (k: number) => bo.junta('D', k, 1).add(bo.junta('D', k, 2)).multiplyScalar(0.5);
+    const meio = (k: number) => bo.junta('D', k, 1).lerp(bo.junta('D', k, 2), NO_DEDO);
     const cima = (k: number) => V(0, 1, 0).applyQuaternion(bo.osso(NOMES_DOS_DEDOS[k] + '1.D').getWorldQuaternion(new THREE.Quaternion()));
     const aoLongo = bo.junta('D', 1, 2).sub(bo.junta('D', 1, 1)).normalize();
     const deLado = meio(3).sub(meio(0));
@@ -1813,7 +1825,7 @@ function girarFicha(b: Boneco): Clipe {
       const ang = Math.PI * s;
       fora = cima(k).lerp(cima(k + 1), s - k).normalize();
       normal = fora.clone().multiplyScalar(Math.cos(ang)).addScaledVector(deLado, Math.sin(ang));
-      centro = meio(k).lerp(meio(k + 1), s - k).addScaledVector(fora, ENCOSTADA + 0.0046 * Math.abs(Math.sin(ang)));
+      centro = meio(k).lerp(meio(k + 1), s - k).addScaledVector(fora, ENCOSTADA + DE_PE * Math.abs(Math.sin(ang)));
     } else {
       const u = macio(entre(IDA, dur, t));
       if (u < VOLTA.minimo || u > VOLTA.indicador) {
@@ -1845,7 +1857,22 @@ function girarFicha(b: Boneco): Clipe {
   const REPOUSO = PALCO.slice(16);
   const passos: [number, number[]][] = [[0.14, REPOUSO]];
   let jeito: number[] | undefined;
-  for (const fatia of [0.36, 0.43, 0.5, 0.57, 0.64]) {
+  /** A folga do polegar (as três esferas dele) com a ficha: negativa, entrou nela. */
+  const folgaDoPolegar = (ficha: { centro: THREE.Vector3; quat: THREE.Quaternion }) => {
+    const inv = ficha.quat.clone().invert();
+    const es = b.esferasNoMundo('D');
+    let pior = Infinity;
+    for (let i = 16; i < 19; i++) {
+      const q = es[i].p.clone().sub(ficha.centro).applyQuaternion(inv);
+      const d0 = Math.hypot(q.x, q.z) - FICHA.raio;
+      const d1 = Math.abs(q.y) - FICHA.alto / 2;
+      pior = Math.min(pior, Math.hypot(Math.max(d0, 0), Math.max(d1, 0)) + Math.min(Math.max(d0, d1), 0) - es[i].r);
+    }
+    return pior;
+  };
+  // (o polegar a acompanha até ela subir para cima do indicador, sem entrar nela: voltando antes ao
+  // descanso, ele passava por dentro da ficha que dá a volta no dedo)
+  for (const fatia of [0.36, 0.43, 0.5, 0.57, 0.64, 0.7, 0.76, 0.82, 0.88]) {
     const t = IDA + (dur - IDA) * fatia;
     const estado = D(t);
     mexerOsDedos(t, estado.f);
@@ -1855,10 +1882,10 @@ function girarFicha(b: Boneco): Clipe {
     const ficha = fichaEm(b, t);
     // por baixo da ficha, do lado dela que fica para o polegar
     const alvo = maoD.worldToLocal(ficha.centro.clone().addScaledVector(ficha.fora, FICHA.alto / 2 + RAIO_DA_PONTA + 0.0004).addScaledVector(ficha.deLado, -0.008));
-    jeito = polegarEm(b, 'D', estado.f, alvo, undefined, pontaDoPolegar, jeito).ang;
+    jeito = polegarEm(b, 'D', estado.f, alvo, () => 4 * Math.max(0, 0.0004 - folgaDoPolegar(ficha)), pontaDoPolegar, jeito).ang;
     passos.push([fatia, jeito]);
   }
-  passos.push([0.88, REPOUSO]);
+  passos.push([0.99, REPOUSO]);
   const polegarNaVolta = (fatia: number): number[] => {
     if (fatia <= passos[0][0] || fatia >= passos[passos.length - 1][0]) return REPOUSO;
     let i = 0;
@@ -2231,8 +2258,34 @@ export function idleAbertas(b: Boneco, fora: Retangulo = retanguloDasCartas(), i
 }
 
 /** Todas as animações, na ordem do preview. */
+/**
+ * Quem monta cada clipe, na ordem de `criarClipes`. Montar todos leva um instante (algumas chaves são
+ * achadas por procura): quem não pode travar a página monta um de cada vez, com um respiro entre eles.
+ */
+export const MONTADORES_DE_CLIPES: ((b: Boneco) => Clipe)[] = [
+  (b) => fichas(b),
+  (b) => virar(b),
+  (b) => virarAPilha(b),
+  (b) => olhar(b),
+  (b) => pegarEPousarBaralho(b),
+  (b) => entregar(b),
+  (b) => entregarAMesa(b),
+  (b) => abrirCartas(b),
+  (b) => desistir(b),
+  (b) => ganhar(b),
+  (b) => girarFicha(b),
+  (b) => checkNos(b),
+  (b) => checkDedos(b),
+  (b) => checkPalma(b),
+  (b) => idlePlana(b),
+  (b) => idleSobrepostas(b),
+  (b) => idleBatucando(b),
+  (b) => idleConcha(b),
+  (b) => idleAbertas(b),
+];
+
 export function criarClipes(b: Boneco): Clipe[] {
-  return [fichas(b), virar(b), virarAPilha(b), olhar(b), pegarEPousarBaralho(b), entregar(b), entregarAMesa(b), abrirCartas(b), desistir(b), ganhar(b), girarFicha(b), checkNos(b), checkDedos(b), checkPalma(b), idlePlana(b), idleSobrepostas(b), idleBatucando(b), idleConcha(b), idleAbertas(b)];
+  return MONTADORES_DE_CLIPES.map((monta) => monta(b));
 }
 
 /**

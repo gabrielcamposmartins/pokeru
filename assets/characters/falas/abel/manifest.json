@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_迷える子羊たちよ、懺悔の時間です。.wav",
+    "tipo": "audio",
+    "texto": "迷える子羊たちよ、懺悔の時間です。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_私の番ですか。では、祈りましょう。.wav",
+    "tipo": "audio",
+    "texto": "私の番ですか。では、祈りましょう。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック。沈黙もまた告白ですよ。.wav",
+    "tipo": "audio",
+    "texto": "チェック。沈黙もまた告白ですよ。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_お聞きしましょう、あなたの罪を。.wav",
+    "tipo": "audio",
+    "texto": "お聞きしましょう、あなたの罪を。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_少しばかり、献金をお願いしますね。.wav",
+    "tipo": "audio",
+    "texto": "少しばかり、献金をお願いしますね。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_罪が重いほど、償いも重いのです。.wav",
+    "tipo": "audio",
+    "texto": "罪が重いほど、償いも重いのです。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_すべてを神の御手に委ねましょう。.wav",
+    "tipo": "audio",
+    "texto": "すべてを神の御手に委ねましょう。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_今日のところは、赦してあげましょう。.wav",
+    "tipo": "audio",
+    "texto": "今日のところは、赦してあげましょう。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_さあ、その罪を告白なさい。.wav",
+    "tipo": "audio",
+    "texto": "さあ、その罪を告白なさい。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_告白、確かに受け取りました。.wav",
+    "tipo": "audio",
+    "texto": "告白、確かに受け取りました。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_罪を話しなさい、子よ…もう知っています。.wav",
+    "tipo": "audio",
+    "texto": "罪を話しなさい、子よ…もう知っています。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_おや…神は試練をお与えになる。.wav",
+    "tipo": "audio",
+    "texto": "おや…神は試練をお与えになる。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_これもまた、私への罰ですか….wav",
+    "tipo": "audio",
+    "texto": "これもまた、私への罰ですか…",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_献金箱は、まだ空ではありませんよ。.wav",
+    "tipo": "audio",
+    "texto": "献金箱は、まだ空ではありませんよ。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_審判の時が近づいていますね。.wav",
+    "tipo": "audio",
+    "texto": "審判の時が近づいていますね。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_迷いは罪の始まりですよ、子羊よ。.wav",
+    "tipo": "audio",
+    "texto": "迷いは罪の始まりですよ、子羊よ。",
+    "seed": 42,
+    "voice": "Abel",
+    "language": "Japanese"
+  }
+]

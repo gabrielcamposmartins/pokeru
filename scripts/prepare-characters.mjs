@@ -30,6 +30,15 @@ const CHARACTERS = {
   ren: { file: 'ren_frente.png', portrait: { cx: 505, cy: 110, side: 260 } },
   tobi: { file: 'tobi_frente.png', portrait: { cx: 500, cy: 115, side: 285 } },
   yukina: { file: 'yukina_frente.png', portrait: { cx: 520, cy: 135, side: 285 } },
+  alistair: { file: 'alistair_frente.png', portrait: { cx: 500, cy: 150, side: 300 } },
+  violetta: { file: 'violetta_frente.png', portrait: { cx: 512, cy: 152, side: 300 } },
+  abel: { file: 'abel_frente.png', portrait: { cx: 505, cy: 168, side: 290 } },
+  agnes: { file: 'agnes_frente.png', portrait: { cx: 520, cy: 185, side: 340 } },
+  goro: { file: 'goro_frente.png', portrait: { cx: 490, cy: 150, side: 310 } },
+  hina: { file: 'hina_frente.png', portrait: { cx: 500, cy: 188, side: 310 } },
+  zuzu: { file: 'zuzu_frente.png', portrait: { cx: 505, cy: 172, side: 335 } },
+  nobu: { file: 'nobu_frente.png', portrait: { cx: 500, cy: 160, side: 300 } },
+  saeko: { file: 'saeko_frente.png', portrait: { cx: 498, cy: 152, side: 300 } },
 };
 
 /** Abaixo disto o arquivo não tem transparência de verdade — é arte achatada sobre algum fundo. */

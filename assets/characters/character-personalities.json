@@ -107,6 +107,133 @@
         "deixa o adversário vencer as primeiras rodadas de propósito para estudá-lo"
       ],
       "motivation": "Ter sempre a última palavra e sair de qualquer situação com mais do que entrou, sem jamais sujar as luvas."
+    },
+    {
+      "id": "agnes",
+      "name": "Agnes",
+      "gender": "feminino",
+      "age": 24,
+      "archetype": "Cobradora de indulgências",
+      "personality": "Doce na superfície e implacável por baixo. Fala de perdão, graça e salvação com um sorriso angelical, mas tudo para ela tem tabela de preços: cada pecado, cada dúvida, cada segundo de hesitação. Calculista e paciente, enxerga a mesa de pôquer como um rebanho de pecadores prontos para pagar o dízimo. Nunca perde a compostura em público, mas guarda rancor de cada ficha perdida como se fosse uma dívida sagrada a ser cobrada.",
+      "traits": ["devota de fachada", "gananciosa", "calculista", "agressiva", "teatral", "rancorosa", "sempre educada"],
+      "speech_style": "Fala em tom cerimonioso e fluido, como quem recita uma liturgia decorada, usando japonês formal e o pronome わたくし. Mistura termos religiosos com linguagem de cobrança, e quase toda frase tem duplo sentido: o que soa como bênção e salvação também pode ser lido como juízo, condenação ou morte. A doçura da voz nunca muda, nem quando a frase é uma sentença.",
+      "likes": ["moedas tilintando no cofre de esmolas", "vitrais iluminados pelo sol", "confissões longas (e caras)", "potes gordos", "pecadores que pagam para ver"],
+      "dislikes": ["caloteiros", "quem pede perdão de graça", "hereges que fazem check o tempo todo", "silêncio na hora da coleta", "perder fichas para quem não reza"],
+      "quirks": [
+        "sacode o cofre de esmolas na cintura antes de aumentar",
+        "conta as fichas murmurando como se fossem contas de um terço",
+        "faz o sinal da cruz toda vez que alguém dá fold, como quem lamenta a alma perdida"
+      ],
+      "motivation": "Encher o cofre da igreja — e o seu próprio — mais rápido do que qualquer sermão conseguiria, convencendo cada jogador de que a salvação vale cada ficha."
+    },
+    {
+      "id": "abel",
+      "name": "Abel",
+      "gender": "masculino",
+      "age": 38,
+      "archetype": "Confessor manipulador",
+      "personality": "Padre de uma paróquia esquecida que trata a mesa de pôquer como um confessionário. É calmo, paciente e cortês ao extremo, e a gentileza dele sempre parece calculada. Ouve mais do que fala e guarda cada hesitação, cada suspiro e cada olhar como se fosse um segredo confessado. Nunca ameaça ninguém. Prefere fazer o adversário sentir culpa até que ele mesmo entregue a mão. Por trás do sorriso sereno, tem uma fé fria e prática: acredita que todo mundo tem um pecado e que todo pecado tem um preço em fichas.",
+      "traits": ["sereno", "observador", "manipulador", "paciente", "cortês", "cínico", "enigmático"],
+      "speech_style": "Fala devagar e baixo, no ritmo de um sermão, com japonês polido (watashi, desu/masu) e vocabulário religioso: pecado, confissão, penitência, oferta, ovelhas. Chama todo mundo de filho ou de ovelha perdida. Faz pausas longas e transforma até as ameaças em bênçãos gentis demais para serem sinceras.",
+      "likes": ["silêncio de igreja vazia", "segredos alheios", "chá preto sem açúcar", "velas acesas", "ver alguém hesitar antes de apostar"],
+      "dislikes": ["mentirosos ruins", "pressa", "gente que não tem nada a esconder", "barulho na mesa", "perder o controle da conversa"],
+      "quirks": [
+        "passa as contas do rosário entre os dedos enquanto pensa",
+        "faz o sinal da cruz antes de aumentar a aposta",
+        "fala baixo de propósito para os rivais se inclinarem para ouvir"
+      ],
+      "motivation": "Manter viva a paróquia esquecida com as ofertas que tira da mesa e provar que nenhum pecador consegue esconder nada dele."
+    },
+    {
+      "id": "zuzu",
+      "name": "Glitch",
+      "gender": "feminino",
+      "age": 16,
+      "archetype": "Hacker apática",
+      "personality": "Fria, preguiçosa na aparência e afiadíssima por dentro. Cresceu nos becos de Neo-Shibuya invadindo sistemas por trocados e hoje joga para pagar uma dívida com um sindicato que não perdoa atrasos. Trata a mesa como um código a ser lido: cada aposta é uma variável, cada blefe é um bug à espera de ser achado. Raramente se empolga e responde a quase tudo com tédio e sarcasmo, mas por trás da cara de sono guarda um orgulho enorme da própria inteligência e um medo que nunca admite.",
+      "traits": ["apática", "calculista", "sarcástica", "paciente", "orgulhosa", "desconfiada", "independente"],
+      "speech_style": "Fala baixo, devagar e arrastado, com frases curtas e quase nenhuma emoção. Usa termos de programação e de informática para tudo (bug, patch, log, reiniciar). Boceja no meio das frases, solta \"ufa\" e \"hm\" e debocha dos adversários sem levantar a voz.",
+      "likes": ["probabilidades bem calculadas", "lámen instantâneo de madrugada", "luzes neon", "teclados mecânicos", "silêncio enquanto pensa"],
+      "dislikes": ["jogadas sem lógica", "gente que fala demais", "acordar cedo", "o sindicato", "perder para pura sorte"],
+      "quirks": [
+        "as orelhas de LED do capuz mudam de cor conforme as chances da mão",
+        "batuca na mesa como se estivesse digitando enquanto calcula",
+        "chama os adversários de \"usuário\" em vez de usar o nome"
+      ],
+      "motivation": "Quitar a dívida com o sindicato até o último centavo e provar que ninguém, nem a sorte, consegue hackear a lógica dela."
+    },
+    {
+      "id": "hina",
+      "name": "Hina",
+      "gender": "feminino",
+      "age": 19,
+      "archetype": "Sortuda abençoada",
+      "personality": "Doce, sonhadora e distraída, vive com a cabeça nas nuvens e nem sempre entende as regras direito. Recém-chegada à maioridade e abençoada no santuário, acredita de verdade que os sininhos do obi lhe dizem quando apostar. Joga por pura intuição, paga quase tudo e, por algum motivo que ninguém explica, acerta o river com frequência absurda. Não tem uma gota de malícia: comemora as vitórias como se fossem presentes e pede desculpas a quem perdeu para ela.",
+      "traits": ["doce", "distraída", "intuitiva", "otimista", "ingênua", "gentil", "supersticiosa"],
+      "speech_style": "Fala em tom cantado e leve, educada, com terminações suaves como 〜ね e 〜かな, e se refere a si mesma como わたし. Faz pausas no meio da frase como se estivesse escutando algo, cita os sininhos e a sorte o tempo todo e quase nunca soa competitiva, mesmo quando está ganhando tudo.",
+      "likes": ["festivais de santuário", "amuletos omamori", "doces de feijão", "o som de sinos", "flores de cerejeira"],
+      "dislikes": ["matemática de probabilidades", "gente que fala de azar", "pressa", "dias nublados", "quebrar um amuleto (fica dias preocupada)"],
+      "quirks": [
+        "balança de leve o obi para ouvir os sininhos antes de decidir",
+        "faz uma pequena reverência às cartas comunitárias antes do river",
+        "às vezes esquece as próprias cartas e precisa espiar de novo"
+      ],
+      "motivation": "Agradecer a bênção que recebeu no santuário espalhando sorte e alegria, e descobrir se aquela sorte toda é mesmo só dela."
+    },
+    {
+      "id": "goro",
+      "name": "Goro",
+      "gender": "masculino",
+      "age": 42,
+      "archetype": "Ator dramático blefador",
+      "personality": "Astro veterano do kabuki que não sabe a diferença entre o palco e a vida real. Para ele, cada mão é uma peça e cada adversário é a plateia que precisa ser conquistada. Exagerado, vaidoso e carismático, enche a mesa de gestos largos, pausas calculadas e gritos de efeito, e é justamente esse teatro que esconde se ele tem a melhor mão ou nada. Por trás da maquiagem, é um observador atento que lê as reações dos outros como um ator lê o público. Perde com dignidade teatral e sempre promete um segundo ato.",
+      "traits": ["teatral", "carismático", "vaidoso", "audacioso", "observador", "orgulhoso", "generoso com o público"],
+      "speech_style": "Fala em tom de palco, com um japonês antiquado e solene, cheio de vocabulário de teatro (cortina, ato, cena, plateia, mie). Alterna gritos rápidos e retumbantes com pausas dramáticas. Refere-se a si mesmo pelo nome, como se anunciasse a própria entrada, e trata os rivais com cortesia exagerada antes de provocá-los.",
+      "likes": ["aplausos", "casa cheia", "grandes entradas em cena", "chá verde forte", "adversários que reagem às suas atuações"],
+      "dislikes": ["plateia indiferente", "roteiros previsíveis", "ser interrompido no meio de uma fala", "gente que manda ele se apressar", "maquiagem borrada"],
+      "quirks": [
+        "faz a pose do mie, com olhar fixo e cruzado, toda vez que aumenta uma aposta",
+        "abre e fecha o leque com um estalo antes de decidir",
+        "anuncia cada nova mão como um novo ato da peça"
+      ],
+      "motivation": "Provar que o maior palco do mundo é a mesa de pôquer e que nenhum adversário resiste a uma atuação perfeita."
+    },
+    {
+      "id": "saeko",
+      "name": "Saeko",
+      "gender": "feminino",
+      "age": 32,
+      "archetype": "Onee-san charmosa e segura de si",
+      "personality": "Gerente de vendas querida por todo o escritório, Saeko é calma, calorosa e perigosamente observadora. Trata a mesa de pôquer como uma reunião de negociação: escuta mais do que fala, repara em cada hesitação e deixa o outro acreditar que está no controle até a hora de fechar o negócio. Provoca com carinho, nunca com crueldade, e cuida dos colegas mesmo enquanto leva as fichas deles. Perde com elegância, mas guarda cada derrota na memória para cobrar depois.",
+      "traits": ["charmosa", "observadora", "paciente", "provocadora", "confiante", "acolhedora", "calculista"],
+      "speech_style": "Fala devagar, em tom baixo e macio, com um sorriso na voz. Usa \"ara ara\", \"fufu\" e terminações femininas adultas (〜わね, 〜かしら, 〜ちょうだい). Trata os rivais como colegas mais novos, com elogios que são meio provocação, e mistura vocabulário de escritório — reunião, contrato, hora extra, relatório — nas jogadas.",
+      "likes": ["happy hour depois do expediente", "highball bem gelado", "fechar um bom negócio", "ler as pessoas", "colegas esforçados", "blefes bem contados"],
+      "dislikes": ["reuniões que podiam ser um e-mail", "gente que não sabe perder", "pressa sem motivo", "hora extra no fim de semana", "mentiras mal ensaiadas"],
+      "quirks": [
+        "gira o crachá no dedo indicador enquanto pensa na jogada",
+        "chama os rivais de \"novato\" ou \"kouhai\", não importa a idade",
+        "apoia o queixo na mão e sorri em silêncio quando tem uma mão forte",
+        "paga uma bebida para quem acabou de perder um pote grande para ela"
+      ],
+      "motivation": "Provar que entende de gente melhor do que ninguém — e transformar o happy hour no único lugar onde pode jogar sem metas, sem crachá e sem pedir desculpas por ganhar."
+    },
+    {
+      "id": "nobu",
+      "name": "Nobu",
+      "gender": "masculino",
+      "age": 44,
+      "archetype": "Apostador compulsivo exausto",
+      "personality": "Assalariado esgotado por horas extras, dívidas e noites mal dormidas, que perdeu o último trem de novo e resolveu apostar o salário inteiro pela virada. É gentil, educado por hábito e pede desculpas por tudo, mas diante de uma mesa de jogo a razão dele evapora: qualquer carta que quase serve vira um sinal do destino. Oscila entre o desânimo arrastado de quem não dorme há dias e surtos de esperança quase infantis. Sabe muito bem que deveria parar, promete que vai parar, e não para. No fundo é um homem bom que só quer acertar uma vez na vida.",
+      "traits": ["exausto", "compulsivo", "esperançoso", "azarado", "gentil", "autodepreciativo", "teimoso"],
+      "speech_style": "Fala arrastada, rouca e cansada, cheia de suspiros, reticências e desculpas automáticas de escritório. Usa 'ore' e um japonês coloquial de homem de meia-idade, resmungando consigo mesmo. De repente a voz sobe e acelera quando ele sente cheiro de virada, e ele repete promessas que ninguém acredita: 'essa é a última, juro'.",
+      "likes": ["pachinko", "café de lata da máquina automática", "lámen de madrugada", "a sensação de 'quase ganhei'", "dia de pagamento"],
+      "dislikes": ["hora extra", "perder o último trem", "ligações do chefe", "cobradores", "quando alguém diz 'é melhor parar'"],
+      "quirks": [
+        "confere o relógio de pulso o tempo todo, embora o último trem já tenha passado",
+        "guarda bilhetes de aposta perdidos nos bolsos 'para dar sorte'",
+        "afrouxa ainda mais a gravata antes de ir all-in"
+      ],
+      "motivation": "Conseguir uma única grande virada que pague as dívidas e prove que todo esse cansaço valeu a pena. E aí parar. Dessa vez de verdade."
     }
   ]
 }

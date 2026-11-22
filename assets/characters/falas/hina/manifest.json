@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_こんにちは〜、よろしくお願いしますね.wav",
+    "tipo": "audio",
+    "texto": "こんにちは〜、よろしくお願いしますね",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_わたしの番？えっと…鈴さん、どうかな.wav",
+    "tipo": "audio",
+    "texto": "わたしの番？えっと…鈴さん、どうかな",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_今はまだ静かにしておこうかな.wav",
+    "tipo": "audio",
+    "texto": "今はまだ静かにしておこうかな",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール〜、なんだか来そうな気がするの.wav",
+    "tipo": "audio",
+    "texto": "コール〜、なんだか来そうな気がするの",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_鈴が鳴ったから、賭けちゃいますね.wav",
+    "tipo": "audio",
+    "texto": "鈴が鳴ったから、賭けちゃいますね",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_もうちょっとだけ、上げてもいいかな？.wav",
+    "tipo": "audio",
+    "texto": "もうちょっとだけ、上げてもいいかな？",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_鈴が言ってるの、これはわたしのだって！.wav",
+    "tipo": "audio",
+    "texto": "鈴が言ってるの、これはわたしのだって！",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_あれ、鈴が鳴らないや…降りますね.wav",
+    "tipo": "audio",
+    "texto": "あれ、鈴が鳴らないや…降りますね",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_せーので、見せっこしましょ？.wav",
+    "tipo": "audio",
+    "texto": "せーので、見せっこしましょ？",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_わぁ、また当たっちゃいました！.wav",
+    "tipo": "audio",
+    "texto": "わぁ、また当たっちゃいました！",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_神様、本当にありがとうございます！.wav",
+    "tipo": "audio",
+    "texto": "神様、本当にありがとうございます！",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_あらら、今日の運は休憩中かな.wav",
+    "tipo": "audio",
+    "texto": "あらら、今日の運は休憩中かな",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_お守り、新しいの買ってこなきゃ….wav",
+    "tipo": "audio",
+    "texto": "お守り、新しいの買ってこなきゃ…",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_お参りしてきました、もう一回！.wav",
+    "tipo": "audio",
+    "texto": "お参りしてきました、もう一回！",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_ブラインド？お祭りみたいですね〜.wav",
+    "tipo": "audio",
+    "texto": "ブラインド？お祭りみたいですね〜",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_ねえ、桜が散っちゃいますよ〜？.wav",
+    "tipo": "audio",
+    "texto": "ねえ、桜が散っちゃいますよ〜？",
+    "seed": 42,
+    "voice": "Hina",
+    "language": "Japanese"
+  }
+]

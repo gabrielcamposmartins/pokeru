@@ -211,6 +211,16 @@ export class Cena3D implements Palco3D {
   /** Um ponto vazio em cada lugar: leva o que é dito no espaço do personagem para o mundo. */
   private ancoras: THREE.Group[] = [];
   private readonly atores = new Map<number, Ator>();
+  /**
+   * Quem já foi montado mas ainda não aparece: entra na cena quando os programas da placa de vídeo
+   * dele estão compilados e o pano assentou (antes disso o primeiro desenho travava a página, e as
+   * mangas apareciam esticadas). `desde`: quando foi montado — passado um tempo, entra assim mesmo.
+   */
+  private readonly chegando = new Map<Ator, { compilado: boolean; desde: number }>();
+  /** Ficou gente por sentar (monta-se um personagem por quadro, para não travar um quadro inteiro). */
+  private faltaSentar = false;
+  /** A mesa já pode ser desenhada (os programas dela estão compilados). */
+  private pronta = false;
   private readonly apostando = new Map<number, Apostando>();
   /** O dealer está dando cartas (o gesto de entregar volta ao descanso um pouco depois da última). */
   private entregando: { seat: number; ate: number } | null = null;
@@ -335,6 +345,29 @@ export class Cena3D implements Palco3D {
     window.addEventListener('resize', medir);
     this.desligar.push(() => window.removeEventListener('resize', medir));
     this.medir();
+    // os programas da mesa compilam em segundo plano: o primeiro desenho espera por eles (meio segundo,
+    // no máximo), em vez de travar a página enquanto a placa de vídeo os compila
+    // (as fichas e as cartas só aparecem depois, e os programas delas compilariam no meio da partida:
+    // um exemplar escondido de cada entra na conta agora, e sai quando ela acaba)
+    const amostra = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    amostra.colorSpace = THREE.SRGBColorSpace;
+    amostra.needsUpdate = true;
+    const comDesenho = new THREE.MeshStandardMaterial({ map: amostra, roughness: 0.4 });
+    const liso = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+    const recortado = new THREE.MeshStandardMaterial({ map: amostra, roughness: 0.55, alphaTest: 0.5 });
+    const semLuz = new THREE.MeshBasicMaterial({ map: amostra, alphaTest: 0.5 });
+    const aquecer: THREE.Mesh[] = [new THREE.InstancedMesh(this.geoFicha, [comDesenho, comDesenho, comDesenho], 1), new THREE.Mesh(this.geoCarta, [liso, liso, recortado, semLuz, liso, liso])];
+    for (const m of aquecer) {
+      m.castShadow = m.receiveShadow = true;
+      m.visible = false;
+      this.cena.add(m);
+    }
+    const liberar = () => {
+      this.pronta = true;
+      for (const m of aquecer.splice(0)) m.removeFromParent();
+    };
+    this.renderer.compileAsync(this.cena, this.camera).then(liberar, liberar);
+    setTimeout(liberar, 1500);
     this.quadroPedido = requestAnimationFrame(this.quadro);
   }
 
@@ -376,7 +409,8 @@ export class Cena3D implements Palco3D {
     this.baralho.material = materiaisDoBaralho(e.cartas.back);
     // a aposta que o estado já conta: o punhado pousado sai de cena
     for (const [seat, a] of this.apostando) if ((v.seats[seat]?.bet ?? 0) !== a.antes && a.estado === 'pousou') this.apostando.delete(seat);
-    this.sincronizarAtores();
+    // (quem senta e quem sai é visto no próximo quadro: montar um personagem aqui travava o quadro em que o estado chega)
+    this.faltaSentar = true;
   }
 
   /** Senta quem está na mesa (quando o modelo dele está pronto) e levanta quem saiu. */
@@ -394,9 +428,12 @@ export class Cena3D implements Palco3D {
       // (trocou de personagem, ou de acessórios: o personagem é refeito)
       if (!s || !this.geo[seat] || e.personagemDe(seat) !== ator.personagem || chaveDosAcessorios(e.acessoriosDe?.(seat) ?? SEM_ACESSORIOS) !== ator.enfeites) {
         ator.destruir();
+        this.chegando.delete(ator);
         this.atores.delete(seat);
       }
     }
+    let montados = 0;
+    this.faltaSentar = false;
     v.seats.forEach((s, seat) => {
       const g = this.geo[seat];
       if (!s || !g || this.atores.has(seat)) return;
@@ -410,16 +447,43 @@ export class Cena3D implements Palco3D {
         void prepararRoupa(comLuva).catch(() => {});
         return;
       }
+      // (um por quadro: montar um personagem leva dezenas de milissegundos)
+      if (montados++ > 0) {
+        this.faltaSentar = true;
+        return;
+      }
       const ator = new Ator(id, modelo.corpo, modelo.roupa, acessorios);
       if (this.comBaralho === seat) this.comBaralho = null;
       ator.tela(this.medida.l || 1600, this.medida.a || 900);
       ator.semCabeca(seat === v.mySeat);
       ator.sentar(g.lugar);
       ator.descansar(clipe(DESCANSOS[g.vis]) ?? clipe('idle-plana')!);
-      this.cena.add(ator.grupo);
       this.atores.set(seat, ator);
+      // ainda fora da cena: entra quando estiver pronto para aparecer (veja `chegando`)
+      const espera = { compilado: false, desde: performance.now() };
+      this.chegando.set(ator, espera);
+      const compilou = () => (espera.compilado = true);
+      this.renderer.compileAsync(ator.grupo, this.camera, this.cena).then(compilou, compilou);
     });
   }
+
+  /**
+   * Põe na cena quem já está pronto para aparecer (ou esperou demais) — um de cada vez, com uns
+   * quadros entre um e outro: o primeiro desenho de um personagem manda as malhas dele para a placa
+   * de vídeo, e os seis no mesmo quadro travavam a página por meio segundo.
+   */
+  private receberQuemChegou(agora: number) {
+    if (agora < this.proximaChegada) return;
+    for (const [ator, espera] of this.chegando) {
+      const demorou = agora - espera.desde > 4000;
+      if (!demorou && !(espera.compilado && ator.pronto)) continue;
+      this.cena.add(ator.grupo);
+      this.chegando.delete(ator);
+      this.proximaChegada = agora + 70;
+      return;
+    }
+  }
+  private proximaChegada = 0;
 
   // ─────────────────────────────── pontos da mesa ───────────────────────────────
 
@@ -542,8 +606,9 @@ export class Cena3D implements Palco3D {
 
   bater(seat: number, aoBater?: () => void): boolean {
     const ator = this.atores.get(seat);
-    if (!ator || ator.ocupado) return false;
-    const ids = ['check-nos', 'check-dedos', 'check-palma'];
+    if (!ator || this.emGesto(ator)) return false;
+    // de cada seis vezes: três com os nós dos dedos (o punho fechado), duas com o tapinha e uma com os dois dedos
+    const ids = ['check-nos', 'check-nos', 'check-nos', 'check-palma', 'check-palma', 'check-dedos'];
     const c = clipe(ids[Math.floor(Math.random() * ids.length)]);
     if (!c) return false;
     // (avisa a cada vez que a mão bate na mesa: é quando o som toca)
@@ -568,7 +633,7 @@ export class Cena3D implements Palco3D {
     const entregar = clipe('entregar');
     if (d !== null && d !== undefined && entregar) {
       const dealer = this.atores.get(d);
-      if (dealer && !soBaralho(dealer.gesto) && !dealer.ocupado) dealer.tocar(entregar, { vel: 1.5, laco: true });
+      if (dealer && !soBaralho(dealer.gesto) && !this.emGesto(dealer)) dealer.tocar(entregar, { vel: 1.5, laco: true });
       this.entregando = { seat: d, ate: performance.now() + scaled(700) + 400 };
     }
     const alvo = this.cartaDoAssento(seat, i, n);
@@ -585,7 +650,7 @@ export class Cena3D implements Palco3D {
       // (nem quem está com o baralho na mão: é a esquerda que esconde as cartas)
       if (!ator || !s || seat === this.entrada?.view.mySeat || seat === this.comBaralho || s.cards.length !== 2) continue;
       setTimeout(() => {
-        if (!ator.ocupado && !s.folded) ator.tocar(olhar, { vel: 1.25 });
+        if (!this.emGesto(ator) && !s.folded) ator.tocar(olhar, { vel: 1.25 });
       }, 150 + Math.random() * 900);
     }
   }
@@ -757,6 +822,38 @@ export class Cena3D implements Palco3D {
    * cartas abertas são 2D, desenhadas por cima de tudo o que é 3D: uma mão descansando em cima delas
    * apareceria debaixo delas.
    */
+  /**
+   * Num gesto de verdade? Brincar com a ficha não conta: é um passatempo de quem espera, e qualquer
+   * gesto do jogo (passar, olhar as cartas, pousar o baralho) o interrompe.
+   */
+  private emGesto(ator: Ator): boolean {
+    return ator.ocupado && ator.gesto !== 'girar';
+  }
+
+  /** Quando cada assento brinca de novo com uma ficha (o instante, em ms). */
+  private readonly proximaBrincadeira = new Map<number, number>();
+
+  /**
+   * De vez em quando, quem está esperando brinca com uma ficha: ela rola por cima dos dedos da mão
+   * direita e volta por baixo. Só quem está de mãos livres — sem a vez, sem o baralho, sem cartas
+   * abertas na frente, sem aposta nem pote a caminho — e tem fichas na mesa.
+   */
+  private brincadeiras(agora: number) {
+    const v = this.entrada?.view;
+    const girar = clipe('girar');
+    if (!v || !girar) return;
+    for (const [seat, ator] of this.atores) {
+      let quando = this.proximaBrincadeira.get(seat);
+      if (quando === undefined) this.proximaBrincadeira.set(seat, (quando = agora + 8000 + Math.random() * 30000));
+      if (agora < quando) continue;
+      this.proximaBrincadeira.set(seat, agora + 25000 + Math.random() * 35000);
+      const s = v.seats[seat];
+      const livre = s && s.stack > 0 && v.toAct !== seat && !ator.ocupado && !ator.seguraOBaralho && !this.chegando.has(ator);
+      if (!livre || this.comAbertas(seat) || this.apostando.has(seat) || this.ganhando.has(seat) || this.entrega?.dealer === seat) continue;
+      ator.tocar(girar);
+    }
+  }
+
   private descansos() {
     const v = this.entrada?.view;
     for (const [seat, ator] of this.atores) {
@@ -815,7 +912,7 @@ export class Cena3D implements Palco3D {
       let tentativas = 0;
       const comeca = () => {
         if (feito || this.comBaralho !== seat) return pousado();
-        if (ator.ocupado && tentativas++ < 25) {
+        if (this.emGesto(ator) && tentativas++ < 25) {
           setTimeout(comeca, 100);
           return;
         }
@@ -1094,7 +1191,13 @@ export class Cena3D implements Palco3D {
       const t0 = performance.now();
       this.soODealerSegura();
       this.descansos();
-      for (const ator of this.atores.values()) ator.quadro(dt);
+      this.brincadeiras(agora);
+      if (this.faltaSentar) this.sincronizarAtores();
+      for (const ator of this.atores.values()) {
+        ator.quadro(dt);
+        ator.quadroDoPano(dt);
+      }
+      if (this.chegando.size) this.receberQuemChegou(agora);
       // o pano: um quadro sim, um não, a vez é de um personagem — o que mais esperou (veja
       // `Ator.precisaDePano`); assim o quadro com pano ainda cabe num sexagésimo de segundo
       this.quadroDoPano = !this.quadroDoPano;
@@ -1106,7 +1209,7 @@ export class Cena3D implements Palco3D {
       const t1 = performance.now();
       this.montar(agora);
       const t2 = performance.now();
-      this.renderer.render(this.cena, this.camera);
+      if (this.pronta) this.renderer.render(this.cena, this.camera);
       const t3 = performance.now();
       // (médias móveis do custo de cada parte do quadro, em ms: para conferir de fora)
       const m = this.custo;
@@ -1174,7 +1277,7 @@ export class Cena3D implements Palco3D {
       mat.opacity = 0.62 + 0.3 * Math.sin(agora / 170);
     };
     /** Uma ficha neste quadro (as fichas de um mesmo estilo e valor são uma malha só, repetida). */
-    const ficha = (st: ChipStyle, ti: number, pos: THREE.Vector3, giro: number) => {
+    const ficha = (st: ChipStyle, ti: number, pos: THREE.Vector3, giro: number, virada?: THREE.Quaternion, escala = 1) => {
       const k = `${chaveDoEstilo(st)}#${ti}`;
       let f = this.fichas.get(k);
       if (!f) {
@@ -1196,8 +1299,9 @@ export class Cena3D implements Palco3D {
         f = { malha: nova, usadas: f.usadas };
         this.fichas.set(k, f);
       }
-      q.setFromAxisAngle(EIXO_Y, giro);
-      f.malha.setMatrixAt(f.usadas++, matriz.compose(pos, q, um));
+      if (virada) q.copy(virada);
+      else q.setFromAxisAngle(EIXO_Y, giro);
+      f.malha.setMatrixAt(f.usadas++, matriz.compose(pos, q, escala === 1 ? um : V(escala, escala, escala)));
     };
     /** Uma coluna de `n` fichas de um valor, de pé em (x, z), começando na altura y0. */
     const coluna = (st: ChipStyle, ti: number, n: number, x: number, z: number, semente: number, y0 = MESA) => {
@@ -1271,6 +1375,13 @@ export class Cena3D implements Palco3D {
         if (ganho?.naMesa && ganho.estilo) {
           const meio = (ganho.t >= GANHAR.puxa && ator && meioDoMonteGanho(ator.objetos)) || V(GANHAR.chega[0], MESA, GANHAR.chega[1]);
           monte(ganho.estilo, ganho.valor, this.doAssento(seat, meio.x, MESA, meio.z), lado, seat * 29 + 5, 3, 6);
+        }
+        // a ficha com que ele brinca: uma das dele, rolando nos dedos (surge e some encolhida, na mão)
+        if (ator && gesto === 'girar') {
+          const o = ator.objetos.find((x) => x.tipo === 'ficha');
+          const dur = clipe('girar')?.dur ?? 1;
+          const escala = macio(Math.min(ator.instante, dur - ator.instante) / 0.16);
+          if (o && escala > 0.02) ficha(st, breakdown(Math.max(1, s.stack), 4, NA_PILHA)[0]?.ti ?? 0, ator.noMundo(o.pos.clone()), 0, ator.grupo.quaternion.clone().multiply(o.quat), escala);
         }
         // o que as mãos levam: as cartas que ele espia (as dele) — e o baralho na mão de quem dá as cartas
         if (ator && (gesto || ator.seguraOBaralho)) {
@@ -1405,6 +1516,7 @@ export class Cena3D implements Palco3D {
       andamento: useModelos.getState(),
       clipes: !!clipesProntos(),
       voos: this.voos.length,
+      chegando: this.chegando.size,
       tela: { ...this.medida },
     };
   }
@@ -1416,6 +1528,7 @@ export class Cena3D implements Palco3D {
     this.voos = [];
     for (const a of this.atores.values()) a.destruir();
     this.atores.clear();
+    this.chegando.clear();
     this.renderer.dispose();
   }
 }

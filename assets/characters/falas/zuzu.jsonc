@@ -1,0 +1,23 @@
+// Falas de Glitch por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Glitch",
+  "falas": [
+    "ふぁ…ログイン。さっさと終わらせよ。", // join: Ahh... logada. Vamos acabar logo com isso.
+    "はいはい、処理中…", // turn: Tá, tá, processando...
+    "チェック。計算どおり。", // check: Passo. Como eu calculei.
+    "コール。期待値プラスだし。", // call: Pago. O valor esperado é positivo.
+    "ベット。勝率、足りてるから。", // bet: Aposto. As chances estão do meu lado.
+    "レイズ。数字は嘘つかないよ。", // raise: Aumento. Número não mente.
+    "オールイン。勝率九割、詰みだね。", // allin: All-in. Noventa por cento. Xeque-mate.
+    "フォールド。負け筋は踏まない。", // fold: Desisto. Não sigo por caminho perdedor.
+    "見せて。答え合わせしよ。", // showdown: Mostra. Vamos conferir a resposta.
+    "ブラフにバグあり。もう見つけた。", // win: Seu blefe tem bug. Já achei.
+    "ふーん…借金、ちょっと減った。", // big_win: Hm... a dívida diminuiu um pouco.
+    "…乱数のせい。ログ見直す。", // lose: ...Culpa da aleatoriedade. Vou revisar os logs.
+    "強制終了…マジ最悪。", // bust: Desligamento forçado... que saco.
+    "再起動。次はパッチ済みだし。", // rebuy: Reiniciando. Agora já está com patch.
+    "ブラインド上昇…変数、更新。", // blinds_up: Blinds subindo... atualizando as variáveis.
+    "まだ？フリーズしてんの？" // idle: E aí? Travou, foi?
+  ]
+}

@@ -10,6 +10,7 @@
  *
  *   /mesa.html?livre=1&cam=px,py,pz,ax,ay,az,fov   já abre com a câmera solta, nessa posição
  *   /mesa.html?quadro=16:9                  o enquadramento: livre | 16:9 | 16:10 | 4:3 | 21:9 | 9:16
+ *   /mesa.html?trajes=abel,agnes,goro       quem senta à mesa, até seis (sem isso: os seis primeiros de TRAJES)
  *   /mesa.html?jogador=marina               quem fica no lugar do jogador (o de baixo, em +z)
  *   /mesa.html?anim=variadas                paradas | descanso | variadas | dealer-entrega | dealer-abre | o id de uma animação
  *   /mesa.html?luz=anime                    suave | anime
@@ -25,10 +26,18 @@ import { QUALIDADE, type Qualidade } from '../personagem/corpo';
 import { montarEsqueleto } from '../personagem/esqueleto';
 import type { Malha } from '../personagem/malha';
 import { Pano, type MesaDoPano } from '../personagem/pano';
-import { TRAJES, type Roupa, type Traje } from '../personagem/roupa';
+import { PanosRemotos, podeSimularFora } from '../personagem/panoRemoto';
+import { TRAJES as TODOS_OS_TRAJES, type Roupa, type Traje } from '../personagem/roupa';
 import { cor, criarObjetos, criarPele, criarTecido, criarTraco } from './materiais';
 
 const pedido = new URLSearchParams(location.search);
+
+/** Quem senta à mesa (são seis lugares): os de `?trajes=`, na ordem dada; sem isso, os seis primeiros. */
+const TRAJES: Traje[] = (() => {
+  const ids = (pedido.get('trajes') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const escolhidos = ids.map((id) => TODOS_OS_TRAJES.find((t) => t.id === id)).filter((t): t is Traje => !!t);
+  return (escolhidos.length ? escolhidos : TODOS_OS_TRAJES).slice(0, 6);
+})();
 
 // ─────────────────────────────── a mesa ───────────────────────────────
 
@@ -229,6 +238,11 @@ interface Personagem {
   /** As malhas que só aparecem no modo de desenho (o traço do corpo e o da roupa). */
   tracos: THREE.Object3D[];
   panos: { pano: Pano; parado: number; antes: Float32Array }[];
+  /** Quem simula o pano fora da linha principal, como no jogo (null: sem pano, ou sem ajudante). */
+  remoto: PanosRemotos | null;
+  /** Com o ajudante: há quantos passos ninguém se mexe, e se o pano precisa recomeçar de onde os ossos estão. */
+  paradoFora: number;
+  recomecar: boolean;
   mesa: MesaDoPano;
   mostrar: (objs: Objeto[]) => void;
 }
@@ -581,7 +595,10 @@ function animar(qual: string) {
   // (as do dealer começam do começo)
   if (qual.startsWith('dealer-')) tempo = 0;
   reposar = true;
-  for (const p of personagens) for (const pn of p.panos) pn.parado = 0;
+  for (const p of personagens) {
+    p.paradoFora = 0;
+    for (const pn of p.panos) pn.parado = 0;
+  }
   pintarBotoes();
   if (seletor) seletor.value = clipes.some((c) => c.id === modo) ? modo : '';
 }
@@ -619,7 +636,12 @@ function quadroDaCena(agora: number) {
       p.boneco.raiz.updateMatrixWorld(true);
     }
     // o pano: anda junto com o personagem; parado, assenta e para de ser simulado (até a pose mudar)
-    if (panoLigado) {
+    if (panoLigado && p.remoto && !p.remoto.falhou) {
+      // (num ajudante, como no jogo: um passo por quadro, sem pesar no desenho)
+      if (p.recomecar) p.recomecar = !p.remoto.assentar(p.mesa, 60);
+      else if (p.remoto.assentado && (algumAnda || p.paradoFora < 60) && p.remoto.passo(dt, p.mesa)) p.paradoFora = algumAnda ? 0 : p.paradoFora + 1;
+      if (p.remoto.assentado) p.remoto.repregar();
+    } else if (panoLigado) {
       for (const pn of p.panos) {
         if (!algumAnda && pn.parado > 40) continue;
         pn.antes.set(pn.pano.pos);
@@ -779,7 +801,15 @@ async function montar() {
       grupo.add(m);
       return { pano, parado: 0, antes: new Float32Array(pano.pos.length) };
     });
-    return { traje, boneco, grupo, lugar: i, pele, traco, tecido, tracos, panos, mesa: { y: MESA, alto: 0.6, z0: 0.08 }, mostrar: criarObjetos(grupo) };
+    let remoto: PanosRemotos | null = null;
+    if (panos.length && podeSimularFora()) {
+      try {
+        remoto = new PanosRemotos(boneco, traje.id, panos.map((x) => x.pano));
+      } catch {
+        remoto = null;
+      }
+    }
+    return { traje, boneco, grupo, lugar: i, pele, traco, tecido, tracos, panos, remoto, paradoFora: 0, recomecar: false, mesa: { y: MESA, alto: 0.6, z0: 0.08 }, mostrar: criarObjetos(grupo) };
   });
   sentar();
 
@@ -790,6 +820,10 @@ async function montar() {
     const faz = oQueFaz(i);
     if (faz) p.mostrar(aplicar(p.boneco, faz.clipe, faz.t));
     p.boneco.raiz.updateMatrixWorld(true);
+    if (p.remoto) {
+      p.remoto.assentar(p.mesa, 90);
+      continue;
+    }
     for (const pn of p.panos) {
       pn.pano.recolocar();
       pn.pano.assentar(p.mesa, 90);
@@ -837,8 +871,10 @@ function recolocarPanos() {
     const faz = oQueFaz(personagens.indexOf(p));
     if (faz) p.mostrar(aplicar(p.boneco, faz.clipe, faz.t));
     p.boneco.raiz.updateMatrixWorld(true);
+    p.recomecar = !!p.remoto;
+    p.paradoFora = 0;
     for (const pn of p.panos) {
-      pn.pano.recolocar();
+      if (!p.remoto) pn.pano.recolocar();
       pn.parado = 0;
     }
   }
@@ -872,7 +908,10 @@ montar().catch((e) => {
     tempo = t;
     parado = true;
     reposar = true;
-    for (const p of personagens) for (const pn of p.panos) pn.parado = 0;
+    for (const p of personagens) {
+    p.paradoFora = 0;
+    for (const pn of p.panos) pn.parado = 0;
+  }
   },
   camera: () => JSON.parse(texto.value),
 };

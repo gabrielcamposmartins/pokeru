@@ -1,0 +1,23 @@
+// Falas de Saeko por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Saeko",
+  "falas": [
+    "お疲れさま。ここ、空いてるかしら？", // join: Bom trabalho hoje. Este lugar está livre?
+    "あら、私の番？ふふ、どうしようかしら。", // turn: Ora, minha vez? Fufu, o que eu faço...
+    "チェック。まずは様子見ね。", // check: Check. Primeiro, só observo.
+    "コール。その話、乗ってあげる。", // call: Pago. Vou entrar nessa sua conversa.
+    "これ、私からの提案よ。", // bet: Esta é a minha proposta.
+    "あらあら、もう少し上乗せね。", // raise: Ara ara, vamos subir um pouquinho.
+    "オールイン。契約成立かしら？", // allin: All-in. Negócio fechado?
+    "降りるわ。この案件は見送りね。", // fold: Desisto. Esse negócio eu deixo passar.
+    "さあ、見せてちょうだい。", // showdown: Vamos, mostre pra mim.
+    "ふふ、ごちそうさま。", // win: Fufu, obrigada pelo banquete.
+    "あらあら、払いすぎよ。可愛いわね。", // big_win: Ara ara, pagou demais. Que fofo.
+    "あら、やるじゃない。覚えておくわ。", // lose: Ora, nada mal. Vou me lembrar disso.
+    "今日はここまで。また明日、会社でね。", // bust: Por hoje chega. Até amanhã no escritório.
+    "もう一杯…じゃなくて、もう一勝負。", // rebuy: Mais uma dose... digo, mais uma partida.
+    "ブラインドアップ？残業代は出るの？", // blinds_up: Blinds subindo? Vão pagar hora extra?
+    "ゆっくりでいいわよ、新人くん。" // idle: Pode ir com calma, novato.
+  ]
+}

@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_終電、逃しちまって…一席いいかな。.wav",
+    "tipo": "audio",
+    "texto": "終電、逃しちまって…一席いいかな。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_はぁ…俺の番か。.wav",
+    "tipo": "audio",
+    "texto": "はぁ…俺の番か。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック…ちょっと休ませてくれ。.wav",
+    "tipo": "audio",
+    "texto": "チェック…ちょっと休ませてくれ。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール…まだ引けるはずなんだ。.wav",
+    "tipo": "audio",
+    "texto": "コール…まだ引けるはずなんだ。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_給料、ちょっとだけ…な。.wav",
+    "tipo": "audio",
+    "texto": "給料、ちょっとだけ…な。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_レイズだ…流れ、来てる気がする！.wav",
+    "tipo": "audio",
+    "texto": "レイズだ…流れ、来てる気がする！",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_これが最後…本当に最後だから！.wav",
+    "tipo": "audio",
+    "texto": "これが最後…本当に最後だから！",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_降りるよ…すまんね。.wav",
+    "tipo": "audio",
+    "texto": "降りるよ…すまんね。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_頼む…見せてくれ、頼むから。.wav",
+    "tipo": "audio",
+    "texto": "頼む…見せてくれ、頼むから。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_お、おお…勝った？俺が？.wav",
+    "tipo": "audio",
+    "texto": "お、おお…勝った？俺が？",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_来た来た来た！大当たりだ！.wav",
+    "tipo": "audio",
+    "texto": "来た来た来た！大当たりだ！",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_はは…やっぱりな。.wav",
+    "tipo": "audio",
+    "texto": "はは…やっぱりな。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_全部か…明日も残業だな。.wav",
+    "tipo": "audio",
+    "texto": "全部か…明日も残業だな。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_もう一回だけ…これで取り返す。.wav",
+    "tipo": "audio",
+    "texto": "もう一回だけ…これで取り返す。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_また上がるのか…勘弁してくれ。.wav",
+    "tipo": "audio",
+    "texto": "また上がるのか…勘弁してくれ。",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_あの…始発まで待つ気かい？.wav",
+    "tipo": "audio",
+    "texto": "あの…始発まで待つ気かい？",
+    "seed": 42,
+    "voice": "Nobu",
+    "language": "Japanese"
+  }
+]

@@ -1,0 +1,23 @@
+// Falas de Nobu por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Nobu",
+  "falas": [
+    "終電、逃しちまって…一席いいかな。", // join: Perdi o último trem... posso sentar?
+    "はぁ…俺の番か。", // turn: Ahh... é a minha vez, né.
+    "チェック…ちょっと休ませてくれ。", // check: Passo... me deixa descansar um pouco.
+    "コール…まだ引けるはずなんだ。", // call: Pago... a carta ainda vai vir.
+    "給料、ちょっとだけ…な。", // bet: Só um pouquinho do salário... tá?
+    "レイズだ…流れ、来てる気がする！", // raise: Aumento... sinto que a maré virou!
+    "これが最後…本当に最後だから！", // allin: Essa é a última... juro que é a última!
+    "降りるよ…すまんね。", // fold: Eu desisto... foi mal.
+    "頼む…見せてくれ、頼むから。", // showdown: Por favor... mostra, eu te peço.
+    "お、おお…勝った？俺が？", // win: O-opa... ganhei? Eu?
+    "来た来た来た！大当たりだ！", // big_win: Veio, veio, veio! Acertei em cheio!
+    "はは…やっぱりな。", // lose: Haha... eu já sabia.
+    "全部か…明日も残業だな。", // bust: Foi tudo... amanhã tem hora extra de novo.
+    "もう一回だけ…これで取り返す。", // rebuy: Só mais uma... agora eu recupero.
+    "また上がるのか…勘弁してくれ。", // blinds_up: Subiu de novo... tenha dó.
+    "あの…始発まで待つ気かい？" // idle: Escuta... vai esperar o primeiro trem?
+  ]
+}

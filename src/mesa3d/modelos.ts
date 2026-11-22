@@ -26,7 +26,7 @@ import { LUVA_PADRAO, findAcessorio } from '../../shared/acessorios';
 export const QUALIDADE_DO_JOGO: Qualidade = { corpo: 0.0045, mao: 0.0016 };
 
 /** Os trajes que existem (os de `TRAJES` em src/personagem/roupa.ts; o teste confere). */
-export const TRAJES_DO_JOGO = ['alistair', 'marina', 'ren', 'tobi', 'violetta', 'yukina'] as const;
+export const TRAJES_DO_JOGO = ['alistair', 'marina', 'ren', 'tobi', 'violetta', 'yukina', 'abel', 'agnes', 'goro', 'hina', 'zuzu', 'nobu', 'saeko'] as const;
 /** Personagem sem traje próprio (um que entrar no jogo antes da roupa dele) veste o do Tobi, o padrão. */
 const TRAJE_PADRAO = 'tobi';
 
@@ -168,6 +168,9 @@ export function prepararClipes(): Promise<void> {
  */
 export async function preparar(personagens: string[]): Promise<void> {
   if (!podeModelar()) return;
+  // (o pacote da mesa 3D — o three.js, a cena — desce e é lido já agora, na tela de carregamento: sem
+  // isto, era lido no instante em que a mesa aparece, e a página parava um terço de segundo)
+  void import('./Mesa3D').catch(() => {});
   const ids = [...new Set(personagens.map(chaveDaRoupa))];
   await Promise.allSettled([prepararCorpo(), ...ids.map(prepararRoupa)]);
   await prepararClipes().catch(() => {});

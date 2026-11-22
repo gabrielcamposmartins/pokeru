@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_ふぁ…ログイン。さっさと終わらせよ。.wav",
+    "tipo": "audio",
+    "texto": "ふぁ…ログイン。さっさと終わらせよ。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_はいはい、処理中….wav",
+    "tipo": "audio",
+    "texto": "はいはい、処理中…",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック。計算どおり。.wav",
+    "tipo": "audio",
+    "texto": "チェック。計算どおり。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール。期待値プラスだし。.wav",
+    "tipo": "audio",
+    "texto": "コール。期待値プラスだし。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_ベット。勝率、足りてるから。.wav",
+    "tipo": "audio",
+    "texto": "ベット。勝率、足りてるから。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_レイズ。数字は嘘つかないよ。.wav",
+    "tipo": "audio",
+    "texto": "レイズ。数字は嘘つかないよ。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_オールイン。勝率九割、詰みだね。.wav",
+    "tipo": "audio",
+    "texto": "オールイン。勝率九割、詰みだね。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_フォールド。負け筋は踏まない。.wav",
+    "tipo": "audio",
+    "texto": "フォールド。負け筋は踏まない。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_見せて。答え合わせしよ。.wav",
+    "tipo": "audio",
+    "texto": "見せて。答え合わせしよ。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_ブラフにバグあり。もう見つけた。.wav",
+    "tipo": "audio",
+    "texto": "ブラフにバグあり。もう見つけた。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_ふーん…借金、ちょっと減った。.wav",
+    "tipo": "audio",
+    "texto": "ふーん…借金、ちょっと減った。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_…乱数のせい。ログ見直す。.wav",
+    "tipo": "audio",
+    "texto": "…乱数のせい。ログ見直す。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_強制終了…マジ最悪。.wav",
+    "tipo": "audio",
+    "texto": "強制終了…マジ最悪。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_再起動。次はパッチ済みだし。.wav",
+    "tipo": "audio",
+    "texto": "再起動。次はパッチ済みだし。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_ブラインド上昇…変数、更新。.wav",
+    "tipo": "audio",
+    "texto": "ブラインド上昇…変数、更新。",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_まだ？フリーズしてんの？.wav",
+    "tipo": "audio",
+    "texto": "まだ？フリーズしてんの？",
+    "seed": 42,
+    "voice": "Zuzu",
+    "language": "Japanese"
+  }
+]

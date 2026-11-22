@@ -50,11 +50,13 @@ export interface Pulseira extends Base {
   /**
    * `contas`: um fio de contas; `corrente`: elos; `couro`: uma tira larga com tachas; `argolas`: três
    * aros rígidos e finos, soltos; `trancada`: um cordão de dois fios torcidos, com um nó; `riviera`:
-   * uma fila de pedras quadradas engastadas; `espinhos`: a tira de couro com cones de metal.
+   * uma fila de pedras quadradas engastadas; `espinhos`: a tira de couro com cones de metal; `terco`:
+   * um terço enrolado três vezes no pulso — as dezenas de contas, as contas maiores entre elas, a
+   * medalha e o crucifixo, deitado sobre as voltas.
    */
-  feitio: 'argola' | 'contas' | 'corrente' | 'couro' | 'argolas' | 'trancada' | 'riviera' | 'espinhos';
+  feitio: 'argola' | 'contas' | 'corrente' | 'couro' | 'argolas' | 'trancada' | 'riviera' | 'espinhos' | 'terco';
   cor: string;
-  /** A segunda cor: o fecho, as tachas, a conta do meio, o outro fio, as pedras. */
+  /** A segunda cor: o fecho, as tachas, a conta do meio, o outro fio, as pedras, o metal do terço. */
   cor2: string;
 }
 
@@ -141,6 +143,8 @@ export const ACESSORIOS: Acessorio[] = [
   { tipo: 'pulseira', id: 'pulseira-cordao', nome: 'Cordão trançado', sobre: 'Dois fios de algodão torcidos, um vermelho e um preto, fechados num nó.', feitio: 'trancada', cor: '#c4202f', cor2: '#1d1b22' },
   { tipo: 'pulseira', id: 'pulseira-riviera', nome: 'Riviera', sobre: 'Uma fila de brilhantes quadrados, um ao lado do outro, engastados em prata.', feitio: 'riviera', cor: PRATA, cor2: '#eaf6ff' },
   { tipo: 'pulseira', id: 'pulseira-espinhos', nome: 'Bracelete de espinhos', sobre: 'Couro preto com uma fila de cones de aço: o bracelete de quem não quer conversa.', feitio: 'espinhos', cor: '#19181d', cor2: PRATA },
+  { tipo: 'pulseira', id: 'pulseira-terco', nome: 'Terço de prata', sobre: 'Um terço de contas de prata escurecida, enrolado três vezes no pulso, com a medalha e o crucifixo deitado sobre as voltas.', feitio: 'terco', cor: '#8e929b', cor2: PRATA },
+  { tipo: 'pulseira', id: 'pulseira-terco-madreperola', nome: 'Terço de madrepérola', sobre: 'Um terço de contas de madrepérola em corrente de ouro, enrolado três vezes no pulso, com a medalha e o crucifixo dourados.', feitio: 'terco', cor: '#f3ece2', cor2: OURO },
   // ───────────── relógios ─────────────
   { tipo: 'relogio', id: 'relogio-classico', nome: 'Relógio clássico', sobre: 'Caixa redonda de ouro, mostrador branco e correia de couro marrom.', caixa: 'redonda', metal: OURO, mostrador: '#fbf7ee', ponteiros: '#2a2140', correia: 'couro', corDaCorreia: '#6b4226' },
   { tipo: 'relogio', id: 'relogio-esportivo', nome: 'Relógio esportivo', sobre: 'Caixa redonda de aço, mostrador azul e pulseira de elos de metal.', caixa: 'redonda', metal: PRATA, mostrador: '#1d3f8f', ponteiros: '#f4f4f8', correia: 'metal', corDaCorreia: PRATA },

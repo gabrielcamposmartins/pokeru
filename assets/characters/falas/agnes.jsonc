@@ -1,0 +1,23 @@
+// Falas de Agnes por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Agnes",
+  "falas": [
+    "救いは有料です。払えぬ方は…地獄へ。", // join: A salvação tem preço. Quem não paga... vai para o inferno.
+    "わたくしの番。皆様の魂、量らせていただきます。", // turn: Minha vez. Permitam-me pesar suas almas.
+    "チェック。審判の日は、まだ先です。", // check: Passo. O dia do Juízo ainda não chegou.
+    "コール。最期まで看取って差し上げます。", // call: Pago. Eu os acompanho até o último suspiro.
+    "献金を。天国への切符…片道ですけれど。", // bet: Ofertem. Uma passagem para o céu... só de ida.
+    "もっと深く…奈落の底までお導きします。", // raise: Mais fundo... eu os guio até o fundo do abismo.
+    "すべてを祭壇へ。生贄は…どなたかしら？", // allin: Tudo no altar. E o sacrifício... quem será?
+    "赦しましょう。…今回だけは。", // fold: Eu os perdoo. ...Só desta vez.
+    "告解の時間です。救われるのは、お一人だけ。", // showdown: Hora da confissão. Só um de vocês será salvo.
+    "皆様の魂、確かにお預かりしました。", // win: Suas almas foram devidamente recolhidas.
+    "主よ、なんと豊かな魂の刈り入れでしょう！", // big_win: Senhor, que colheita farta... de almas!
+    "…この負債、地獄の果てまで取り立てますわ。", // lose: ...Vou cobrar essa dívida até os confins do inferno.
+    "主よ…わたくしまで、お召しになるのですか。", // bust: Senhor... até a mim o Senhor vai chamar?
+    "三日も待てません。今すぐ復活ですわ。", // rebuy: Três dias é muito. Ressuscito agora mesmo.
+    "まあ、終末が近づいていますわ。素敵。", // blinds_up: Oh, o fim dos tempos se aproxima. Que maravilha.
+    "迷える子羊さん…狼が来ますよ？" // idle: Ovelhinha perdida... o lobo está chegando, sabia?
+  ]
+}

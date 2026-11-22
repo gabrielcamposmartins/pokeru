@@ -419,7 +419,7 @@ describe('erro do GBOT', () => {
   });
 
   it('o catálogo de personagens do jogo é o que a loja vende', () => {
-    expect(CHARACTER_PRESETS.map((c) => c.id).sort()).toEqual(['marina', 'ren', 'tobi', 'yukina']);
+    expect(CHARACTER_PRESETS.map((c) => c.id).sort()).toEqual(['abel', 'agnes', 'alistair', 'goro', 'hina', 'marina', 'nobu', 'ren', 'saeko', 'tobi', 'violetta', 'yukina', 'zuzu']);
   });
 });
 
@@ -748,8 +748,8 @@ describe('roleta', () => {
   it('cada roleta sorteia só personagens do gênero dela', () => {
     const femininas = dropsOf(findRoulette('flores')!).filter((d) => d.kind === 'character');
     const masculinos = dropsOf(findRoulette('dragao')!).filter((d) => d.kind === 'character');
-    expect(femininas.map((d) => d.key)).toEqual(['character:yukina']);
-    expect(masculinos.map((d) => d.key)).toEqual(['character:ren']);
+    expect(femininas.map((d) => d.key).sort()).toEqual(['character:agnes', 'character:hina', 'character:saeko', 'character:violetta', 'character:yukina', 'character:zuzu']);
+    expect(masculinos.map((d) => d.key).sort()).toEqual(['character:abel', 'character:alistair', 'character:goro', 'character:nobu', 'character:ren']);
     // e as chances somam 1 nas duas, senão a porcentagem anunciada seria mentira
     for (const r of ROULETTES) {
       const soma = dropsOf(r).reduce((t, d) => t + d.chance, 0);

@@ -2592,6 +2592,14 @@ input[type='range'].som-slider {
   -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 42%, transparent 72%);
   mask-image: radial-gradient(ellipse at 50% 50%, #000 42%, transparent 72%);
 }
+/*
+ * Na mesa 3D o chão é visto quase de cima, e o que aparece dele é o que sobra em volta da mesa, até a
+ * beirada da tela: a névoa começa mais longe, para ele não sumir antes dela.
+ */
+.floor-plane.chao-3d {
+  -webkit-mask-image: radial-gradient(ellipse at 50% 55%, #000 60%, transparent 96%);
+  mask-image: radial-gradient(ellipse at 50% 55%, #000 60%, transparent 96%);
+}
 .table-plane {
   pointer-events: none;
 }

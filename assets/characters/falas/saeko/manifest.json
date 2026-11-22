@@ -1,0 +1,130 @@
+[
+  {
+    "arquivo": "001_お疲れさま。ここ、空いてるかしら？.wav",
+    "tipo": "audio",
+    "texto": "お疲れさま。ここ、空いてるかしら？",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "002_あら、私の番？ふふ、どうしようかしら。.wav",
+    "tipo": "audio",
+    "texto": "あら、私の番？ふふ、どうしようかしら。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "003_チェック。まずは様子見ね。.wav",
+    "tipo": "audio",
+    "texto": "チェック。まずは様子見ね。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "004_コール。その話、乗ってあげる。.wav",
+    "tipo": "audio",
+    "texto": "コール。その話、乗ってあげる。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "005_これ、私からの提案よ。.wav",
+    "tipo": "audio",
+    "texto": "これ、私からの提案よ。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "006_あらあら、もう少し上乗せね。.wav",
+    "tipo": "audio",
+    "texto": "あらあら、もう少し上乗せね。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "007_オールイン。契約成立かしら？.wav",
+    "tipo": "audio",
+    "texto": "オールイン。契約成立かしら？",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "008_降りるわ。この案件は見送りね。.wav",
+    "tipo": "audio",
+    "texto": "降りるわ。この案件は見送りね。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "009_さあ、見せてちょうだい。.wav",
+    "tipo": "audio",
+    "texto": "さあ、見せてちょうだい。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "010_ふふ、ごちそうさま。.wav",
+    "tipo": "audio",
+    "texto": "ふふ、ごちそうさま。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "011_あらあら、払いすぎよ。可愛いわね。.wav",
+    "tipo": "audio",
+    "texto": "あらあら、払いすぎよ。可愛いわね。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "012_あら、やるじゃない。覚えておくわ。.wav",
+    "tipo": "audio",
+    "texto": "あら、やるじゃない。覚えておくわ。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "013_今日はここまで。また明日、会社でね。.wav",
+    "tipo": "audio",
+    "texto": "今日はここまで。また明日、会社でね。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "014_もう一杯…じゃなくて、もう一勝負。.wav",
+    "tipo": "audio",
+    "texto": "もう一杯…じゃなくて、もう一勝負。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "015_ブラインドアップ？残業代は出るの？.wav",
+    "tipo": "audio",
+    "texto": "ブラインドアップ？残業代は出るの？",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  },
+  {
+    "arquivo": "016_ゆっくりでいいわよ、新人くん。.wav",
+    "tipo": "audio",
+    "texto": "ゆっくりでいいわよ、新人くん。",
+    "seed": 42,
+    "voice": "Saeko",
+    "language": "Japanese"
+  }
+]

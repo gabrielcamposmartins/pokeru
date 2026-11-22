@@ -230,6 +230,35 @@ function PulseiraArt({ a }: { a: Pulseira }) {
       </g>
     );
   }
+  if (a.feitio === 'terco') {
+    // o terço: as três voltas de contas (com a conta maior entre as dezenas), a medalha, o pendente e o crucifixo
+    const risco = shade(a.cor, -0.38);
+    const metal = shade(a.cor2, -0.4);
+    const volta = (cy: number, fase: number) =>
+      Array.from({ length: 33 }, (_, i) => {
+        const t = ((i + fase) / 33) * Math.PI * 2;
+        const maior = i % 11 === 5;
+        return <circle key={cy * 100 + i} cx={50 + Math.cos(t) * 31} cy={cy + Math.sin(t) * 16} r={maior ? 3.3 : 2.4} fill={maior ? shade(a.cor, -0.18) : a.cor} stroke={risco} strokeWidth={0.7} />;
+      });
+    return (
+      <g>
+        {[30, 36.5, 43].map((cy, k) => (
+          <g key={cy}>
+            <ellipse cx={50} cy={cy} rx={31} ry={16} fill="none" stroke={a.cor2} strokeWidth={0.9} />
+            {volta(cy, k * 0.33)}
+          </g>
+        ))}
+        <line x1={50} y1={60} x2={50} y2={79} stroke={a.cor2} strokeWidth={1} />
+        <ellipse cx={50} cy={61.5} rx={3.7} ry={4.5} fill={a.cor2} stroke={metal} strokeWidth={0.8} />
+        <path d="M50 59.2 v4.6 M48.4 60.8 h3.2" stroke={metal} strokeWidth={0.8} fill="none" />
+        {[68.4, 71.9, 75.4].map((y, i) => (
+          <circle key={y} cx={50} cy={y} r={i === 1 ? 1.7 : 2.1} fill={i === 1 ? a.cor : shade(a.cor, -0.18)} stroke={risco} strokeWidth={0.6} />
+        ))}
+        <path d="M48.3 79 h3.4 v4.4 h5.2 v3.4 h-5.2 v9.6 h-3.4 v-9.6 h-5.2 v-3.4 h5.2 z" fill={a.cor2} stroke={metal} strokeWidth={0.9} strokeLinejoin="round" />
+        <path d="M50 81 v13 M45.6 85.1 h8.8" stroke="#fff" strokeWidth={0.7} opacity={0.55} fill="none" />
+      </g>
+    );
+  }
   if (a.feitio === 'couro') {
     return (
       <g>

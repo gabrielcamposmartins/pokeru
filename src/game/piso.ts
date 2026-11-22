@@ -204,7 +204,24 @@ function desenho(t: TableStyle): string {
   }
 }
 
-/** O fundo do plano do chão para uma mesa: a luz e a sombra por cima do piso. */
-export function pisoDaMesa(t: TableStyle): CSSProperties {
-  return { background: `${LUZ}, ${desenho(t)}` };
+/**
+ * O fundo do plano do chão para uma mesa: a luz e a sombra por cima do piso. `mesa`, na mesa 3D, diz
+ * onde a mesa fica no plano (em frações dele: o meio e os meios-tamanhos), para a sombra dela cair
+ * debaixo dela; sem isso, é a da mesa 2D, no meio do plano.
+ */
+export function pisoDaMesa(t: TableStyle, mesa?: { x: number; y: number; rx: number; ry: number }): CSSProperties {
+  return { background: `${mesa ? luzDe(mesa) : LUZ}, ${desenho(t)}` };
+}
+
+/** As mesmas camadas de `LUZ`, com a sombra da mesa do tamanho e no lugar dados. */
+function luzDe(m: { x: number; y: number; rx: number; ry: number }): string {
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const em = `${pct(m.x)} ${pct(m.y)}`;
+  return [
+    `radial-gradient(ellipse at ${em}, transparent 0%, transparent 34%, rgba(4, 2, 12, 0.5) 78%)`,
+    'linear-gradient(180deg, rgba(4, 2, 12, 0.4), transparent 38%)',
+    // a sombra da mesa: cheia debaixo dela, sumindo até uma vez e meia o tamanho dela
+    `radial-gradient(ellipse ${pct(m.rx * 1.55)} ${pct(m.ry * 1.7)} at ${em}, rgba(0, 0, 0, 0.45) 60%, transparent 100%)`,
+    `radial-gradient(ellipse 62% 58% at ${em}, rgba(255, 238, 210, 0.13), transparent 70%)`,
+  ].join(', ');
 }

@@ -19,7 +19,7 @@ describe('a roupa da parte de cima', () => {
   };
 
   it('tem um traje para cada personagem do jogo', () => {
-    expect(TRAJES.map((t) => t.id)).toEqual(['alistair', 'marina', 'ren', 'tobi', 'violetta', 'yukina']);
+    expect(TRAJES.map((t) => t.id)).toEqual(['alistair', 'marina', 'ren', 'tobi', 'violetta', 'yukina', 'abel', 'agnes', 'goro', 'hina', 'zuzu', 'nobu', 'saeko']);
   });
 
   for (const traje of TRAJES) {
@@ -51,14 +51,14 @@ describe('a roupa da parte de cima', () => {
     });
   }
 
-  it('Alistair e Ren usam luvas inteiras; Marina e Tobi, sem dedos; Violetta e Yukina, mãos nuas', () => {
+  it('Alistair e Ren usam luvas inteiras; Marina, Tobi e Glitch, sem dedos; os outros, mãos nuas', () => {
     // as pontas dos dedos ficam além de x = 0,8; a palma, entre 0,7 e 0,77
     for (const id of ['alistair', 'ren']) expect(alem(id, 0.8)).toBeGreaterThan(50);
-    for (const id of ['marina', 'tobi']) {
+    for (const id of ['marina', 'tobi', 'zuzu']) {
       expect(alem(id, 0.72)).toBeGreaterThan(50);
       expect(alem(id, 0.82)).toBe(0);
     }
-    for (const id of ['violetta', 'yukina']) expect(alem(id, 0.7)).toBe(0);
+    for (const id of ['violetta', 'yukina', 'abel', 'agnes', 'goro', 'hina', 'nobu', 'saeko']) expect(alem(id, 0.7)).toBe(0);
   });
 
   it('as mangas arriadas da Marina e do Tobi param no meio do antebraço: dali à luva o braço fica à mostra', () => {
@@ -84,6 +84,38 @@ describe('a roupa da parte de cima', () => {
     expect(tem('ren', ENFEITE.dragaoE)).toBe(true);
     expect(tem('marina', ENFEITE.canelado)).toBe(true);
     expect(tem('violetta', ENFEITE.renda)).toBe(true);
+    expect(tem('agnes', ENFEITE.renda)).toBe(true);
+    expect(tem('hina', ENFEITE.glicinias)).toBe(true);
+    expect(tem('zuzu', ENFEITE.canelado)).toBe(true);
+  });
+
+  it('o capuz da Glitch fica posto na cabeça, com as orelhas de gato, e obedece à cabeça', () => {
+    const r = feitas.get('zuzu')!;
+    const esq = montarEsqueleto();
+    const cabeca = esq.ossos.findIndex((o) => o.nome === 'cabeca');
+    let noAlto = 0;
+    let presoNaCabeca = 0;
+    for (let v = 0; v < r.malha.pos.length / 3; v++) {
+      if (r.malha.pos[v * 3 + 1] > 1.74) {
+        noAlto++;
+        if (r.indices[v * 4] === cabeca) presoNaCabeca++;
+      }
+    }
+    expect(noAlto).toBeGreaterThan(30);
+    expect(presoNaCabeca / noAlto).toBeGreaterThan(0.9);
+  });
+
+  it('o paletó do Nobu vai até o punho; o blazer da Saeko, de mangas arregaçadas, acaba abaixo do cotovelo', () => {
+    // o cotovelo fica em x = 0,432 e o punho em 0,68
+    const entre = (id: string, de: number, ate: number) => {
+      const { pos } = feitas.get(id)!.malha;
+      let n = 0;
+      for (let v = 0; v < pos.length; v += 3) if (Math.abs(pos[v]) > de && Math.abs(pos[v]) < ate) n++;
+      return n;
+    };
+    expect(entre('nobu', 0.6, 0.67)).toBeGreaterThan(50);
+    expect(entre('saeko', 0.44, 0.5)).toBeGreaterThan(50);
+    expect(entre('saeko', 0.52, 0.7)).toBe(0);
   });
 
   it('as partes soltas são pano: as mangas da Yukina, a jaqueta e as mangas arriadas da Marina, as mangas arriadas do Tobi, o casaco do Alistair, os babados da Violetta', () => {
@@ -94,6 +126,13 @@ describe('a roupa da parte de cima', () => {
     expect(panos('violetta')).toEqual(['babado.E', 'babado.D', 'renda.E', 'renda.D']);
     expect(panos('ren')).toEqual([]);
     expect(panos('tobi')).toEqual(['manga.E', 'manga.D']);
+    expect(panos('agnes')).toEqual(['manga.E', 'manga.D']);
+    expect(panos('goro')).toEqual(['manga.E', 'manga.D']);
+    expect(panos('hina')).toEqual(['manga.E', 'manga.D']);
+    expect(panos('abel')).toEqual([]);
+    expect(panos('zuzu')).toEqual(['manga.E', 'manga.D']);
+    expect(panos('nobu')).toEqual([]);
+    expect(panos('saeko')).toEqual([]);
   });
 });
 

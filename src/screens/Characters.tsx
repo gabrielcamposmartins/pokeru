@@ -76,7 +76,8 @@ export function CharactersScreen({ onBack, onStore }: { onBack: () => void; onSt
             <CharacterAura auras={profile.auras} tint={current.bg} />
             <motion.div key={current.id} className="char-figure" initial={{ opacity: 0, x: -40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
               <motion.div animate={hop}>
-                <CharacterFull st={current} height={Math.min(780, window.innerHeight * 0.8)} animate onClick={say} className="clickable" />
+                {/* (do tamanho do palco: da faixa do título até a beirada de baixo da tela, com a cabeça e os pés à vista) */}
+                <CharacterFull st={current} height={Math.min(1014, window.innerHeight - 100)} animate onClick={say} className="clickable" />
               </motion.div>
             </motion.div>
             <CharacterAura auras={profile.auras} tint={current.bg} plano="frente" />

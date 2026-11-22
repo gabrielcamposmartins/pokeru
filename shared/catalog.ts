@@ -101,6 +101,15 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'character:ren': 'lendario',
   'character:tobi': 'lendario',
   'character:yukina': 'lendario',
+  'character:alistair': 'lendario',
+  'character:violetta': 'lendario',
+  'character:abel': 'lendario',
+  'character:agnes': 'lendario',
+  'character:goro': 'lendario',
+  'character:hina': 'lendario',
+  'character:zuzu': 'lendario',
+  'character:nobu': 'lendario',
+  'character:saeko': 'lendario',
   'ui:victorian': 'lendario',
   'ui:retro': 'lendario',
   /*
@@ -208,7 +217,7 @@ const RARIDADE_DE: Record<string, Raridade> = {
    * Épicos: os dois anéis de pedra lapidada em forma (o coração, a placa de ônix), os relógios de
    * caixa quadrada, o das fases da lua e o de mergulho, e as luvas de ópera e de armadura. Raros: os
    * outros anéis de pedra, a pérola e o sinete, a serpente, os relógios clássico, esportivo e joia, a
-   * corrente e as argolas de ouro, a riviera e os espinhos, as luvas de meio dedo, de renda e táticas,
+   * corrente e as argolas de ouro, a riviera, os espinhos e os dois terços, as luvas de meio dedo, de renda e táticas,
    * e os dois esmaltes de efeito mais trabalhado. Incomuns: o aro de ébano, o relógio digital, o fio
    * de pérolas, as luvas inteiras e os esmaltes de cor ou acabamento menos comum. O resto — as
    * contas, o couro, o cordão e os esmaltes de sempre — é comum.
@@ -235,6 +244,8 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'acessorio:relogio-joia': 'raro',
   'acessorio:pulseira-riviera': 'raro',
   'acessorio:pulseira-espinhos': 'raro',
+  'acessorio:pulseira-terco': 'raro',
+  'acessorio:pulseira-terco-madreperola': 'raro',
   'acessorio:pulseira-corrente': 'raro',
   'acessorio:pulseira-argolas': 'raro',
   'acessorio:luva-meio-dedo-branca': 'raro',

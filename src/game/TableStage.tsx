@@ -14,7 +14,7 @@ import { ChipStack } from '../render/Chip';
 import { FlyersLayer } from './Flyers';
 import { Nameplate } from './Nameplate';
 import { chipSkin, dealerCardSkin, tableSkin } from './skins';
-import { planoCss, seatLayout3d } from '../mesa3d/geometria';
+import { chaoCss, mesaNoChao, planoCss, seatLayout3d } from '../mesa3d/geometria';
 import { usar3D } from '../mesa3d/modo';
 import { pisoDaMesa } from './piso';
 import { CenterConsole } from './CenterConsole';
@@ -27,6 +27,9 @@ const PLANE = planeStyle();
 const FLOOR = planeStyle(3200, 2200, 1600, 1100);
 /** Na mesa 3D o plano da mesa é o tampo dela, visto pela câmera do 3D. */
 const PLANO_3D = planoCss();
+/** E o chão da sala é o chão de verdade, debaixo dela: o mesmo piso da mesa 2D, visto pela mesma câmera. */
+const CHAO_3D = chaoCss();
+const MESA_NO_CHAO = mesaNoChao();
 /** O 3D (three.js, a modelagem) só desce quando uma partida abre. */
 const Mesa3D = lazy(() => import('../mesa3d/Mesa3D'));
 
@@ -326,6 +329,8 @@ export function TableStage() {
      */
     return (
       <div className="table-stage tres-d">
+        {/* o chão é da mesa que está no feltro, como na 2D: cada estampa tem o seu piso. Fica atrás do desenho 3D */}
+        <div className="floor-plane chao-3d" style={{ ...CHAO_3D, ...pisoDaMesa(tableStyle, MESA_NO_CHAO) }} />
         <SemDerrubar>
           <Suspense fallback={null}>
             <Mesa3D />

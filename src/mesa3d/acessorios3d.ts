@@ -787,6 +787,230 @@ function elos(l: Laco, folga: number, r: number, grosso: number, desvio = 0): TH
   return juntar(todos);
 }
 
+/** Uma conta (uma esfera) no ponto dado. */
+const contaEm = (p: THREE.Vector3, r: number, gomos = 10, aneis = 7) => posta(new THREE.SphereGeometry(r, gomos, aneis), mover(p.x, p.y, p.z));
+/** Uma argolinha no ponto `p`, deitada no plano dos rumos `x` e `y`. */
+function argolinha(p: THREE.Vector3, x: THREE.Vector3, y: THREE.Vector3, r: number, grosso: number, gomos = 10): THREE.BufferGeometry {
+  const ex = x.clone().normalize();
+  const ey = y.clone().addScaledVector(ex, -ex.dot(y)).normalize();
+  return posta(new THREE.TorusGeometry(r, grosso, 5, gomos), new THREE.Matrix4().makeBasis(ex, ey, new THREE.Vector3().crossVectors(ex, ey)).setPosition(p));
+}
+/** Uma correntinha ao longo de uma fila de pontos: elos miúdos, um deitado e um de pé, alternados. `fora`: para onde é "para cima". */
+function correntinha(pontos: THREE.Vector3[], fora: THREE.Vector3, passo = 0.00105): THREE.BufferGeometry[] {
+  const elos: THREE.BufferGeometry[] = [];
+  let resto = passo / 2;
+  let k = 0;
+  for (let i = 0; i + 1 < pontos.length; i++) {
+    const a = pontos[i];
+    const b = pontos[i + 1];
+    const comp = a.distanceTo(b);
+    const rumo = b.clone().sub(a).normalize();
+    const cima = fora.clone().addScaledVector(rumo, -rumo.dot(fora)).normalize();
+    const lado = new THREE.Vector3().crossVectors(rumo, cima);
+    for (; resto <= comp; resto += passo, k++) elos.push(argolinha(a.clone().addScaledVector(rumo, resto), rumo, k % 2 ? cima : lado, 0.00056, 0.00017, 8));
+    resto -= comp;
+  }
+  return elos;
+}
+
+/**
+ * Um terço enrolado três vezes no pulso, com tudo o que um terço tem:
+ *  - o fio de contas, em hélice: as **dezenas** de contas miúdas (as ave-marias), cada conta ligada à
+ *    seguinte por um elo, e entre uma dezena e outra a conta maior (o pai-nosso), com uma tampinha de
+ *    metal de cada lado;
+ *  - a **medalha** do centro, oval, de borda polida e granulada, com uma cruz em relevo — é nela que as
+ *    duas pontas do fio se prendem, cada uma por uma correntinha;
+ *  - o **pendente**, que sai da medalha e corre no vão entre duas voltas: uma conta maior, três
+ *    miúdas, outra maior;
+ *  - e o **crucifixo**, deitado sobre as voltas no dorso do pulso: a cruz de pontas em trevo, debruada,
+ *    com a figura e a plaquinha em relevo, presa ao pendente por uma argola.
+ * A peça é rígida, como as outras: por isso o crucifixo fica deitado no pulso, e não pendurado.
+ */
+function terco(a: Pulseira, l: Laco, folga: number): Pedaco[] {
+  const R = 0.00205;
+  const RG = 0.00275;
+  const PASSO = 0.0049;
+  const VOLTAS = 3;
+  /** A altura do que vai por cima das voltas: logo acima das contas maiores. */
+  const POR_CIMA = 2 * R + 0.001;
+  const contas: THREE.BufferGeometry[] = [];
+  const maiores: THREE.BufferGeometry[] = [];
+  const metais: THREE.BufferGeometry[] = [];
+  const polidos: THREE.BufferGeometry[] = [];
+
+  /** O comprimento ao longo de uma fila de pontos, e o ponto que fica a uma distância do começo dela. */
+  const medida = (pts: THREE.Vector3[]) => {
+    const acum = [0];
+    for (let i = 1; i < pts.length; i++) acum.push(acum[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    const em = (d: number) => {
+      let i = 1;
+      while (i < pts.length - 1 && acum[i] < d) i++;
+      const k = Math.min(1, Math.max(0, (d - acum[i - 1]) / (acum[i] - acum[i - 1] || 1)));
+      return { ponto: pts[i - 1].clone().lerp(pts[i], k), rumo: pts[i].clone().sub(pts[i - 1]).normalize(), u: (i - 1 + k) / (pts.length - 1) };
+    };
+    return { total: acum[acum.length - 1], em };
+  };
+
+  // o crucifixo fica no dorso (t = 0), com o alto dele para o lado da medalha; o pendente tem de caber
+  // entre os dois: anda-se do alto do crucifixo, em volta do pulso, o comprimento do pendente
+  const ALTO_DA_CRUZ = 0.0118;
+  const PENDENTE = 0.0265;
+  let tAlto = 0;
+  for (let d = 0; d < ALTO_DA_CRUZ + 0.0012; tAlto += 0.004) d += sobre(l, tAlto, folga + POR_CIMA).distanceTo(sobre(l, tAlto + 0.004, folga + POR_CIMA));
+  let tMedalha = tAlto;
+  for (let d = 0; d < PENDENTE + 0.0052; tMedalha += 0.004) d += sobre(l, tMedalha, folga + POR_CIMA).distanceTo(sobre(l, tMedalha + 0.004, folga + POR_CIMA));
+  /** Onde a hélice começa e acaba: logo depois da medalha. */
+  const T0 = tMedalha + 0.3;
+  /** O vão entre a primeira volta e a segunda, em cada ângulo (é por ele que o pendente corre). */
+  const vao = (t: number) => {
+    const f = (((t - T0) / (Math.PI * 2)) % 1 + 1) % 1;
+    return (f - 1) * PASSO;
+  };
+
+  // ── o fio de contas ──
+  const K = VOLTAS * 120;
+  const helice = (u: number, alto: number) => sobre(l, T0 + u * VOLTAS * Math.PI * 2, folga + alto).addScaledVector(l.eixo, (u - 0.5) * VOLTAS * PASSO);
+  const doFio = Array.from({ length: K + 1 }, (_, i) => helice(i / K, R));
+  const F = medida(doFio);
+  metais.push(tubo(doFio, () => 0.00026, false, l.centro, 5));
+  const PONTA = 0.0052;
+  for (let d = PONTA, k = 0; ; k++) {
+    const maior = k % 11 === 5;
+    const r = maior ? RG : R;
+    if (d + r > F.total - PONTA) break;
+    const { ponto, rumo, u } = F.em(d);
+    const fora = helice(u, R + 0.001).sub(helice(u, R)).normalize();
+    // (a conta maior fica um nada mais alta, para não encostar na pele)
+    const centro = maior ? ponto.clone().addScaledVector(fora, 0.0002) : ponto;
+    (maior ? maiores : contas).push(contaEm(centro, r, maior ? 14 : 10, maior ? 10 : 7));
+    if (maior) {
+      for (const s of [-1, 1]) {
+        const giro = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), rumo.clone().multiplyScalar(s));
+        polidos.push(posta(new THREE.CylinderGeometry(r * 0.42, r * 0.8, r * 0.4, 10), new THREE.Matrix4().compose(centro.clone().addScaledVector(rumo, s * r * 0.84), giro, new THREE.Vector3(1, 1, 1))));
+      }
+    }
+    const seguinteMaior = (k + 1) % 11 === 5;
+    const folgaEntre = maior || seguinteMaior ? 0.0017 : 0.00095;
+    // o elo entre esta conta e a seguinte (dois, ao lado de uma conta maior)
+    const elos = maior || seguinteMaior ? [0.3, 0.7] : [0.5];
+    elos.forEach((q, i) => {
+      const e = F.em(d + r + folgaEntre * q);
+      metais.push(argolinha(e.ponto, e.rumo, i ? fora : new THREE.Vector3().crossVectors(e.rumo, fora), 0.00058, 0.00018, 8));
+    });
+    d += r + folgaEntre + (seguinteMaior ? RG : R);
+  }
+
+  // ── a medalha ──
+  const M = eixosEm(l, tMedalha, sobre(l, tMedalha, folga + POR_CIMA).addScaledVector(l.eixo, vao(tMedalha) * 0.5));
+  const oval = superelipse(0.0033, 0.0041, 2.3, 30);
+  const medalha = new Joia(M);
+  medalha.copo(oval, 0, 0.0011).virola(vezes(oval, 0.98), 0.0011, 0.00027).granulado(vezes(oval, 0.82), 0.00112, 0.00017, 22);
+  // a cruz em relevo no meio dela
+  medalha.bordas.push(posta(new THREE.BoxGeometry(0.00062, 0.0005, 0.0036), M.clone().multiply(mover(0, 0.0012, 0))), posta(new THREE.BoxGeometry(0.0023, 0.0005, 0.00062), M.clone().multiply(mover(0, 0.0012, 0.0007))));
+  const naMedalha = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(M);
+  const eixoX = new THREE.Vector3().setFromMatrixColumn(M, 0);
+  const eixoY = new THREE.Vector3().setFromMatrixColumn(M, 1);
+  const eixoZ = new THREE.Vector3().setFromMatrixColumn(M, 2);
+  // as três argolas dela: duas no alto, uma para cada ponta do fio, e a de baixo, para o pendente
+  const orelhas = [naMedalha(-0.0019, 0.0005, 0.0047), naMedalha(0.0019, 0.0005, 0.0047), naMedalha(0, 0.0005, -0.0049)];
+  for (const o of orelhas) polidos.push(argolinha(o, eixoX, eixoZ, 0.00095, 0.00026, 12));
+  // as duas pontas do fio sobem até a medalha, cada uma por uma correntinha
+  metais.push(...correntinha([orelhas[0], F.em(PONTA - R - 0.0006).ponto], eixoY), ...correntinha([orelhas[1], naMedalha(0.0052, -0.0012, 0.006), F.em(F.total - PONTA + R + 0.0006).ponto], eixoY));
+
+  // ── o pendente: corre no vão entre duas voltas, da medalha ao crucifixo ──
+  const RP = 0.0017;
+  const RPG = 0.0021;
+  /** A que altura uma conta de raio `r` assenta no vão entre duas voltas. */
+  const noVao = (r: number) => R + Math.sqrt(Math.max(0, (R + r) ** 2 - (PASSO / 2) ** 2));
+  /** O ângulo, em volta do pulso, de um ponto do pendente (u = 0 na medalha, 1 no crucifixo). */
+  const tDoPendente = (u: number) => tMedalha - 0.17 + (tAlto + 0.04 - (tMedalha - 0.17)) * u;
+  const caminho = (alto: number) =>
+    Array.from({ length: 61 }, (_, i) => {
+      const t = tDoPendente(i / 60);
+      // (perto da medalha e do crucifixo o pendente sobe do vão para a altura deles)
+      const sobe = Math.max(0, 1 - i / 8, 1 - (60 - i) / 8);
+      return sobre(l, t, folga + alto + (POR_CIMA + 0.0005 - alto) * sobe * sobe).addScaledVector(l.eixo, vao(t) * (1 - 0.5 * Math.max(0, 1 - i / 8)));
+    });
+  const P = medida(caminho(noVao(RP)));
+  const doPendente: [number, number][] = [
+    [0.0045, RPG],
+    [0.0093, RP],
+    [0.0135, RP],
+    [0.0177, RP],
+    [0.0225, RPG],
+  ];
+  for (const [d, r] of doPendente) {
+    const e = P.em(d);
+    const fora = rumoEm(l, tDoPendente(e.u));
+    (r === RPG ? maiores : contas).push(contaEm(e.ponto.clone().addScaledVector(fora, r === RPG ? 0.0004 : 0), r, 12, 8));
+  }
+  // (a correntinha só nos trechos sem conta: da medalha à primeira, e da última ao crucifixo)
+  const trecho = (de: number, ate: number) => Array.from({ length: 9 }, (_, i) => P.em(de + ((ate - de) * i) / 8).ponto);
+  metais.push(...correntinha(trecho(0, 0.0045 - RPG), eixoY), ...correntinha(trecho(0.0225 + RPG, P.total), eixoY));
+  metais.push(tubo(trecho(0.0045, 0.0225), () => 0.00024, false, l.centro, 5));
+
+  // ── o crucifixo, deitado no dorso ──
+  const C = eixosEm(l, 0, sobre(l, 0, folga + POR_CIMA).addScaledVector(l.eixo, vao(0)));
+  const W = 0.00165;
+  const BRACO = 0.0066;
+  const [Z0, Z1, Z2, Z3] = [-0.0112, 0.0026, 0.0059, ALTO_DA_CRUZ - 0.0012];
+  const cruz: Contorno = [
+    [W, Z0],
+    [W, Z1],
+    [BRACO, Z1],
+    [BRACO, Z2],
+    [W, Z2],
+    [W, Z3],
+    [-W, Z3],
+    [-W, Z2],
+    [-BRACO, Z2],
+    [-BRACO, Z1],
+    [-W, Z1],
+    [-W, Z0],
+  ];
+  const GROSSA = 0.0011;
+  const crucifixo = new Joia(C);
+  crucifixo.metais.push(posta(chapa(cruz, GROSSA, { alto: 0.00025, dentro: 0.0002 }), C.clone()));
+  crucifixo.virola(cruz, GROSSA, 0.0002);
+  // as pontas em trevo: três bolinhas em cada uma das quatro pontas
+  const pontas: [number, number, number, number][] = [
+    [0, Z0, 0, -1],
+    [0, Z3, 0, 1],
+    [BRACO, (Z1 + Z2) / 2, 1, 0],
+    [-BRACO, (Z1 + Z2) / 2, -1, 0],
+  ];
+  for (const [x, z, dx, dz] of pontas) {
+    for (const [ao, deLado] of [
+      [0.0009, 0],
+      [-0.0001, 0.00135],
+      [-0.0001, -0.00135],
+    ]) {
+      crucifixo.metais.push(posta(new THREE.SphereGeometry(0.00105, 10, 7), C.clone().multiply(mover(x + dx * ao + dz * deLado, GROSSA * 0.5, z + dz * ao + dx * deLado)).multiply(escala(1, 0.62, 1))));
+    }
+  }
+  // a figura, em relevo: a cabeça, o tronco, os braços abertos e as pernas; e a plaquinha no alto
+  const meioDoBraco = (Z1 + Z2) / 2;
+  crucifixo.bordas.push(
+    posta(new THREE.SphereGeometry(0.00072, 10, 7), C.clone().multiply(mover(0, GROSSA + 0.0004, meioDoBraco + 0.0012))),
+    posta(new THREE.SphereGeometry(1, 10, 7), C.clone().multiply(mover(0, GROSSA + 0.0002, meioDoBraco - 0.0019)).multiply(escala(0.00078, 0.00055, 0.0023))),
+    posta(new THREE.BoxGeometry(0.0021, 0.0004, 0.001), C.clone().multiply(mover(0, GROSSA + 0.0002, Z3 - 0.0013))),
+  );
+  crucifixo
+    .garra([0.0006, GROSSA + 0.0002, meioDoBraco - 0.0002], [BRACO - 0.0012, GROSSA + 0.0002, meioDoBraco + 0.0006], 0.0003)
+    .garra([-0.0006, GROSSA + 0.0002, meioDoBraco - 0.0002], [-BRACO + 0.0012, GROSSA + 0.0002, meioDoBraco + 0.0006], 0.0003)
+    .garra([0, GROSSA + 0.0002, meioDoBraco - 0.004], [0, GROSSA + 0.0001, Z0 + 0.0022], 0.00042);
+  // a argola que o prende ao pendente
+  crucifixo.bordas.push(argolinha(new THREE.Vector3(0, GROSSA * 0.5, Z3 + 0.0011).applyMatrix4(C), new THREE.Vector3().setFromMatrixColumn(C, 0), new THREE.Vector3().setFromMatrixColumn(C, 2), 0.0011, 0.00028, 12));
+
+  const conta = (cor: string) => material('conta:' + cor, () => new THREE.MeshStandardMaterial({ color: cor, roughness: 0.2, metalness: 0.12, emissive: shade(cor, -0.6), emissiveIntensity: 0.35 }));
+  return [
+    { geo: juntar(contas), mat: conta(a.cor) },
+    { geo: juntar(maiores), mat: conta(shade(a.cor, -0.18)) },
+    { geo: juntar([...metais, ...medalha.metais, ...crucifixo.metais]), mat: metal(a.cor2) },
+    { geo: juntar([...polidos, ...medalha.bordas, ...crucifixo.bordas]), mat: polido(a.cor2) },
+  ];
+}
+
 /**
  * Uma pulseira no laço do pulso. Cada feitio tem os detalhes dele: os separadores e o fecho de um fio
  * de contas, a argola do fecho de uma corrente, as beiradas debruadas, os pespontos e a fivela de uma
@@ -794,6 +1018,8 @@ function elos(l: Laco, folga: number, r: number, grosso: number, desvio = 0): TH
  */
 function pulseira(a: Pulseira, l: Laco, folga: number): Pedaco[] {
   switch (a.feitio) {
+    case 'terco':
+      return terco(a, l, folga);
     case 'contas': {
       // o fio de contas: uma arruela de metal entre uma conta e a outra, e o fecho — uma conta maior entre duas tampas
       const r = a.id === 'pulseira-perolas' ? 0.0027 : 0.0031;

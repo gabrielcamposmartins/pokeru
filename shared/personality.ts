@@ -254,6 +254,24 @@ export const PERSONALIDADES: Record<string, Personalidade> = {
   tobi: { blefe: 0.48, agressao: 0.66, risco: 0.9, cautela: 0.28, teimosia: 0.82, faro: 0.35 },
   // Yukina: o leque na frente do rosto. Blefa com método, e só paga quando sabe.
   yukina: { blefe: 0.8, agressao: 0.52, risco: 0.35, cautela: 0.62, teimosia: 0.3, faro: 0.74 },
+  // Alistair: o palco é dele. Blefa por gosto, lê a plateia e nunca se sabe se está brincando.
+  alistair: { blefe: 0.78, agressao: 0.6, risco: 0.58, cautela: 0.34, teimosia: 0.44, faro: 0.72 },
+  // Violetta: o jogo de salão que ela já venceu. Deixa o outro achar que manda, e fecha a armadilha.
+  violetta: { blefe: 0.66, agressao: 0.4, risco: 0.28, cautela: 0.78, teimosia: 0.36, faro: 0.86 },
+  // Abel: o confessor. Lê os tiques de cada um e espera a mão se entregar sozinha.
+  abel: { blefe: 0.58, agressao: 0.34, risco: 0.3, cautela: 0.7, teimosia: 0.4, faro: 0.92 },
+  // Agnes: a cobradora. Aumenta toda rodada e cobra caro de quem paga para ver.
+  agnes: { blefe: 0.42, agressao: 0.88, risco: 0.55, cautela: 0.4, teimosia: 0.7, faro: 0.6 },
+  // Goro: o astro. Blefa com teatro e sobe a pressão sem parar.
+  goro: { blefe: 0.92, agressao: 0.76, risco: 0.66, cautela: 0.18, teimosia: 0.5, faro: 0.4 },
+  // Hina: a sortuda. Joga por intuição e paga tudo, até o river.
+  hina: { blefe: 0.2, agressao: 0.38, risco: 0.86, cautela: 0.24, teimosia: 0.84, faro: 0.3 },
+  // Glitch: matemática pura. Só aposta com vantagem, e larga a mão sem dó.
+  zuzu: { blefe: 0.28, agressao: 0.5, risco: 0.22, cautela: 0.82, teimosia: 0.14, faro: 0.88 },
+  // Nobu: o apostador. Vai com tudo cedo, persegue qualquer carta e não larga a mão.
+  nobu: { blefe: 0.3, agressao: 0.64, risco: 0.96, cautela: 0.08, teimosia: 0.92, faro: 0.18 },
+  // Saeko: a negociadora. Joga devagar a mão forte, lê o colega e deixa ele pagar demais.
+  saeko: { blefe: 0.5, agressao: 0.3, risco: 0.42, cautela: 0.7, teimosia: 0.5, faro: 0.9 },
 };
 
 /** A personalidade de um personagem (neutra quando não há uma escrita). */

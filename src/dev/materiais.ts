@@ -323,6 +323,83 @@ export function criarTecido() {
         float a = f.x + f.y;
         return smoothstep(0.36, 0.32, a) * smoothstep(0.16, 0.2, a) + smoothstep(0.07, 0.04, a);
       }
+      // a treliça: a distância (em casas) à linha diagonal mais perto — 0 em cima dela, 0,5 no meio do losango
+      float trelica(vec2 q) {
+        vec2 g = q / 0.055;
+        float a = 0.5 - abs(fract(g.x + g.y) - 0.5);
+        float b = 0.5 - abs(fract(g.x - g.y) - 0.5);
+        return min(a, b);
+      }
+      // glicínias: cachos que pendem (mais largos em cima, afinando para baixo, de tamanhos desencontrados),
+      // feitos de florzinhas; um cacho sim, um não, é mais claro (as glicínias brancas entre as lilases)
+      float glicinias(vec2 q, out float claro) {
+        vec2 casa = q / vec2(0.05, 0.075);
+        casa.x += 0.5 * mod(floor(casa.y), 2.0);
+        vec2 qual = floor(casa);
+        float sorte = fract(sin(dot(qual, vec2(12.9898, 78.233))) * 43758.5453);
+        claro = step(0.5, fract(sorte * 7.0));
+        vec2 m = (fract(casa) - 0.5) * vec2(0.05, 0.075) + vec2((sorte - 0.5) * 0.012, 0.0);
+        float alto = 0.018 + 0.012 * sorte;
+        float t = clamp((m.y + alto) / (2.0 * alto), 0.0, 1.0);
+        float cacho = step(abs(m.y), alto) * smoothstep(0.003 + 0.008 * t, 0.002 + 0.007 * t, abs(m.x + 0.002 * sin(m.y * 300.0)));
+        vec2 f = q / 0.0034;
+        f.x += 0.5 * mod(floor(f.y), 2.0);
+        float flor = smoothstep(0.42, 0.22, length(fract(f) - 0.5));
+        return cacho * flor;
+      }
+      // o gótico (a manga em sino de um hábito): na barra, uma arcada de arcos ogivais de filete duplo, com
+      // uma cruz dentro de cada arco e um trevo de quatro folhas entre um arco e o outro, fechada em cima
+      // por dois filetes com contas; e, dali para o ombro, cruzes miúdas semeadas, que vão sumindo
+      float traco(float d, float meia) {
+        return smoothstep(meia, meia * 0.45, abs(d));
+      }
+      float gotico(vec3 p) {
+        float ax = abs(p.x);
+        if (ax < 0.2) return 0.0;
+        // (a manga abre em sino: o desenho acompanha o raio dela, para não esticar em volta)
+        float raio = 0.035 + 0.058 * smoothstep(0.29, 0.672, ax);
+        float h = 0.672 - ax;
+        float casa = atan(p.z, p.y - 1.4) / VOLTA * 14.0;
+        float larg = VOLTA * raio / 14.0;
+        float u = (fract(casa) - 0.5) * larg;
+        float g = 0.0;
+        // a barra: uma faixa cheia e um filete
+        g = max(g, smoothstep(0.0034, 0.0026, h));
+        g = max(g, traco(h - 0.0062, 0.0008));
+        // o arco ogival: dois arcos de círculo, cada um com o centro no pé do outro
+        float a = larg * 0.5 - 0.0034;
+        float hs = 0.016;
+        float d = h < hs ? abs(u) - a : max(length(vec2(u - a, h - hs)), length(vec2(u + a, h - hs))) - 2.0 * a;
+        float topo = hs + 1.732 * a + 0.0065;
+        if (h > 0.0062 && h < topo) {
+          g = max(g, traco(d, 0.0012));
+          g = max(g, traco(d + 0.0036, 0.0006) * step(d, 0.0));
+          // a cruz dentro do arco, de pontas alargadas
+          float hc = hs + a * 0.3;
+          float haste = traco(u, 0.0011 + 0.0012 * smoothstep(a * 0.55, a * 0.95, abs(h - hc + a * 0.2))) * step(hc - a * 1.05, h) * step(h, hc + a * 0.62);
+          float travessa = traco(h - hc, 0.0011 + 0.0012 * smoothstep(a * 0.2, a * 0.46, abs(u))) * step(abs(u), a * 0.46);
+          g = max(g, max(haste, travessa));
+          // o trevo de quatro folhas entre dois arcos, por cima do pilar
+          vec2 t = vec2(abs(u) - larg * 0.5, h - (hs + a * 1.28));
+          float folhas = min(min(length(t - vec2(0.0024, 0.0)), length(t + vec2(0.0024, 0.0))), min(length(t - vec2(0.0, 0.0024)), length(t + vec2(0.0, 0.0024))));
+          g = max(g, traco(folhas - 0.0021, 0.0006));
+          g = max(g, smoothstep(0.0011, 0.0006, length(t)));
+        }
+        // os dois filetes que fecham a arcada, com uma fila de contas entre eles
+        g = max(g, traco(h - topo, 0.0009));
+        g = max(g, traco(h - topo - 0.0064, 0.0009));
+        g = max(g, smoothstep(0.0015, 0.001, length(vec2((fract(casa * 4.0) - 0.5) * larg * 0.25, h - topo - 0.0032))));
+        // as cruzes semeadas, desencontradas, sumindo para o ombro
+        float hh = h - topo - 0.022;
+        if (hh > 0.0) {
+          float linha = floor(hh / 0.04);
+          float v = (fract(hh / 0.04) - 0.5) * 0.04;
+          float u2 = (fract(casa * 0.5 + 0.5 * mod(linha, 2.0)) - 0.5) * larg * 2.0;
+          float cruz = max(traco(u2, 0.001) * step(abs(v + 0.0015), 0.0078), traco(v - 0.0012, 0.001) * step(abs(u2), 0.0046));
+          g = max(g, cruz * smoothstep(0.3, 0.16, hh));
+        }
+        return g;
+      }
 
       void main() {
         if (vRepouso.y > uSemCabeca) discard;
@@ -348,6 +425,17 @@ export function criarTecido() {
           base = mix(base, vCor2, ramos(q) * (noBraco ? smoothstep(0.47, 0.56, abs(p.x)) : 1.0));
         } else if (enfeite == 5) {
           base = mix(base, vCor2, brocado(q));
+        } else if (enfeite == 8) {
+          // a treliça do quimono: losangos da segunda cor entre faixas da cor da peça, debruadas de creme
+          float d = trelica(q);
+          base = mix(base, vec3(0.96, 0.94, 0.9), smoothstep(0.035, 0.05, d));
+          base = mix(base, vCor2, smoothstep(0.1, 0.115, d));
+        } else if (enfeite == 9) {
+          float claro;
+          float g = glicinias(q, claro);
+          base = mix(base, mix(vCor2, vec3(0.97, 0.95, 1.0), claro * 0.75), g);
+        } else if (enfeite == 10) {
+          base = mix(base, vCor2, gotico(p));
         }
         // o avesso (o forro de uma jaqueta, o lado de dentro de uma manga larga) tem a cor dele
         if (!gl_FrontFacing) base = vAvesso;

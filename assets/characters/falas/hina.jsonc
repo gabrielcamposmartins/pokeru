@@ -1,0 +1,23 @@
+// Falas de Hina por momento do jogo.
+// Texto em japonês; no comentário de cada linha: o momento (slot) e a tradução em português.
+{
+  "personagem": "Hina",
+  "falas": [
+    "こんにちは〜、よろしくお願いしますね", // join: Oi! Muito prazer, contem comigo.
+    "わたしの番？えっと…鈴さん、どうかな", // turn: Minha vez? Hum... sininhos, o que acham?
+    "今はまだ静かにしておこうかな", // check: Acho que vou ficar quietinha por agora.
+    "コール〜、なんだか来そうな気がするの", // call: Pago! Sinto que alguma coisa vai vir.
+    "鈴が鳴ったから、賭けちゃいますね", // bet: Os sininhos tocaram, então eu aposto.
+    "もうちょっとだけ、上げてもいいかな？", // raise: Posso aumentar só mais um pouquinho?
+    "鈴が言ってるの、これはわたしのだって！", // allin: Os sininhos disseram que essa é minha!
+    "あれ、鈴が鳴らないや…降りますね", // fold: Ué, os sininhos não tocaram... desisto.
+    "せーので、見せっこしましょ？", // showdown: No três, vamos mostrar juntos?
+    "わぁ、また当たっちゃいました！", // win: Nossa, acertei de novo!
+    "神様、本当にありがとうございます！", // big_win: Deuses, muito, muito obrigada!
+    "あらら、今日の運は休憩中かな", // lose: Ai ai, minha sorte foi descansar.
+    "お守り、新しいの買ってこなきゃ…", // bust: Preciso comprar um amuleto novo...
+    "お参りしてきました、もう一回！", // rebuy: Fui rezar no santuário, mais uma vez!
+    "ブラインド？お祭りみたいですね〜", // blinds_up: Blinds subindo? Parece festival!
+    "ねえ、桜が散っちゃいますよ〜？" // idle: Ei, as cerejeiras vão murchar, hein?
+  ]
+}

@@ -21,8 +21,17 @@ import type { CardBackStyle, CardFaceStyle, ChipStyle, TableStyle } from '../../
 import { shade } from '../util/color';
 import { MEIO, METRO_POR_PX, RAIO, TRILHO, planoParaMundo } from './geometria';
 
+/** As chaves já calculadas, por objeto de estilo (a cena pede a de cada ficha, a cada quadro). */
+const chaves = new WeakMap<object, string>();
+
 /** Uma chave curta para um estilo (o mesmo estilo dá a mesma chave). */
 export function chaveDoEstilo(st: object): string {
+  let k = chaves.get(st);
+  if (k === undefined) chaves.set(st, (k = calcularChave(st)));
+  return k;
+}
+
+function calcularChave(st: object): string {
   const s = JSON.stringify(st);
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);

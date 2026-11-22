@@ -218,11 +218,19 @@ export function projetar(p: Pt): { x: number; y: number; s: number } {
  * (u, v, 1) ↦ (X·w, Y·w, w). As três linhas são afins em (u, v), porque o tampo é um plano.
  */
 export function homografia(): number[] {
+  return homografiaDe([-MEIO_DO_PLANO.x * METRO_POR_PX, ALTURA_DA_MESA, -MEIO_DO_PLANO.y * METRO_POR_PX], METRO_POR_PX);
+}
+
+/**
+ * A mesma conta para qualquer plano deitado (o tampo, o chão): `canto` é onde fica, no mundo, o
+ * ponto (0, 0) do plano, e `porPx`, quantos metros cabem num pixel dele.
+ */
+function homografiaDe(canto: V3, porPx: number): number[] {
   const { de, frente, direita, cima, tan, aspecto } = EIXOS;
-  // o ponto do tampo em (u, v) é o + u·eu + v·ev
-  const o = sub([-MEIO_DO_PLANO.x * METRO_POR_PX, ALTURA_DA_MESA, -MEIO_DO_PLANO.y * METRO_POR_PX], de);
-  const eu: V3 = [METRO_POR_PX, 0, 0];
-  const ev: V3 = [0, 0, METRO_POR_PX];
+  // o ponto do plano em (u, v) é o + u·eu + v·ev
+  const o = sub(canto, de);
+  const eu: V3 = [porPx, 0, 0];
+  const ev: V3 = [0, 0, porPx];
   const linha = (eixo: readonly number[]) => [dot(eu, eixo), dot(ev, eixo), dot(o, eixo)];
   const xc = linha(direita);
   const yc = linha(cima);
@@ -245,11 +253,35 @@ export function pelaHomografia(m: number[], p: Pt): Pt {
  * palco pela homografia — o `matrix3d` do CSS faz a divisão pela profundidade como a câmera faz.
  */
 export function planoCss(): CSSProperties {
-  const m = homografia();
+  return deitado(homografia(), 1600, 1100);
+}
+
+/** O estilo de uma camada de `largura` × `altura` pixels levada ao palco pela homografia `m`. */
+function deitado(m: number[], largura: number, altura: number): CSSProperties {
   const n = (v: number) => v / m[8];
   // matrix3d é por colunas: (x, y, z, w) de cada eixo; z passa direto
   const valores = [n(m[0]), n(m[3]), 0, n(m[6]), n(m[1]), n(m[4]), 0, n(m[7]), 0, 0, 1, 0, n(m[2]), n(m[5]), 0, 1];
-  return { position: 'absolute', left: 0, top: 0, width: 1600, height: 1100, transformOrigin: '0 0', transform: `matrix3d(${valores.map((v) => +v.toPrecision(10)).join(',')})` };
+  return { position: 'absolute', left: 0, top: 0, width: largura, height: altura, transformOrigin: '0 0', transform: `matrix3d(${valores.map((v) => +v.toPrecision(10)).join(',')})` };
+}
+
+/**
+ * O chão da sala na mesa 3D: o plano do piso (src/game/piso.ts, o mesmo da mesa 2D) deitado no chão
+ * de verdade — a altura zero, debaixo da mesa —, visto pela câmera do jogo. `largura` × `altura` é o
+ * tamanho do plano em pixels, `porPx` quantos metros cabem num pixel dele (a tábua do assoalho, de
+ * 170 px, fica com uns 30 cm) e `z` onde fica o meio dele (a câmera olha para o lado de lá da mesa:
+ * o que se vê do chão fica mais para lá do que para cá).
+ */
+export const CHAO_3D = { largura: 3200, altura: 2200, porPx: 0.0018, z: -0.45 };
+
+export function chaoCss(): CSSProperties {
+  const { largura, altura, porPx, z } = CHAO_3D;
+  return deitado(homografiaDe([(-largura / 2) * porPx, 0, z - (altura / 2) * porPx], porPx), largura, altura);
+}
+
+/** Onde a mesa fica no plano do chão, em frações dele: o meio e os meios-tamanhos (para a sombra que ela faz no piso). */
+export function mesaNoChao(): { x: number; y: number; rx: number; ry: number } {
+  const { largura, altura, porPx, z } = CHAO_3D;
+  return { x: 0.5, y: 0.5 - z / (altura * porPx), rx: (MEIO + RAIO) / (largura * porPx), ry: RAIO / (altura * porPx) };
 }
 
 // ─────────────────────────────── os assentos ───────────────────────────────

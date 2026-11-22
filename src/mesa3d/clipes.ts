@@ -8,7 +8,7 @@
  */
 import { Boneco } from '../personagem/boneco';
 import { montarEsqueleto, type Esqueleto } from '../personagem/esqueleto';
-import { criarClipes, maoComOBaralho, pegarBaralho, pousarBaralho, type BaralhoNaMesa, type Clipe, type EstadoDaMao, type Objeto, ganhar, idleAbertas, retanguloDasCartas, virarAPilha, type Retangulo } from '../personagem/animacoes';
+import { MONTADORES_DE_CLIPES, maoComOBaralho, pegarBaralho, pousarBaralho, type BaralhoNaMesa, type Clipe, type EstadoDaMao, type Objeto, ganhar, idleAbertas, retanguloDasCartas, virarAPilha, type Retangulo } from '../personagem/animacoes';
 import { GIRO_DO_BARALHO, MARCAS } from './geometria';
 import { useModelos } from './modelos';
 
@@ -42,23 +42,33 @@ export function prepararClipes(): Promise<void> {
   if (clipes) return Promise.resolve();
   if (fazendo) return fazendo;
   useModelos.setState({ clipes: 'fazendo' });
-  // (um respiro antes: a tela de carregamento desenha o andamento antes da conta, que trava a página um instante)
-  fazendo = new Promise<void>((r) => setTimeout(r, 30)).then(() => {
+  // (um respiro antes e outro entre um clipe e o seguinte: a tela de carregamento continua desenhando,
+  // em vez de a página travar um segundo inteiro com a conta toda de uma vez)
+  const respiro = (ms = 0) => new Promise<void>((r) => setTimeout(r, ms));
+  fazendo = respiro(30).then(async () => {
     try {
-      clipes = criarClipes(bonecoDeConta());
+      const feitos: Clipe[] = [];
+      for (const monta of MONTADORES_DE_CLIPES) {
+        feitos.push(monta(bonecoDeConta()));
+        await respiro();
+      }
       // No jogo as cartas abertas são 2D, por cima de tudo o que é 3D: quem as vira acaba com as mãos
       // fora delas (o descanso `idle-abertas`), e quem ganha com elas na frente parte dali e volta para lá.
       const abertas = retanguloDasCartas();
-      clipes[clipes.findIndex((c) => c.id === 'virar-pilha')] = virarAPilha(bonecoDeConta(), undefined, 'virar-pilha', 'Virar as duas cartas', abertas);
-      clipes.push(ganhar(bonecoDeConta(), abertas, 'ganhar-abertas'));
+      feitos[feitos.findIndex((c) => c.id === 'virar-pilha')] = virarAPilha(bonecoDeConta(), undefined, 'virar-pilha', 'Virar as duas cartas', abertas);
+      await respiro();
+      feitos.push(ganhar(bonecoDeConta(), abertas, 'ganhar-abertas'));
+      await respiro();
       // pegar o baralho de onde ele fica na mesa do jogo, e pousá-lo de volta; e a mão que o segura entre uma coisa e outra
       try {
-        clipes.push(pegarBaralho(bonecoDeConta(), BARALHO_DO_JOGO), pousarBaralho(bonecoDeConta(), BARALHO_DO_JOGO));
+        feitos.push(pegarBaralho(bonecoDeConta(), BARALHO_DO_JOGO), pousarBaralho(bonecoDeConta(), BARALHO_DO_JOGO));
         // (esperando com o baralho, a mão descansa na mesa: no ar, a sombra a mostrava suspensa)
         segurando = maoComOBaralho(bonecoDeConta(), BARALHO_DO_JOGO, true);
       } catch (err) {
         console.warn('[mesa 3D] sem o gesto de pegar o baralho', err);
       }
+      // (só agora valem: quem pergunta pelos clipes no meio da conta ainda não os vê pela metade)
+      clipes = feitos;
       useModelos.setState({ clipes: 'prontos' });
     } catch (err) {
       useModelos.setState({ clipes: 'falhou' });
