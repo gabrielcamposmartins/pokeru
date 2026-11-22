@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SEM_ACESSORIOS, type Acessorios } from '../shared/acessorios';
 import { BOT_APOSTA, BOT_COM_ACESSORIO, usando } from '../shared/aposta';
-import { PRECO_DO_ACESSORIO, marcaDePerdido } from '../shared/catalog';
-import { refundOf } from '../shared/roulette';
+import { PRECO_DO_ACESSORIO, marcaDePerdido, quantasTem } from '../shared/catalog';
 import { Lobby, type Connection } from '../shared/lobby';
 import { DEFAULT_SETTINGS, type RoomSettings, type ServerMsg, type TableEvent, type TableView } from '../shared/protocol';
 import type { Room } from '../shared/room';
@@ -83,7 +82,7 @@ function vestir(acc: Accounts, j: Jogador, nome: string) {
   dentro.byId(j.id).owned.push(CHAVE);
   // (avisa o lobby, como uma compra avisaria: é ele que sabe o que a conta tem)
   dentro.changed(j.id);
-  j.conn.handle({ type: 'updateProfile', name: nome, avatar: {}, cosmetics: { acessorios: { ...SEM_ACESSORIOS, pulsos: { E: RELOGIO, D: null } } } as never });
+  j.conn.handle({ type: 'updateProfile', name: nome, avatar: {}, cosmetics: { acessorios: { ...SEM_ACESSORIOS, bracos: { E: [RELOGIO], D: [] } } } as never });
 }
 
 /** Põe estes acessórios nas mãos do jogador (o servidor corta o que a conta não tem). */
@@ -101,7 +100,7 @@ async function ate(cond: () => boolean, maxMs = 600_000) {
 
 const paga = (v: TableView, j: Jogador) => j.conn.handle({ type: 'action', action: v.legal!.canCheck ? { type: 'check' } : { type: 'call' } });
 const tudo = (_v: TableView, j: Jogador) => j.conn.handle({ type: 'action', action: { type: 'allin' } });
-const noPulso = (v: TableView, seat: number) => v.seats[seat]?.cosmetics.acessorios?.pulsos.E ?? null;
+const noPulso = (v: TableView, seat: number) => v.seats[seat]?.cosmetics.acessorios?.bracos.E[0] ?? null;
 const aneisDe = (v: TableView, seat: number) => (v.seats[seat]?.cosmetics.acessorios?.aneis ?? []).map((x) => x.id);
 const fim = (j: Jogador, t: TableEvent['t']) => j.eventos.some((e) => e.t === t);
 const quantos = (j: Jogador, t: TableEvent['t']) => j.eventos.filter((e) => e.t === t).length;
@@ -165,7 +164,7 @@ describe('apostar um acessório, com contas', () => {
     }
   }, 30_000);
 
-  it('quem ganha uma peça que já tem recebe o reembolso; o que um bot ganha sai da conta de quem perdeu; o que vem de graça com o jogo não troca de dono', () => {
+  it('quem ganha uma peça que já tem fica com mais uma (as joias se contam); o que um bot ganha sai da conta de quem perdeu; o que vem de graça com o jogo não troca de dono', () => {
     const acc = contas();
     const lobby = new Lobby('teste', acc);
     const a = jogador(lobby, 'Ana', () => {});
@@ -174,11 +173,13 @@ describe('apostar um acessório, com contas', () => {
     dar(a);
     dar(b);
     const antes = acc.money(b.id);
-    expect(acc.transferirItem(a.id, b.id, CHAVE)).toEqual({ repetido: true, reembolso: refundOf(CHAVE) });
+    expect(acc.transferirItem(a.id, b.id, CHAVE)).toEqual({ repetido: false, reembolso: 0 });
     expect(acc.owned(a.id)).not.toContain(CHAVE);
+    expect(acc.owned(b.id).filter((k) => k === CHAVE)).toHaveLength(2);
+    expect(acc.money(b.id)).toBe(antes);
+    // para um bot (sem conta): a peça sai de quem perdeu — uma — e não entra em conta nenhuma (fica com o bot, na mesa)
+    expect(acc.transferirItem(b.id, undefined, CHAVE)).toEqual({ repetido: false, reembolso: 0 });
     expect(acc.owned(b.id).filter((k) => k === CHAVE)).toHaveLength(1);
-    expect(acc.money(b.id)).toBe(antes + refundOf(CHAVE));
-    // para um bot (sem conta): a peça sai de quem perdeu e não entra em conta nenhuma (fica com o bot, na mesa)
     expect(acc.transferirItem(b.id, undefined, CHAVE)).toEqual({ repetido: false, reembolso: 0 });
     expect(acc.owned(b.id)).not.toContain(CHAVE);
     // quem não tem a peça não a perde nem a entrega
@@ -209,11 +210,12 @@ describe('apostar um acessório, com contas', () => {
     expect(acc.transferirItem(undefined, a.id, CHAVE)).toEqual({ repetido: false, reembolso: 0 });
     expect(acc.owned(a.id)).toEqual([CHAVE]);
     expect(acc.temItem(a.id, CHAVE)).toBe(true);
-    // a segunda, do mesmo jeito, já é repetida
+    // a segunda, do mesmo jeito, é mais uma: a conta passa a ter duas
     const antes = acc.money(a.id);
-    expect(acc.transferirItem(undefined, a.id, CHAVE)).toEqual({ repetido: true, reembolso: refundOf(CHAVE) });
-    expect(acc.owned(a.id)).toEqual([CHAVE]);
-    expect(acc.money(a.id)).toBe(antes + refundOf(CHAVE));
+    expect(acc.transferirItem(undefined, a.id, CHAVE)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.owned(a.id)).toEqual([CHAVE, CHAVE]);
+    expect(quantasTem(acc.owned(a.id), CHAVE)).toBe(2);
+    expect(acc.money(a.id)).toBe(antes);
   });
 
   it('sem fichas, a mesa pergunta; apostar o acessório é entrar na mão seguinte all-in com ele', async () => {
@@ -351,25 +353,27 @@ describe('a aliança de início, nas contas', () => {
     expect(acc.money(b.id)).toBe(saldoDoBeto);
   });
 
-  it('quem ainda tem a de início e ganha outra recebe o reembolso (de comum), e não junta duas', () => {
+  it('quem ainda tem a de início e ganha outra fica com duas — sem reembolso', () => {
     const { acc, a, b } = duasContas();
-    const reembolso = refundOf(CHAVE_DA_ALIANCA);
-    expect(reembolso).toBeGreaterThan(0);
-    expect(reembolso).toBeLessThan(PRECO_DO_ACESSORIO.comum);
     const saldo = acc.money(b.id);
-    expect(acc.transferirItem(a.id, b.id, CHAVE_DA_ALIANCA)).toEqual({ repetido: true, reembolso });
-    expect(acc.money(b.id)).toBe(saldo + reembolso);
-    // quem ganhou continua com a de início (nada entra na lista); quem perdeu fica com a marca
+    expect(acc.transferirItem(a.id, b.id, CHAVE_DA_ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.money(b.id)).toBe(saldo);
+    // quem ganhou tem a de início e a ganha; quem perdeu fica com a marca
+    expect(acc.owned(b.id)).toEqual([CHAVE_DA_ALIANCA]);
+    expect(quantasTem(acc.owned(b.id), CHAVE_DA_ALIANCA)).toBe(2);
+    expect(acc.owned(a.id)).toEqual([PERDEU_A_ALIANCA]);
+    // a que vem de um bot também é mais uma
+    expect(acc.transferirItem(undefined, b.id, CHAVE_DA_ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(quantasTem(acc.owned(b.id), CHAVE_DA_ALIANCA)).toBe(3);
+    expect(acc.money(b.id)).toBe(saldo);
+    // perdendo, sai primeiro uma das ganhas; a de início é a última a sair
+    expect(acc.transferirItem(b.id, undefined, CHAVE_DA_ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.transferirItem(b.id, undefined, CHAVE_DA_ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
     expect(acc.owned(b.id)).toEqual([]);
     expect(acc.temItem(b.id, CHAVE_DA_ALIANCA)).toBe(true);
-    expect(acc.owned(a.id)).toEqual([PERDEU_A_ALIANCA]);
-    // a que vem de um bot também é repetida para quem já tem
-    expect(acc.transferirItem(undefined, b.id, CHAVE_DA_ALIANCA)).toEqual({ repetido: true, reembolso });
-    expect(acc.money(b.id)).toBe(saldo + reembolso * 2);
-    expect(acc.owned(b.id)).toEqual([]);
   });
 
-  it('quem perdeu a de início e comprou outra: perde a comprada, e ganhando mais uma recebe o reembolso', async () => {
+  it('quem perdeu a de início e comprou outra: perde a comprada, e ganhando mais uma fica com ela', async () => {
     const { acc, a, b } = duasContas();
     acc.transferirItem(a.id, undefined, CHAVE_DA_ALIANCA);
     const saldo = acc.money(a.id);
@@ -377,13 +381,23 @@ describe('a aliança de início, nas contas', () => {
     expect(acc.money(a.id)).toBe(saldo - PRECO_DO_ACESSORIO.comum);
     expect(acc.owned(a.id)).toEqual([PERDEU_A_ALIANCA, CHAVE_DA_ALIANCA]);
     expect(acc.temItem(a.id, CHAVE_DA_ALIANCA)).toBe(true);
-    // já tem de novo: a do Beto, ganha numa aposta, vira reembolso
-    expect(acc.transferirItem(b.id, a.id, CHAVE_DA_ALIANCA)).toEqual({ repetido: true, reembolso: refundOf(CHAVE_DA_ALIANCA) });
-    expect(acc.owned(a.id)).toEqual([PERDEU_A_ALIANCA, CHAVE_DA_ALIANCA]);
-    // perde a comprada: sai da lista, e a marca (uma só) volta a valer
+    // a do Beto, ganha numa aposta, apaga a marca: ela volta a ter a de início, e fica com duas
+    expect(acc.transferirItem(b.id, a.id, CHAVE_DA_ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
+    expect(acc.owned(a.id)).toEqual([CHAVE_DA_ALIANCA]);
+    expect(quantasTem(acc.owned(a.id), CHAVE_DA_ALIANCA)).toBe(2);
+    // perde a comprada: sai da lista, e fica a de início
     expect(acc.transferirItem(a.id, undefined, CHAVE_DA_ALIANCA)).toEqual({ repetido: false, reembolso: 0 });
-    expect(acc.owned(a.id)).toEqual([PERDEU_A_ALIANCA]);
-    expect(acc.temItem(a.id, CHAVE_DA_ALIANCA)).toBe(false);
+    expect(acc.owned(a.id)).toEqual([]);
+    expect(acc.temItem(a.id, CHAVE_DA_ALIANCA)).toBe(true);
+  });
+
+  it('as joias se compram mais de uma vez: cada compra é mais uma peça', async () => {
+    const { acc, a } = duasContas();
+    const saldo = acc.money(a.id);
+    expect(await acc.buy(a.id, CHAVE_DA_ALIANCA, 'chips')).toBeNull();
+    expect(await acc.buy(a.id, CHAVE_DA_ALIANCA, 'chips')).toBeNull();
+    expect(quantasTem(acc.owned(a.id), CHAVE_DA_ALIANCA)).toBe(3);
+    expect(acc.money(a.id)).toBe(saldo - 2 * PRECO_DO_ACESSORIO.comum);
   });
 
   it('pelo lobby: quem a perde deixa de usá-la na mesa, e não a veste de novo; comprando outra, ela volta ao dedo', async () => {
@@ -419,7 +433,7 @@ describe('a aliança de início, nas contas', () => {
     expect(eu().cosmetics.acessorios?.aneis).toEqual(noDedo.aneis);
   });
 
-  it('na mesa: a aliança de início se aposta (vale 2 big blinds); perdida, deixa a marca em quem perdeu e vira reembolso para quem já tem a dele', async () => {
+  it('na mesa: a aliança de início se aposta (vale 2 big blinds); perdida, deixa a marca em quem perdeu, e quem já tem a dele fica com duas', async () => {
     vi.useFakeTimers();
     // a Ana aposta a aliança e o Beto paga tudo: em algumas mãos é ele quem leva
     let perdeu = false;
@@ -469,10 +483,11 @@ describe('a aliança de início, nas contas', () => {
       expect(acc.owned(a.id)).toEqual([PERDEU_A_ALIANCA]);
       expect(acc.temItem(a.id, CHAVE_DA_ALIANCA)).toBe(false);
       expect(aneisDe(salaAberta(lobby).buildView(a.conn.id), eu)).toEqual([]);
-      // o Beto já tinha a dele (a de início): não junta duas, leva o reembolso
-      expect(acc.owned(b.id)).toEqual([]);
-      expect(acc.money(b.id)).toBe(saldoDoBeto + refundOf(CHAVE_DA_ALIANCA));
-      expect(a.conversa.some((t) => t.includes('ficou com') && t.includes(`+${refundOf(CHAVE_DA_ALIANCA)} fichas`))).toBe(true);
+      // o Beto já tinha a dele (a de início): fica com duas, sem reembolso
+      expect(acc.owned(b.id)).toEqual([CHAVE_DA_ALIANCA]);
+      expect(quantasTem(acc.owned(b.id), CHAVE_DA_ALIANCA)).toBe(2);
+      expect(acc.money(b.id)).toBe(saldoDoBeto);
+      expect(a.conversa.some((t) => t.includes('ficou com') && !t.includes('fichas'))).toBe(true);
     }
     expect(perdeu).toBe(true);
   }, 60_000);
@@ -616,7 +631,7 @@ describe('a peça em circulação', () => {
       const eu = a.visoes[0].mySeat!;
       expect(acc.owned(a.id)).toEqual([]);
       // está nas mãos do bot, na mesa — e em conta nenhuma
-      expect(bot.cosmetics.acessorios?.pulsos).toEqual({ E: RELOGIO, D: null });
+      expect(bot.cosmetics.acessorios?.bracos).toEqual({ E: [RELOGIO], D: [] });
       await ate(() => noPulso(a.visoes.at(-1)!, bot.seat) === RELOGIO, 10_000);
       expect(noPulso(a.visoes.at(-1)!, bot.seat)).toBe(RELOGIO);
       expect(noPulso(a.visoes.at(-1)!, eu)).toBeNull();

@@ -16,8 +16,8 @@
 import { create } from 'zustand';
 import type { Qualidade } from '../personagem/corpo';
 import type { Malha } from '../personagem/malha';
-import type { EstiloDeLuva, Roupa } from '../personagem/roupa';
-import { LUVA_PADRAO, findAcessorio } from '../../shared/acessorios';
+import type { EstiloDeLuva, LuvasDoTraje, Roupa } from '../personagem/roupa';
+import { LUVA_PADRAO, findAcessorio, type Mao } from '../../shared/acessorios';
 
 /**
  * A malha da mesa: mais grossa que a da página do personagem (a câmera fica longe), a mesma da
@@ -38,17 +38,29 @@ export function trajeDe(personagem: string): string {
 
 /**
  * Um personagem "vestido": o id dele e, depois de um `+`, o estilo de luva que o jogador escolheu
- * (shared/acessorios.ts) — quando não é o do traje. É com este nome que se pede e se guarda a roupa:
- * a mesma personagem com outra luva é outra roupa a costurar.
+ * (shared/acessorios.ts) — quando não é o do traje. Com uma luva diferente em cada mão, as duas vão
+ * separadas por vírgula, a da esquerda primeiro (`ren+luva-renda,luva-nenhuma`). É com este nome que
+ * se pede e se guarda a roupa: a mesma personagem com outra luva é outra roupa a costurar.
+ *
+ * `luvas` é a luva das duas mãos (o jeito de antes) ou a de cada uma.
  */
-export function vestido(personagem: string, luva?: string): string {
+export function vestido(personagem: string, luvas?: string | Partial<Record<Mao, string>>): string {
+  const valida = (id: string | undefined) => (id && findAcessorio(id)?.tipo === 'luva' ? id : LUVA_PADRAO);
+  const E = valida(typeof luvas === 'object' ? luvas.E : luvas);
+  const D = valida(typeof luvas === 'object' ? luvas.D : luvas);
   // (sem dizer a luva — ou dizendo a de quem não escolheu nenhuma —, é o personagem de mãos nuas)
-  return luva && luva !== LUVA_PADRAO && findAcessorio(luva)?.tipo === 'luva' ? `${personagem}+${luva}` : personagem;
+  if (E === D) return E === LUVA_PADRAO ? personagem : `${personagem}+${E}`;
+  return `${personagem}+${E},${D}`;
 }
 const partes = (v: string): [string, string | undefined] => {
   const i = v.indexOf('+');
   return i < 0 ? [v, undefined] : [v.slice(0, i), v.slice(i + 1)];
 };
+/** As luvas de cada mão, no nome de um personagem vestido (o que vem depois do `+`). */
+function luvasDe(parte: string | undefined): Record<Mao, string> {
+  const [E = LUVA_PADRAO, D = E] = (parte ?? '').split(',').filter(Boolean);
+  return { E, D };
+}
 
 export interface Corpo {
   malha: Malha;
@@ -115,7 +127,7 @@ export function prepararCorpo(): Promise<Corpo> {
 
 /** A chave da roupa de um personagem vestido: a do traje de mãos nuas, ou a do traje com a luva escolhida. */
 function chaveDaRoupa(v: string): string {
-  return vestido(trajeDe(v), partes(v)[1]);
+  return vestido(trajeDe(v), luvasDe(partes(v)[1]));
 }
 
 /** O estilo de luva de um acessório; sem dizer qual, o de quem não escolheu (as mãos nuas). undefined: a luva do traje, como ele é. */
@@ -123,6 +135,13 @@ export function estiloDaLuva(luva: string = LUVA_PADRAO): EstiloDeLuva | undefin
   const a = findAcessorio(luva) ?? findAcessorio(LUVA_PADRAO);
   if (!a || a.tipo !== 'luva' || a.feitio === 'traje') return undefined;
   return { feitio: a.feitio, cor: a.cor, cor2: a.cor2, cor3: a.cor3 };
+}
+
+/** As luvas da roupa de um personagem vestido: a mesma nas duas mãos, ou uma para cada (veja `pecasDoTraje`). */
+function luvasDaRoupa(parte: string | undefined): LuvasDoTraje {
+  const { E, D } = luvasDe(parte);
+  if (E === D) return estiloDaLuva(E);
+  return { E: estiloDaLuva(E) ?? 'traje', D: estiloDaLuva(D) ?? 'traje' };
 }
 
 /** A roupa de um personagem (vestido ou não — veja `vestido`), costurada e já sabendo que parte do corpo cobre. */
@@ -136,7 +155,7 @@ export function prepararRoupa(personagem: string): Promise<Roupa> {
   const ajudante = novoAjudante();
   const p = (async () => {
     try {
-      const r = await pedir<{ roupa: Omit<Roupa, 'coberto'> }>(ajudante, { tipo: 'roupa', traje: trajeDe(personagem), luva: estiloDaLuva(luva), q: QUALIDADE_DO_JOGO });
+      const r = await pedir<{ roupa: Omit<Roupa, 'coberto'> }>(ajudante, { tipo: 'roupa', traje: trajeDe(personagem), luva: luvasDaRoupa(luva), q: QUALIDADE_DO_JOGO });
       const c = await doCorpo;
       const { coberto } = await pedir<{ coberto: Float32Array }>(ajudante, { tipo: 'coberto', pos: c.malha.pos.slice(), unha: c.malha.unha.slice() });
       const roupa: Roupa = { ...r.roupa, coberto };

@@ -6,7 +6,7 @@ import { XP } from './achievements';
 import { HandCategory, evaluateHand } from './evaluator';
 import { Hand, isFirstStreet, type GameVariant, type HandEvent, type ItemGanho, type PlayerAction } from './engine';
 import { BOT_APOSTA, BOT_COM_ACESSORIO, TEMPO_DA_OFERTA, apostaveis, chaveDoItem, devolverAsMaos, podeApostar, tirarDasMaos, usando, valorDaAposta, vestirOndeDer, type OndeEstava } from './aposta';
-import { ACESSORIOS, SEM_ACESSORIOS, findAcessorio, type Acessorios } from './acessorios';
+import { ACESSORIOS, SEM_ACESSORIOS, findAcessorio, sanitizeAcessorios, type Acessorios } from './acessorios';
 import { estaAVenda, itemKey, rarityOf, type Raridade } from './catalog';
 import { botDecide, botDraw, botThinkTimeMs, estimateEquity, estimateEquity5 } from './bot';
 import {
@@ -1205,11 +1205,10 @@ export class Room {
     const noPulso = Math.random() < 0.65 ? sorteia(['pulseira', 'relogio']) : null;
     const anel = !noPulso || Math.random() < 0.4 ? sorteia(['anel']) : null;
     return {
-      acessorios: {
-        ...SEM_ACESSORIOS,
+      acessorios: sanitizeAcessorios({
         aneis: anel ? [{ id: anel, mao: Math.random() < 0.5 ? 'E' : 'D', dedo: 2 }] : [],
-        pulsos: { E: noPulso, D: null },
-      },
+        bracos: { E: noPulso ? [noPulso] : [], D: [] },
+      }),
     };
   }
 
@@ -1234,7 +1233,7 @@ export class Room {
   private tirarParaAMesa(m: Member, id: string): void {
     // (a que um bot guardou sai do que ele guardou — uma só —; a igual que ele usa continua com ele)
     const guardada = m.bolso?.indexOf(id) ?? -1;
-    let onde: OndeEstava = { aneis: [], pulsos: [] };
+    let onde: OndeEstava = {};
     if (guardada >= 0) m.bolso = m.bolso!.filter((_, k) => k !== guardada);
     else {
       const tirada = tirarDasMaos(m.cosmetics.acessorios ?? SEM_ACESSORIOS, id);
@@ -1252,15 +1251,14 @@ export class Room {
     const [item] = this.naMesa.splice(i, 1);
     const m = this.memberById(item.membro);
     if (!m) return;
-    if (item.onde.aneis.length || item.onde.pulsos.length) m.cosmetics = { ...m.cosmetics, acessorios: devolverAsMaos(m.cosmetics.acessorios ?? SEM_ACESSORIOS, id, item.onde) };
+    if (item.onde.dedo || item.onde.braco) m.cosmetics = { ...m.cosmetics, acessorios: devolverAsMaos(m.cosmetics.acessorios ?? SEM_ACESSORIOS, id, item.onde) };
     else this.darAoBot(m, id);
   }
 
   /** Quem não tem conta (um bot) fica com a peça na própria mesa: veste-a onde houver lugar; senão, guarda. */
   private darAoBot(m: Member, id: string): void {
-    // (a que ele já usa não vai para o outro pulso ou dedo: são duas peças, e a segunda fica guardada)
-    const maos = m.cosmetics.acessorios ?? SEM_ACESSORIOS;
-    const vestido = usando(maos, id) ? null : vestirOndeDer(maos, id);
+    // (uma igual à que ele já usa vai noutro dedo, ou noutra volta do braço: são duas peças)
+    const vestido = vestirOndeDer(m.cosmetics.acessorios ?? SEM_ACESSORIOS, id);
     if (vestido) m.cosmetics = { ...m.cosmetics, acessorios: vestido };
     else m.bolso = [...(m.bolso ?? []), id];
   }

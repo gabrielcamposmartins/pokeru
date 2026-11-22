@@ -6,14 +6,14 @@
  *
  * Mensagens que chegam:
  *   { tipo: 'corpo', q }            modela o corpo e pesa a pele
- *   { tipo: 'roupa', traje, luva?, q }  costura as peças de um traje (o que acompanha o corpo), com a luva dele ou a do estilo dado
+ *   { tipo: 'roupa', traje, luva?, q }  costura as peças de um traje (o que acompanha o corpo), com a luva dele ou a do estilo dado (uma para cada mão, se forem diferentes)
  *   { tipo: 'coberto', pos, unha }  diz que vértices do corpo a roupa costurada antes cobre
  */
 import { gerarPersonagem, type Qualidade } from '../personagem/corpo';
 import { montarEsqueleto, pesar } from '../personagem/esqueleto';
-import { TRAJES, cobertoPor, costurarPecas, pecasDoTraje, type EstiloDeLuva, type Peca } from '../personagem/roupa';
+import { TRAJES, cobertoPor, costurarPecas, pecasDoTraje, type LuvasDoTraje, type Peca } from '../personagem/roupa';
 
-type Pedido = { tipo: 'corpo'; q: Qualidade } | { tipo: 'roupa'; traje: string; luva?: EstiloDeLuva; q: Qualidade } | { tipo: 'coberto'; pos: Float32Array; unha: Float32Array };
+type Pedido = { tipo: 'corpo'; q: Qualidade } | { tipo: 'roupa'; traje: string; luva?: LuvasDoTraje; q: Qualidade } | { tipo: 'coberto'; pos: Float32Array; unha: Float32Array };
 
 const trabalho = self as unknown as { onmessage: ((e: MessageEvent<Pedido>) => void) | null; postMessage(msg: unknown, transfer?: Transferable[]): void };
 const esqueleto = montarEsqueleto();

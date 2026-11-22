@@ -23,7 +23,7 @@
  * jogo: o bot que ficar com ela a aposta sempre que zerar — ela circula até a partida acabar, e quem
  * a perdeu pode ganhá-la de volta.
  */
-import { findAcessorio, type Acessorios, type AnelPosto, type Mao } from './acessorios';
+import { MAX_ANEIS, bracoDoRelogio, cabeNoBraco, comLegado, findAcessorio, porNoBraco, tirarDoBraco, type Acessorios, type AnelPosto, type Mao } from './acessorios';
 import { isFree, itemKey, rarityOf, type Raridade } from './catalog';
 
 /** Quantos big blinds vale, numa aposta, uma peça de cada raridade. */
@@ -58,65 +58,67 @@ export function valorDaAposta(id: string, bigBlind: number): number {
   return Math.max(1, Math.round(VALOR_EM_BLINDS[rarityOf(chaveDoItem(id))] * bigBlind));
 }
 
-/** Onde uma peça estava posta: em que dedos (um anel pode estar em mais de um) ou em que pulsos. */
+/**
+ * Onde uma peça estava posta: o dedo, se era um anel; o braço e o lugar na fila dele (0 = junto da
+ * mão), se era uma pulseira ou o relógio. Vazio: não estava nas mãos (a que um bot guardou).
+ */
 export interface OndeEstava {
-  aneis: AnelPosto[];
-  pulsos: Mao[];
+  dedo?: AnelPosto;
+  braco?: { mao: Mao; i: number };
 }
 
-/** As peças que o jogador está usando e pode apostar, sem repetição, na ordem: pulsos, depois anéis. */
+/** As peças que o jogador está usando e pode apostar, sem repetição, na ordem: braços, depois anéis. */
 export function apostaveis(a: Acessorios | undefined): string[] {
   if (!a) return [];
-  const ids = [a.pulsos.E, a.pulsos.D, ...a.aneis.map((x) => x.id)].filter((id): id is string => !!id && podeApostar(id));
+  const ids = [...a.bracos.E, ...a.bracos.D, ...a.aneis.map((x) => x.id)].filter((id) => podeApostar(id));
   return [...new Set(ids)];
 }
 
 /** O jogador está usando a peça? */
-export const usando = (a: Acessorios | undefined, id: string): boolean => !!a && (a.pulsos.E === id || a.pulsos.D === id || a.aneis.some((x) => x.id === id));
+export const usando = (a: Acessorios | undefined, id: string): boolean => !!a && (a.bracos.E.includes(id) || a.bracos.D.includes(id) || a.aneis.some((x) => x.id === id));
 
 /**
- * Tira a peça das mãos (de todos os dedos e pulsos em que está: a conta tem uma só). Devolve as
- * mãos sem ela e onde ela estava, para poder voltar ao mesmo lugar.
+ * Tira **uma** peça das mãos — a conta pode ter mais de uma igual, e cada uma é uma aposta: a do alto
+ * do braço (a última da fila), ou a do último dedo em que ela foi posta. Devolve as mãos sem ela e
+ * onde ela estava, para poder voltar ao mesmo lugar.
  */
 export function tirarDasMaos(a: Acessorios, id: string): { acessorios: Acessorios; onde: OndeEstava } {
-  const onde: OndeEstava = {
-    aneis: a.aneis.filter((x) => x.id === id),
-    pulsos: (['E', 'D'] as const).filter((m) => a.pulsos[m] === id),
-  };
-  return {
-    acessorios: {
-      ...a,
-      aneis: a.aneis.filter((x) => x.id !== id),
-      pulsos: { E: a.pulsos.E === id ? null : a.pulsos.E, D: a.pulsos.D === id ? null : a.pulsos.D },
-    },
-    onde,
-  };
+  for (const mao of ['E', 'D'] as const) {
+    const i = a.bracos[mao].lastIndexOf(id);
+    if (i >= 0) return { acessorios: tirarDoBraco(a, mao, i), onde: { braco: { mao, i } } };
+  }
+  const k = a.aneis.map((x) => x.id).lastIndexOf(id);
+  if (k >= 0) return { acessorios: comLegado({ ...a, aneis: a.aneis.filter((_, j) => j !== k) }), onde: { dedo: a.aneis[k] } };
+  return { acessorios: a, onde: {} };
 }
 
 /** Os dedos em que quem ganha um anel o põe, na ordem de preferência (0 = indicador … 3 = mínimo). */
 const DEDOS_DE_ANEL = [2, 1, 0, 3] as const;
 
 /**
- * Põe uma peça em quem a ganhou, onde houver lugar: o que vai no pulso, no primeiro pulso livre; o
- * anel, no primeiro dedo livre. null: não há onde (aí ela fica guardada).
+ * Põe uma peça em quem a ganhou, onde houver lugar: o anel no primeiro dedo livre; a pulseira no alto
+ * do primeiro braço que ainda tem lugar; o relógio no pulso esquerdo, se ele ainda não usa um. null:
+ * não há onde (aí ela fica guardada).
  */
 export function vestirOndeDer(a: Acessorios, id: string): Acessorios | null {
   const def = findAcessorio(id);
   if (!def) return null;
   if (def.tipo === 'anel') {
-    for (const mao of ['E', 'D'] as const) for (const dedo of DEDOS_DE_ANEL) if (!a.aneis.some((x) => x.mao === mao && x.dedo === dedo)) return { ...a, aneis: [...a.aneis, { id, mao, dedo }] };
+    if (a.aneis.length >= MAX_ANEIS) return null;
+    for (const mao of ['E', 'D'] as const) for (const dedo of DEDOS_DE_ANEL) if (!a.aneis.some((x) => x.mao === mao && x.dedo === dedo)) return comLegado({ ...a, aneis: [...a.aneis, { id, mao, dedo }] });
     return null;
   }
-  if (def.tipo !== 'pulseira' && def.tipo !== 'relogio') return null;
-  for (const mao of ['E', 'D'] as const) if (!a.pulsos[mao]) return { ...a, pulsos: { ...a.pulsos, [mao]: id } };
+  if (def.tipo === 'relogio') return bracoDoRelogio(a) ? null : porNoBraco(a, id, 'E');
+  if (def.tipo !== 'pulseira') return null;
+  for (const mao of ['E', 'D'] as const) if (cabeNoBraco(a, id, mao)) return porNoBraco(a, id, mao);
   return null;
 }
 
-/** Põe a peça de volta onde estava (só nos lugares que continuam vazios). */
+/** Põe a peça de volta onde estava (se o lugar continua livre: o dedo vazio, o braço com lugar, nenhum outro relógio). */
 export function devolverAsMaos(a: Acessorios, id: string, onde: OndeEstava): Acessorios {
-  const aneis = [...a.aneis];
-  for (const x of onde.aneis) if (!aneis.some((y) => y.mao === x.mao && y.dedo === x.dedo)) aneis.push({ ...x, id });
-  const pulsos = { ...a.pulsos };
-  for (const m of onde.pulsos) if (!pulsos[m]) pulsos[m] = id;
-  return { ...a, aneis, pulsos };
+  const { dedo, braco } = onde;
+  if (dedo) return a.aneis.some((y) => y.mao === dedo.mao && y.dedo === dedo.dedo) ? a : comLegado({ ...a, aneis: [...a.aneis, { ...dedo, id }] });
+  if (!braco) return a;
+  if (findAcessorio(id)?.tipo === 'relogio' && bracoDoRelogio(a)) return a;
+  return porNoBraco(a, id, braco.mao, braco.i);
 }

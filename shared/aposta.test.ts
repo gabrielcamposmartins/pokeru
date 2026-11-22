@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACESSORIOS, SEM_ACESSORIOS, type Acessorios } from './acessorios';
-import { VALOR_EM_BLINDS, apostaveis, chaveDoItem, devolverAsMaos, podeApostar, tirarDasMaos, valorDaAposta } from './aposta';
+import { VALOR_EM_BLINDS, apostaveis, chaveDoItem, devolverAsMaos, podeApostar, tirarDasMaos, valorDaAposta, vestirOndeDer } from './aposta';
 import { newDeck, parseCard, sameCard, type Card } from './cards';
 import { isFree, rarityOf } from './catalog';
 import { Hand, type HandEvent, type PotResult } from './engine';
@@ -86,18 +86,39 @@ describe('o que se aposta e quanto vale', () => {
         { id: 'anel-alianca', mao: 'D', dedo: 2 },
         { id: 'anel-ebano', mao: 'D', dedo: 0 },
       ],
-      pulsos: { E: 'relogio-esportivo', D: 'pulseira-couro' },
+      bracos: { E: ['pulseira-contas', 'relogio-esportivo', 'pulseira-contas'], D: ['pulseira-couro'] },
     };
-    // (pulsos, depois anéis, sem repetir — e a aliança de início entra na lista, como qualquer anel)
-    expect(apostaveis(maos)).toEqual(['relogio-esportivo', 'pulseira-couro', 'anel-ebano', 'anel-alianca']);
+    // (braços, depois anéis, sem repetir — e a aliança de início entra na lista, como qualquer anel)
+    expect(apostaveis(maos)).toEqual(['pulseira-contas', 'relogio-esportivo', 'pulseira-couro', 'anel-ebano', 'anel-alianca']);
+    // sai **uma**: são dois anéis de ébano, e cada um é uma aposta — sai o do último dedo em que foi posto
     const sem = tirarDasMaos(maos, 'anel-ebano');
-    expect(sem.acessorios.aneis).toEqual([{ id: 'anel-alianca', mao: 'D', dedo: 2 }]);
-    expect(sem.onde.aneis).toHaveLength(2);
+    expect(sem.acessorios.aneis).toEqual([
+      { id: 'anel-ebano', mao: 'E', dedo: 2 },
+      { id: 'anel-alianca', mao: 'D', dedo: 2 },
+    ]);
+    expect(sem.onde).toEqual({ dedo: { id: 'anel-ebano', mao: 'D', dedo: 0 } });
     const deVolta = devolverAsMaos(sem.acessorios, 'anel-ebano', sem.onde);
-    expect([...deVolta.aneis].sort((x, y) => (x.mao + x.dedo).localeCompare(y.mao + y.dedo))).toEqual([...maos.aneis].sort((x, y) => (x.mao + x.dedo).localeCompare(y.mao + y.dedo)));
+    const ordem = (a: Acessorios) => [...a.aneis].sort((x, y) => (x.mao + x.dedo).localeCompare(y.mao + y.dedo));
+    expect(ordem(deVolta)).toEqual(ordem(maos));
+    // do braço: a do alto da fila (a pulseira de contas de cima), e volta para o mesmo lugar dela
+    const semContas = tirarDasMaos(maos, 'pulseira-contas');
+    expect(semContas.acessorios.bracos.E).toEqual(['pulseira-contas', 'relogio-esportivo']);
+    expect(semContas.onde).toEqual({ braco: { mao: 'E', i: 2 } });
+    expect(devolverAsMaos(semContas.acessorios, 'pulseira-contas', semContas.onde).bracos).toEqual(maos.bracos);
     const semRelogio = tirarDasMaos(maos, 'relogio-esportivo');
-    expect(semRelogio.acessorios.pulsos).toEqual({ E: null, D: 'pulseira-couro' });
-    expect(devolverAsMaos(semRelogio.acessorios, 'relogio-esportivo', semRelogio.onde).pulsos).toEqual(maos.pulsos);
+    expect(semRelogio.acessorios.bracos).toEqual({ E: ['pulseira-contas', 'pulseira-contas'], D: ['pulseira-couro'] });
+    expect(devolverAsMaos(semRelogio.acessorios, 'relogio-esportivo', semRelogio.onde).bracos).toEqual(maos.bracos);
+    // (com outro relógio posto enquanto isso, o que volta não toma o lugar dele)
+    const comOutro = { ...semRelogio.acessorios, bracos: { ...semRelogio.acessorios.bracos, D: ['relogio-lua'] } };
+    expect(devolverAsMaos(comOutro, 'relogio-esportivo', semRelogio.onde)).toBe(comOutro);
+  });
+
+  it('quem ganha veste a peça onde houver lugar: o anel num dedo livre, a pulseira no braço com lugar, o relógio só se não tem um', () => {
+    expect(vestirOndeDer(SEM_ACESSORIOS, 'anel-rubi')?.aneis).toEqual([{ id: 'anel-rubi', mao: 'E', dedo: 2 }]);
+    const cheio: Acessorios = { ...SEM_ACESSORIOS, bracos: { E: Array(5).fill('pulseira-contas'), D: ['relogio-lua'] } };
+    expect(vestirOndeDer(cheio, 'pulseira-couro')?.bracos.D).toEqual(['relogio-lua', 'pulseira-couro']);
+    expect(vestirOndeDer(cheio, 'relogio-rose')).toBeNull();
+    expect(vestirOndeDer({ ...cheio, bracos: { E: [], D: [] } }, 'relogio-rose')?.bracos.E).toEqual(['relogio-rose']);
   });
 });
 

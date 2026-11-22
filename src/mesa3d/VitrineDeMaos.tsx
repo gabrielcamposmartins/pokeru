@@ -177,7 +177,7 @@ export default function VitrineDeMaos({ personagem, acessorios, mesa, foco = nul
   useEffect(() => {
     if (!podeModelar()) return;
     let vale = true;
-    const comLuva = vestido(personagem, acessorios.luva);
+    const comLuva = vestido(personagem, acessorios.luvas);
     if (!modeloPronto(comLuva) || !clipe('idle-plana')) setEstado('modelando');
     void Promise.all([prepararCorpo(), prepararRoupa(comLuva), prepararClipes()]).then(
       () => {

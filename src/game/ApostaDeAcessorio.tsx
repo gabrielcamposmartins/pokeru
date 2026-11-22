@@ -38,12 +38,13 @@ const pecas = (n: number): string => `${n} ${n === 1 ? 'peça' : 'peças'}`;
 
 const LADO = { E: 'esquerdo', D: 'direito' } as const;
 
-/** Onde o jogador está usando a peça: em que pulso, em que dedo. É de lá que ela sai para a mesa. */
+/** Onde o jogador está usando a peça: em que braço, em que dedo. É de lá que ela sai para a mesa. */
 export function ondeEsta(a: Acessorios | undefined, id: string): string {
   if (!a) return '';
-  const pulsos = (['E', 'D'] as const).filter((m) => a.pulsos[m] === id);
-  if (pulsos.length === 2) return 'Nos dois pulsos';
-  if (pulsos.length === 1) return `Pulso ${LADO[pulsos[0]]}`;
+  const vezes = (m: 'E' | 'D') => a.bracos[m].filter((x) => x === id).length;
+  const [e, d] = [vezes('E'), vezes('D')];
+  if (e && d) return e + d === 2 ? 'Nos dois pulsos' : `${e + d} nos dois braços`;
+  if (e || d) return (e || d) > 1 ? `${e || d} no braço ${LADO[e ? 'E' : 'D']}` : `Pulso ${LADO[e ? 'E' : 'D']}`;
   const dedos = a.aneis.filter((x) => x.id === id);
   if (!dedos.length) return '';
   if (dedos.length > 2) return `Em ${dedos.length} dedos`;

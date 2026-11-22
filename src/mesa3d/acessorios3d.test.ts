@@ -24,7 +24,7 @@ describe('os acessórios 3D: as medidas', () => {
 
   it('cada peça vai presa a um osso que existe', () => {
     const esq = montarEsqueleto();
-    const a = com({ aneis: [0, 1, 2, 3, 4].map((dedo) => ({ id: 'anel-alianca', mao: 'E' as const, dedo })), pulsos: { E: 'pulseira-contas', D: 'pulseira-couro' } });
+    const a = com({ aneis: [0, 1, 2, 3, 4].map((dedo) => ({ id: 'anel-alianca', mao: 'E' as const, dedo })), bracos: { E: ['pulseira-contas'], D: ['pulseira-couro'] } });
     const pecas = pecasDosAcessorios(a, 'nenhuma');
     expect(pecas).toHaveLength(7);
     for (const p of pecas) expect(esq.indice[`${p.osso}.${p.mao}`], p.osso).toBeGreaterThanOrEqual(0);
@@ -68,7 +68,7 @@ describe('os acessórios 3D: as peças', () => {
 
   it('as pulseiras dão a volta no pulso sem entrar nele', () => {
     for (const def of ACESSORIOS.filter((a) => a.tipo === 'pulseira')) {
-      const [peca] = pecasDosAcessorios(com({ pulsos: { E: def.id, D: null } }), 'nenhuma');
+      const [peca] = pecasDosAcessorios(com({ bracos: { E: [def.id], D: [] } }), 'nenhuma');
       for (const p of peca.pedacos) {
         const d = distancias(p.geo);
         expect(d.menor, def.id).toBeGreaterThan(-0.0005);
@@ -77,8 +77,31 @@ describe('os acessórios 3D: as peças', () => {
     }
   });
 
+  it('no mesmo braço, as peças vão em fila do pulso para o cotovelo — sem entrar na pele e sem entrar uma na outra', () => {
+    // (sem relógio: o mostrador é desenhado num canvas, que aqui não há — o relógio na fila se confere no navegador)
+    const fila = ['pulseira-contas', 'pulseira-corrente', 'pulseira-couro', 'pulseira-terco', 'pulseira-argolas', 'pulseira-riviera', 'pulseira-espinhos'];
+    const pecas = pecasDosAcessorios(com({ bracos: { E: fila, D: [] } }), 'nenhuma');
+    expect(pecas.map((p) => p.id)).toEqual(fila);
+    // o trecho do braço (x, que corre do ombro para a mão) que cada peça ocupa
+    const trechos = pecas.map((p) => {
+      const caixa = new THREE.Box3();
+      for (const { geo } of p.pedacos) {
+        geo.computeBoundingBox();
+        caixa.union(geo.boundingBox!);
+        const d = distancias(geo);
+        expect(d.menor, p.id).toBeGreaterThan(-0.0005);
+      }
+      return [caixa.min.x, caixa.max.x];
+    });
+    // cada uma acima (mais perto do ombro) da de baixo, sem se sobrepor a ela
+    for (let k = 1; k < trechos.length; k++) expect(trechos[k][1], fila[k]).toBeLessThanOrEqual(trechos[k - 1][0] + 0.0004);
+    // a primeira fica no pulso, como sempre ficou
+    const [sozinha] = pecasDosAcessorios(com({ bracos: { E: ['pulseira-contas'], D: [] } }), 'nenhuma');
+    expect(sozinha.pedacos[0].geo.getAttribute('position').count).toBe(pecas[0].pedacos[0].geo.getAttribute('position').count);
+  });
+
   it('as faces olham para fora (a normal de cada triângulo concorda com a dos vértices)', () => {
-    const pecas = pecasDosAcessorios(com({ aneis: [{ id: 'anel-solitario', mao: 'E', dedo: 0 }], pulsos: { E: 'pulseira-couro', D: 'pulseira-corrente' } }), 'nenhuma');
+    const pecas = pecasDosAcessorios(com({ aneis: [{ id: 'anel-solitario', mao: 'E', dedo: 0 }], bracos: { E: ['pulseira-couro', 'pulseira-contas'], D: ['pulseira-corrente'] } }), 'nenhuma');
     for (const peca of pecas) {
       for (const { geo } of peca.pedacos) {
         const pos = geo.getAttribute('position');

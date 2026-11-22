@@ -79,15 +79,21 @@ export function ticketPrice(r: Roulette, currency: Currency): number {
  * lendário novo dilui os outros. Hoje o degrau lendário tem treze peças nas Flores e doze no Dragão
  * — os personagens, as frentes de material, o Círculo Prismático, as peças de dragão, o kimono e,
  * desde que as joias subiram de degrau, quatro acessórios em cada uma (os anéis de pedra preciosa, o
- * terço de madrepérola, o relógio clássico e o cronógrafo) —, cerca de 0,2% cada. Para o personagem
+ * terço de madrepérola, o relógio clássico e o cronógrafo) —, cerca de 0,4% cada. Para o personagem
  * valer mais que as outras peças, o caminho é dar fatia própria a ele, e não mexer nesta tabela.
+ *
+ * O lendário tinha 2,5%, e passou ao **dobro**, 5%. Os 2,5 pontos que ele ganhou saíram dos outros
+ * degraus na proporção de cada um (cada fatia encolheu pelo mesmo fator, 95/97,5), então a escada
+ * continua a mesma — comum > incomum > raro > épico > lendário — e a soma continua 100.
  */
+const LENDARIO = 5;
+const ENCOLHE = (100 - LENDARIO) / (100 - 2.5);
 const PESOS: Record<Raridade, number> = {
-  lendario: 2.5,
-  epico: 6,
-  raro: 10,
-  incomum: 26,
-  comum: 55.5,
+  lendario: LENDARIO,
+  epico: 6 * ENCOLHE,
+  raro: 10 * ENCOLHE,
+  incomum: 26 * ENCOLHE,
+  comum: 55.5 * ENCOLHE,
 };
 
 export type { Raridade } from './catalog';

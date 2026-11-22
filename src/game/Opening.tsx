@@ -121,7 +121,7 @@ export function OpeningScreen() {
 function personagensDa(opening: Opening): string[] {
   // (o meu, já com a luva que eu escolhi: é outra roupa a costurar)
   const eu = useProfile.getState();
-  return [...opening.players.map((p) => p.character.id), vestido(findCharacter(eu.character).id, eu.acessorios.luva)];
+  return [...opening.players.map((p) => p.character.id), vestido(findCharacter(eu.character).id, eu.acessorios.luvas)];
 }
 
 /**

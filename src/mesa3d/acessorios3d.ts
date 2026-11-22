@@ -1485,12 +1485,95 @@ export interface PecaDeAcessorio {
 }
 
 /**
- * As peças dos acessórios de um jogador (os anéis, e o que ele tem em cada pulso). `luva` é o que
- * cobre as mãos — a peça vai por cima do pano, com a folga dele.
+ * Quanto uma peça de braço ocupa ao longo dele, a partir do centro (metros): para o lado do cotovelo e
+ * para o lado da mão. Medido nas peças (a fivela do couro, as pontas soltas do cordão, a medalha do
+ * terço); no relógio vale a caixa, mais larga que a correia, e a coroa, que fica do lado da mão.
  */
-export function pecasDosAcessorios(a: Acessorios, luva: Luva['feitio']): PecaDeAcessorio[] {
+function alcance(def: Pulseira | Relogio): [cotovelo: number, mao: number] {
+  if (def.tipo === 'relogio') return ({ redonda: [0.015, 0.0178], quadrada: [0.0135, 0.0165], digital: [0.0168, 0.0168], oval: [0.0085, 0.0105], oitavada: [0.015, 0.0178] } as const)[def.caixa] as [number, number];
+  switch (def.feitio) {
+    case 'contas':
+      return def.id === 'pulseira-perolas' ? [0.0029, 0.0029] : [0.0033, 0.0033];
+    case 'corrente':
+      return [0.0042, 0.0042];
+    case 'argolas':
+      return [0.0059, 0.0057];
+    case 'trancada':
+      return [0.0021, 0.0092];
+    case 'riviera':
+      return [0.0016, 0.0016];
+    case 'couro':
+      return [0.0103, 0.0103];
+    case 'espinhos':
+      return [0.0089, 0.0089];
+    case 'terco':
+      return [0.0099, 0.009];
+    default:
+      return [0.0024, 0.0024];
+  }
+}
+/** O vão entre duas peças vizinhas no braço. */
+const ENTRE_PECAS = 0.0007;
+
+const pulsos = new Map<string, Laco>();
+/**
+ * O laço do braço `dx` metros acima do lugar do pulso (negativo: para o cotovelo), para uma peça de
+ * meia largura `meia`: vale o maior corte do trecho que ela cobre, como no pulso.
+ */
+function pulsoEm(dx: number, meia: number): Laco {
+  const chave = `${Math.round(dx * 1e4)}:${Math.round(meia * 1e4)}`;
+  const ja = pulsos.get(chave);
+  if (ja) return ja;
+  const corpo = campoDoCorpo();
+  const corte = (d: number) => medir(corpo, 'giro', new THREE.Vector3(PONTOS.punho[0] - 0.007 + dx + d, PONTOS.punho[1], PONTOS.punho[2]), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), 0.06);
+  const cortes = [-meia, -meia / 2, 0, meia / 2, meia].map(corte);
+  const l: Laco = { ...cortes[2], raios: cortes[2].raios.map((_, i) => Math.max(...cortes.map((c) => c.raios[i]))) };
+  pulsos.set(chave, l);
+  return l;
+}
+
+/**
+ * O laço levantado por cima do que a roupa tem ali — a manga, a luva comprida: em cada direção, o raio
+ * não fica abaixo do pano. `roupa` são as posições da malha da roupa na pose de repouso (as dos dois
+ * lados; a mão direita é o espelho da esquerda). Uma pulseira que sobe o braço passa por cima do punho
+ * da manga, em vez de sumir dentro dele.
+ */
+function porCimaDaRoupa(l: Laco, meia: number, roupa: ArrayLike<number>, mao: Mao): { laco: Laco; cobre: boolean } {
+  const s = mao === 'E' ? 1 : -1;
+  const pano = new Array<number>(N).fill(0);
+  const x0 = l.centro.x - meia;
+  // (só até o pulso: dali para a frente é a mão — a da luva, muito mais larga que o pulso)
+  const x1 = Math.min(l.centro.x + meia, PONTOS.punho[0] - 0.002);
+  for (let v = 0; v + 2 < roupa.length; v += 3) {
+    const x = roupa[v] * s;
+    if (x < x0 || x > x1) continue;
+    const dy = roupa[v + 1] - l.centro.y;
+    const dz = roupa[v + 2] - l.centro.z;
+    const d = Math.hypot(dy, dz);
+    if (d > 0.07) continue;
+    // (o ângulo em volta do laço, como em `rumoEm`: 0 no dorso, girando para `lado`)
+    const t = Math.atan2(dy * l.lado.y + dz * l.lado.z, dy * l.cima.y + dz * l.cima.z);
+    const i = Math.round(((((t / (Math.PI * 2)) % 1) + 1) % 1) * N) % N;
+    pano[i] = Math.max(pano[i], d);
+  }
+  // (a malha da roupa é rala para 36 direções: cada uma vale o maior das vizinhas)
+  const cheio = pano.map((_, i) => Math.max(pano[(i + N - 1) % N], pano[i], pano[(i + 1) % N]));
+  if (!cheio.some((r) => r > 0)) return { laco: l, cobre: false };
+  return { laco: { ...l, raios: l.raios.map((r, i) => (cheio[i] > 0 ? Math.max(r, cheio[i] + 0.0005) : r)) }, cobre: true };
+}
+
+/**
+ * As peças dos acessórios de um jogador: os anéis, e o que ele tem em cada braço. `luva` é o que cobre
+ * as mãos (a mesma nas duas, ou uma para cada) — a peça vai por cima do pano, com a folga dele.
+ *
+ * As do braço vão em fila, do pulso para o cotovelo, na ordem em que estão (shared/acessorios.ts): a
+ * primeira no lugar do pulso, cada uma das outras logo acima da anterior, no corte do braço daquela
+ * altura. Com `roupa` (as posições da malha da roupa), as que sobem o braço passam por cima da manga.
+ */
+export function pecasDosAcessorios(a: Acessorios, luva: Luva['feitio'] | Record<Mao, Luva['feitio']>, roupa?: ArrayLike<number>): PecaDeAcessorio[] {
   const L = osLacos();
-  const folgas = folgasCom(luva);
+  const luvas = typeof luva === 'string' ? { E: luva, D: luva } : luva;
+  const folgas = { E: folgasCom(luvas.E), D: folgasCom(luvas.D) };
   const out: PecaDeAcessorio[] = [];
   for (const posto of a.aneis) {
     const def = findAcessorio(posto.id);
@@ -1498,14 +1581,27 @@ export function pecasDosAcessorios(a: Acessorios, luva: Luva['feitio']): PecaDeA
     // (a serpente e o aro largo cobrem um trecho do dedo: vão pelo corte mais gordo dele)
     const l = (def.pedra === 'serpente' || def.pedra === 'incrustada' ? L.dedosLargos : L.dedos)[posto.dedo];
     if (!l) continue;
-    out.push({ id: def.id, osso: l.osso, mao: posto.mao, pedacos: anel(def, l, folgas.anel) });
+    out.push({ id: def.id, osso: l.osso, mao: posto.mao, pedacos: anel(def, l, folgas[posto.mao].anel) });
   }
   for (const mao of ['E', 'D'] as const) {
-    const def = a.pulsos[mao] ? findAcessorio(a.pulsos[mao]!) : undefined;
-    if (!def) continue;
-    const folga = folgas.pulso;
-    if (def.tipo === 'pulseira') out.push({ id: def.id, osso: L.pulso.osso, mao, pedacos: pulseira(def, L.pulso, folga) });
-    else if (def.tipo === 'relogio') out.push({ id: def.id, osso: L.pulso.osso, mao, pedacos: relogio(def, L.pulso, folga, mao) });
+    let dx = 0;
+    let antes = 0;
+    a.bracos[mao].forEach((id, k) => {
+      const def = findAcessorio(id);
+      if (!def || (def.tipo !== 'pulseira' && def.tipo !== 'relogio')) return;
+      const [paraCima, paraBaixo] = alcance(def);
+      const meia = Math.max(paraCima, paraBaixo);
+      // a primeira fica no pulso, como sempre ficou; as outras, cada uma logo acima da de baixo
+      if (k > 0) dx -= antes + ENTRE_PECAS + paraBaixo;
+      antes = paraCima;
+      const naPele = k === 0 ? L.pulso : pulsoEm(dx, meia);
+      // por cima do pano que houver ali (a manga, o punho largo de um casaco, a luva): é a roupa que diz
+      const vestido = roupa ? porCimaDaRoupa(naPele, meia, roupa, mao) : { laco: naPele, cobre: false };
+      const l = vestido.laco;
+      // (com o pano medido, a folga é a de cima dele; sem roupa nenhuma ali, a da luva no pulso — acima dele a luva não chega)
+      const folga = vestido.cobre || k > 0 ? folgasCom('nenhuma').pulso : folgas[mao].pulso;
+      out.push({ id: def.id, osso: l.osso, mao, pedacos: def.tipo === 'pulseira' ? pulseira(def, l, folga) : relogio(def, l, folga, mao) });
+    });
   }
   return out;
 }

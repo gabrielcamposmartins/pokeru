@@ -37,6 +37,7 @@ import { AURAS, AuraAmostra, CharacterAura, SLOT_LABEL, findAura } from '../rend
 import { FRAMES, PortraitFrame, findFrame } from '../render/PortraitFrame';
 import { CharacterFull, CharacterPortrait } from '../render/CharacterArt';
 import { RETRO_PALETTES, UI_THEMES, findTheme, useThemePreview, type UiTheme } from '../ui/themes';
+import { AcessoriosStudio } from './EstudioDeAcessorios';
 
 // ------------------------------------------------------------------ util
 
@@ -1053,8 +1054,8 @@ function MolduraStudio() {
 
 // ------------------------------------------------------------------ tela
 
-/** As abas que **não** editam um estilo: escolhem uma peça pronta. */
-const AVULSAS = ['ui', 'fx', 'aura', 'frame'] as const;
+/** As abas que **não** editam um estilo: escolhem uma peça pronta (os acessórios: vestem-se nas mãos). */
+const AVULSAS = ['ui', 'fx', 'aura', 'frame', 'acessorio'] as const;
 type Avulsa = (typeof AVULSAS)[number];
 type Tab = StyleKind | Avulsa;
 
@@ -1068,6 +1069,7 @@ const TABS: { tab: Tab; icon: string; label: string }[] = [
   { tab: 'fx', icon: '✦', label: 'Efeitos' },
   { tab: 'aura', icon: '❂', label: 'Auras' },
   { tab: 'frame', icon: '▣', label: 'Molduras' },
+  { tab: 'acessorio', icon: '💍', label: 'Acessórios' },
   { tab: 'ui', icon: '❖', label: 'UI' },
 ];
 
@@ -1108,7 +1110,17 @@ function ImportModal({ onClose, onImport }: { onClose: () => void; onImport: (te
   );
 }
 
-export function Studio({ onBack, inicial = 'face' }: { onBack: () => void; /** A aba que abre (o preview usa). */ inicial?: Tab }) {
+export function Studio({
+  onBack,
+  inicial = 'face',
+  verAcessorio,
+}: {
+  onBack: () => void;
+  /** A aba que abre (o preview usa; a Galeria abre a dos acessórios). */
+  inicial?: Tab;
+  /** O acessório que abre escolhido, na aba dos acessórios. */
+  verAcessorio?: string;
+}) {
   const profile = useProfile();
   const toast = useSession((s) => s.toast);
   const [tab, setTab] = useState<Tab>(inicial);
@@ -1238,6 +1250,8 @@ export function Studio({ onBack, inicial = 'face' }: { onBack: () => void; /** A
         <AuraStudio />
       ) : tab === 'frame' ? (
         <MolduraStudio />
+      ) : tab === 'acessorio' ? (
+        <AcessoriosStudio inicial={verAcessorio} />
       ) : (
         <div className="studio-body">
           <div className="panel style-list">

@@ -554,7 +554,7 @@ export const useSession = create<SessionState>()((set, get) => ({
     for (let i = 0; i < o.bots; i++) t.send({ type: 'addBot', difficulty: o.difficulty });
     const quem = get().room?.members.map((m) => m.character.id) ?? CHARACTER_PRESETS.map((c) => c.id);
     const eu = useProfile.getState();
-    void prepararAte([...quem, vestido(findCharacter(eu.character).id, eu.acessorios.luva)], 40_000).then(() => {
+    void prepararAte([...quem, vestido(findCharacter(eu.character).id, eu.acessorios.luvas)], 40_000).then(() => {
       if (transport === t) t.send({ type: 'startGame' });
     });
   },
@@ -607,7 +607,13 @@ export const useSession = create<SessionState>()((set, get) => ({
 /** Reenvia o perfil quando nome/personagem/cosméticos mudam durante uma conexão. */
 let lastSig = '';
 useProfile.subscribe((p) => {
-  // tudo o que vai na rede: a aura, a moldura e o efeito não reenviavam, e só mudavam para os outros ao reconectar
+  /*
+   * Tudo o que vai na rede. A aura, a moldura e o efeito não reenviavam, e só mudavam para os outros
+   * ao reconectar; os acessórios das mãos também não, e um estilo do Estúdio editado depois de
+   * equipado (o mesmo id, outras cores) também não — quem equipava com o jogo já conectado entrava
+   * na mesa com o que tinha ao conectar. A assinatura leva os estilos equipados inteiros (é o que vai
+   * na rede), não só o id deles.
+   */
   const sig = JSON.stringify([
     p.name,
     p.avatar,
@@ -615,8 +621,12 @@ useProfile.subscribe((p) => {
     p.winFx,
     p.auras,
     p.frame,
-    p.equipped,
-    findStyle(p, 'back', p.equipped.back).id,
+    p.acessorios,
+    findStyle(p, 'face', p.equipped.face),
+    // (sem a imagem do verso: ela não vai para a rede, e são centenas de KB a cada mudança do perfil)
+    { ...findStyle(p, 'back', p.equipped.back), image: undefined },
+    findStyle(p, 'chip', p.equipped.chip),
+    findStyle(p, 'table', p.equipped.table),
   ]);
   if (sig === lastSig) return;
   lastSig = sig;

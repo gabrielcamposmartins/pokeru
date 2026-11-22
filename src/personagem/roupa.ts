@@ -84,6 +84,12 @@ export interface EstiloDeLuva {
   cor3?: string;
 }
 
+/** A luva de uma mão: um estilo escolhido, ou `'traje'` — a do traje, como ele é (com ou sem luva). */
+export type LuvaDoLado = EstiloDeLuva | 'traje';
+
+/** As luvas de um traje: a mesma nas duas mãos (um estilo; sem dizer, a do traje), ou uma para cada mão. */
+export type LuvasDoTraje = EstiloDeLuva | { E: LuvaDoLado; D: LuvaDoLado } | undefined;
+
 export interface Traje {
   id: string;
   nome: string;
@@ -1440,10 +1446,20 @@ export function pecasDaLuva(estilo: EstiloDeLuva): Peca[] {
   }
 }
 
-/** As peças de um traje, com a luva dele — ou, com `luva`, com a do estilo escolhido no lugar dela. */
-export function pecasDoTraje(traje: Traje, luva?: EstiloDeLuva): Peca[] {
+/**
+ * As peças de um traje, com a luva dele — ou, com `luva`, com a do estilo escolhido no lugar dela.
+ *
+ * Com uma luva para cada mão (`{ E, D }`), cada uma vai só do lado dela (`lado`): a malha é feita dos
+ * dois lados, como todas, e a do outro lado é jogada fora. Custa o dobro de costura só a quem usa
+ * luvas diferentes — com a mesma nas duas mãos, é o caminho de sempre.
+ */
+export function pecasDoTraje(traje: Traje, luva?: LuvasDoTraje): Peca[] {
   const pecas = traje.pecas();
-  return luva ? [...pecas.filter((p) => !p.luva), ...pecasDaLuva(luva)] : pecas;
+  if (!luva) return pecas;
+  if (!('E' in luva)) return [...pecas.filter((p) => !p.luva), ...pecasDaLuva(luva)];
+  const doLado = (l: LuvaDoLado, lado: Lado): Peca[] =>
+    (l === 'traje' ? pecas.filter((p) => p.luva) : pecasDaLuva(l)).filter((p) => !p.lado || p.lado === lado).map((p) => ({ ...p, lado }));
+  return [...pecas.filter((p) => !p.luva), ...doLado(luva.E, 'E'), ...doLado(luva.D, 'D')];
 }
 
 /** O traje tem luva? (Com ela, os anéis e a pulseira vão por cima do pano.) */
@@ -1457,7 +1473,7 @@ const LUVA_DO_TRAJE: Record<string, 'inteira' | 'sem-dedos'> = { alistair: 'inte
  * os pesos (a que ossos cada vértice obedece) e o que ela cobre do corpo. `corpo` é a malha do corpo
  * (para marcar a pele coberta).
  */
-export function costurar(traje: Traje, esq: Esqueleto, corpo: Malha, q: Qualidade = QUALIDADE, luva?: EstiloDeLuva): Roupa {
+export function costurar(traje: Traje, esq: Esqueleto, corpo: Malha, q: Qualidade = QUALIDADE, luva?: LuvasDoTraje): Roupa {
   const pecas = pecasDoTraje(traje, luva);
   return { ...costurarPecas(pecas, esq, q), coberto: cobertoPor(pecas, corpo) };
 }
@@ -1545,15 +1561,18 @@ export function costurarPecas(pecas: Peca[], esq: Esqueleto, q: Qualidade = QUAL
 /** Para cada vértice do corpo: 1 se as peças o cobrem (e ele não se desenha), 0 se não. */
 export function cobertoPor(pecas: Peca[], corpo: Pick<Malha, 'pos' | 'unha'>): Float32Array {
   // a pele que a roupa cobre (as unhas ficam um pouco para fora da pele: contam com folga). A renda não cobre.
-  const campos = pecas.filter((p) => !p.vazada && !p.semCobrir).map((p) => ({ d: p.forma.d, beira: p.beira }));
+  // (a peça de um lado só — a luva de uma mão — cobre só a pele daquele lado: o esquerdo é o de x > 0)
+  const campos = pecas.filter((p) => !p.vazada && !p.semCobrir).map((p) => ({ d: p.forma.d, beira: p.beira, lado: p.lado }));
   const coberto = new Float32Array(corpo.pos.length / 3);
   for (let v = 0; v < coberto.length; v++) {
     const x = Math.abs(corpo.pos[v * 3]);
+    const lado: Lado = corpo.pos[v * 3] > 0 ? 'E' : 'D';
     const y = corpo.pos[v * 3 + 1];
     const z = corpo.pos[v * 3 + 2];
     if (y < 0.93) continue;
     const unha = corpo.unha[v] === 1;
     for (const campo of campos) {
+      if (campo.lado && campo.lado !== lado) continue;
       // (a pele junto da beirada de uma peça com `beira` fica: é o pano, por cima, que a esconde)
       if (campo.d(x, y, z) < (unha ? 0.003 : campo.beira !== undefined ? -campo.beira : 0.0006)) {
         coberto[v] = 1;

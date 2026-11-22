@@ -7,7 +7,7 @@
  * a correia, com a caixa virada para o alto. Fica maior do que na mão, para se ver do alto da mesa.
  */
 import * as THREE from 'three';
-import { ESMALTE_PADRAO, LUVA_PADRAO, findAcessorio, type Acessorios } from '../../shared/acessorios';
+import { SEM_ACESSORIOS, findAcessorio, type Acessorios } from '../../shared/acessorios';
 import { pecasDosAcessorios } from './acessorios3d';
 
 /** Quanto a peça cresce em cima da mesa (na mão ela tem o tamanho de verdade). */
@@ -18,10 +18,9 @@ export function pecaNaMesa(id: string, escala = ESCALA_NA_MESA): THREE.Group | n
   const def = findAcessorio(id);
   if (!def || (def.tipo !== 'anel' && def.tipo !== 'pulseira' && def.tipo !== 'relogio')) return null;
   const a: Acessorios = {
+    ...SEM_ACESSORIOS,
     aneis: def.tipo === 'anel' ? [{ id, mao: 'E', dedo: 1 }] : [],
-    pulsos: { E: def.tipo === 'anel' ? null : id, D: null },
-    esmalte: ESMALTE_PADRAO,
-    luva: LUVA_PADRAO,
+    bracos: { E: def.tipo === 'anel' ? [] : [id], D: [] },
   };
   const dentro = new THREE.Group();
   const caixa = new THREE.Box3();
@@ -203,7 +202,7 @@ export class Correia {
     if (mao === 'D') dentro.scale.x = -1;
     this.grupo.add(dentro);
     if (!def || (def.tipo !== 'pulseira' && def.tipo !== 'relogio')) return;
-    const a: Acessorios = { aneis: [], pulsos: { E: id, D: null }, esmalte: ESMALTE_PADRAO, luva: LUVA_PADRAO };
+    const a: Acessorios = { ...SEM_ACESSORIOS, bracos: { E: [id], D: [] } };
     for (const peca of pecasDosAcessorios(a, 'nenhuma')) {
       this.osso = peca.osso;
       for (const ped of peca.pedacos) {

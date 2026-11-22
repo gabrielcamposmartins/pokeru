@@ -1,4 +1,4 @@
-import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, findAcessorio, type Acessorios, type TipoDeAcessorio } from './acessorios';
+import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, comLegado, findAcessorio, type Acessorios, type TipoDeAcessorio } from './acessorios';
 import { componentesDe, encaixar } from './componentes';
 import {
   AURA_IDS,
@@ -11,6 +11,7 @@ import {
   WIN_FX_IDS,
   findCharacter,
   type CardBackStyle,
+  type CardFaceStyle,
   type FrameId,
   type PlayerCosmetics,
   type WinFxId,
@@ -429,6 +430,36 @@ export const marcaDePerdido = (key: string): string => `perdeu:${key}`;
 export const eDeInicio = (key: string): boolean => deInicio.has(key);
 
 /**
+ * As joias se **contam**: anéis, pulseiras e relógios.
+ *
+ * Do resto do catálogo a conta tem ou não tem, e o repetido vira fichas. Destas, cada uma que a
+ * pessoa ganha é mais uma peça: dois anéis iguais vão em dois dedos, três pulseiras iguais no mesmo
+ * braço. A lista da conta guarda a chave uma vez para cada peça (`quantasTem` as conta). O esmalte e
+ * a luva continuam de ter ou não ter: um vidro de esmalte pinta as dez unhas, e um par de luvas veste
+ * as duas mãos.
+ */
+const TIPOS_QUE_SE_CONTAM: readonly TipoDeAcessorio[] = ['anel', 'pulseira', 'relogio'];
+
+/** A peça se conta (a conta pode ter mais de uma dela)? */
+export function seConta(key: string): boolean {
+  if (!key.startsWith('acessorio:') || isFree(key)) return false;
+  const tipo = findAcessorio(key.slice('acessorio:'.length))?.tipo;
+  return !!tipo && TIPOS_QUE_SE_CONTAM.includes(tipo);
+}
+
+/**
+ * Quantas a conta tem desta peça: uma por vez que a chave aparece na lista, mais a de início (a
+ * aliança) enquanto não foi perdida. Do que não se conta, 1 ou 0; do que vem com o jogo, sem fim.
+ */
+export function quantasTem(owned: readonly string[] | undefined, key: string): number {
+  if (isFree(key)) return Infinity;
+  let n = 0;
+  for (const k of owned ?? []) if (k === key) n++;
+  if (deInicio.has(key) && !owned?.includes(marcaDePerdido(key))) n++;
+  return seConta(key) ? n : Math.min(1, n);
+}
+
+/**
  * Presentes.
  *
  * São a moeda do vínculo: cada coração de cada personagem pede uma combinação (shared/bond.ts).
@@ -607,25 +638,57 @@ export function clampCosmetics(c: PlayerCosmetics, owned: readonly string[] | un
     ...(c.acessorios ? { acessorios: clampAcessorios(c.acessorios, owned) } : {}),
     // Estes tres agora vao para a mesa dos outros (frente no showdown, fichas da
     // aposta, mesa quando o jogador e' o dealer), entao passam pela mesma trava.
-    face: ownsItem(owned, 'face', c.face.id) ? c.face : freePreset('face', FACE_PRESETS),
-    back: ownsBack(c.back, owned) ? versoNoQueTem(c.back, owned) : freeBack(),
-    chip: ownsItem(owned, 'chip', c.chip.id) ? c.chip : freePreset('chip', CHIP_PRESETS),
-    table: ownsItem(owned, 'table', c.table.id) ? c.table : freePreset('table', TABLE_PRESETS),
+    face: frenteNoQueTem(c.face, owned),
+    back: estiloNoQueTem('back', c.back, owned, BACK_PRESETS),
+    chip: estiloNoQueTem('chip', c.chip, owned, CHIP_PRESETS),
+    table: estiloNoQueTem('table', c.table, owned, TABLE_PRESETS),
   };
 }
 
 /**
- * Os acessórios, só com o que a conta tem: o anel, a pulseira e o relógio que não são dela saem; o
+ * Um estilo de carta, ficha ou mesa, no que a conta tem.
+ *
+ * O do catálogo vai como está, se for da conta (senão, o gratuito). O feito no Estúdio não está no
+ * catálogo: vai **encaixado** nas peças dos estilos da conta (shared/componentes.ts) — cada cor vira
+ * a mais parecida das cores deles, cada escolha uma que algum deles tem. Era assim só com o verso, e
+ * só quando o verso dizia de onde tinha saído; a frente, a ficha e a mesa feitas no Estúdio viravam
+ * a gratuita na mesa dos outros, e o jogador via a dele só na própria tela.
+ */
+function estiloNoQueTem<T extends { id: string }>(kind: 'face' | 'back' | 'chip' | 'table', st: T, owned: readonly string[] | undefined, presets: readonly T[]): T {
+  if (findItem(itemKey(kind, st.id))) return ownsItem(owned, kind, st.id) ? st : freePreset(kind, presets);
+  return encaixar(kind, st, componentesDe(kind, presets.filter((p) => ownsItem(owned, kind, p.id))));
+}
+
+/** A frente: como os outros estilos, e o material (o vidro, o arco-íris) só se alguma frente da conta o tem. */
+function frenteNoQueTem(face: CardFaceStyle, owned: readonly string[] | undefined): CardFaceStyle {
+  const st = estiloNoQueTem('face', face, owned, FACE_PRESETS);
+  if (!st.special || FACE_PRESETS.some((p) => p.special === st.special && ownsItem(owned, 'face', p.id))) return st;
+  const { special: _material, ...depapel } = st;
+  return depapel;
+}
+
+/**
+ * Os acessórios, só com o que a conta tem: o anel, a pulseira e o relógio que não são dela saem — e,
+ * dos que ela tem, não mais vezes do que ela tem (dois dedos com o mesmo anel pedem dois anéis); o
  * esmalte e a luva voltam para os que vêm com o jogo. (Como as auras: a trava tira, não põe.)
  */
 export function clampAcessorios(a: Acessorios, owned: readonly string[] | undefined): Acessorios {
-  const tem = (id: string | null): id is string => !!id && !!findAcessorio(id) && ownsItem(owned, 'acessorio', id);
-  return {
-    aneis: a.aneis.filter((x) => tem(x.id)),
-    pulsos: { E: tem(a.pulsos.E) ? a.pulsos.E : null, D: tem(a.pulsos.D) ? a.pulsos.D : null },
-    esmalte: tem(a.esmalte) ? a.esmalte : ESMALTE_PADRAO,
-    luva: tem(a.luva) ? a.luva : LUVA_PADRAO,
+  const sobra = new Map<string, number>();
+  // (primeiro o que vai nos braços, depois os anéis: tirando, sai o último que entrou na conta)
+  const pega = (id: string): boolean => {
+    if (!findAcessorio(id)) return false;
+    const n = sobra.get(id) ?? quantasTem(owned, itemKey('acessorio', id));
+    if (n < 1) return false;
+    sobra.set(id, n - 1);
+    return true;
   };
+  const tem = (id: string) => !!findAcessorio(id) && ownsItem(owned, 'acessorio', id);
+  return comLegado({
+    bracos: { E: a.bracos.E.filter(pega), D: a.bracos.D.filter(pega) },
+    aneis: a.aneis.filter((x) => pega(x.id)),
+    esmalte: tem(a.esmalte) ? a.esmalte : ESMALTE_PADRAO,
+    luvas: { E: tem(a.luvas.E) ? a.luvas.E : LUVA_PADRAO, D: tem(a.luvas.D) ? a.luvas.D : LUVA_PADRAO },
+  });
 }
 
 /** Preset gratuito de um tipo, para quando o pedido nao e' do jogador. */
@@ -640,19 +703,6 @@ export function ownsBack(back: { id: string; from?: string }, owned: readonly st
   // não é preset do catálogo: é criação do Estúdio, e vale pela peça de origem
   if (findItem(itemKey('back', back.id))) return false;
   return !!back.from && ownsItem(owned, 'back', back.from);
-}
-
-/**
- * O verso personalizado, encaixado nas peças que a conta tem (veja shared/componentes.ts).
- *
- * O preset vai como está. A criação do Estúdio passa pelo encaixe: cada cor vira a mais parecida
- * das cores dos versos da conta, e padrão e emblema só os que algum verso dela tem. Um cliente
- * modificado não põe na mesa um verso com peças que a pessoa nunca ganhou.
- */
-function versoNoQueTem(back: CardBackStyle, owned: readonly string[] | undefined): CardBackStyle {
-  if (findItem(itemKey('back', back.id))) return back;
-  const meus = BACK_PRESETS.filter((b) => ownsItem(owned, 'back', b.id));
-  return encaixar('back', back, componentesDe('back', meus));
 }
 
 export function freeBack(): CardBackStyle {

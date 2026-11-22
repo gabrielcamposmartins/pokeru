@@ -996,8 +996,25 @@ if (
       play: PARTIDAS_DE_EXEMPLO,
       code: 'K7M2PQ',
       discord: comPado ? { id: '343954786300854276', username: 'berlineta.', nickname: 'Mogleo' } : null,
-      // (com alguns acessórios, para a Galeria ter o que equipar)
-      owned: ['character:ren', 'winfx:fire', 'back:back-crimson', 'acessorio:anel-coracao', 'acessorio:anel-esmeralda', 'acessorio:relogio-classico', 'acessorio:pulseira-contas', 'acessorio:esmalte-vermelho', 'acessorio:luva-couro'],
+      // (com alguns acessórios, para o Estúdio ter o que equipar — e joias repetidas: elas se contam)
+      owned: [
+        'character:ren',
+        'winfx:fire',
+        'back:back-crimson',
+        'acessorio:anel-coracao',
+        'acessorio:anel-coracao',
+        'acessorio:anel-esmeralda',
+        'acessorio:relogio-classico',
+        'acessorio:relogio-lua',
+        'acessorio:pulseira-contas',
+        'acessorio:pulseira-contas',
+        'acessorio:pulseira-contas',
+        'acessorio:pulseira-couro',
+        'acessorio:pulseira-riviera',
+        'acessorio:esmalte-vermelho',
+        'acessorio:luva-couro',
+        'acessorio:luva-renda',
+      ],
       bond: {},
       // contadores de verdade: sem eles a lista de conquistas fica toda em zero e a tela não dá para conferir
       stats: statsDoNivel(Number(q.get('nivel') ?? 23)),
@@ -1053,7 +1070,7 @@ const ACESSORIOS_DE_EXEMPLO: Record<string, Acessorios> = {
       { id: 'anel-solitario', mao: 'D', dedo: 0 },
       { id: 'anel-alianca', mao: 'D', dedo: 2 },
     ],
-    pulsos: { E: 'relogio-classico', D: 'pulseira-contas' },
+    bracos: { E: ['relogio-classico'], D: ['pulseira-contas'] },
   },
   muitos: {
     ...SEM_ACESSORIOS,
@@ -1065,16 +1082,21 @@ const ACESSORIOS_DE_EXEMPLO: Record<string, Acessorios> = {
       { id: 'anel-perola', mao: 'D', dedo: 1 },
       { id: 'anel-sinete', mao: 'D', dedo: 3 },
     ],
-    pulsos: { E: 'pulseira-corrente', D: 'relogio-noturno' },
+    bracos: { E: ['pulseira-corrente', 'pulseira-contas', 'pulseira-cordao'], D: ['pulseira-perolas', 'relogio-noturno', 'pulseira-riviera', 'pulseira-argolas'] },
   },
 };
-if (q.has('maos') || q.has('esmalte') || q.has('luva') || q.has('aneis') || q.has('pulsos')) {
+// `?personagem=ren` troca o meu personagem (o das mãos da vitrine e da mesa 3D)
+if (q.get('personagem')) useProfile.getState().setCharacter(q.get('personagem')!);
+if (['maos', 'esmalte', 'luva', 'luvaE', 'luvaD', 'aneis', 'pulsos', 'bracoE', 'bracoD'].some((k) => q.has(k))) {
   const base = ACESSORIOS_DE_EXEMPLO[q.get('maos') ?? ''] ?? (q.has('maos') ? SEM_ACESSORIOS : useProfile.getState().acessorios);
   // (`&aneis=anel-rubi:E0,anel-safira:D2` põe cada anel num dedo — a mão e o número do dedo, 0 = indicador … 4 = polegar;
-  //  `&pulsos=relogio-lua,pulseira-riviera` põe um em cada pulso, o esquerdo e o direito)
+  //  `&pulsos=relogio-lua,pulseira-riviera` põe um em cada pulso, o esquerdo e o direito; `&bracoE=pulseira-contas,relogio-lua,pulseira-couro`
+  //  enche a fila de um braço, do pulso para o cotovelo; `&luvaE=luva-renda` e `&luvaD=` põem a luva de uma mão só)
   const aneis = q.has('aneis') ? q.get('aneis')!.split(',').map((x) => ({ id: x.split(':')[0], mao: x.split(':')[1]?.[0], dedo: Number(x.split(':')[1]?.[1]) })) : base.aneis;
-  const [pe, pd] = q.has('pulsos') ? q.get('pulsos')!.split(',') : [base.pulsos.E, base.pulsos.D];
-  useProfile.getState().setAcessorios(sanitizeAcessorios({ aneis, pulsos: { E: pe || null, D: pd || null }, esmalte: q.get('esmalte') ?? base.esmalte, luva: q.get('luva') ?? base.luva }));
+  const [pe, pd] = q.has('pulsos') ? q.get('pulsos')!.split(',') : [];
+  const fila = (m: 'E' | 'D') => (q.has(`braco${m}`) ? q.get(`braco${m}`)!.split(',').filter(Boolean) : q.has('pulsos') ? [m === 'E' ? pe : pd].filter(Boolean) : base.bracos[m]);
+  const luva = (m: 'E' | 'D') => q.get(`luva${m}`) || q.get('luva') || base.luvas[m];
+  useProfile.getState().setAcessorios(sanitizeAcessorios({ aneis, bracos: { E: fila('E'), D: fila('D') }, esmalte: q.get('esmalte') ?? base.esmalte, luvas: { E: luva('E'), D: luva('D') } }));
 }
 /** Os acessórios dos jogadores de exemplo da cena `partida`: um conjunto diferente em cada lugar. */
 function acessoriosDeExemplo(i: number): Acessorios {
@@ -1086,9 +1108,9 @@ function acessoriosDeExemplo(i: number): Acessorios {
       { id: aneis[(i * 3 + 2) % aneis.length].id, mao: 'D', dedo: i % 4 },
       { id: aneis[(i * 5) % aneis.length].id, mao: 'D', dedo: 4 },
     ],
-    pulsos: { E: relogios[i % relogios.length].id, D: pulseiras[i % pulseiras.length].id },
+    bracos: { E: [relogios[i % relogios.length].id], D: [pulseiras[i % pulseiras.length].id, pulseiras[(i + 3) % pulseiras.length].id] },
     esmalte: esmaltes[(i * 2 + 1) % esmaltes.length].id,
-    luva: luvas[i % luvas.length].id,
+    luvas: { E: luvas[i % luvas.length].id, D: luvas[(i + (i % 3 === 0 ? 1 : 0)) % luvas.length].id },
   });
 }
 

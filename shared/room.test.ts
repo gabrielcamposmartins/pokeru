@@ -366,8 +366,8 @@ describe('bots com acessórios', () => {
   const A_FAVOR = Math.min(BOT_COM_ACESSORIO, BOT_APOSTA);
   const CONTRA = Math.max(BOT_COM_ACESSORIO, BOT_APOSTA);
 
-  /** As peças que alguém está usando (pulsos e anéis), sem repetição. */
-  const pecasDe = (a: Acessorios | undefined): string[] => (a ? [...new Set([a.pulsos.E, a.pulsos.D, ...a.aneis.map((x) => x.id)].filter((id): id is string => !!id))] : []);
+  /** As peças que alguém está usando (braços e anéis), sem repetição. */
+  const pecasDe = (a: Acessorios | undefined): string[] => (a ? [...new Set([...a.bracos.E, ...a.bracos.D, ...a.aneis.map((x) => x.id)])] : []);
 
   interface Olheiro {
     conn: Connection;
@@ -442,7 +442,8 @@ describe('bots com acessórios', () => {
       // tudo o que ele usa é peça de apostar: nem esmalte nem luva
       expect(apostaveis(bot.cosmetics.acessorios).sort()).toEqual([...pecas].sort());
       // uma peça no pulso esquerdo, ou um anel no anelar — ou os dois
-      expect(bot.cosmetics.acessorios!.pulsos.D).toBeNull();
+      expect(bot.cosmetics.acessorios!.bracos.D).toEqual([]);
+      expect(bot.cosmetics.acessorios!.bracos.E.length).toBeLessThanOrEqual(1);
       expect(bot.cosmetics.acessorios!.aneis.length).toBeLessThanOrEqual(1);
       for (const anel of bot.cosmetics.acessorios!.aneis) expect(anel.dedo).toBe(2);
       o.conn.handle({ type: 'removeBot', seat: bot.seat });

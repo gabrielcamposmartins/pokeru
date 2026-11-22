@@ -20,7 +20,7 @@ const MAOS: Acessorios = {
     // (a aliança de início: também se aposta — é a quinta peça destas mãos)
     { id: 'anel-alianca', mao: 'D', dedo: 2 },
   ],
-  pulsos: { E: 'relogio-classico', D: 'pulseira-contas' },
+  bracos: { E: ['relogio-classico'], D: ['pulseira-contas'] },
 };
 
 const assento = (seat: number, patch: Partial<SeatView> = {}): SeatView =>
@@ -112,7 +112,9 @@ describe('onde a peça está sendo usada', () => {
     expect(ondeEsta(MAOS, 'anel-esmeralda')).toBe('Anelar esquerdo');
     expect(ondeEsta(MAOS, 'anel-solitario')).toBe('Indicador direito');
     expect(ondeEsta(MAOS, 'anel-rubi')).toBe('');
-    expect(ondeEsta({ ...MAOS, pulsos: { E: 'pulseira-contas', D: 'pulseira-contas' } }, 'pulseira-contas')).toBe('Nos dois pulsos');
+    expect(ondeEsta({ ...MAOS, bracos: { E: ['pulseira-contas'], D: ['pulseira-contas'] } }, 'pulseira-contas')).toBe('Nos dois pulsos');
+    // (duas iguais no mesmo braço, uma abaixo e outra acima do relógio)
+    expect(ondeEsta({ ...MAOS, bracos: { E: ['pulseira-contas', 'relogio-classico', 'pulseira-contas'], D: [] } }, 'pulseira-contas')).toBe('2 no braço esquerdo');
   });
 });
 

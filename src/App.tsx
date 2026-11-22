@@ -45,6 +45,8 @@ const TELAS_PROPRIAS: Record<Exclude<Screen, 'menu'>, true> = {
 
 export function App() {
   const [screen, setScreen] = useState<Screen>('menu');
+  /** O acessório que a Galeria mandou vestir: o Estúdio abre na aba dos acessórios, com ele escolhido. */
+  const [noEstudio, setNoEstudio] = useState<string | null>(null);
   const room = useSession((s) => s.room);
   const mode = useSession((s) => s.mode);
   const botsPending = useSession((s) => s.botsPending);
@@ -123,13 +125,34 @@ export function App() {
   else if (botsPending) content = <MainMenu go={setScreen} />;
   else if (mode === 'online' && room) content = <RoomLobby />;
   else if (screen === 'online' || mode === 'online') content = <OnlineLobby onBack={() => setScreen('menu')} />;
-  else if (screen === 'studio') content = <Studio onBack={() => setScreen('menu')} />;
+  else if (screen === 'studio')
+    content = (
+      <Studio
+        key={noEstudio ?? 'estudio'}
+        onBack={() => {
+          setNoEstudio(null);
+          setScreen('menu');
+        }}
+        inicial={noEstudio ? 'acessorio' : undefined}
+        verAcessorio={noEstudio ?? undefined}
+      />
+    );
   else if (screen === 'settings') content = <SettingsScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'profile') content = <ProfileScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'friends') content = <FriendsScreen onBack={() => setScreen('menu')} onCustom={() => setScreen('online')} />;
   else if (screen === 'characters') content = <CharactersScreen onBack={() => setScreen('menu')} onStore={() => setScreen('store')} />;
   else if (screen === 'store') content = <StoreScreen onBack={() => setScreen('menu')} />;
-  else if (screen === 'gallery') content = <GalleryScreen onBack={() => setScreen('menu')} />;
+  else if (screen === 'gallery')
+    content = (
+      <GalleryScreen
+        onBack={() => setScreen('menu')}
+        noEstudio={(id) => {
+          // (a Galeria mostra; quem veste é o Estúdio, na aba dos acessórios, com a peça já escolhida)
+          setNoEstudio(id);
+          setScreen('studio');
+        }}
+      />
+    );
   else if (screen === 'minijogos') content = <MinijogosScreen onBack={() => setScreen('menu')} />;
   else if (screen === 'ranking') content = <RankingScreen onBack={() => setScreen('menu')} />;
   else content = <MainMenu go={setScreen} />;

@@ -11287,3 +11287,129 @@ button.hist-linha:disabled {
     filter: var(--sombra) drop-shadow(0 0 6px rgba(255, 215, 106, 0.9));
   }
 }
+/* ───────────── o Estúdio dos acessórios (src/screens/EstudioDeAcessorios.tsx) ───────────── */
+
+.estudio-grupo {
+  margin: 10px 4px 2px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.estudio-grupo:first-child {
+  margin-top: 0;
+}
+/* quantas a conta tem da peça */
+.badge.qtd {
+  background: rgba(242, 193, 78, 0.22);
+  color: var(--gold-2);
+}
+.estudio-maos {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  padding: 8px;
+}
+.estudio-maos .vitrine-zoom {
+  top: 18px;
+  left: 18px;
+}
+/* as filas dos dois braços, uma embaixo da outra: cada uma do cotovelo (em cima) ao pulso (embaixo) */
+.bracos {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.braco {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.braco > .equipar-titulo,
+.braco > .muted {
+  text-align: center;
+}
+.braco-ponta {
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.braco-fila {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-left: 2px solid var(--line-soft);
+  border-right: 2px solid var(--line-soft);
+  border-radius: 8px;
+}
+.braco-peca {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  border-radius: 8px;
+  min-width: 0;
+}
+.braco-peca.esta {
+  background: rgba(242, 193, 78, 0.16);
+}
+.braco-peca.relogio .braco-nome {
+  font-weight: 800;
+}
+.braco-nome {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.braco-mover {
+  flex: none;
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  color: inherit;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+.braco-mover:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.braco-mover.tirar:hover {
+  border-color: #ff6b7d;
+}
+.braco-vazio {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 0;
+}
+.braco > .equipar-botao {
+  margin-top: 4px;
+}

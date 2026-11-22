@@ -12,8 +12,10 @@ import {
   itemsOfKind,
   owns,
   padoPrice,
+  quantasTem,
   rarityLabel,
   rarityOf,
+  seConta,
   type CatalogItem,
   type Currency,
   type GiftSpec,
@@ -432,10 +434,11 @@ export function ItemCard({
   /** Só a linha de preço: dentro do preview, a arte e o nome já estão na tela. */
   semArte?: boolean;
   /**
-   * Quantos o jogador tem, para item **contável** (presente).
+   * Quantos o jogador tem, para item **contável** (presente, e as joias: anel, pulseira, relógio).
    *
-   * Presente não é posse: comprar de novo aumenta o estoque. Com isto definido, o cartão mostra
-   * quantos há em vez de "✓ Seu", e os botões de compra continuam valendo sempre.
+   * Presente não é posse: comprar de novo aumenta o estoque. A joia também se conta — dois anéis
+   * iguais vão em dois dedos (veja `seConta`, em shared/catalog.ts). Com isto definido, o cartão
+   * mostra quantos há em vez de "✓ Seu", e os botões de compra continuam valendo sempre.
    */
   estoque?: number;
   /**
@@ -457,6 +460,8 @@ export function ItemCard({
   grande?: boolean;
 }) {
   const [asked, setAsked] = useState<Currency | null>(null);
+  // (a compra de um contável chegou: o estoque mudou, e dá para comprar outro)
+  useEffect(() => setAsked(null), [estoque]);
   const precoChips = item.chips;
   const precoPado = padoPrice(item.chips);
 
@@ -508,7 +513,7 @@ export function ItemCard({
           <div className="shop-degrau" style={{ color: rarityColor(item.key) }}>
             {rarityLabel(rarityOf(item.key))}
           </div>
-          {owned ? (
+          {owned && estoque === undefined ? (
             <div className="shop-owned">✓ Seu</div>
           ) : (
             <div className="shop-preco">
@@ -852,6 +857,7 @@ export function StoreScreen({
                       chips={chips}
                       pado={pado}
                       canShop={canShop}
+                      estoque={seConta(item.key) ? quantasTem(ownedList, item.key) : undefined}
                       selecionado={item.key === vendo?.key}
                       onVer={() => setVerKey(item.key)}
                       semCompra
@@ -882,7 +888,7 @@ export function StoreScreen({
               chips={chips}
               pado={pado}
               canShop={canShop}
-              estoque={vendo.kind === 'gift' ? (gifts[vendo.id] ?? 0) : undefined}
+              estoque={vendo.kind === 'gift' ? (gifts[vendo.id] ?? 0) : seConta(vendo.key) ? quantasTem(ownedList, vendo.key) : undefined}
             />
           )
         )}
@@ -955,6 +961,7 @@ function PremioArte({ item }: { item: CatalogItem }) {
  */
 function RoletaCena() {
   const { status, roulette, premio, fechar } = useRoleta();
+  const ownedList = useOwned();
   if (status === 'idle') return null;
   const r = findRoulette(roulette ?? '');
   const item = premio ? findItem(premio.key) : null;
@@ -997,6 +1004,10 @@ function RoletaCena() {
               {premio?.dup ? (
                 <>
                   você já tinha — virou <b>{fmt(premio.refund)}</b> fichas
+                </>
+              ) : seConta(item.key) && quantasTem(ownedList, item.key) > 1 ? (
+                <>
+                  mais um para o estojo — agora você tem <b>{quantasTem(ownedList, item.key)}</b>
                 </>
               ) : (
                 <>{KIND_LABELS[item.kind]} · é seu!</>

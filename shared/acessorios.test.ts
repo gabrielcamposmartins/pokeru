@@ -1,6 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, MAX_ANEIS, SEM_ACESSORIOS, TIPOS_DE_ACESSORIO, acessoriosDoTipo, alternarAnel, alternarPulso, chaveDosAcessorios, emUso, findAcessorio, sanitizeAcessorios } from './acessorios';
-import { DE_INICIO, FREE_KEYS, PRECO_DO_ACESSORIO, SO_DE_ROLETA, clampAcessorios, clampCosmetics, eDeInicio, estaAVenda, findItem, isFree, itemKey, itemsOfKind, marcaDePerdido, rarityOf } from './catalog';
+import {
+  ACESSORIOS,
+  ESMALTE_PADRAO,
+  LUVA_PADRAO,
+  MAX_ANEIS,
+  MAX_PULSEIRAS,
+  SEM_ACESSORIOS,
+  TIPOS_DE_ACESSORIO,
+  acessoriosDoTipo,
+  alternarAnel,
+  bracoDoRelogio,
+  cabeNoBraco,
+  chaveDosAcessorios,
+  emUso,
+  findAcessorio,
+  moverNoBraco,
+  porLuva,
+  porNoBraco,
+  pulseirasNoBraco,
+  sanitizeAcessorios,
+  tirarDoBraco,
+  vezesEmUso,
+} from './acessorios';
+import { DE_INICIO, FREE_KEYS, PRECO_DO_ACESSORIO, SO_DE_ROLETA, clampAcessorios, clampCosmetics, eDeInicio, estaAVenda, findItem, isFree, itemKey, itemsOfKind, marcaDePerdido, quantasTem, rarityOf, seConta } from './catalog';
 import { ROULETTES, dropsOf } from './roulette';
 import { sanitizeCosmetics } from './styles';
 
@@ -23,8 +45,8 @@ describe('os acessórios das mãos', () => {
     expect(FREE_KEYS).not.toContain(itemKey('acessorio', 'anel-alianca'));
     // todo mundo começa de mãos nuas, mesmo que o traje tenha luva
     expect(LUVA_PADRAO).toBe('luva-nenhuma');
-    expect(SEM_ACESSORIOS.luva).toBe('luva-nenhuma');
-    expect(sanitizeAcessorios(undefined).luva).toBe('luva-nenhuma');
+    expect(SEM_ACESSORIOS.luvas).toEqual({ E: 'luva-nenhuma', D: 'luva-nenhuma' });
+    expect(sanitizeAcessorios(undefined).luvas).toEqual({ E: 'luva-nenhuma', D: 'luva-nenhuma' });
   });
 
   it('todo acessório pago sai de uma roleta, metade de cada — com a aliança, que agora é paga e sai do Dragão, são pares: 27 e 27', () => {
@@ -158,15 +180,29 @@ describe('o que chega de fora', () => {
         ...[0, 1, 2, 3, 4].map((dedo) => ({ id: 'anel-alianca', mao: 'D', dedo })),
         ...[1, 2, 3, 4].map((dedo) => ({ id: 'anel-alianca', mao: 'E', dedo })),
       ],
-      pulsos: { E: 'anel-rubi', D: 'relogio-classico' },
+      bracos: { E: ['anel-rubi', 'relogio-classico', 'relogio-lua', ...Array(7).fill('pulseira-contas')], D: ['relogio-digital', 'pulseira-couro', 'nada'] },
       esmalte: 'luva-couro',
-      luva: 'luva-couro',
+      luvas: { E: 'luva-couro', D: 'esmalte-preto' },
     });
     expect(a.aneis).toHaveLength(MAX_ANEIS);
     expect(a.aneis[0]).toEqual({ id: 'anel-rubi', mao: 'E', dedo: 0 });
-    expect(a.pulsos).toEqual({ E: null, D: 'relogio-classico' });
+    // nos braços: só pulseira e relógio, até cinco pulseiras por braço, e um relógio só (o primeiro)
+    expect(a.bracos.E).toEqual(['relogio-classico', ...Array(MAX_PULSEIRAS).fill('pulseira-contas')]);
+    expect(a.bracos.D).toEqual(['pulseira-couro']);
     expect(a.esmalte).toBe(ESMALTE_PADRAO);
-    expect(a.luva).toBe('luva-couro');
+    expect(a.luvas).toEqual({ E: 'luva-couro', D: LUVA_PADRAO });
+  });
+
+  it('o jeito antigo (um em cada pulso, uma luva para as duas mãos) vira o novo — e o novo leva o antigo junto, para os clientes de antes', () => {
+    const a = sanitizeAcessorios({ aneis: [], pulsos: { E: 'relogio-rose', D: 'pulseira-contas' }, luva: 'luva-renda' });
+    expect(a.bracos).toEqual({ E: ['relogio-rose'], D: ['pulseira-contas'] });
+    expect(a.luvas).toEqual({ E: 'luva-renda', D: 'luva-renda' });
+    // (o cliente antigo lê `pulsos` e `luva`: o relógio no pulso dele, senão a pulseira de baixo; a luva que não é a nua)
+    const b = sanitizeAcessorios({ bracos: { E: ['pulseira-contas', 'relogio-rose'], D: [] }, luvas: { E: LUVA_PADRAO, D: 'luva-couro' } });
+    expect(b.pulsos).toEqual({ E: 'relogio-rose', D: null });
+    expect(b.luva).toBe('luva-couro');
+    // dois relógios do jeito antigo (um em cada pulso): fica o da esquerda
+    expect(sanitizeAcessorios({ pulsos: { E: 'relogio-rose', D: 'relogio-lua' } }).bracos).toEqual({ E: ['relogio-rose'], D: [] });
   });
 
   it('o servidor corta o que a conta não tem: o anel e o relógio saem, o esmalte e a luva voltam aos de graça', () => {
@@ -176,21 +212,38 @@ describe('o que chega de fora', () => {
         { id: 'anel-coracao', mao: 'D', dedo: 2 },
         { id: 'anel-onix', mao: 'D', dedo: 0 },
       ],
-      pulsos: { E: 'relogio-rose', D: 'pulseira-contas' },
+      bracos: { E: ['relogio-rose'], D: ['pulseira-contas'] },
       esmalte: 'esmalte-vinho',
-      luva: 'luva-couro',
+      luvas: { E: 'luva-couro', D: 'luva-traje' },
     });
     const meus = clampAcessorios(pedido, ['acessorio:anel-coracao', 'acessorio:pulseira-contas']);
     expect(meus.aneis.map((x) => x.id)).toEqual(['anel-alianca', 'anel-coracao']);
-    expect(meus.pulsos).toEqual({ E: null, D: 'pulseira-contas' });
+    expect(meus.bracos).toEqual({ E: [], D: ['pulseira-contas'] });
     expect(meus.esmalte).toBe(ESMALTE_PADRAO);
-    // (a luva que não é da conta volta para as mãos nuas; a do traje vem com o jogo e fica)
-    expect(meus.luva).toBe('luva-nenhuma');
-    expect(clampAcessorios({ ...pedido, luva: 'luva-traje' }, []).luva).toBe('luva-traje');
+    // (a luva que não é da conta volta para a mão nua; a do traje vem com o jogo e fica)
+    expect(meus.luvas).toEqual({ E: 'luva-nenhuma', D: 'luva-traje' });
     // e a trava dos cosméticos leva os acessórios junto
     const c = clampCosmetics({ ...sanitizeCosmetics({}), acessorios: pedido }, []);
     expect(c.acessorios?.aneis.map((x) => x.id)).toEqual(['anel-alianca']);
-    expect(c.acessorios?.pulsos).toEqual({ E: null, D: null });
+    expect(c.acessorios?.bracos).toEqual({ E: [], D: [] });
+  });
+
+  it('as joias se contam: nas mãos, cada uma não mais vezes do que a conta tem', () => {
+    const RUBI = itemKey('acessorio', 'anel-rubi');
+    const CONTAS = itemKey('acessorio', 'pulseira-contas');
+    expect(seConta(RUBI) && seConta(CONTAS) && seConta(itemKey('acessorio', 'relogio-lua'))).toBe(true);
+    // o esmalte e a luva são de ter ou não ter; o que vem com o jogo não se conta
+    expect(seConta(itemKey('acessorio', 'esmalte-vinho')) || seConta(itemKey('acessorio', 'luva-couro')) || seConta(itemKey('acessorio', LUVA_PADRAO))).toBe(false);
+    expect(quantasTem([RUBI, RUBI, CONTAS], RUBI)).toBe(2);
+    expect(quantasTem(['acessorio:esmalte-vinho', 'acessorio:esmalte-vinho'], 'acessorio:esmalte-vinho')).toBe(1);
+    expect(quantasTem([], itemKey('acessorio', 'luva-traje'))).toBe(Infinity);
+    const pedido = sanitizeAcessorios({
+      aneis: [0, 1, 2].map((dedo) => ({ id: 'anel-rubi', mao: 'E', dedo })),
+      bracos: { E: ['pulseira-contas', 'pulseira-contas'], D: ['pulseira-contas'] },
+    });
+    const meus = clampAcessorios(pedido, [RUBI, RUBI, CONTAS, CONTAS]);
+    expect(meus.aneis.map((x) => x.dedo)).toEqual([0, 1]);
+    expect(meus.bracos).toEqual({ E: ['pulseira-contas', 'pulseira-contas'], D: [] });
   });
 
   it('a aliança de início fica nas mãos de quem ainda a tem — e sai das de quem a perdeu numa aposta', () => {
@@ -201,19 +254,21 @@ describe('o que chega de fora', () => {
         { id: 'anel-coracao', mao: 'D', dedo: 2 },
         { id: 'anel-alianca', mao: 'D', dedo: 0 },
       ],
-      pulsos: { E: 'pulseira-contas', D: null },
+      bracos: { E: ['pulseira-contas'], D: [] },
     });
     const aneis = (owned: readonly string[] | undefined) => clampAcessorios(pedido, owned).aneis.map((x) => x.id);
-    // conta nova (lista vazia) e quem joga sem conta: a aliança é dela, nos dois dedos
-    expect(aneis(['acessorio:anel-coracao'])).toEqual(['anel-alianca', 'anel-coracao', 'anel-alianca']);
-    expect(aneis(undefined)).toEqual(['anel-alianca', 'anel-alianca']);
+    // conta nova (lista vazia) e quem joga sem conta: a aliança é dela — uma, num dedo só
+    expect(aneis(['acessorio:anel-coracao'])).toEqual(['anel-alianca', 'anel-coracao']);
+    expect(aneis(undefined)).toEqual(['anel-alianca']);
+    // ganhou mais uma: são duas, nos dois dedos
+    expect(aneis([ALIANCA])).toEqual(['anel-alianca', 'anel-alianca']);
     // perdeu: a marca tira a aliança de todos os dedos, e não mexe no resto
     const perdeu = clampAcessorios(pedido, [marcaDePerdido(ALIANCA), 'acessorio:anel-coracao', 'acessorio:pulseira-contas']);
     expect(perdeu.aneis).toEqual([{ id: 'anel-coracao', mao: 'D', dedo: 2 }]);
-    expect(perdeu.pulsos).toEqual({ E: 'pulseira-contas', D: null });
+    expect(perdeu.bracos).toEqual({ E: ['pulseira-contas'], D: [] });
     expect(aneis([marcaDePerdido(ALIANCA)])).toEqual([]);
-    // comprou (ou tirou na roleta) outra: a chave na lista vale mais que a marca
-    expect(aneis([marcaDePerdido(ALIANCA), ALIANCA])).toEqual(['anel-alianca', 'anel-alianca']);
+    // comprou (ou tirou na roleta) outra: a chave na lista conta, além da marca
+    expect(aneis([marcaDePerdido(ALIANCA), ALIANCA])).toEqual(['anel-alianca']);
     // e a trava dos cosméticos leva a marca junto
     const c = clampCosmetics({ ...sanitizeCosmetics({}), acessorios: pedido }, [marcaDePerdido(ALIANCA)]);
     expect(c.acessorios?.aneis).toEqual([]);
@@ -236,12 +291,43 @@ describe('equipar', () => {
     expect(a.aneis.some((x) => x.mao === 'E' && x.dedo === 0)).toBe(false);
   });
 
-  it('um por pulso: a pulseira e o relógio dividem o lugar', () => {
-    let a = alternarPulso(SEM_ACESSORIOS, 'relogio-classico', 'E');
-    a = alternarPulso(a, 'pulseira-contas', 'E');
-    expect(a.pulsos).toEqual({ E: 'pulseira-contas', D: null });
-    a = alternarPulso(a, 'pulseira-contas', 'E');
-    expect(a.pulsos.E).toBeNull();
+  it('os braços: até cinco pulseiras em cada um, um relógio só, e pulseiras abaixo ou acima dele', () => {
+    let a = porNoBraco(SEM_ACESSORIOS, 'pulseira-contas', 'E');
+    a = porNoBraco(a, 'relogio-classico', 'E');
+    // (o relógio vai para junto da mão; a pulseira nova, para o alto da fila)
+    expect(a.bracos.E).toEqual(['relogio-classico', 'pulseira-contas']);
+    a = porNoBraco(a, 'pulseira-couro', 'E', 0);
+    expect(a.bracos.E).toEqual(['pulseira-couro', 'relogio-classico', 'pulseira-contas']);
+    a = moverNoBraco(a, 'E', 1, 1);
+    expect(a.bracos.E).toEqual(['pulseira-couro', 'pulseira-contas', 'relogio-classico']);
+    expect(moverNoBraco(a, 'E', 2, 1)).toBe(a);
+    // um relógio só: pôr outro, no braço que for, tira o que havia
+    a = porNoBraco(a, 'relogio-lua', 'D');
+    expect(a.bracos).toEqual({ E: ['pulseira-couro', 'pulseira-contas'], D: ['relogio-lua'] });
+    expect(bracoDoRelogio(a)).toBe('D');
+    // cinco pulseiras: o braço está cheio (o relógio não conta)
+    for (let i = 0; i < 4; i++) a = porNoBraco(a, 'pulseira-cordao', 'D');
+    a = porNoBraco(a, 'pulseira-perolas', 'D');
+    expect(pulseirasNoBraco(a, 'D')).toBe(MAX_PULSEIRAS);
+    expect(cabeNoBraco(a, 'pulseira-riviera', 'D')).toBe(false);
+    expect(porNoBraco(a, 'pulseira-riviera', 'D')).toBe(a);
+    expect(cabeNoBraco(a, 'relogio-rose', 'D')).toBe(true);
+    // quantas vezes cada peça está em uso
+    expect(vezesEmUso(a, 'pulseira-cordao')).toBe(4);
+    a = tirarDoBraco(a, 'D', 0);
+    expect(a.bracos.D[0]).toBe('pulseira-cordao');
+    expect(bracoDoRelogio(a)).toBeNull();
+  });
+
+  it('a luva vai nas duas mãos ou numa só', () => {
+    let a = porLuva(SEM_ACESSORIOS, 'luva-renda', ['E']);
+    expect(a.luvas).toEqual({ E: 'luva-renda', D: LUVA_PADRAO });
+    expect(emUso(a, 'luva-renda')).toBe(true);
+    a = porLuva(a, 'luva-couro', ['E', 'D']);
+    expect(a.luvas).toEqual({ E: 'luva-couro', D: 'luva-couro' });
+    // (o par é uma peça só: nas duas mãos, está em uso uma vez)
+    expect(vezesEmUso(a, 'luva-couro')).toBe(1);
+    expect(chaveDosAcessorios(porLuva(a, LUVA_PADRAO, ['D']))).not.toBe(chaveDosAcessorios(a));
   });
 
   it('a chave muda quando alguma coisa muda, e não com a ordem dos anéis', () => {

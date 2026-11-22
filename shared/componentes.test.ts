@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BACK_PRESETS, FACE_PRESETS, sanitizeCosmetics, type CardBackStyle } from './styles';
+import { BACK_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, sanitizeCosmetics, type CardBackStyle } from './styles';
 import { cabeNoQueTem, componentesDe, corMaisProxima, encaixar, liberado } from './componentes';
 import { clampCosmetics, freeIdOf } from './catalog';
 
@@ -78,5 +78,22 @@ describe('na mesa', () => {
     expect(mesa.back.id).toBe('custom-1');
     expect(cabeNoQueTem('back', mesa.back, componentesDe('back', [gratis]))).toBe(true);
     expect(mesa.back.base).not.toBe('#13f7a2');
+  });
+
+  it('a frente, as fichas e a mesa feitas no Estúdio também vão para a mesa (encaixadas), e não viram as gratuitas', () => {
+    const c = sanitizeCosmetics({});
+    const de = <T extends { id: string }>(kind: string, presets: readonly T[]) => presets.find((p) => p.id === freeIdOf(kind as never))!;
+    const face = { ...de('face', FACE_PRESETS), id: 'custom-f', name: 'Minha frente', from: freeIdOf('face') };
+    const chip = { ...de('chip', CHIP_PRESETS), id: 'custom-c', name: 'Minhas fichas' };
+    const table = { ...de('table', TABLE_PRESETS), id: 'custom-t', name: 'Minha mesa', logoText: 'OLÁ' };
+    const mesa = clampCosmetics({ ...c, face, chip, table }, []);
+    expect([mesa.face.id, mesa.chip.id, mesa.table.id]).toEqual(['custom-f', 'custom-c', 'custom-t']);
+    expect(mesa.table.logoText).toBe('OLÁ');
+    // a frente de vidro feita no Estúdio, sem ter a de vidro: vai de papel
+    const vidro = clampCosmetics({ ...c, face: { ...face, special: 'glass' } }, []);
+    expect(vidro.face.special).toBeUndefined();
+    // e um preset que a conta não tem continua virando o gratuito
+    const outra = TABLE_PRESETS.find((t) => t.id !== freeIdOf('table'))!;
+    expect(clampCosmetics({ ...c, table: outra }, []).table.id).toBe(freeIdOf('table'));
   });
 });

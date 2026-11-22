@@ -13,7 +13,7 @@ import {
   priceOf,
 } from './catalog';
 import { DE_INICIO, GALERIA, GIFTS, PRECO_DO_ACESSORIO, VENDIDOS, clampAcessorios, eDeInicio, estaAVenda, isSold, marcaDePerdido, ownsItem, rarityOf } from './catalog';
-import { ACESSORIOS, SEM_ACESSORIOS, type Acessorios } from './acessorios';
+import { ACESSORIOS, sanitizeAcessorios, type Acessorios } from './acessorios';
 import { dropsOf, findRoulette, refundOf, roletaDe } from './roulette';
 import { AURA_IDS, BACK_PRESETS, CHARACTER_PRESETS, CHIP_PRESETS, FACE_PRESETS, FRAME_IDS, TABLE_PRESETS, WIN_FX_IDS } from './styles';
 
@@ -192,14 +192,13 @@ describe('a peça de início (a aliança lisa)', () => {
   });
 
   it('clampAcessorios tira a aliança das mãos de quem a perdeu, e só dela', () => {
-    const maos: Acessorios = {
-      ...SEM_ACESSORIOS,
+    const maos: Acessorios = sanitizeAcessorios({
       aneis: [
         { id: 'anel-alianca', mao: 'E', dedo: 2 },
         { id: 'anel-ebano', mao: 'D', dedo: 2 },
       ],
-      pulsos: { E: 'relogio-campo', D: null },
-    };
+      bracos: { E: ['relogio-campo'], D: [] },
+    });
     const meus = ['acessorio:anel-ebano', 'acessorio:relogio-campo'];
     // quem ainda a tem (com ou sem conta) fica com ela no dedo
     expect(clampAcessorios(maos, meus)).toEqual(maos);
@@ -207,7 +206,7 @@ describe('a peça de início (a aliança lisa)', () => {
     // quem a perdeu fica sem — o aro de ébano e o relógio, que são dela, continuam
     const semEla = clampAcessorios(maos, [...meus, MARCA]);
     expect(semEla.aneis).toEqual([{ id: 'anel-ebano', mao: 'D', dedo: 2 }]);
-    expect(semEla.pulsos).toEqual({ E: 'relogio-campo', D: null });
+    expect(semEla.bracos).toEqual({ E: ['relogio-campo'], D: [] });
     // e quem comprou outra volta a poder usá-la
     expect(clampAcessorios(maos, [...meus, MARCA, ALIANCA])).toEqual(maos);
   });

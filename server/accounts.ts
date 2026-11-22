@@ -22,7 +22,7 @@ import {
   type BondEvent,
   type BondStats,
 } from '../shared/bond';
-import { estaAVenda, findItem, freeIdOf, isFree, ownsItem, priceOf, type Currency, owns, eDeInicio, marcaDePerdido } from '../shared/catalog';
+import { estaAVenda, findItem, freeIdOf, isFree, ownsItem, priceOf, quantasTem, seConta, type Currency, owns, eDeInicio, marcaDePerdido } from '../shared/catalog';
 import { draw, findRoulette, giftOfKey, isCountable, refundOf, ticketPrice } from '../shared/roulette';
 import { PARTIDAS_LEMBRADAS, ultimasPartidas, type ResumoDaPartida } from '../shared/personality';
 import { MAX_REQUESTS, isFriendCode, makeFriendCode, normalizeFriendCode, podeMaisAmigos } from '../shared/friends';
@@ -440,10 +440,11 @@ export class Accounts implements AccountService {
   /**
    * Um acessório apostado mudou de dono (veja shared/aposta.ts).
    *
-   * Sai da conta de quem perdeu e entra na de quem ganhou. Quem ganha uma peça que já tem recebe as
-   * fichas do reembolso — a mesma conta de um prêmio repetido de roleta —, e o que um bot ganha
-   * fica com ele, na mesa (não há conta `para`). A peça de início (a aliança) sai deixando a marca de
-   * perdida, e volta apagando a marca.
+   * Sai da conta de quem perdeu e entra na de quem ganhou. As joias se contam (`seConta`): quem ganha
+   * uma que já tem fica com mais uma. Do que não se conta, quem já tem recebe as fichas do reembolso —
+   * a mesma conta de um prêmio repetido de roleta. O que um bot ganha fica com ele, na mesa (não há
+   * conta `para`). A peça de início (a aliança) sai deixando a marca de perdida, e volta apagando a
+   * marca.
    */
   transferirItem(de: string | undefined, para: string | undefined, key: string): { repetido: boolean; reembolso: number } {
     const item = findItem(key);
@@ -461,7 +462,7 @@ export class Accounts implements AccountService {
     let repetido = false;
     let reembolso = 0;
     if (ganhou) {
-      if (owns(ganhou.owned, key)) {
+      if (owns(ganhou.owned, key) && !seConta(key)) {
         repetido = true;
         reembolso = refundOf(key);
         ganhou.money += reembolso;
@@ -575,9 +576,10 @@ export class Accounts implements AccountService {
    * Compra um item da loja.
    *
    * Três famílias passam por aqui: **presentes**, que são contáveis (comprar de novo aumenta o
-   * estoque), **aparência da interface** e os **acessórios à venda** (anel, pulseira e relógio que
-   * não são lendários: veja `estaAVenda`), que são posse. O resto do catálogo é galeria e só sai de
-   * roleta — quem recusa é este método, não a tela.
+   * estoque), **aparência da interface**, que é posse, e os **acessórios à venda** (anel, pulseira e
+   * relógio que não são lendários: veja `estaAVenda`), que se contam como os presentes — comprar outro
+   * é ter mais um (`seConta`). O resto do catálogo é galeria e só sai de roleta — quem recusa é este
+   * método, não a tela.
    */
   async buy(accountId: string, key: string, currency: Currency): Promise<string | null> {
     const acc = this.byId(accountId);
@@ -588,11 +590,15 @@ export class Accounts implements AccountService {
     // (por peça, e não por tipo: há acessório que se compra — anel, pulseira e relógio que não são lendários)
     if (!estaAVenda(key)) return 'esse item não está à venda: ele sai de roleta';
     const contavel = isCountable(key);
-    if (!contavel && owns(acc.owned, key)) return 'você já tem esse item';
+    if (!contavel && !seConta(key) && owns(acc.owned, key)) return 'você já tem esse item';
     const price = priceOf(key, currency);
     if (!price) return 'esse item não está à venda';
 
-    const erro = await this.cobrar(acc, price, currency, item.name, `pokeru:${acc.id}:${key}`);
+    // A chave de idempotência do bot é fixa por compra: repetir o pedido não cobra duas vezes. Do que
+    // se compra mais de uma vez, ela leva quantas a conta já tem — a segunda compra é outra compra (com a
+    // chave só do item, o bot a tomava pela primeira e não cobrava).
+    const quantas = contavel ? (acc.gifts?.[key.slice('gift:'.length)] ?? 0) : seConta(key) ? quantasTem(acc.owned, key) : null;
+    const erro = await this.cobrar(acc, price, currency, item.name, `pokeru:${acc.id}:${key}${quantas === null ? '' : `:${quantas}`}`);
     if (erro) return erro;
 
     if (contavel) {
@@ -645,7 +651,8 @@ export class Accounts implements AccountService {
    * prêmio nem poderia — nada do que ele manda influencia o resultado. O número aleatório vem de
    * `crypto`, não de `Math.random`, porque prêmio previsível é prêmio fraudável.
    *
-   * Prêmio repetido vira fichas (`refundOf`): o ticket nunca sai vazio.
+   * Prêmio repetido vira fichas (`refundOf`): o ticket nunca sai vazio. As joias não repetem: cada
+   * uma é mais uma peça (`seConta`).
    */
   async spin(accountId: string, roulette: string, currency: Currency): Promise<SpinResult | string> {
     const acc = this.byId(accountId);
@@ -665,7 +672,7 @@ export class Accounts implements AccountService {
     let refund = 0;
     if (gift) {
       acc.gifts = { ...(acc.gifts ?? {}), [gift.id]: (acc.gifts?.[gift.id] ?? 0) + 1 };
-    } else if (owns(acc.owned, prize.key)) {
+    } else if (owns(acc.owned, prize.key) && !seConta(prize.key)) {
       dup = true;
       refund = refundOf(prize.key);
       acc.money += refund;

@@ -208,7 +208,7 @@ export function findAcessorio(id: string): Acessorio | undefined {
 
 export const acessoriosDoTipo = (tipo: TipoDeAcessorio): Acessorio[] => ACESSORIOS.filter((a) => a.tipo === tipo);
 
-// ───────────────────────────── o que está equipado ─────────────────────────────
+/// ───────────────────────────── o que está equipado ─────────────────────────────
 
 export type Mao = 'E' | 'D';
 export const MAOS: { id: Mao; nome: string }[] = [
@@ -228,17 +228,34 @@ export interface AnelPosto {
 }
 
 export interface Acessorios {
-  /** Os anéis: no máximo um por dedo, e `MAX_ANEIS` ao todo. */
+  /**
+   * Os anéis: no máximo um por dedo, e `MAX_ANEIS` ao todo. O mesmo anel pode estar em mais de um
+   * dedo — quando a conta tem mais de um dele (quem confere a quantidade é `clampAcessorios`, em
+   * shared/catalog.ts).
+   */
   aneis: AnelPosto[];
-  /** No pulso de cada mão: uma pulseira, um relógio, ou nada. */
-  pulsos: Record<Mao, string | null>;
+  /**
+   * O que vai em cada braço, **do pulso para o cotovelo**: até `MAX_PULSEIRAS` pulseiras em cada um, e
+   * um relógio só, num dos dois. O relógio entra na fila como as pulseiras: as que vêm antes dele ficam
+   * entre ele e a mão, as que vêm depois sobem o braço acima dele.
+   */
+  bracos: Record<Mao, string[]>;
   /** O esmalte (um para todas as unhas). */
   esmalte: string;
-  /** O estilo da luva. */
-  luva: string;
+  /** A luva de cada mão: dá para usar numa só (a outra fica nua, `LUVA_PADRAO`). */
+  luvas: Record<Mao, string>;
+  /**
+   * O jeito antigo — um só no pulso de cada mão, e uma luva para as duas —, só para os clientes de
+   * antes desta versão, que ainda leem estes campos. Sai sempre derivado dos de cima (`comLegado`);
+   * ninguém daqui os lê.
+   */
+  pulsos?: Record<Mao, string | null>;
+  luva?: string;
 }
 
 export const MAX_ANEIS = 6;
+/** Quantas pulseiras cabem num braço (o relógio não conta). */
+export const MAX_PULSEIRAS = 5;
 export const ESMALTE_PADRAO = 'esmalte-natural';
 /**
  * A luva de quem não escolheu nenhuma: **as mãos nuas**, seja qual for o traje. Todo mundo começa de
@@ -247,8 +264,17 @@ export const ESMALTE_PADRAO = 'esmalte-natural';
  */
 export const LUVA_PADRAO = 'luva-nenhuma';
 
+const tipoDe = (id: string | null | undefined): TipoDeAcessorio | undefined => (id ? porId.get(id)?.tipo : undefined);
+
+/** Os campos antigos (`pulsos`, `luva`), tirados dos novos — veja `Acessorios.pulsos`. */
+export function comLegado(a: Acessorios): Acessorios {
+  const noPulso = (m: Mao) => a.bracos[m].find((id) => tipoDe(id) === 'relogio') ?? a.bracos[m][0] ?? null;
+  const luva = a.luvas.E === a.luvas.D || a.luvas.D === LUVA_PADRAO ? a.luvas.E : a.luvas.D;
+  return { aneis: a.aneis, bracos: a.bracos, esmalte: a.esmalte, luvas: a.luvas, pulsos: { E: noPulso('E'), D: noPulso('D') }, luva };
+}
+
 /** Sem acessório nenhum: as unhas naturais e as mãos nuas. */
-export const SEM_ACESSORIOS: Acessorios = Object.freeze({ aneis: [], pulsos: { E: null, D: null }, esmalte: ESMALTE_PADRAO, luva: LUVA_PADRAO }) as Acessorios;
+export const SEM_ACESSORIOS: Acessorios = Object.freeze(comLegado({ aneis: [], bracos: { E: [], D: [] }, esmalte: ESMALTE_PADRAO, luvas: { E: LUVA_PADRAO, D: LUVA_PADRAO } })) as Acessorios;
 
 const doTipo = (v: unknown, ...tipos: TipoDeAcessorio[]): string | null => {
   const a = typeof v === 'string' ? porId.get(v) : undefined;
@@ -256,9 +282,30 @@ const doTipo = (v: unknown, ...tipos: TipoDeAcessorio[]): string | null => {
 };
 
 /**
+ * Arruma a fila de um braço: só pulseiras e relógios, no máximo `MAX_PULSEIRAS` pulseiras, e o
+ * relógio só se ainda não há um (`temRelogio` diz se o outro braço já levou o dele).
+ */
+function filaDoBraco(v: unknown, temRelogio: boolean): { fila: string[]; relogio: boolean } {
+  const fila: string[] = [];
+  let pulseiras = 0;
+  let relogio = temRelogio;
+  for (const x of Array.isArray(v) ? v : []) {
+    const id = doTipo(x, 'pulseira', 'relogio');
+    if (!id) continue;
+    if (tipoDe(id) === 'relogio') {
+      if (relogio) continue;
+      relogio = true;
+    } else if (++pulseiras > MAX_PULSEIRAS) continue;
+    fila.push(id);
+  }
+  return { fila, relogio };
+}
+
+/**
  * Os acessórios que chegaram de fora (da rede, do perfil salvo): só ids que existem, cada um no
- * lugar em que cabe, um anel por dedo e não mais que `MAX_ANEIS`. O que não é nada (um cliente
- * antigo, que não manda o campo) vira "sem acessórios".
+ * lugar em que cabe — um anel por dedo e não mais que `MAX_ANEIS`; até `MAX_PULSEIRAS` pulseiras por
+ * braço e um relógio só. O que não é nada (um cliente antigo, que não manda o campo) vira "sem
+ * acessórios", e o jeito antigo (`pulsos`, `luva`) vira o novo.
  */
 export function sanitizeAcessorios(v: unknown): Acessorios {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
@@ -273,36 +320,97 @@ export function sanitizeAcessorios(v: unknown): Acessorios {
     aneis.push({ id, mao, dedo });
     if (aneis.length >= MAX_ANEIS) break;
   }
+  // os braços: o campo novo, ou — de um cliente antigo — o que ele tinha em cada pulso
+  const b = (o.bracos && typeof o.bracos === 'object' ? o.bracos : null) as Record<string, unknown> | null;
   const p = (o.pulsos && typeof o.pulsos === 'object' ? o.pulsos : {}) as Record<string, unknown>;
-  return {
+  const pedido = (m: Mao): unknown => (b ? b[m] : p[m] ? [p[m]] : []);
+  const E = filaDoBraco(pedido('E'), false);
+  const D = filaDoBraco(pedido('D'), E.relogio);
+  // as luvas: uma para cada mão, ou — do jeito antigo — a mesma nas duas
+  const l = (o.luvas && typeof o.luvas === 'object' ? o.luvas : null) as Record<string, unknown> | null;
+  const luvaDe = (m: Mao) => doTipo(l ? l[m] : o.luva, 'luva') ?? LUVA_PADRAO;
+  return comLegado({
     aneis,
-    pulsos: { E: doTipo(p.E, 'pulseira', 'relogio'), D: doTipo(p.D, 'pulseira', 'relogio') },
+    bracos: { E: E.fila, D: D.fila },
     esmalte: doTipo(o.esmalte, 'esmalte') ?? ESMALTE_PADRAO,
-    luva: doTipo(o.luva, 'luva') ?? LUVA_PADRAO,
-  };
+    luvas: { E: luvaDe('E'), D: luvaDe('D') },
+  });
 }
 
 /** Uma chave curta para um conjunto de acessórios (o mesmo conjunto dá a mesma chave). */
 export function chaveDosAcessorios(a: Acessorios | undefined): string {
   if (!a) return '';
   const aneis = [...a.aneis].sort((x, y) => (x.mao + x.dedo).localeCompare(y.mao + y.dedo)).map((x) => `${x.mao}${x.dedo}:${x.id}`);
-  return [aneis.join(','), a.pulsos.E ?? '', a.pulsos.D ?? '', a.esmalte, a.luva].join('|');
+  return [aneis.join(','), a.bracos.E.join(','), a.bracos.D.join(','), a.esmalte, a.luvas.E, a.luvas.D].join('|');
 }
 
 /** Põe (ou tira, se já está lá) um anel num dedo. Passando do limite, o anel mais antigo sai. */
 export function alternarAnel(a: Acessorios, id: string, mao: Mao, dedo: number): Acessorios {
   const ja = a.aneis.find((x) => x.mao === mao && x.dedo === dedo);
   const resto = a.aneis.filter((x) => x !== ja);
-  if (ja?.id === id) return { ...a, aneis: resto };
-  return { ...a, aneis: [...resto, { id, mao, dedo }].slice(-MAX_ANEIS) };
+  if (ja?.id === id) return comLegado({ ...a, aneis: resto });
+  return comLegado({ ...a, aneis: [...resto, { id, mao, dedo }].slice(-MAX_ANEIS) });
 }
 
-/** Põe (ou tira, se já está lá) uma pulseira ou um relógio num pulso. */
-export function alternarPulso(a: Acessorios, id: string, mao: Mao): Acessorios {
-  return { ...a, pulsos: { ...a.pulsos, [mao]: a.pulsos[mao] === id ? null : id } };
+/** Quantas pulseiras há num braço. */
+export const pulseirasNoBraco = (a: Acessorios, mao: Mao): number => a.bracos[mao].filter((id) => tipoDe(id) === 'pulseira').length;
+
+/** Em que braço está o relógio (null: sem relógio). */
+export function bracoDoRelogio(a: Acessorios): Mao | null {
+  for (const m of ['E', 'D'] as const) if (a.bracos[m].some((id) => tipoDe(id) === 'relogio')) return m;
+  return null;
+}
+
+/** Ainda cabe esta peça neste braço? (O relógio sempre cabe: o que já havia sai do lugar.) */
+export function cabeNoBraco(a: Acessorios, id: string, mao: Mao): boolean {
+  const t = tipoDe(id);
+  if (t === 'relogio') return true;
+  return t === 'pulseira' && pulseirasNoBraco(a, mao) < MAX_PULSEIRAS;
+}
+
+/**
+ * Põe uma pulseira ou o relógio num braço, na posição `onde` da fila (0 = junto da mão; sem dizer, a
+ * pulseira vai para o alto da fila e o relógio para junto da mão). O relógio é um só: pôr um tira o
+ * que havia, no braço que for. Sem lugar (cinco pulseiras), nada muda.
+ */
+export function porNoBraco(a: Acessorios, id: string, mao: Mao, onde?: number): Acessorios {
+  const t = tipoDe(id);
+  if (t !== 'pulseira' && t !== 'relogio') return a;
+  if (!cabeNoBraco(a, id, mao)) return a;
+  const semRelogio = (fila: string[]) => (t === 'relogio' ? fila.filter((x) => tipoDe(x) !== 'relogio') : fila);
+  const bracos = { E: semRelogio(a.bracos.E), D: semRelogio(a.bracos.D) };
+  const fila = [...bracos[mao]];
+  const i = Math.max(0, Math.min(fila.length, onde ?? (t === 'relogio' ? 0 : fila.length)));
+  fila.splice(i, 0, id);
+  return comLegado({ ...a, bracos: { ...bracos, [mao]: fila } });
+}
+
+/** Tira o que está na posição `i` da fila de um braço. */
+export function tirarDoBraco(a: Acessorios, mao: Mao, i: number): Acessorios {
+  return comLegado({ ...a, bracos: { ...a.bracos, [mao]: a.bracos[mao].filter((_, k) => k !== i) } });
+}
+
+/** Troca de lugar a peça `i` de um braço com a vizinha (`passo` = −1: para junto da mão; +1: braço acima). */
+export function moverNoBraco(a: Acessorios, mao: Mao, i: number, passo: -1 | 1): Acessorios {
+  const j = i + passo;
+  const fila = [...a.bracos[mao]];
+  if (i < 0 || i >= fila.length || j < 0 || j >= fila.length) return a;
+  [fila[i], fila[j]] = [fila[j], fila[i]];
+  return comLegado({ ...a, bracos: { ...a.bracos, [mao]: fila } });
+}
+
+/** Põe uma luva nas mãos dadas (as outras ficam como estão). */
+export function porLuva(a: Acessorios, id: string, maos: readonly Mao[]): Acessorios {
+  const luvas = { ...a.luvas };
+  for (const m of maos) luvas[m] = id;
+  return comLegado({ ...a, luvas });
+}
+
+/** Quantas vezes a peça está em uso (o mesmo anel em dois dedos são dois; a luva nas duas mãos é um par: uma). */
+export function vezesEmUso(a: Acessorios, id: string): number {
+  if (a.esmalte === id || a.luvas.E === id || a.luvas.D === id) return 1;
+  return a.aneis.filter((x) => x.id === id).length + a.bracos.E.filter((x) => x === id).length + a.bracos.D.filter((x) => x === id).length;
 }
 
 /** O acessório está em uso? */
-export function emUso(a: Acessorios, id: string): boolean {
-  return a.aneis.some((x) => x.id === id) || a.pulsos.E === id || a.pulsos.D === id || a.esmalte === id || a.luva === id;
-}
+export const emUso = (a: Acessorios, id: string): boolean => vezesEmUso(a, id) > 0;

@@ -528,12 +528,12 @@ export class Cena3D implements Palco3D {
     const v = e.view;
     if (!clipesProntos()) {
       // (sem as animações ainda não dá para sentar ninguém; mas a modelagem já pode correr)
-      v.seats.forEach((s, seat) => s && void prepararRoupa(vestido(e.personagemDe(seat), e.acessoriosDe?.(seat)?.luva)).catch(() => {}));
+      v.seats.forEach((s, seat) => s && void prepararRoupa(vestido(e.personagemDe(seat), e.acessoriosDe?.(seat)?.luvas)).catch(() => {}));
       return;
     }
     for (const [seat, ator] of this.atores) {
       const s = v.seats[seat];
-      // (só os anéis ou o que vai no pulso mudaram — ele apostou um acessório, ou ganhou um de volta: troca as peças, sem refazê-lo)
+      // (só os anéis ou o que vai nos braços mudaram — ele apostou um acessório, ou ganhou um de volta: troca as peças, sem refazê-lo)
       const acessorios = this.acessoriosVisiveis(seat);
       if (s && this.geo[seat] && e.personagemDe(seat) === ator.personagem && chaveDosAcessorios(acessorios) !== ator.enfeites && ator.trocarEnfeites(acessorios)) continue;
       // (trocou de personagem, de luva ou de esmalte: o personagem é refeito)
@@ -551,7 +551,7 @@ export class Cena3D implements Palco3D {
       const id = e.personagemDe(seat);
       const acessorios = this.acessoriosVisiveis(seat);
       // (a roupa é a do traje com a luva que o jogador escolheu)
-      const comLuva = vestido(id, acessorios.luva);
+      const comLuva = vestido(id, acessorios.luvas);
       const modelo = modeloPronto(comLuva);
       if (!modelo) {
         // (ainda não: começa a modelar; o aviso do andamento chama isto de novo)
@@ -936,7 +936,8 @@ export class Cena3D implements Palco3D {
   private ondeUsa(seat: number, id: string): { mao: 'E' | 'D'; onde: 'pulso' | number } | null {
     const a = this.entrada?.acessoriosDe?.(seat);
     if (!a) return null;
-    for (const m of ['E', 'D'] as const) if (a.pulsos[m] === id) return { mao: m, onde: 'pulso' };
+    // (das peças do braço, o gesto é sempre o do pulso — a que está mais acima também sai por ali)
+    for (const m of ['E', 'D'] as const) if (a.bracos[m].includes(id)) return { mao: m, onde: 'pulso' };
     const anel = a.aneis.find((x) => x.id === id);
     return anel ? { mao: anel.mao, onde: anel.dedo } : null;
   }

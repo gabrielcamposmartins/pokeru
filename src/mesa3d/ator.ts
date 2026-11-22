@@ -165,10 +165,13 @@ export class Ator {
   /** O que ele veste nas mãos agora, e as inversas dos ossos na pose de repouso (para prender as peças). */
   private acessorios: Acessorios;
   private inversasDosOssos: THREE.Matrix4[] = [];
+  /** As posições da roupa na pose de repouso: é por cima delas que as pulseiras sobem o braço. */
+  private readonly posDaRoupa: Float32Array;
 
   constructor(personagem: string, corpo: Corpo, roupa: Roupa, acessorios: Acessorios = SEM_ACESSORIOS) {
     this.personagem = personagem;
     this.acessorios = acessorios;
+    this.posDaRoupa = roupa.malha.pos;
     this.enfeites = chaveDosAcessorios(acessorios);
     this.traje = TRAJES.find((t) => t.id === trajeDe(personagem)) ?? TRAJES[0];
     this.boneco = new Boneco(esqueletoDoJogo());
@@ -268,11 +271,13 @@ export class Ator {
     this.prenderPecas();
   }
 
-  /** Os anéis, a pulseira e o relógio: peças rígidas, cada uma presa a um osso (por cima da luva, se houver). */
+  /** Os anéis, as pulseiras e o relógio: peças rígidas, cada uma presa a um osso (por cima da luva da mão, se houver). */
   private prenderPecas() {
-    const luva = findAcessorio(this.acessorios.luva);
-    const cobre = luva?.tipo === 'luva' && luva.feitio !== 'traje' ? luva.feitio : trajeTemLuva(this.traje);
-    for (const peca of pecasDosAcessorios(this.acessorios, cobre)) {
+    const cobre = (mao: 'E' | 'D') => {
+      const luva = findAcessorio(this.acessorios.luvas[mao]);
+      return luva?.tipo === 'luva' && luva.feitio !== 'traje' ? luva.feitio : trajeTemLuva(this.traje);
+    };
+    for (const peca of pecasDosAcessorios(this.acessorios, { E: cobre('E'), D: cobre('D') }, this.posDaRoupa)) {
       const i = this.boneco.esq.indice[`${peca.osso}.${peca.mao}`];
       if (i === undefined) continue;
       const inversa = this.inversasDosOssos[i].clone();
@@ -302,12 +307,12 @@ export class Ator {
   }
 
   /**
-   * Troca os anéis e o que vai nos pulsos **sem refazer o personagem** — é o que acontece quando ele
+   * Troca os anéis e o que vai nos braços **sem refazer o personagem** — é o que acontece quando ele
    * aposta um acessório (a peça sai da mão) ou o ganha de volta. Só as peças rígidas: se o esmalte ou
-   * a luva mudaram, devolve false, e aí quem chama refaz o personagem (a luva é costurada com a roupa).
+   * uma luva mudaram, devolve false, e aí quem chama refaz o personagem (a luva é costurada com a roupa).
    */
   trocarEnfeites(novos: Acessorios): boolean {
-    if (novos.esmalte !== this.acessorios.esmalte || novos.luva !== this.acessorios.luva) return false;
+    if (novos.esmalte !== this.acessorios.esmalte || novos.luvas.E !== this.acessorios.luvas.E || novos.luvas.D !== this.acessorios.luvas.D) return false;
     for (const p of this.presas) {
       p.malha.removeFromParent();
       p.malha.geometry.dispose();
