@@ -6,7 +6,8 @@ import type { TableStyle } from '../../shared/styles';
  *
  * Cada estampa de mesa tem o seu piso: o feltro clássico fica num assoalho de madeira, o sakura num
  * gramado de parque com pétalas caídas, o azul real num carpete com losangos dourados, o vinho num
- * taco em espinha, o neon num chão escuro riscado de luz e os vitorianos num mármore xadrez. A
+ * taco em espinha, o neon num chão escuro riscado de luz, os vitorianos num mármore xadrez e a
+ * mesa de tábuas num chão de lajes de pedra (madeira sobre madeira, a mesa sumia no assoalho). A
  * escolha vai pela estampa (e não pelo id da mesa) para as mesas feitas no Estúdio ganharem o piso
  * da estampa que usam — e as cores saem da própria mesa (a borda, o friso, o feltro), para o chão
  * combinar com ela.
@@ -109,6 +110,41 @@ const FOLHAS = ruido(240, '0.9 0.22', 3, [0.02, 0.07, 0.02], 1.9, 0.72, 17);
 const MANCHAS = ruido(900, '0.004', 3, [0.62, 0.78, 0.4], 1.4, 0.62, 21);
 
 /**
+ * As lajes de pedra: fiadas desencontradas de pedras de tamanhos e tons diferentes, com a junta
+ * funda entre elas e um fio de luz na quina. Um ladrilho só, que emenda sem costura.
+ */
+function lajes(): string {
+  const r = sorteio(53);
+  const L = 720;
+  const FIADA = 150;
+  const FIADAS = 4;
+  let corpo = '';
+  for (let f = 0; f < FIADAS; f++) {
+    const y = f * FIADA;
+    // as larguras das pedras da fiada (somam o ladrilho), começando desencontradas da fiada de cima
+    const cortes = [0];
+    while (cortes[cortes.length - 1] < L - 150) cortes.push(cortes[cortes.length - 1] + 150 + Math.round(r() * 120));
+    cortes.push(L);
+    const desvio = f % 2 ? 95 : 0;
+    for (let k = 0; k < cortes.length - 1; k++) {
+      const tom = (r() - 0.5) * 0.2;
+      // (a pedra pode passar da beirada do ladrilho: desenha-se também a cópia do outro lado)
+      for (const dx of [0, -L]) {
+        const x = cortes[k] + desvio + dx;
+        const w = cortes[k + 1] - cortes[k];
+        corpo += `<rect x='${x}' y='${y}' width='${w}' height='${FIADA}' fill='${tom > 0 ? '#fff' : '#000'}' opacity='${Math.abs(tom).toFixed(3)}'/>`;
+        corpo += `<rect x='${x}' y='${y}' width='4' height='${FIADA}' fill='rgba(0,0,0,.55)'/><rect x='${x + 4}' y='${y}' width='1.4' height='${FIADA}' fill='rgba(255,255,255,.08)'/>`;
+      }
+    }
+    corpo += `<rect x='0' y='${y}' width='${L}' height='4' fill='rgba(0,0,0,.55)'/><rect x='0' y='${y + 4}' width='${L}' height='1.4' fill='rgba(255,255,255,.08)'/>`;
+  }
+  return svg(corpo, L, FIADA * FIADAS);
+}
+const LAJES = lajes();
+/** As manchas da pedra: largas e suaves, de claro e de escuro. */
+const MANCHAS_DA_PEDRA = ruido(640, '0.012', 4, [0.08, 0.07, 0.06], 1.5, 0.6, 31);
+
+/**
  * A profundidade, por cima de qualquer piso.
  *
  * De cima para baixo nas camadas: o escuro das bordas (o chão some em direção às paredes), o fundo
@@ -187,6 +223,12 @@ function desenho(t: TableStyle): string {
         `${VEIO_MARMORE} 0 0 / 720px 720px`,
         `conic-gradient(${claro} 25%, ${escuro} 0 50%, ${claro} 0 75%, ${escuro} 0) 0 0 / 240px 240px`,
       ].join(', ');
+    }
+    // lajes de pedra: o chão de uma taverna, debaixo da mesa de tábuas — pedra cinzenta, puxada um
+    // nada para a cor da borda, com manchas e grão
+    case 'tabuas': {
+      const pedra = mix(t.rail, '#5d5a55', 22);
+      return [`${LAJES} 0 0 / 720px 600px`, `${MANCHAS_DA_PEDRA} 0 0 / 640px 640px`, `${GRAO} 0 0 / 256px 256px`, `linear-gradient(180deg, ${mix(pedra, '#fff', 90)}, ${pedra})`].join(', ');
     }
     // assoalho: tábuas de tons diferentes, emendas com aresta, o veio correndo ao longo de cada uma
     default: {

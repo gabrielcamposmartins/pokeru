@@ -1381,6 +1381,19 @@ function LuvaArt({ a, u }: { a: Luva; u: string }) {
         <path d="M10 70 H90" stroke={a.cor2} strokeWidth={1.8} />
       </g>
     );
+  } else if (a.feitio === 'curta') {
+    // a de motorista: as três costuras curtas, e a boca dela — a pele do pulso embaixo, o entalhe em V e o botão de pressão
+    padrao = (
+      <g>
+        {[34, 50, 66].map((x) => (
+          <line key={x} x1={x} y1={19} x2={x - (50 - x) * 0.12} y2={38} stroke={a.cor2} strokeWidth={2.2} strokeLinecap="round" />
+        ))}
+        <path d="M10 66 H40 L50 44 L60 66 H90 V90 H10 Z" fill={`url(#${u}-pele)`} />
+        <path d="M10 66 H40 L50 44 L60 66 H90" fill="none" stroke={a.cor2} strokeWidth={3.2} strokeLinejoin="round" />
+        <circle cx={71} cy={57} r={4.2} fill={`url(#${u}-m)`} stroke={shade(metal, -0.45)} strokeWidth={0.7} />
+        <circle cx={69.8} cy={55.8} r={1.4} fill="#fff" opacity={0.85} />
+      </g>
+    );
   } else if (a.feitio === 'opera') {
     // o cetim: o brilho comprido do tecido, as pregas e a bainha
     padrao = (

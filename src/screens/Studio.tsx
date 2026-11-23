@@ -23,7 +23,7 @@ import {
 } from '../../shared/styles';
 import { KIND_LABEL, PRESETS, SANITIZE, isPreset, useCharacter, useProfile, type StyleKind, type StyleMap } from '../store/profile';
 import { pecasDaConta, useMyStyles, useOwned, useOwns, usePecas } from '../store/shop';
-import { CAMPOS_DE_ESCOLHA, ehCor, encaixar, liberado, type Componentes } from '../../shared/componentes';
+import { CAMPOS_DE_ESCOLHA, ehCor, encaixar, frenteLegivel, liberado, seLe, type Componentes } from '../../shared/componentes';
 import { itemKey, ownsItem, padoPrice, priceOf } from '../../shared/catalog';
 import { useSession } from '../store/session';
 import { CardBackSvg, CardFaceSvg, CardView, FONT_FAMILY, FONT_LABEL } from '../render/CardArt';
@@ -63,7 +63,18 @@ function useLiberadas<T extends string>(campo: string, todas: readonly T[]): T[]
  * esteja na paleta (um estilo feito antes da trava), para ninguém perder o que já tinha — mas
  * trocar, só por uma cor liberada.
  */
-function CorLiberada({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function CorLiberada({
+  label,
+  value,
+  onChange,
+  fundos,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  /** Os fundos em que esta cor tem de se ler (os naipes da frente): as que não se leem ficam trancadas. */
+  fundos?: readonly string[];
+}) {
   const comp = useContext(PecasCtx);
   const [aberta, setAberta] = useState(false);
   const atual = value.toLowerCase();
@@ -81,22 +92,29 @@ function CorLiberada({ label, value, onChange }: { label: string; value: string;
       </button>
       {aberta && (
         <div className="cor-lib-paleta" role="listbox" aria-label={label}>
-          {paleta.map((c) => (
-            <button
-              key={c}
-              type="button"
-              role="option"
-              aria-selected={c === atual}
-              className={c === atual ? 'on' : ''}
-              style={{ background: c }}
-              title={c}
-              onClick={() => {
-                onChange(c);
-                setAberta(false);
-              }}
-            />
-          ))}
-          <small className="cor-lib-dica">Só as cores dos estilos que você tem. Estilo novo, cores novas.</small>
+          {paleta.map((c) => {
+            const some = !!fundos && !seLe(c, fundos);
+            return (
+              <button
+                key={c}
+                type="button"
+                role="option"
+                aria-selected={c === atual}
+                aria-disabled={some}
+                disabled={some && c !== atual}
+                className={`${c === atual ? 'on' : ''} ${some ? 'some' : ''}`}
+                style={{ background: c }}
+                title={some ? `${c} — some no fundo da carta` : c}
+                onClick={() => {
+                  onChange(c);
+                  setAberta(false);
+                }}
+              />
+            );
+          })}
+          <small className="cor-lib-dica">
+            Só as cores dos estilos que você tem. Estilo novo, cores novas.{fundos ? ' As riscadas sumiriam no fundo da carta.' : ''}
+          </small>
         </div>
       )}
     </div>
@@ -223,7 +241,9 @@ const FIGURAS = [
 function FaceEditor({ st, set }: { st: CardFaceStyle; set: Setter<CardFaceStyle> }) {
   const sc = (k: keyof CardFaceStyle['suitColors'], v: string) => set({ suitColors: { ...st.suitColors, [k]: v } });
   const comp = useContext(PecasCtx);
-  const temCores = (n: Record<string, string>) => Object.values(n).every((c) => comp.cores.includes(c));
+  // (os naipes, os números e a letra da figura têm de se ler no papel: veja `frenteLegivel` — o arco-íris não tem papel)
+  const fundos = st.special === 'rainbow' ? undefined : [st.bg, st.bgGradient];
+  const temCores = (n: Record<string, string>) => Object.values(n).every((c) => comp.cores.includes(c) && (!fundos || seLe(c, fundos)));
   const molduras: string[] = useLiberadas('frame', MOLDURAS_DA_FRENTE.map((m) => m.value));
   const centros: string[] = useLiberadas('center', CENTROS.map((m) => m.value));
   const figuras: string[] = useLiberadas('court', FIGURAS.map((m) => m.value));
@@ -240,10 +260,10 @@ function FaceEditor({ st, set }: { st: CardFaceStyle; set: Setter<CardFaceStyle>
       </Section>
       <Section title="Naipes">
         <div className="color-grid">
-          <CorLiberada label="♠ Espadas" value={st.suitColors.s} onChange={(v) => sc('s', v)} />
-          <CorLiberada label="♥ Copas" value={st.suitColors.h} onChange={(v) => sc('h', v)} />
-          <CorLiberada label="♦ Ouros" value={st.suitColors.d} onChange={(v) => sc('d', v)} />
-          <CorLiberada label="♣ Paus" value={st.suitColors.c} onChange={(v) => sc('c', v)} />
+          <CorLiberada label="♠ Espadas" value={st.suitColors.s} onChange={(v) => sc('s', v)} fundos={fundos} />
+          <CorLiberada label="♥ Copas" value={st.suitColors.h} onChange={(v) => sc('h', v)} fundos={fundos} />
+          <CorLiberada label="♦ Ouros" value={st.suitColors.d} onChange={(v) => sc('d', v)} fundos={fundos} />
+          <CorLiberada label="♣ Paus" value={st.suitColors.c} onChange={(v) => sc('c', v)} fundos={fundos} />
         </div>
         <div className="row gap">
           {temCores(NAIPES_DUAS) && (
@@ -290,7 +310,7 @@ function FaceEditor({ st, set }: { st: CardFaceStyle; set: Setter<CardFaceStyle>
           options={FIGURAS.filter((m) => figuras.includes(m.value))}
         />
         <div className="color-grid">
-          <CorLiberada label="Figura" value={st.courtColor} onChange={(v) => set({ courtColor: v })} />
+          <CorLiberada label="Figura" value={st.courtColor} onChange={(v) => set({ courtColor: v })} fundos={fundos} />
           <CorLiberada label="Detalhe" value={st.courtAccent} onChange={(v) => set({ courtAccent: v })} />
         </div>
       </Section>
@@ -472,7 +492,7 @@ function ChipEditor({ st, set }: { st: ChipStyle; set: Setter<ChipStyle> }) {
   );
 }
 
-const TPATTERN_LABEL: Record<TablePattern, string> = { none: 'Liso', lines: 'Linhas', hex: 'Hexágonos', sakura: 'Sakura', suits: 'Naipes', damask: 'Damasco' };
+const TPATTERN_LABEL: Record<TablePattern, string> = { none: 'Liso', lines: 'Linhas', hex: 'Hexágonos', sakura: 'Sakura', suits: 'Naipes', damask: 'Damasco', tabuas: 'Tábuas' };
 
 function TableEditor({ st, set }: { st: TableStyle; set: Setter<TableStyle> }) {
   const estampas = useLiberadas('pattern', TABLE_PATTERNS);
@@ -1145,7 +1165,14 @@ export function Studio({
     setConfirmDel(false);
   };
 
-  const commit = (next: StyleMap[StyleKind]) => {
+  const commit = (proximo: StyleMap[StyleKind]) => {
+    // A frente nunca fica com o naipe sumido no papel: trocar o fundo para um em que um naipe (ou a letra
+    // da figura) não se lê troca aquela cor pela mais parecida das que se leem.
+    let next = proximo;
+    if (kind === 'face') {
+      next = frenteLegivel(proximo as CardFaceStyle, pecas.comp.cores);
+      if (next !== proximo) toast('Os naipes que sumiam no fundo novo mudaram de cor.');
+    }
     if (preset) {
       const copy = { ...next, id: newId(), name: `${current.name} (cópia)`, from: current.id } as StyleMap[StyleKind];
       profile.saveStyle(kind, copy);
@@ -1183,7 +1210,10 @@ export function Studio({
       const obj = parseJsonc(text) as { kind?: StyleKind; style?: unknown } | null;
       const k: StyleKind = obj && typeof obj.kind === 'string' && obj.kind in PRESETS ? obj.kind : kind;
       // o estilo importado chega com as peças que a pessoa tem: cada cor vira a mais parecida da paleta dela
-      const st = encaixar(k, SANITIZE[k](obj?.style ?? obj), pecasDaConta(k, owned).comp);
+      const comp = pecasDaConta(k, owned).comp;
+      const encaixado = encaixar(k, SANITIZE[k](obj?.style ?? obj), comp);
+      // (a frente importada também: com os naipes legíveis no fundo dela)
+      const st = k === 'face' ? frenteLegivel(encaixado as CardFaceStyle, comp.cores) : encaixado;
       const saved = { ...st, id: newId(), name: st.name || 'Importado' } as StyleMap[StyleKind];
       profile.saveStyle(k, saved);
       setTab(k);

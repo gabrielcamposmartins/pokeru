@@ -454,6 +454,17 @@ export function criarTecido() {
         float deLado = dot(n, normalize(vec3(-0.72, 0.6, 0.34)));
         float chapa = smoothstep(0.0, 0.04, deLado + 0.1 - (1.0 - smoothstep(0.05, 0.42, vAr)) * 0.7);
         vec3 anime = mix(mix(sombra, claro, 0.35), claro, chapa);
+        if (enfeite == 11 && gl_FrontFacing) {
+          // o lustro: uma peça polida (um botão de pressão esmaltado). O reflexo da luz, vivo e de
+          // beirada nítida, o do céu no que está virado para cima e o do ambiente no contorno
+          vec3 h = normalize(l + v);
+          float reflexo = smoothstep(0.9, 0.955, dot(n, h));
+          float ceu = smoothstep(0.35, 0.95, n.y) * 0.16;
+          float contorno = pow(1.0 - max(dot(n, v), 0.0), 2.2);
+          vec3 lustro = vec3(1.0, 0.98, 0.96) * reflexo * 0.92 + vec3(0.52, 0.6, 0.78) * (ceu + contorno * 0.5);
+          macio += lustro;
+          anime += lustro;
+        }
         gl_FragColor = vec4(mix(macio, anime, uAnime), 1.0);
       }
     `,

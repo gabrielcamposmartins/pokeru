@@ -221,7 +221,9 @@ describe('o traço manda na mesa', () => {
         expect(e.iters).toBeGreaterThan(0);
         expect(e.noise).toBeGreaterThan(0);
         expect(e.bluff).toBeGreaterThanOrEqual(0);
-        expect(e.bluff).toBeLessThanOrEqual(0.35);
+        expect(e.bluff).toBeLessThanOrEqual(0.5);
+        expect(e.gamble).toBeGreaterThanOrEqual(0);
+        expect(e.gamble).toBeLessThanOrEqual(0.6);
         expect(e.aggression).toBeGreaterThan(0);
         expect(e.aggression).toBeLessThan(1);
         expect(e.bet).toBeGreaterThan(0.5);

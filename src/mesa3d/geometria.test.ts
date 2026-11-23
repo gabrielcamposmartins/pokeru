@@ -16,8 +16,12 @@ import {
   TRILHO,
   homografia,
   lenteDaTela,
+  MEIA_PLACA,
+  ZONA_DOS_BRACOS,
   lugares,
   mundoParaPlano,
+  retanguloTocaPoligono,
+  zonaDosBracos,
   noMundo,
   pelaHomografia,
   planoParaMundo,
@@ -231,6 +235,37 @@ describe('mesa 3D: a câmera e a camada 2D deitada no tampo', () => {
         const c = projetar(g.cards);
         expect(Math.abs(g.plate.x - c.x) >= 170 || Math.abs(g.plate.y - c.y) >= 100, `${n} lugares, visual ${g.vis}`).toBe(true);
       }
+    }
+  });
+
+  it('placa nenhuma cobre os pulsos de ninguém, nem outra placa', () => {
+    for (const n of [2, 3, 4, 5, 6]) {
+      for (const hasMe of [true, false]) {
+        for (const sobra of [0, 160]) {
+          const geo = seatLayout3d(n, 0, hasMe, sobra);
+          const zonas = lugares(n).map(zonaDosBracos);
+          const outras = geo.filter((g) => !g.isMe);
+          for (const g of outras) {
+            for (const [i, z] of zonas.entries()) expect(retanguloTocaPoligono(g.plate, MEIA_PLACA, z), `${n} lugares, placa ${g.vis} nos braços de ${i}`).toBe(false);
+            for (const o of outras) {
+              if (o === g) continue;
+              expect(Math.abs(g.plate.x - o.plate.x) >= 2 * MEIA_PLACA.x || Math.abs(g.plate.y - o.plate.y) >= 2 * MEIA_PLACA.y, `${n} lugares: ${g.vis} e ${o.vis}`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('a zona dos braços pega os pulsos de todas as poses de descanso', () => {
+    // (onde os pulsos ficam, medido na mesa: os de cada pose de descanso, nas coordenadas do lugar,
+    // e o fim de uma pilha de cinco pulseiras subindo pelo antebraço)
+    const pulsos = [[0.17, 0.31], [0.12, 0.35], [0.06, 0.33], [-0.03, 0.31], [0.1, 0.34], [0.12, 0.26], [0.09, 0.39], [0.15, 0.225]];
+    const { lado, perto, longe } = ZONA_DOS_BRACOS;
+    for (const [x, z] of pulsos) {
+      expect(Math.abs(x)).toBeLessThanOrEqual(lado);
+      expect(z).toBeGreaterThanOrEqual(perto);
+      expect(z).toBeLessThanOrEqual(longe);
     }
   });
 

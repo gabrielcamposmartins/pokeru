@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BACK_PRESETS, CHIP_PRESETS, FACE_PRESETS, TABLE_PRESETS, sanitizeCosmetics, type CardBackStyle } from './styles';
-import { cabeNoQueTem, componentesDe, corMaisProxima, encaixar, liberado } from './componentes';
+import { CONTRASTE_MINIMO, cabeNoQueTem, componentesDe, contraste, corMaisProxima, encaixar, frenteLegivel, liberado, seLe } from './componentes';
 import { clampCosmetics, freeIdOf } from './catalog';
 
 /**
@@ -67,6 +67,46 @@ describe('encaixar no que a conta tem', () => {
     const comp = componentesDe('face', [face]);
     const pronto = encaixar('face', { ...face, suitColors: { ...face.suitColors, h: '#00ffee' } }, comp);
     expect(comp.cores).toContain(pronto.suitColors.h);
+  });
+});
+
+describe('o naipe se lê no papel', () => {
+  it('o contraste é o do WCAG: preto no branco é 21, a mesma cor é 1', () => {
+    expect(contraste('#000000', '#ffffff')).toBeCloseTo(21, 0);
+    expect(contraste('#d0243b', '#d0243b')).toBeCloseTo(1, 5);
+    expect(seLe('#ffffff', ['#fbfaf6'])).toBe(false);
+    expect(seLe('#1b1b24', ['#ffffff', '#f2eee6'])).toBe(true);
+  });
+
+  it('toda frente de série é legível: os naipes e a letra da figura, nos dois tons do fundo', () => {
+    for (const f of FACE_PRESETS) {
+      if (f.special === 'rainbow') continue;
+      for (const c of [...Object.values(f.suitColors), f.courtColor]) {
+        expect(Math.min(contraste(c, f.bg), contraste(c, f.bgGradient)), `${f.id} ${c}`).toBeGreaterThanOrEqual(CONTRASTE_MINIMO);
+      }
+      expect(frenteLegivel(f)).toBe(f);
+    }
+  });
+
+  it('branco no branco e preto no preto viram a cor mais parecida que se lê', () => {
+    const f = FACE_PRESETS[0];
+    const branca = { ...f, bg: '#ffffff', bgGradient: '#f4f1ea', suitColors: { s: '#ffffff', h: '#d0243b', d: '#fdfdfd', c: '#1b1b24' }, courtColor: '#ffffff' };
+    const lida = frenteLegivel(branca, ['#ffffff', '#1b1b24', '#d0243b', '#2a2a40']);
+    for (const c of [...Object.values(lida.suitColors), lida.courtColor]) expect(seLe(c, [lida.bg, lida.bgGradient]), c).toBe(true);
+    // a que já se lia fica como estava
+    expect(lida.suitColors.h).toBe('#d0243b');
+    expect(lida.suitColors.c).toBe('#1b1b24');
+    // sem nenhuma da paleta que se leia, vai a de reserva que contrasta mais
+    const preta = { ...f, bg: '#101014', bgGradient: '#000000', suitColors: { s: '#000000', h: '#000000', d: '#000000', c: '#000000' }, courtColor: '#000000' };
+    expect(frenteLegivel(preta, ['#000000']).suitColors.s).toBe('#fbf7ee');
+  });
+
+  it('o servidor não põe na mesa a frente do Estúdio com o naipe sumido', () => {
+    const c = sanitizeCosmetics({});
+    const f = FACE_PRESETS.find((p) => p.id === freeIdOf('face'))!;
+    const sumida = { ...f, id: 'custom-branca', bg: '#ffffff', bgGradient: '#ffffff', suitColors: { s: '#ffffff', h: '#ffffff', d: '#ffffff', c: '#ffffff' }, courtColor: '#ffffff' };
+    const mesa = clampCosmetics({ ...c, face: sumida }, []);
+    for (const cor of [...Object.values(mesa.face.suitColors), mesa.face.courtColor]) expect(seLe(cor, [mesa.face.bg, mesa.face.bgGradient]), cor).toBe(true);
   });
 });
 

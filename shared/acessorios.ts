@@ -112,9 +112,11 @@ export interface Luva extends Base {
    * `traje`: a que o traje do personagem tem (ou não tem); `nenhuma`: as mãos nuas; `inteira`: a
    * luva de passeio, com nervuras; `sem-dedos`: a de meio dedo, com a abertura nas costas da mão e
    * a tira do pulso; `tatica`: de meio dedo, com a placa dura em cima dos nós; `renda`: inteira, de
-   * renda vazada; `opera`: inteira e comprida, até o meio do antebraço; `manopla`: de placas de metal.
+   * renda vazada; `opera`: inteira e comprida, até o meio do antebraço; `manopla`: de placas de metal;
+   * `curta`: a de motorista — inteira nos dedos, para na mão antes do pulso, com o entalhe nas costas
+   * e um furo em cima de cada nó.
    */
-  feitio: 'traje' | 'nenhuma' | 'inteira' | 'sem-dedos' | 'tatica' | 'renda' | 'opera' | 'manopla';
+  feitio: 'traje' | 'nenhuma' | 'inteira' | 'sem-dedos' | 'tatica' | 'renda' | 'opera' | 'manopla' | 'curta';
   cor: string;
   /** A cor das costuras, das bainhas, das almofadas dos nós, das placas. */
   cor2: string;
@@ -122,10 +124,18 @@ export interface Luva extends Base {
   cor3?: string;
 }
 
-/** O que uma luva cobre: os dedos inteiros, só até o meio do primeiro osso, ou nada. (É por cima disso que os anéis e a pulseira vão.) */
+/**
+ * O que uma luva cobre: os dedos inteiros, só até o meio do primeiro osso, ou nada. (É por cima
+ * disso que os anéis vão. O pulso é outra conta: veja `luvaCobreOPulso`.)
+ */
 export function coberturaDaLuva(feitio: Luva['feitio']): 'nenhuma' | 'inteira' | 'sem-dedos' {
   if (feitio === 'nenhuma' || feitio === 'traje') return 'nenhuma';
   return feitio === 'sem-dedos' || feitio === 'tatica' ? 'sem-dedos' : 'inteira';
+}
+
+/** A luva chega ao pulso? A curta para na mão: a pulseira e o relógio ficam na pele, como sem luva. */
+export function luvaCobreOPulso(feitio: Luva['feitio']): boolean {
+  return feitio !== 'curta' && coberturaDaLuva(feitio) !== 'nenhuma';
 }
 
 export type Acessorio = Anel | Pulseira | Relogio | Esmalte | Luva;
@@ -189,12 +199,13 @@ export const ACESSORIOS: Acessorio[] = [
   { tipo: 'esmalte', id: 'esmalte-galaxia', nome: 'Galáxia', sobre: 'Azul quase preto, salpicado de pontos de brilho que acendem conforme a mão vira.', cor: '#161a3d', cor2: '#cfe4ff', efeito: 'glitter', metalico: true },
   // ───────────── luvas ─────────────
   { tipo: 'luva', id: 'luva-nenhuma', nome: 'Sem luvas', sobre: 'As mãos nuas, seja qual for o traje: é como todo mundo começa, e como os anéis e o esmalte aparecem melhor.', feitio: 'nenhuma', cor: '#18171d', cor2: '#34323d' },
-  { tipo: 'luva', id: 'luva-traje', nome: 'A do traje', sobre: 'A luva que o traje do personagem tem (os que têm): a de passeio do Ren, a de meio dedo da Marina e do Tobi.', feitio: 'traje', cor: '#18171d', cor2: '#34323d' },
+  { tipo: 'luva', id: 'luva-traje', nome: 'A do traje', sobre: 'A luva que o traje do personagem tem (os que têm): a de passeio do Ren, a curta do Alistair, a de meio dedo da Marina e do Tobi.', feitio: 'traje', cor: '#18171d', cor2: '#34323d' },
   { tipo: 'luva', id: 'luva-branca', nome: 'Luvas brancas', sobre: 'Luvas inteiras de tecido branco, com as três nervuras nas costas da mão.', feitio: 'inteira', cor: '#f1eee8', cor2: '#d6d1c8' },
   { tipo: 'luva', id: 'luva-couro', nome: 'Luvas de couro', sobre: 'Luvas inteiras de couro preto, de passeio, com nervuras em relevo.', feitio: 'inteira', cor: '#1a181e', cor2: '#3a3843' },
   { tipo: 'luva', id: 'luva-meio-dedo-branca', nome: 'Meio dedo brancas', sobre: 'Luvas sem dedos, brancas: abertas nas costas da mão, com a tira do pulso presa por um botão de pressão dourado.', feitio: 'sem-dedos', cor: '#f1eee8', cor2: '#cfc9bf', cor3: OURO },
   { tipo: 'luva', id: 'luva-meio-dedo-vermelha', nome: 'Meio dedo vermelhas', sobre: 'Luvas sem dedos de couro vermelho, abertas nas costas da mão, com os reforços dos nós e a tira do pulso em preto.', feitio: 'sem-dedos', cor: '#b81d2b', cor2: '#1c1a20', cor3: PRATA },
   { tipo: 'luva', id: 'luva-renda', nome: 'Luvas de renda', sobre: 'Luvas inteiras de renda preta: o desenho da renda deixa ver a pele por baixo.', feitio: 'renda', cor: '#17151c', cor2: '#3a3446' },
+  { tipo: 'luva', id: 'luva-motorista', nome: 'Luvas de motorista', sobre: 'Luvas curtas de couro castanho: param na mão, antes do pulso, com um furo em cima de cada nó, o entalhe nas costas e um botão de pressão preto, polido, ao lado dele.', feitio: 'curta', cor: '#6e4124', cor2: '#3d2313', cor3: '#0b0b0f' },
   { tipo: 'luva', id: 'luva-tatica', nome: 'Luvas táticas', sobre: 'De meio dedo, em tecido verde-oliva, com uma placa dura moldada em cima dos nós e a tira do pulso.', feitio: 'tatica', cor: '#3d4632', cor2: '#1b1c1f', cor3: '#8a8f99' },
   { tipo: 'luva', id: 'luva-opera', nome: 'Luvas de ópera', sobre: 'Luvas inteiras e compridas de cetim cor de vinho, que sobem até o meio do antebraço.', feitio: 'opera', cor: '#7a1230', cor2: '#a82848' },
   { tipo: 'luva', id: 'luva-manopla', nome: 'Manoplas', sobre: 'Luvas de armadura: placas de aço em cada dedo e nas costas da mão, com frisos de ouro e o punho aberto em sino.', feitio: 'manopla', cor: '#aab1c0', cor2: '#7d8494', cor3: OURO },

@@ -113,8 +113,13 @@ export interface ChipStyle {
   shine: boolean;
 }
 
-export type TablePattern = 'none' | 'lines' | 'hex' | 'sakura' | 'suits' | 'damask';
-export const TABLE_PATTERNS: TablePattern[] = ['none', 'lines', 'hex', 'sakura', 'suits', 'damask'];
+/**
+ * A estampa do tampo. As de feltro são um bordado tom sobre tom (na faixa da beirada e no medalhão
+ * do meio); `tabuas` não é bordado: é o tampo inteiro de madeira, feito de tábuas — as frestas, as
+ * emendas, os pregos e o veio (o desenho está em src/render/TableFelt.tsx).
+ */
+export type TablePattern = 'none' | 'lines' | 'hex' | 'sakura' | 'suits' | 'damask' | 'tabuas';
+export const TABLE_PATTERNS: TablePattern[] = ['none', 'lines', 'hex', 'sakura', 'suits', 'damask', 'tabuas'];
 
 export interface TableStyle {
   id: string;
@@ -831,6 +836,22 @@ export const TABLE_PRESETS: TableStyle[] = [
     logoColor: '#f0cf8a',
     bgTop: '#1d2a22',
     bgBottom: '#070b09',
+  },
+  {
+    // a mesa de madeira: o tampo de tábuas de carvalho (o "feltro" é a cor da madeira), a borda de
+    // madeira escura com o friso de latão, e o nome marcado a fogo
+    id: 'table-wood',
+    name: 'Tábuas de Carvalho',
+    felt: '#8a5a2e',
+    feltLight: '#b17d45',
+    rail: '#3c2312',
+    railAccent: '#c08a3e',
+    pattern: 'tabuas',
+    patternColor: '#f3ddb0',
+    logoText: 'POKERU',
+    logoColor: '#241206',
+    bgTop: '#2a1c12',
+    bgBottom: '#0b0705',
   },
 ];
 

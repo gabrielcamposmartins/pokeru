@@ -17,3 +17,19 @@ export function hash01(...parts: number[]): number {
 export function jitter(...parts: number[]): number {
   return hash01(...parts) * 2 - 1;
 }
+
+/** Um número estável de um texto (o id da sala, o de uma peça): para semear o ruído com o que é igual em todas as telas. */
+export function hashTexto(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0) % 1_000_003;
+}
+
+/**
+ * Um sorteador estável: devolve, chamada após chamada, a mesma fila de números em [0, 1) para as
+ * mesmas `partes`. É o `Math.random` de quem precisa sortear igual em todas as telas da mesa.
+ */
+export function sorteador(...partes: number[]): () => number {
+  let n = 0;
+  return () => hash01(...partes, n++);
+}

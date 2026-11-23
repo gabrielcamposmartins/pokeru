@@ -49,16 +49,19 @@ describe('os acessórios das mãos', () => {
     expect(sanitizeAcessorios(undefined).luvas).toEqual({ E: 'luva-nenhuma', D: 'luva-nenhuma' });
   });
 
-  it('todo acessório pago sai de uma roleta, metade de cada — com a aliança, que agora é paga e sai do Dragão, são pares: 27 e 27', () => {
+  it('todo acessório pago sai de uma roleta, metade de cada — 28 nas Flores (com as luvas de motorista, a peça a mais) e 27 no Dragão', () => {
     const pagos = ACESSORIOS.filter((a) => !isFree(itemKey('acessorio', a.id)));
     const [flores, dragao] = ROULETTES.map((r) => dropsOf(r).filter((d) => d.kind === 'acessorio'));
     expect(flores.length + dragao.length).toBe(pagos.length);
-    expect(pagos).toHaveLength(54);
-    expect(flores).toHaveLength(27);
+    expect(pagos).toHaveLength(55);
+    expect(flores).toHaveLength(28);
     expect(dragao).toHaveLength(27);
-    // e em cada degrau também: a mesma conta — a aliança lisa (comum, no Dragão) fechou o par do relógio de campo (nas Flores)
+    // e em cada degrau também: a mesma conta — a aliança lisa (comum, no Dragão) fechou o par do relógio de campo (nas Flores).
+    // Só o raro tem uma a mais nas Flores: as luvas de motorista, que ainda não têm par no Dragão
     const conta = (l: typeof flores, r: string) => l.filter((d) => rarityOf(d.key) === r).length;
-    for (const r of ['lendario', 'epico', 'raro', 'incomum', 'comum'] as const) expect(conta(flores, r), r).toBe(conta(dragao, r));
+    for (const r of ['lendario', 'epico', 'incomum', 'comum'] as const) expect(conta(flores, r), r).toBe(conta(dragao, r));
+    expect(conta(flores, 'raro')).toBe(conta(dragao, 'raro') + 1);
+    expect(flores.map((d) => d.key)).toContain('acessorio:luva-motorista');
     expect(conta(flores, 'lendario')).toBe(4);
     expect(conta(flores, 'comum')).toBe(5);
     expect(dragao.map((d) => d.key)).toContain('acessorio:anel-alianca');

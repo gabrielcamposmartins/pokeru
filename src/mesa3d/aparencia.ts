@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { boardSlot, CARD_W } from '../game/layout';
 import { CardBackArt, CardFaceArt } from '../render/CardArt';
 import { ChipFace } from '../render/Chip';
-import { ESTAMPA_DO_FELTRO, FeltPattern } from '../render/TableFelt';
+import { ESTAMPA_DO_FELTRO, FeltPattern, estampaInteira } from '../render/TableFelt';
 import type { Card } from '../../shared/cards';
 import type { CardBackStyle, CardFaceStyle, ChipStyle, TableStyle } from '../../shared/styles';
 import { shade } from '../util/color';
@@ -273,7 +273,10 @@ export function texturaDoFeltro(st: TableStyle): THREE.CanvasTexture {
     ctx.fillStyle = g;
     ctx.fillRect(-L, -L, 2 * L, 2 * L);
     ctx.restore();
-    if (estampa) {
+    if (estampa && estampaInteira(st.pattern)) {
+      // as tábuas: são o tampo inteiro, com a força delas (já recortado no estádio)
+      ctx.drawImage(estampa, 0, 0, L, A);
+    } else if (estampa) {
       // A estampa só nos pontos-chave (veja ESTAMPA_DO_FELTRO): uma faixa rente à beirada e um medalhão
       // no centro, atrás do pote e das cartas da mesa; o resto do feltro fica liso.
       const faixa = ESTAMPA_DO_FELTRO.faixa * METRO_POR_PX;

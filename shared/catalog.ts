@@ -1,5 +1,5 @@
 import { ACESSORIOS, ESMALTE_PADRAO, LUVA_PADRAO, comLegado, findAcessorio, type Acessorios, type TipoDeAcessorio } from './acessorios';
-import { componentesDe, encaixar } from './componentes';
+import { componentesDe, encaixar, frenteLegivel } from './componentes';
 import {
   AURA_IDS,
   BACK_PRESETS,
@@ -209,6 +209,7 @@ const RARIDADE_DE: Record<string, Raridade> = {
   // raro: o conjunto vitoriano, o mais trabalhado de cada tipo
   'table:table-victorian': 'raro',
   'table:table-victorian-wine': 'raro',
+  'table:table-wood': 'raro',
   'back:back-victorian': 'raro',
   'back:back-victorian-green': 'raro',
   'face:face-victorian': 'raro',
@@ -293,6 +294,7 @@ const RARIDADE_DE: Record<string, Raridade> = {
   'acessorio:luva-meio-dedo-vermelha': 'raro',
   'acessorio:luva-renda': 'raro',
   'acessorio:luva-tatica': 'raro',
+  'acessorio:luva-motorista': 'raro',
   'acessorio:esmalte-degrade': 'raro',
   'acessorio:esmalte-galaxia': 'raro',
   'acessorio:anel-ebano': 'incomum',
@@ -659,12 +661,19 @@ function estiloNoQueTem<T extends { id: string }>(kind: 'face' | 'back' | 'chip'
   return encaixar(kind, st, componentesDe(kind, presets.filter((p) => ownsItem(owned, kind, p.id))));
 }
 
-/** A frente: como os outros estilos, e o material (o vidro, o arco-íris) só se alguma frente da conta o tem. */
+/**
+ * A frente: como os outros estilos, e o material (o vidro, o arco-íris) só se alguma frente da conta o
+ * tem. A feita no Estúdio vai com os naipes legíveis no fundo (`frenteLegivel`): branco no branco não
+ * vai para a mesa de ninguém.
+ */
 function frenteNoQueTem(face: CardFaceStyle, owned: readonly string[] | undefined): CardFaceStyle {
-  const st = estiloNoQueTem('face', face, owned, FACE_PRESETS);
-  if (!st.special || FACE_PRESETS.some((p) => p.special === st.special && ownsItem(owned, 'face', p.id))) return st;
-  const { special: _material, ...depapel } = st;
-  return depapel;
+  let st = estiloNoQueTem('face', face, owned, FACE_PRESETS);
+  if (st.special && !FACE_PRESETS.some((p) => p.special === st.special && ownsItem(owned, 'face', p.id))) {
+    const { special: _material, ...depapel } = st;
+    st = depapel;
+  }
+  if (findItem(itemKey('face', st.id))) return st;
+  return frenteLegivel(st, componentesDe('face', FACE_PRESETS.filter((p) => ownsItem(owned, 'face', p.id))).cores);
 }
 
 /**

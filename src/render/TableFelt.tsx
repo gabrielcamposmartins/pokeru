@@ -1,14 +1,105 @@
-import { memo, useId } from 'react';
+import { memo, useId, type ReactNode } from 'react';
 import type { TablePattern, TableStyle } from '../../shared/styles';
 import { cleanId, shade } from '../util/color';
 import { Damask, Flower, SuitGlyph } from './suits';
 import { CARD_H, CARD_W, CENTER, FELT, PLANE_H, PLANE_W, RAIL, boardSlot } from '../game/layout';
 import { useUiTheme } from '../ui/themes';
 
+/** Um sorteio com semente: as tábuas saem sempre iguais (o ladrilho não muda de um desenho para o outro). */
+function sorteio(semente: number): () => number {
+  let a = semente >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * O ladrilho das tábuas: seis tábuas deitadas ao comprido da mesa, cada uma de um tom (mais clara
+ * ou mais escura que a madeira que há embaixo — é desenhado em preto e branco transparentes, por
+ * cima da cor do estilo), com as emendas de topo desencontradas, dois pregos de cada lado de cada
+ * emenda, o veio correndo ao longo de cada tábua e uns nós.
+ */
+export const TABUAS = { larg: 840, tabua: 88, quantas: 6 };
+const TOM_DA_TABUA = [0.07, -0.07, 0.02, -0.12, 0.05, -0.03];
+const EMENDA_DA_TABUA = [150, 560, 330, 720, 60, 470];
+
+function Tabuas() {
+  const { larg, tabua, quantas } = TABUAS;
+  const r = sorteio(41);
+  const pecas: ReactNode[] = [];
+  for (let i = 0; i < quantas; i++) {
+    const y = i * tabua;
+    const tom = TOM_DA_TABUA[i];
+    pecas.push(<rect key={`t${i}`} x={0} y={y} width={larg} height={tabua} fill={tom > 0 ? '#fff' : '#000'} opacity={Math.abs(tom)} />);
+    // o veio: riscos compridos, ondulados, que emendam de um ladrilho no outro (acabam na altura em que começam)
+    for (let k = 0; k < 6; k++) {
+      const yy = y + 8 + ((tabua - 16) * (k + 0.5)) / 6 + (r() - 0.5) * 5;
+      const a = (r() - 0.5) * 9;
+      const b = (r() - 0.5) * 9;
+      pecas.push(
+        <path
+          key={`v${i}-${k}`}
+          d={`M0 ${yy.toFixed(1)} C${larg * 0.2} ${(yy + a).toFixed(1)} ${larg * 0.35} ${(yy + a).toFixed(1)} ${larg * 0.5} ${(yy + (a + b) / 2).toFixed(1)} S${larg * 0.8} ${(yy + b).toFixed(1)} ${larg} ${yy.toFixed(1)}`}
+          fill="none"
+          stroke="#000"
+          strokeWidth={0.9 + r() * 1.1}
+          opacity={0.07 + r() * 0.09}
+        />,
+      );
+    }
+    // um nó, em algumas: o miolo escuro e os anéis do veio em volta dele
+    if (i % 2 === 0) {
+      const nx = (EMENDA_DA_TABUA[i] + 260 + r() * 180) % larg;
+      const ny = y + 22 + r() * (tabua - 44);
+      pecas.push(
+        <g key={`n${i}`} fill="none" stroke="#000">
+          <ellipse cx={nx} cy={ny} rx={7} ry={4.2} fill="#000" stroke="none" opacity={0.34} />
+          <ellipse cx={nx} cy={ny} rx={12} ry={7} strokeWidth={1.2} opacity={0.2} />
+          <ellipse cx={nx} cy={ny} rx={18} ry={10} strokeWidth={1} opacity={0.12} />
+        </g>,
+      );
+    }
+    // a emenda de topo (onde uma tábua acaba e a outra começa), com a aresta que pega luz, e os pregos
+    const x = EMENDA_DA_TABUA[i];
+    pecas.push(
+      <g key={`e${i}`}>
+        <rect x={x - 1.4} y={y} width={2.8} height={tabua} fill="#000" opacity={0.5} />
+        <rect x={x + 1.4} y={y} width={1.2} height={tabua} fill="#fff" opacity={0.1} />
+        {[-13, 13].map((dx) =>
+          [0.24, 0.76].map((f) => (
+            <g key={`${dx}-${f}`}>
+              <circle cx={x + dx} cy={y + tabua * f} r={3.1} fill="#000" opacity={0.52} />
+              <circle cx={x + dx - 0.9} cy={y + tabua * f - 0.9} r={1} fill="#fff" opacity={0.3} />
+            </g>
+          )),
+        )}
+      </g>,
+    );
+    // a fresta entre esta tábua e a de cima: escura, com um fio de luz na quina de baixo
+    pecas.push(<rect key={`f${i}`} x={0} y={y - 1.6} width={larg} height={3.2} fill="#000" opacity={0.58} />);
+    pecas.push(<rect key={`l${i}`} x={0} y={y + 1.6} width={larg} height={1.2} fill="#fff" opacity={0.1} />);
+  }
+  return <>{pecas}</>;
+}
+
+/** A estampa cobre o tampo inteiro, e com a força dela? (As tábuas são o próprio tampo, não um bordado no feltro.) */
+export const estampaInteira = (pattern: TablePattern): boolean => pattern === 'tabuas';
+
 /** O padrão do feltro (um `<pattern>` de SVG). A mesa 3D também o usa, para estampar o feltro dela. */
 export function FeltPattern({ id, pattern, color }: { id: string; pattern: TablePattern; color: string }) {
   const common = { id, patternUnits: 'userSpaceOnUse' as const };
   switch (pattern) {
+    case 'tabuas':
+      // (o meio da mesa cai no meio de uma tábua, e não numa fresta)
+      return (
+        <pattern {...common} width={TABUAS.larg} height={TABUAS.tabua * TABUAS.quantas} patternTransform={`translate(0 ${-TABUAS.tabua / 2 + 6})`}>
+          <Tabuas />
+        </pattern>
+      );
     case 'lines':
       return (
         <pattern {...common} width={26} height={26} patternTransform="rotate(35)">
@@ -134,7 +225,9 @@ export const TableFelt = memo(function TableFelt({ st, showSlots = true }: { st:
       <ellipse cx={cx} cy={cy} rx={FELT.rx + 10} ry={FELT.ry + 10} fill="none" stroke="#000" strokeOpacity={0.3} strokeWidth={1.5} />
       {/* feltro */}
       <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#felt${uid})`} />
-      {st.pattern !== 'none' && (
+      {/* as tábuas são o tampo inteiro; as outras estampas, um bordado na faixa e no medalhão */}
+      {estampaInteira(st.pattern) && <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#pat${uid})`} />}
+      {st.pattern !== 'none' && !estampaInteira(st.pattern) && (
         <>
           <ellipse cx={cx} cy={cy} rx={FELT.rx} ry={FELT.ry} fill={`url(#pat${uid})`} opacity={st.pattern === 'damask' ? ESTAMPA_DO_FELTRO.forcaDoDamasco : ESTAMPA_DO_FELTRO.forca} mask={`url(#onde${uid})`} />
           {/* um filete fecha a faixa por dentro, e dois cercam o medalhão: a estampa fica emoldurada, não solta no feltro */}

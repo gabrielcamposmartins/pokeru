@@ -30,9 +30,12 @@ import { MEIO, RAIO, type Lugar } from './geometria';
 import type { Corpo } from './modelos';
 import { trajeDe } from './modelos';
 import { sombraDosBracos } from './sombras';
+import { hash01, sorteador } from '../util/rand';
 
-/** Os descansos, um por assento visual (para a mesa não descansar em coro). */
+/** Os descansos, um por assento (para a mesa não descansar em coro): o de cada um é o mesmo em todas as telas. */
 export const DESCANSOS = ['idle-plana', 'idle-concha', 'idle-sobrepostas', 'idle-batucando', 'idle-plana', 'idle-concha'];
+/** De quantos em quantos segundos o relaxo dos dedos de cada mão muda (veja `Ator.semente`). */
+const RELAXO_S = 12;
 /** Quanto dura a passagem de uma pose para a outra (segundos). */
 const PASSAGEM = 0.32;
 /** Quantos passos o pano continua simulado depois que as mãos param (para assentar). */
@@ -147,7 +150,13 @@ export class Ator {
    * tem o seu), que de tempos em tempos muda devagar para outro — a mão parada não fica sempre igual,
    * nem de dedos esticados.
    */
-  private relaxos: Record<Lado, { de: Relaxo; para: Relaxo; u: number; falta: number; repouso: EstadoDaMao }> | null = null;
+  private relaxos: Record<Lado, { de: Relaxo; para: Relaxo; u: number; janela: number; repouso: EstadoDaMao }> | null = null;
+  /**
+   * A semente do acaso deste personagem (a sala e o assento: veja a cena). O relaxo dos dedos sai dela
+   * e do relógio, e não de `Math.random`: assim cada mão relaxa do mesmo jeito, na mesma hora, em
+   * todas as telas da mesa.
+   */
+  semente = 0;
   /**
    * Com o baralho na mão (quem dá as cartas, da hora em que o pega até pousá-lo): a esquerda fica
    * como o segura em qualquer gesto que não seja do próprio baralho — apostar, bater na mesa,
@@ -479,23 +488,29 @@ export class Ator {
    */
   private relaxada(pose: Pose, clipe: Clipe, dt: number): Pose {
     if (clipe.id === 'idle-sobrepostas') return pose;
+    // o jeito de cada mão muda a cada `RELAXO_S` segundos do relógio (cada mão com a sua defasagem), e
+    // é sorteado da semente e da janela: as telas de todos chegam ao mesmo jeito na mesma hora
+    const agora = Date.now() / 1000;
+    const janelaDe = (lado: Lado) => Math.floor((agora + hash01(this.semente, lado === 'E' ? 1 : 2) * RELAXO_S) / RELAXO_S);
+    const sorteado = (lado: Lado, janela: number) => relaxoAoAcaso(this.boneco, lado, sorteador(this.semente, lado === 'E' ? 1 : 2, janela));
     if (!this.relaxos) {
       const novo = (lado: Lado) => {
-        const r = relaxoAoAcaso(this.boneco, lado);
-        return { de: r, para: r, u: 1, falta: 4 + Math.random() * 10, repouso: descansoDe(this.boneco, lado) };
+        const janela = janelaDe(lado);
+        const r = sorteado(lado, janela);
+        return { de: r, para: r, u: 1, janela, repouso: descansoDe(this.boneco, lado) };
       };
       this.relaxos = { E: novo('E'), D: novo('D') };
     }
     const maos = { ...pose.maos };
     for (const lado of ['E', 'D'] as const) {
       const r = this.relaxos[lado];
-      r.falta -= dt;
-      if (r.falta <= 0) {
+      const janela = janelaDe(lado);
+      if (janela !== r.janela) {
         // de tempos em tempos, outro jeito (devagar: um segundo e meio de um para o outro)
         r.de = entreRelaxos(r.de, r.para, r.u);
-        r.para = relaxoAoAcaso(this.boneco, lado);
+        r.para = sorteado(lado, janela);
         r.u = 0;
-        r.falta = 7 + Math.random() * 12;
+        r.janela = janela;
       }
       r.u = Math.min(1, r.u + dt / 1.5);
       const m = pose.maos[lado];

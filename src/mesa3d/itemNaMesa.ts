@@ -111,8 +111,6 @@ export const LARGADA = {
   cai: 0.08,
   desigual: 0.1,
 } as const;
-const entre = (a: number, b: number): number => a + Math.random() * (b - a);
-const umLado = (): number => (Math.random() < 0.5 ? -1 : 1);
 /** A mola que leva a correia de uma abertura a outra: dura, com um nada de sobra (ela passa e volta). */
 const MOLA = { dura: 150, freia: 14 };
 /** Em quantas fatias da volta se mede o lado de dentro da correia. */
@@ -187,7 +185,11 @@ export class Correia {
     mao: 'E' | 'D',
     centro: readonly [number, number, number],
     raio: number,
+    /** De onde vem o sorteio da largada (o mesmo em todas as telas, quando quem chama o semeia — veja `sorteador`). */
+    acaso: () => number = Math.random,
   ) {
+    const entre = (a: number, b: number): number => a + acaso() * (b - a);
+    const umLado = (): number => (acaso() < 0.5 ? -1 : 1);
     const def = findAcessorio(id);
     this.raio = raio;
     this.rigida = !def || (def.tipo === 'pulseira' && (def.feitio === 'argola' || def.feitio === 'argolas'));

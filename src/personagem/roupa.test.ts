@@ -81,7 +81,8 @@ describe('a roupa da parte de cima', () => {
     const tem = (id: string, enfeite: number) => feitas.get(id)!.malha.enfeite.includes(enfeite);
     expect(tem('tobi', ENFEITE.dragao)).toBe(true);
     expect(tem('tobi', ENFEITE.canelado)).toBe(true);
-    expect(tem('ren', ENFEITE.dragaoE)).toBe(true);
+    // (o dragão do Ren fica na manga do casaco, que é pano: está no pano da esquerda e no da direita, e o material só o desenha na esquerda)
+    expect(TRAJES.find((t) => t.id === 'ren')!.panos!().map((p) => p.enfeite)).toEqual([ENFEITE.dragaoE, ENFEITE.dragaoE]);
     expect(tem('marina', ENFEITE.canelado)).toBe(true);
     expect(tem('violetta', ENFEITE.renda)).toBe(true);
     expect(tem('agnes', ENFEITE.renda)).toBe(true);
@@ -122,9 +123,11 @@ describe('a roupa da parte de cima', () => {
     const panos = (id: string) => (TRAJES.find((t) => t.id === id)!.panos?.() ?? []).map((p) => p.nome);
     expect(panos('yukina')).toEqual(['manga.E', 'manga.D']);
     expect(panos('marina')).toEqual(['jaqueta', 'manga.E', 'manga.D']);
-    expect(panos('alistair')).toEqual(['casaco']);
+    // (o Alistair, além do casaco, tem as mangas da camisa: justas, mas de pano)
+    expect(panos('alistair')).toEqual(['casaco', 'manga.E', 'manga.D']);
     expect(panos('violetta')).toEqual(['babado.E', 'babado.D', 'renda.E', 'renda.D']);
-    expect(panos('ren')).toEqual([]);
+    // (as mangas do casaco do Ren também são pano)
+    expect(panos('ren')).toEqual(['manga.E', 'manga.D']);
     expect(panos('tobi')).toEqual(['manga.E', 'manga.D']);
     expect(panos('agnes')).toEqual(['manga.E', 'manga.D']);
     expect(panos('goro')).toEqual(['manga.E', 'manga.D']);
@@ -137,7 +140,7 @@ describe('a roupa da parte de cima', () => {
 });
 
 describe('as luvas que o jogador escolhe', () => {
-  const FEITIOS = ['inteira', 'sem-dedos', 'tatica', 'renda', 'opera', 'manopla'] as const;
+  const FEITIOS = ['inteira', 'sem-dedos', 'tatica', 'renda', 'opera', 'manopla', 'curta'] as const;
   const estilo = (feitio: (typeof FEITIOS)[number] | 'nenhuma') => ({ feitio, cor: '#222222', cor2: '#555555', cor3: '#e0ad3e' });
 
   it('cada feitio tem as peças dele, todas marcadas como da luva; sem luvas, nenhuma', async () => {
@@ -187,6 +190,61 @@ describe('as luvas que o jogador escolhe', () => {
     // e a ponta do dedo médio fica de fora
     const d = J.dedos[1];
     expect(temPano(d.raiz[0] + d.rumo[0] * d.j2, d.raiz[2] + d.rumo[2] * d.j2, true)).toBe(false);
+  });
+
+  it('a curta para na mão: cobre os dedos e os nós, deixa o pulso de fora e tem o entalhe nas costas', async () => {
+    const { pecasDaLuva } = await import('./roupa');
+    const { juntas } = await import('./corpo');
+    const J = juntas();
+    const [corpo] = pecasDaLuva(estilo('curta'));
+    /** Há pano nesta linha vertical, vindo de cima (as costas da mão) ou de baixo (a palma)? */
+    const temPano = (x: number, z: number, deCima: boolean) => {
+      for (let k = 0; k < 400; k++) {
+        const y = J.punho[1] + (deCima ? 1 : -1) * (0.04 - k * 0.0001);
+        if (corpo.forma.d(x, y, z) < 0) return true;
+      }
+      return false;
+    };
+    const meioZ = (J.dedos[1].raiz[2] + J.dedos[2].raiz[2]) / 2 + 0.0015;
+    // o pulso e a base da mão ficam de fora, por cima e por baixo
+    for (const x of [J.punho[0] - 0.01, J.punho[0], J.punho[0] + 0.005]) {
+      expect(temPano(x, meioZ, true), `x = ${x}`).toBe(false);
+      expect(temPano(x, meioZ, false), `x = ${x}`).toBe(false);
+    }
+    // o entalhe: logo depois da boca, no meio das costas da mão, não há pano por cima — mas a palma está coberta, e os lados também
+    expect(temPano(J.punho[0] + 0.016, meioZ, true)).toBe(false);
+    expect(temPano(J.punho[0] + 0.016, meioZ, false)).toBe(true);
+    expect(temPano(J.punho[0] + 0.016, meioZ + 0.016, true)).toBe(true);
+    // dali para a frente a luva é inteira nas costas da mão...
+    expect(temPano(J.punho[0] + 0.06, meioZ, true)).toBe(true);
+    // ...menos em cima de cada nó, onde há um furo (por cima; a palma, por baixo, está coberta)
+    for (const n of J.dedos) {
+      expect(temPano(n.raiz[0] - 0.0046, n.raiz[2], true)).toBe(false);
+      expect(temPano(n.raiz[0] - 0.0046, n.raiz[2], false)).toBe(true);
+    }
+    const d = J.dedos[1];
+    expect(temPano(d.raiz[0] + d.rumo[0] * d.j2, d.raiz[2] + d.rumo[2] * d.j2, true)).toBe(true);
+  });
+
+  it('a do Alistair é a curta, e o punho da camisa dele acaba antes do pulso: entre os dois aparece a pele', async () => {
+    const { TRAJES, trajeTemLuva } = await import('./roupa');
+    const { juntas } = await import('./corpo');
+    const J = juntas();
+    const alistair = TRAJES.find((t) => t.id === 'alistair')!;
+    expect(trajeTemLuva(alistair)).toBe('curta');
+    const pecas = alistair.pecas().filter((p) => !p.semCobrir);
+    /** Alguma peça do traje cobre o braço ou a mão nesta altura (olhando de cima)? */
+    const coberto = (x: number) => {
+      for (let k = 0; k < 600; k++) {
+        const y = J.punho[1] + 0.05 - k * 0.0001;
+        if (pecas.some((p) => p.forma.d(x, y, J.punho[2]) < 0)) return true;
+      }
+      return false;
+    };
+    expect(coberto(J.punho[0] - 0.03)).toBe(true); // o punho da camisa
+    expect(coberto(J.punho[0])).toBe(false); // o pulso
+    expect(coberto(J.punho[0] + 0.005)).toBe(false);
+    expect(coberto(J.punho[0] + 0.06)).toBe(true); // a luva, nas costas da mão
   });
 
   it('a de ópera sobe pelo antebraço; a de passeio acaba no punho', async () => {

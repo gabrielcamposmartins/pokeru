@@ -14,7 +14,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { coberturaDaLuva, findAcessorio, type Acessorios, type Anel, type Luva, type Mao, type Pulseira, type Relogio } from '../../shared/acessorios';
+import { coberturaDaLuva, findAcessorio, luvaCobreOPulso, type Acessorios, type Anel, type Luva, type Mao, type Pulseira, type Relogio } from '../../shared/acessorios';
 import { campoDoCorpo, juntas, partesDoCorpo, PONTOS } from '../personagem/corpo';
 import { shade } from '../util/color';
 
@@ -618,7 +618,8 @@ function folgasCom(luva: Luva['feitio']): { anel: number; pulso: number } {
   if (luva === 'opera') return { anel: FOLGA.luva, pulso: 0.0034 };
   const cobre = coberturaDaLuva(luva);
   // (a luva sem dedos acaba antes do lugar do anel: ali o dedo está nu)
-  return { anel: cobre === 'inteira' ? FOLGA.luva : FOLGA.pele, pulso: cobre === 'nenhuma' ? FOLGA.pele + 0.0006 : FOLGA.punhoDaLuva };
+  // (e a curta para na mão: no pulso, a pulseira e o relógio ficam na pele)
+  return { anel: cobre === 'inteira' ? FOLGA.luva : FOLGA.pele, pulso: luvaCobreOPulso(luva) ? FOLGA.punhoDaLuva : FOLGA.pele + 0.0006 };
 }
 
 /**

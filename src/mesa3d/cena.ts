@@ -40,7 +40,7 @@ import { modeloPronto, prepararRoupa, useModelos, vestido } from './modelos';
 import { SEM_ACESSORIOS, chaveDosAcessorios, type Acessorios } from '../../shared/acessorios';
 import type { Palco3D } from './palco';
 import { shade } from '../util/color';
-import { hash01, jitter } from '../util/rand';
+import { hash01, hashTexto, jitter, sorteador } from '../util/rand';
 
 /** O que a cena precisa saber da partida (e dos cosméticos que valem nela agora). */
 export interface EntradaDaCena {
@@ -68,6 +68,8 @@ const NO_PUNHADO = 5;
 const ENTRE_COLUNAS = FICHA.raio * 2 + 0.003;
 /** As durações dos voos (ms, antes do ritmo da mesa), as mesmas dos voos 2D. */
 const VOO = { carta: 300, recolher: 420, descarte: 400, aposta: 420, recolherFichas: 520, pote: 760 };
+/** As janelas do relógio em que cada assento pode brincar com a ficha (veja `brincadeiras`). */
+const BRINCADEIRA_MS = 30_000;
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const EIXO_Y = V(0, 1, 0);
@@ -500,7 +502,7 @@ export class Cena3D implements Palco3D {
         const g = this.geo[seat];
         ator.semCabeca(seat === v.mySeat);
         if (g) ator.sentar(g.lugar);
-        if (g) ator.descansar(clipe(DESCANSOS[g.vis]) ?? clipe('idle-plana')!);
+        if (g) ator.descansar(this.descansoDe(seat));
       }
     }
     const k = chaveDoEstilo(e.mesa);
@@ -564,11 +566,13 @@ export class Cena3D implements Palco3D {
         return;
       }
       const ator = new Ator(id, modelo.corpo, modelo.roupa, acessorios);
+      // (o acaso dele — o relaxo dos dedos — sai da sala e do assento: é o mesmo em todas as telas)
+      ator.semente = this.acaso(0, seat);
       if (this.comBaralho === seat) this.comBaralho = null;
       ator.tela(this.medida.l || 1600, this.medida.a || 900);
       ator.semCabeca(seat === v.mySeat);
       ator.sentar(g.lugar);
-      ator.descansar(clipe(DESCANSOS[g.vis]) ?? clipe('idle-plana')!);
+      ator.descansar(this.descansoDe(seat));
       this.atores.set(seat, ator);
       // ainda fora da cena: entra quando estiver pronto para aparecer (veja `chegando`)
       const espera = { compilado: false, desde: performance.now() };
@@ -694,7 +698,7 @@ export class Cena3D implements Palco3D {
     this.soltas.set(seat, lista);
     const giroDoAtor = new THREE.Quaternion().setFromAxisAngle(EIXO_Y, Math.atan2(frente.x, frente.z));
     objs.forEach((o, i) => {
-      const r = (k: number) => hash01(seat * 131 + i * 17 + k, performance.now() | 0);
+      const r = (k: number) => this.acaso(3, this.mao, hashTexto(this.entrada?.view.street ?? ''), seat, i, k);
       const impulso = (forte ? 0.62 : 0.44) * (0.82 + 0.36 * r(1));
       const vel = frente.clone().multiplyScalar(impulso).addScaledVector(lado, (r(2) - 0.5) * 0.2).add(V(0, 0.04 + 0.12 * r(3), 0));
       // (saem quase deitadas, cada uma um pouco torta: é o que as faz cair de quina e rodopiar)
@@ -808,6 +812,29 @@ export class Cena3D implements Palco3D {
     return V(x + jitter(613, k) * MONTE.espalha, MESA + k * MONTE.sobe, z + jitter(613, k, 5) * MONTE.espalha);
   }
 
+  /**
+   * Um número em [0, 1) que é **o mesmo em todas as telas da mesa**: sai da sala e das `partes` (o
+   * assento, a mão, o que for), nunca de `Math.random` nem do relógio da página. É com ele que se
+   * sorteia tudo o que os outros também veem — o jeito de bater na mesa, quando alguém olha as cartas
+   * ou brinca com a ficha, como as fichas e as peças caem —, para a mesa ser a mesma para todos.
+   */
+  private acaso(...partes: number[]): number {
+    return hash01(hashTexto(this.entrada?.view.roomId ?? ''), ...partes);
+  }
+
+  /** A mão de agora (o número dela), para semear o acaso do que acontece nela. */
+  private get mao(): number {
+    return this.entrada?.view.handNo ?? 0;
+  }
+
+  /**
+   * O descanso de cada personagem: o do **assento** dele. Era o do lugar na tela, e cada um se vê
+   * embaixo — então a mesma pessoa descansava de um jeito numa tela e de outro na do vizinho.
+   */
+  private descansoDe(seat: number): Clipe {
+    return clipe(DESCANSOS[seat % DESCANSOS.length]) ?? clipe('idle-plana')!;
+  }
+
   /** A mão do dono, em descanso: de onde a peça sai (e para onde volta) quando não há o gesto. */
   private maoDe(seat: number): THREE.Vector3 {
     return this.doAssento(seat, 0.17, MESA + 0.03, 0.31);
@@ -859,7 +886,8 @@ export class Cena3D implements Palco3D {
       }
     } else if (def?.tipo === 'pulseira' || def?.tipo === 'relogio') {
       const { centro, raio } = this.pulso();
-      const c = new Correia(id, mao, centro, raio);
+      // (como ela cai na mesa — o tombo, o giro — é sorteado igual em todas as telas)
+      const c = new Correia(id, mao, centro, raio, sorteador(hashTexto(this.entrada?.view.roomId ?? ''), 9, this.mao, seat, hashTexto(id)));
       if (c.rigida) c.soltar();
       else {
         correia = c;
@@ -1002,7 +1030,7 @@ export class Cena3D implements Palco3D {
             item.grupo.position.copy(item.em);
           } else {
             // o aro que não abre é largado de pé, rente à mesa: tomba e deita de lado, pelo próprio peso
-            const r = (n: number) => hash01(seat * 53 + n, performance.now() | 0);
+            const r = (n: number) => this.acaso(4, this.mao, seat, hashTexto(id), n);
             const cai = V((r(1) - 0.5) * 0.05, 0, 0.03 + 0.04 * r(2));
             item.corpo = this.fisica.por(disco(item.grupo.position, item.grupo.quaternion, cai, V(2.5 + 2 * r(3), (r(4) - 0.5) * 3, (r(5) - 0.5) * 2), (item.grupo.userData.raio as number) ?? 0.03, Math.max(0.003, item.alto)));
           }
@@ -1014,7 +1042,7 @@ export class Cena3D implements Palco3D {
         if (avisou || !item) return;
         item.naMao = false;
         const frente = ator.noMundo(V(0, 0, 1)).sub(ator.noMundo(V(0, 0, 0))).setY(0).normalize();
-        const r = (n: number) => hash01(seat * 71 + n, performance.now() | 0);
+        const r = (n: number) => this.acaso(5, this.mao, seat, hashTexto(id), n);
         const vel = frente.clone().multiplyScalar(0.46 + 0.14 * r(1)).addScaledVector(V(frente.z, 0, -frente.x), (r(2) - 0.5) * 0.12).add(V(0, 0.1 + 0.1 * r(3), 0));
         const torto = item.grupo.quaternion.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler((r(4) - 0.5) * 0.5, 0, (r(5) - 0.5) * 0.5)));
         item.corpo = this.fisica.por(disco(item.grupo.position, torto, vel, V((r(6) - 0.5) * 10, (r(7) - 0.5) * 6, (r(8) - 0.5) * 10 + 4), (item.grupo.userData.raio as number) ?? 0.018, Math.max(0.003, item.alto)));
@@ -1213,7 +1241,8 @@ export class Cena3D implements Palco3D {
     if (!ator || this.emGesto(ator)) return false;
     // de cada seis vezes: três com os nós dos dedos (o punho fechado), duas com o tapinha e uma com os dois dedos
     const ids = ['check-nos', 'check-nos', 'check-nos', 'check-palma', 'check-palma', 'check-dedos'];
-    const c = clipe(ids[Math.floor(Math.random() * ids.length)]);
+    // (qual das três: sorteado igual em todas as telas — pela mão, pela rua e pelo assento)
+    const c = clipe(ids[Math.floor(this.acaso(1, this.mao, hashTexto(this.entrada?.view.street ?? ''), seat) * ids.length)]);
     if (!c) return false;
     // (avisa a cada vez que a mão bate na mesa: é quando o som toca)
     const batidas = BATIDAS[c.id] ?? [];
@@ -1255,7 +1284,7 @@ export class Cena3D implements Palco3D {
       if (!ator || !s || seat === this.entrada?.view.mySeat || seat === this.comBaralho || s.cards.length !== 2) continue;
       setTimeout(() => {
         if (!this.emGesto(ator) && !s.folded) ator.tocar(olhar, { vel: 1.25 });
-      }, 150 + Math.random() * 900);
+      }, 150 + this.acaso(2, this.mao, seat) * 900);
     }
   }
 
@@ -1434,23 +1463,31 @@ export class Cena3D implements Palco3D {
     return ator.ocupado && ator.gesto !== 'girar';
   }
 
-  /** Quando cada assento brinca de novo com uma ficha (o instante, em ms). */
-  private readonly proximaBrincadeira = new Map<number, number>();
+  /** A última janela do relógio em que cada assento já decidiu se brincava com a ficha. */
+  private readonly brincouNaJanela = new Map<number, number>();
 
   /**
    * De vez em quando, quem está esperando brinca com uma ficha: ela rola por cima dos dedos da mão
    * direita e volta por baixo. Só quem está de mãos livres — sem a vez, sem o baralho, sem cartas
    * abertas na frente, sem aposta nem pote a caminho — e tem fichas na mesa.
+   *
+   * O quando é o mesmo em todas as telas: o relógio é cortado em janelas de `BRINCADEIRA_MS`, e em
+   * cada uma cada assento tem um instante sorteado da sala (e brinca em pouco mais da metade delas).
+   * Quem passou do instante sem estar na mesa (a aba escondida, quem acabou de sentar) espera a
+   * próxima: começar atrasado seria brincar fora de hora.
    */
-  private brincadeiras(agora: number) {
+  private brincadeiras(_agora: number) {
     const v = this.entrada?.view;
     const girar = clipe('girar');
     if (!v || !girar) return;
+    const t = Date.now();
+    const janela = Math.floor(t / BRINCADEIRA_MS);
     for (const [seat, ator] of this.atores) {
-      let quando = this.proximaBrincadeira.get(seat);
-      if (quando === undefined) this.proximaBrincadeira.set(seat, (quando = agora + 8000 + Math.random() * 30000));
-      if (agora < quando) continue;
-      this.proximaBrincadeira.set(seat, agora + 25000 + Math.random() * 35000);
+      if (this.brincouNaJanela.get(seat) === janela) continue;
+      const quando = (janela + this.acaso(7, seat, janela)) * BRINCADEIRA_MS;
+      if (t < quando) continue;
+      this.brincouNaJanela.set(seat, janela);
+      if (t - quando > 1500 || this.acaso(8, seat, janela) > 0.55) continue;
       const s = v.seats[seat];
       const livre = s && s.stack > 0 && v.toAct !== seat && !ator.ocupado && !ator.seguraOBaralho && !this.chegando.has(ator);
       if (!livre || this.comAbertas(seat) || this.apostando.has(seat) || this.ganhando.has(seat) || this.entrega?.dealer === seat) continue;
@@ -1463,7 +1500,7 @@ export class Cena3D implements Palco3D {
     for (const [seat, ator] of this.atores) {
       const g = this.geo[seat];
       if (!g) continue;
-      let quer = clipe(DESCANSOS[g.vis]) ?? clipe('idle-plana');
+      let quer: Clipe | undefined = this.descansoDe(seat);
       if (this.comAbertas(seat)) {
         const n = v?.seats[seat]?.cards.length ?? 2;
         // (as duas do hold'em ficam onde a mão as deixou ao virá-las; as outras, onde estavam fechadas)
@@ -1722,7 +1759,7 @@ export class Cena3D implements Palco3D {
     const pote = this.doPlano(POTE_3D);
     const estilo = this.entrada?.fichaDoPote;
     return Promise.all(
-      apostas.map((a) => this.voar({ tipo: 'fichas', de: this.pontoDaAposta(a.seat), ate: pote, giroDe: 0, giroAte: 0, arco: 0.05 + Math.random() * 0.03, some: true, valor: a.valor, estilo: this.entrada?.fichaDe(a.seat) ?? estilo, ms: VOO.recolherFichas + Math.random() * 120 })),
+      apostas.map((a) => this.voar({ tipo: 'fichas', de: this.pontoDaAposta(a.seat), ate: pote, giroDe: 0, giroAte: 0, arco: 0.05 + this.acaso(6, this.mao, a.seat, 1) * 0.03, some: true, valor: a.valor, estilo: this.entrada?.fichaDe(a.seat) ?? estilo, ms: VOO.recolherFichas + this.acaso(6, this.mao, a.seat, 2) * 120 })),
     ).then(() => {});
   }
 

@@ -298,6 +298,69 @@ export interface SeatGeo3D extends SeatGeo {
   lugar: Lugar;
 }
 
+/**
+ * Por onde andam os pulsos de quem senta num lugar, nas coordenadas dele (`noMundo`): de lado a
+ * lado, do meio do antebraço ao começo dos dedos, e a que altura. Medido nas poses de descanso de
+ * todos os personagens (src/mesa3d/cena.ts, `DESCANSOS`): os pulsos ficam entre 0,26 e 0,39 m para
+ * a frente e até 0,17 m para cada lado; cinco pulseiras empilhadas sobem uns 5 cm pelo antebraço
+ * (por isso o "perto" de 0,2 m). As pontas dos dedos, que chegam a 0,47 m, ficam de fora: cobrir a
+ * mão inteira não deixava lugar para as placas numa mesa de seis.
+ */
+export const ZONA_DOS_BRACOS = { lado: 0.22, perto: 0.2, longe: 0.4, altura: ALTURA_DA_MESA + 0.04 };
+
+/**
+ * A zona dos braços de um lugar, na tela: o quadrilátero (convexo, porque é um retângulo do tampo
+ * visto pela câmera) que a placa dele — e a de ninguém — pode cobrir. É ali que ficam os pulsos,
+ * com as pulseiras e os relógios, e os anéis nos dedos.
+ */
+export function zonaDosBracos(l: Lugar): Pt[] {
+  const { lado, perto, longe, altura } = ZONA_DOS_BRACOS;
+  return (
+    [
+      [-lado, perto],
+      [lado, perto],
+      [lado, longe],
+      [-lado, longe],
+    ] as const
+  ).map(([lx, lz]) => {
+    const w = noMundo(l, lx, lz);
+    const p = projetarMundo(w.x, altura, w.z);
+    return { x: p.x, y: p.y };
+  });
+}
+
+/** Meia largura e meia altura da placa de quem não sou eu (o retrato de 76 px, o nome e a pilha). */
+export const MEIA_PLACA = { x: 105, y: 46 };
+
+/** O meio da mesa na tela — o console do pote e as cartas abertas —, onde placa nenhuma vai parar. */
+const MEIO_DA_TELA = { x0: 580, x1: 1020, y0: 250, y1: 500 };
+
+/** O retângulo (meias medidas `m`, em volta de `c`) e o polígono convexo `poli` se tocam? (eixos separadores) */
+export function retanguloTocaPoligono(c: Pt, m: Pt, poli: readonly Pt[]): boolean {
+  // (primeiro a caixa: quase sempre ela já separa, e sai de graça)
+  if (c.x + m.x <= Math.min(...poli.map((p) => p.x)) || c.x - m.x >= Math.max(...poli.map((p) => p.x))) return false;
+  if (c.y + m.y <= Math.min(...poli.map((p) => p.y)) || c.y - m.y >= Math.max(...poli.map((p) => p.y))) return false;
+  const cantos = [
+    { x: c.x - m.x, y: c.y - m.y },
+    { x: c.x + m.x, y: c.y - m.y },
+    { x: c.x + m.x, y: c.y + m.y },
+    { x: c.x - m.x, y: c.y + m.y },
+  ];
+  const eixos: Pt[] = [{ x: 1, y: 0 }, { x: 0, y: 1 }];
+  for (let i = 0; i < poli.length; i++) {
+    const a = poli[i];
+    const b = poli[(i + 1) % poli.length];
+    eixos.push({ x: a.y - b.y, y: b.x - a.x });
+  }
+  for (const e of eixos) {
+    const proj = (ps: readonly Pt[]) => ps.map((p) => p.x * e.x + p.y * e.y);
+    const r = proj(cantos);
+    const q = proj(poli);
+    if (Math.max(...r) <= Math.min(...q) || Math.max(...q) <= Math.min(...r)) return false;
+  }
+  return true;
+}
+
 /** A minha placa fica no canto de baixo à esquerda, como na mesa 2D. */
 const MINHA_PLACA: Pt = { x: 250, y: 846 };
 /**
@@ -314,6 +377,7 @@ const PLACA_MAIS_BAIXA = 470;
 export function seatLayout3d(maxPlayers: number, anchorSeat: number, hasMe: boolean, sobra = 0): SeatGeo3D[] {
   const n = Math.max(2, Math.min(6, maxPlayers));
   const ls = lugares(n);
+  const placas = placasDosLugares(n, hasMe, sobra);
   const out: SeatGeo3D[] = [];
   for (let seat = 0; seat < n; seat++) {
     const vis = (seat - anchorSeat + n) % n;
@@ -326,20 +390,6 @@ export function seatLayout3d(maxPlayers: number, anchorSeat: number, hasMe: bool
       const w = noMundo(l, m[0], m[1]);
       return mundoParaPlano(w.x, w.z);
     };
-    // a placa: a beirada projetada, empurrada para fora da mesa na tela e presa dentro do palco
-    let plate = MINHA_PLACA;
-    if (!isMe) {
-      const p = projetarMundo(l.beirada.x, ALTURA_DA_MESA, l.beirada.z);
-      const dx = p.x - STAGE_W / 2;
-      const dy = p.y - STAGE_H / 2;
-      const d = Math.hypot(dx, dy) || 1;
-      // (embaixo, os cantos são da minha placa e do painel de ações: as placas dos outros param acima deles)
-      plate = { x: Math.min(STAGE_W - 112 + sobra, Math.max(112 - sobra, p.x + (dx / d) * 70)), y: Math.min(PLACA_MAIS_BAIXA, Math.max(44, p.y + (dy / d) * 50)) };
-      // quem senta nas pontas do estádio fica na beirada da tela, e a placa cairia em cima das
-      // cartas e da aposta dele: ela sobe para acima delas
-      const c = projetar(marca(MARCAS.cartas));
-      if (Math.abs(plate.x - c.x) < 170 && Math.abs(plate.y - c.y) < 100) plate = { x: plate.x, y: Math.max(44, c.y - 140) };
-    }
     out.push({
       seat,
       vis,
@@ -348,7 +398,7 @@ export function seatLayout3d(maxPlayers: number, anchorSeat: number, hasMe: bool
       edge,
       u,
       t,
-      plate,
+      plate: placas[vis],
       cards: marca(MARCAS.cartas),
       cardsRot: (Math.atan2(u.y, u.x) * 180) / Math.PI + 90,
       cardW: isMe ? CARD_W : 72,
@@ -359,4 +409,98 @@ export function seatLayout3d(maxPlayers: number, anchorSeat: number, hasMe: bool
     });
   }
   return out;
+}
+
+/** As placas já calculadas (a procura custa uns milissegundos, e a mesa pede o mesmo layout muitas vezes). */
+const PLACAS_FEITAS = new Map<string, Pt[]>();
+
+/**
+ * Onde fica a placa de cada lugar (pelo visual: 0 é o de baixo), no palco.
+ *
+ * A placa nasce na beirada projetada, empurrada para fora da mesa e presa dentro do palco. Mas a
+ * beirada é onde as mãos descansam, e a placa ali tapava os pulsos — as pulseiras, os relógios.
+ * Então ela vai para o lugar livre mais perto de onde nasceria: sem cobrir os braços de ninguém
+ * (`zonaDosBracos`), as cartas e a aposta de ninguém, o meio da mesa, nem a placa de outro.
+ *
+ * Duas placas podem querer o mesmo canto livre; quem fica com ele é decidido pelo conjunto — a
+ * ordem em que as placas escolhem que deixa todas, somadas, mais perto de onde nasceriam.
+ */
+function placasDosLugares(n: number, hasMe: boolean, sobra: number): Pt[] {
+  const chave = `${n}|${hasMe}|${sobra}`;
+  const feita = PLACAS_FEITAS.get(chave);
+  if (feita) return feita;
+  const ls = lugares(n);
+  // os braços de todos, na tela: nenhuma placa fica em cima deles (as pulseiras, os relógios e os anéis se veem sempre)
+  const bracos = ls.map(zonaDosBracos);
+  // e nem em cima das cartas e da aposta de ninguém (a placa empurrada para o feltro não pode tapar o jogo)
+  const doJogo = ls.flatMap((l) =>
+    (
+      [
+        [MARCAS.cartas, 80, 58],
+        [MARCAS.aposta, 50, 36],
+      ] as const
+    ).map(([m, mx, my]) => {
+      const w = noMundo(l, m[0], m[1]);
+      const p = projetar(mundoParaPlano(w.x, w.z));
+      return { x: p.x, y: p.y, mx, my };
+    }),
+  );
+  const folga = { x: MEIA_PLACA.x + 6, y: MEIA_PLACA.y + 6 };
+  const x0 = 112 - sobra;
+  const x1 = STAGE_W - 112 + sobra;
+  const placas: Pt[] = ls.map(() => MINHA_PLACA);
+  /** Para cada lugar dos outros: onde nasceria, e os lugares livres em volta, do mais perto ao mais longe. */
+  const opcoes: { vis: number; nasce: Pt; livres: { p: Pt; d: number }[] }[] = [];
+  ls.forEach((l, vis) => {
+    if (hasMe && vis === 0) return;
+    const p = projetarMundo(l.beirada.x, ALTURA_DA_MESA, l.beirada.z);
+    const dx = p.x - STAGE_W / 2;
+    const dy = p.y - STAGE_H / 2;
+    const d = Math.hypot(dx, dy) || 1;
+    // (embaixo, os cantos são da minha placa e do painel de ações: as placas dos outros param acima deles)
+    let nasce = { x: Math.min(x1, Math.max(x0, p.x + (dx / d) * 70)), y: Math.min(PLACA_MAIS_BAIXA, Math.max(44, p.y + (dy / d) * 50)) };
+    // quem senta nas pontas do estádio fica na beirada da tela, e a placa cairia em cima das
+    // cartas e da aposta dele: ela sobe para acima delas
+    const wc = noMundo(l, MARCAS.cartas[0], MARCAS.cartas[1]);
+    const c = projetar(mundoParaPlano(wc.x, wc.z));
+    if (Math.abs(nasce.x - c.x) < 170 && Math.abs(nasce.y - c.y) < 100) nasce = { x: nasce.x, y: Math.max(44, c.y - 140) };
+    const livre = (q: Pt) =>
+      !(Math.abs(q.x - c.x) < 170 && Math.abs(q.y - c.y) < 100) &&
+      !(q.x + MEIA_PLACA.x > MEIO_DA_TELA.x0 && q.x - MEIA_PLACA.x < MEIO_DA_TELA.x1 && q.y + MEIA_PLACA.y > MEIO_DA_TELA.y0 && q.y - MEIA_PLACA.y < MEIO_DA_TELA.y1) &&
+      !doJogo.some((o) => Math.abs(q.x - o.x) < MEIA_PLACA.x + o.mx && Math.abs(q.y - o.y) < MEIA_PLACA.y + o.my) &&
+      !bracos.some((z) => retanguloTocaPoligono(q, folga, z));
+    // (ir para dentro da mesa, por cima do feltro, conta em dobro: a placa prefere a beirada da tela)
+    const fora = { x: dx / d, y: dy / d };
+    const custo = (q: Pt) => Math.hypot(q.x - nasce.x, q.y - nasce.y) + Math.max(0, (nasce.x - q.x) * fora.x + (nasce.y - q.y) * fora.y);
+    const livres: { p: Pt; d: number }[] = livre(nasce) ? [{ p: nasce, d: 0 }] : [];
+    for (let y = 44; y <= PLACA_MAIS_BAIXA; y += 8) {
+      for (let x = x0; x <= x1; x += 8) {
+        const q = { x, y };
+        if (livre(q)) livres.push({ p: q, d: custo(q) });
+      }
+    }
+    livres.sort((a, b) => a.d - b.d);
+    opcoes.push({ vis, nasce, livres: livres.slice(0, 600) });
+  });
+  // as ordens possíveis (no máximo cinco placas: 120 ordens), e fica a que soma menos custo
+  const ordens = (xs: number[]): number[][] => (xs.length <= 1 ? [xs] : xs.flatMap((x, i) => ordens([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r])));
+  let melhor: { custo: number; onde: Pt[] } | null = null;
+  for (const ordem of ordens(opcoes.map((_, i) => i))) {
+    const postas: Pt[] = [];
+    const onde: Pt[] = [];
+    let custo = 0;
+    for (const i of ordem) {
+      const o = opcoes[i];
+      const achou = o.livres.find((c) => !postas.some((q) => Math.abs(c.p.x - q.x) < 2 * MEIA_PLACA.x + 10 && Math.abs(c.p.y - q.y) < 2 * MEIA_PLACA.y + 10));
+      // (sem lugar livre nenhum, fica onde nasceria: melhor tapar um pulso que sumir com a placa)
+      const p = achou?.p ?? o.nasce;
+      custo += achou ? achou.d : 1e4;
+      postas.push(p);
+      onde[i] = p;
+    }
+    if (!melhor || custo < melhor.custo) melhor = { custo, onde };
+  }
+  opcoes.forEach((o, i) => (placas[o.vis] = melhor!.onde[i]));
+  PLACAS_FEITAS.set(chave, placas);
+  return placas;
 }

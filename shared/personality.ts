@@ -287,7 +287,10 @@ export interface EstiloBot {
   iters: number;
   /** Erro que ele comete ao enxergar. */
   noise: number;
-  /** Com que frequência aposta sem nada. */
+  /**
+   * Com que frequência aposta sem nada (contra um oponente: contra mais, o bot blefa menos). É
+   * também o quanto ele aumenta de volta sem mão e aposta os projetos.
+   */
   bluff: number;
   /** Com que frequência escolhe apostar em vez de pagar. */
   aggression: number;
@@ -297,6 +300,12 @@ export interface EstiloBot {
   callDown: number;
   /** Tamanho da aposta em relação ao padrão (1 = o de sempre; 1,25 = um quarto maior). */
   bet: number;
+  /**
+   * O gosto pelo risco, de 0 a 1: com que frequência ele vai de all-in com mão boa (em vez de
+   * construir o pote), entra no flop pagando aumento com mão especulativa, corre atrás de um projeto
+   * sem as chances do pote e aposta o projeto. É o que separa quem arrisca de quem só aposta alto.
+   */
+  gamble: number;
 }
 
 /**
@@ -306,9 +315,9 @@ export interface EstiloBot {
  * margem exige para pagar. Estilo é outra coisa, e vem do personagem.
  */
 const BASE: Record<BotDifficulty, EstiloBot> = {
-  easy: { iters: 120, noise: 0.18, bluff: 0.04, aggression: 0.35, margin: -0.04, callDown: 0.2, bet: 1 },
-  normal: { iters: 260, noise: 0.08, bluff: 0.08, aggression: 0.55, margin: 0.02, callDown: 0.18, bet: 1 },
-  hard: { iters: 500, noise: 0.03, bluff: 0.12, aggression: 0.7, margin: 0.04, callDown: 0.16, bet: 1 },
+  easy: { iters: 120, noise: 0.18, bluff: 0.05, aggression: 0.35, margin: -0.04, callDown: 0.2, bet: 1, gamble: 0.14 },
+  normal: { iters: 260, noise: 0.08, bluff: 0.09, aggression: 0.55, margin: 0.02, callDown: 0.18, bet: 1, gamble: 0.12 },
+  hard: { iters: 500, noise: 0.03, bluff: 0.12, aggression: 0.7, margin: 0.04, callDown: 0.16, bet: 1, gamble: 0.1 },
 };
 
 /** Desvio de um traço em relação ao meio: -0,5 (nada) a +0,5 (tudo). */
@@ -333,11 +342,14 @@ export function estiloDoBot(difficulty: BotDifficulty, p?: Personalidade): Estil
     // faro é ver melhor: mais simulações e menos erro na leitura da própria mão
     iters: Math.round(b.iters * (1 + desvio(p.faro) * 0.8)),
     noise: trava(b.noise * (1 - desvio(p.faro) * 1.2), 0.01, 0.3),
-    bluff: trava(b.bluff + desvio(p.blefe) * 0.22, 0, 0.35),
+    // o blefe pesa de verdade: um blefe de 0,9 blefa umas três vezes mais que o padrão; um de 0,15, quase nunca
+    bluff: trava(b.bluff + desvio(p.blefe) * 0.5, 0.01, 0.5),
     aggression: trava(b.aggression + desvio(p.agressao) * 0.5, 0.1, 0.95),
     // cautela pede mais para entrar; risco e teimosia pagam mais largo
-    margin: trava(b.margin + desvio(p.cautela) * 0.12 - desvio(p.risco) * 0.08, -0.12, 0.2),
+    margin: trava(b.margin + desvio(p.cautela) * 0.12 - desvio(p.risco) * 0.1, -0.14, 0.2),
     callDown: trava(b.callDown + desvio(p.teimosia) * 0.6, 0, 0.9),
     bet: trava(b.bet + desvio(p.risco) * 0.7, 0.7, 1.45),
+    // risco é arriscar: o all-in, o projeto pago, o flop visto com mão de nada
+    gamble: trava(b.gamble + desvio(p.risco) * 0.8, 0, 0.6),
   };
 }

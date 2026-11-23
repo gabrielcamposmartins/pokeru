@@ -40,9 +40,11 @@ export const PELE_MORENA: Pele = { luz: '#e2a987', meio: '#c98a68', sombra: '#a0
  * brocado (losangos miúdos), a treliça (losangos grandes da segunda cor, entre faixas da cor da
  * peça debruadas de creme: a manga de quimono do Goro) e as glicínias (cachos de florzinhas da
  * segunda cor, que pendem: o quimono da Hina) e o gótico (na barra da manga, uma arcada de arcos
- * ogivais com cruzes e trevos; dali para o ombro, cruzes semeadas: a manga em sino da Agnes).
+ * ogivais com cruzes e trevos; dali para o ombro, cruzes semeadas: a manga em sino da Agnes). E o
+ * lustro: não é estampa, é acabamento — a peça polida, que reflete a luz (um botão de pressão
+ * esmaltado).
  */
-export const ENFEITE = { liso: 0, canelado: 1, dragao: 2, renda: 3, ramos: 4, brocado: 5, dragaoE: 6, dragaoComFaixa: 7, trelica: 8, glicinias: 9, gotico: 10 } as const;
+export const ENFEITE = { liso: 0, canelado: 1, dragao: 2, renda: 3, ramos: 4, brocado: 5, dragaoE: 6, dragaoComFaixa: 7, trelica: 8, glicinias: 9, gotico: 10, lustro: 11 } as const;
 
 /** Uma peça de roupa: a forma (descrita só no lado x > 0, como o corpo) e como ela é pintada e presa. */
 export interface Peca {
@@ -76,7 +78,7 @@ export interface Peca {
 
 /** Um estilo de luva escolhido pelo jogador (shared/acessorios.ts), no lugar da luva do traje. */
 export interface EstiloDeLuva {
-  feitio: 'nenhuma' | 'inteira' | 'sem-dedos' | 'tatica' | 'renda' | 'opera' | 'manopla';
+  feitio: 'nenhuma' | 'inteira' | 'sem-dedos' | 'tatica' | 'renda' | 'opera' | 'manopla' | 'curta';
   cor: string;
   /** A cor das costuras, das bainhas, dos reforços dos nós, das placas. */
   cor2: string;
@@ -126,11 +128,34 @@ const PUNHO_DA_MEIA_MANGA = MEIA_MANGA - 0.054;
 /** Até onde vai a manga da Glitch, arriada só um pouco: a uns três quartos do antebraço. */
 const PUNHO_DA_ZUZU = 0.612;
 /** Até onde (em x) vai o tronco de uma peça sem mangas, e o de uma com mangas (que cobre as dobras da axila). */
+/**
+ * Onde a luva curta (a de motorista) acaba: na mão, um pouco depois do pulso — cobre a base da mão
+ * e para ali. Dali para trás é pele, até a manga.
+ */
+const BOCA_DA_CURTA = PUNHO_X + 0.008;
+/**
+ * A folga dos punhos, que são finos e justos no braço: o de camisa (uma faixa engomada, rente ao
+ * pulso), o canelado de uma jaqueta ou de um moletom (malha que aperta) e a ponta da manga de pano
+ * que o canelado colhe (fica por baixo dele).
+ */
+const PUNHO_DE_CAMISA = 0.0028;
+/**
+ * Até onde vai o punho de uma camisa que aparece na boca de um paletó: dois centímetros antes
+ * do pulso. O punho obedece ao antebraço; passando do pulso, a mão que dobra atravessava-o — a pele
+ * saía por cima dele, e aparecia o corte entre a mão e o braço.
+ */
+const FIM_DO_PUNHO = PUNHO_X - 0.019;
+/** A folga desse punho: justo, e um nada mais aberto no último centímetro — é onde o pulso, ao dobrar, engrossa. */
+const bocaDoPunho = (x: number) => PUNHO_DE_CAMISA + 0.0017 * Math.min(1, Math.max(0, (x - (FIM_DO_PUNHO - 0.012)) / 0.012));
+const PUNHO_CANELADO = 0.0042;
+const PONTA_NO_PUNHO = 0.0028;
 const SEM_MANGA = 0.168;
 const COM_MANGA = 0.224;
 
 const OURO = '#e0ad3e';
 const PRETO = '#18171d';
+/** O preto de uma peça polida (com o lustro): mais fundo que o do pano, para o reflexo saltar. */
+const PRETO_POLIDO = '#0b0b0f';
 
 /** O corte do braço na altura x (interpolado do perfil dele): os raios (para cima e para a frente) e o desvio do centro. */
 function noBraco(x: number): { ru: number; rv: number; ou: number; ov: number } {
@@ -288,13 +313,75 @@ function ferramentas() {
   /** O quanto um ponto passa da beirada da abertura para fora dela (metros; negativo = dentro), olhando de cima. */
   const daAbertura = (x: number, z: number) => (Math.hypot((x - ABERTURA.x) / ABERTURA.a, (z - ABERTURA.z) / ABERTURA.b) - 1) * ABERTURA.a;
   /**
+   * O entalhe da luva curta: um V nas costas da mão, da boca dela (larga) para os nós (a ponta) — é
+   * por onde a luva de motorista abre para se calçar, e o botão de pressão fecha ao lado dele.
+   */
+  const ENTALHE = { de: BOCA_DA_CURTA, ate: BOCA_DA_CURTA + 0.023, meia: 0.0068, z: (J.dedos[1].raiz[2] + J.dedos[2].raiz[2]) / 2 + 0.0015 };
+  /**
+   * Os furos dos nós da luva de motorista: um oval em cima do nó de cada dedo, por onde a pele
+   * aparece — é o que deixa a mão fechar no volante sem o couro repuxar, e o que a faz ler como luva
+   * de dirigir.
+   */
+  const FURO = { a: 0.0047, b: 0.0038, recuo: 0.0046 };
+  /** O quanto um ponto passa da beirada do furo mais próximo para fora dele (metros, olhando de cima; negativo = dentro). */
+  const doFuro = (x: number, z: number) => {
+    let perto = Infinity;
+    for (const d of J.dedos) perto = Math.min(perto, (Math.hypot((x - (d.raiz[0] - FURO.recuo)) / FURO.a, (z - d.raiz[2]) / FURO.b) - 1) * FURO.b);
+    return perto;
+  };
+  /** As orlas dos furos dos nós: um debrum fino em volta de cada um. */
+  const orlasDosFuros = (e: number, meia = 0.001) => cortar(justa(e, [J.dedos[1].raiz[0], yDoMeio, 0], 0.07), (x, y, z) => Math.max(Math.abs(doFuro(x, z) + 0.0004) - meia, yDoMeio - y), 0.0004);
+  /** O quanto um ponto está para dentro do entalhe (metros, olhando de cima; negativo = fora dele). */
+  const noEntalhe = (x: number, z: number) => Math.min((ENTALHE.meia * (ENTALHE.ate - x)) / (ENTALHE.ate - ENTALHE.de) - Math.abs(z - ENTALHE.z), ENTALHE.ate - x);
+  /**
+   * A barra da luva curta: o debrum da boca dela, que dá a volta na mão e desce pelas duas beiradas
+   * do entalhe.
+   */
+  const barraDaCurta = (e: number, larga = 0.0017, meia = 0.0012) =>
+    cortar(justa(e, [BOCA_DA_CURTA + 0.01, yDoMeio, 0], 0.08), (x, y, z) => {
+      const n = noEntalhe(x, z);
+      const emCima = y > yDoMeio;
+      // a volta da boca (fora do entalhe, em cima) e as duas beiradas do V
+      const boca = Math.max(BOCA_DA_CURTA - 0.0007 - x, x - BOCA_DA_CURTA - larga, emCima ? n : -1);
+      // (o debrum passa um nada da beirada do pano, para dentro do entalhe e para trás da boca: é ele que
+      // se vê, e não o corte da luva, que na malha sai serrilhado)
+      const beiradas = Math.max(Math.abs(n + 0.0005) - meia, yDoMeio - y, BOCA_DA_CURTA - 0.0007 - x);
+      return Math.min(boca, beiradas);
+    }, 0.0005);
+  /**
+   * As costuras das costas da luva curta: três riscos finos em relevo, de logo atrás do furo de cada
+   * nó (indicador, médio e anelar) até a ponta do entalhe, para onde convergem — os "pontos" de uma
+   * luva de couro, que aqui ligam os furos ao V.
+   */
+  const nervurasCurtas = (e: number, meia = 0.0009) =>
+    riscosNoDorso(
+      e,
+      [0, 1, 2].map((k) => {
+        const d = J.dedos[k];
+        return { ax: d.raiz[0] - FURO.recuo - FURO.a - 0.0028, az: d.raiz[2], bx: ENTALHE.ate + 0.0045, bz: ENTALHE.z + (d.raiz[2] - ENTALHE.z) * 0.42 };
+      }),
+      meia,
+    );
+  /**
+   * O botão de pressão da luva curta: ao lado do entalhe, junto da boca, do lado do polegar. Abaulado
+   * (uma calota em cima do pano), para a luz ter onde brilhar.
+   */
+  const botaoDaCurta = (e: number, raio = 0.0036) => {
+    const x = BOCA_DA_CURTA + 0.0082;
+    const z = ENTALHE.z + 0.0145;
+    return elipsoide([x, dorso(x, z, e), z], [raio, raio * 0.62, raio]);
+  };
+  /**
    * A luva: a pele da mão engordada, de `desde` para a frente. Sem dedos, vai só até o meio do
    * primeiro osso de cada dedo. `aberta`: com a abertura nas costas da mão. `raio`: até onde a peça
-   * alcança (a luva comprida, que sobe pelo antebraço, pede mais).
+   * alcança (a luva comprida, que sobe pelo antebraço, pede mais). `entalhada`: com o V da luva
+   * curta nas costas da mão, e os furos em cima dos nós.
    */
-  const luva = (e: number, semDedos: boolean, desde = FIM_DA_MANGA - 0.006, aberta = false, raio = 0.19) => {
+  const luva = (e: number, semDedos: boolean, desde = FIM_DA_MANGA - 0.006, aberta = false, raio = 0.19, entalhada = false) => {
     const cortes: Campo[] = [];
+    if (entalhada) cortes.push((x, y, z) => Math.min(-doFuro(x, z), y - yDoMeio));
     if (aberta) cortes.push((x, y, z) => Math.min(-daAbertura(x, z), y - yDoMeio));
+    if (entalhada) cortes.push((x, y, z) => Math.min(noEntalhe(x, z), y - yDoMeio));
     if (semDedos) {
       J.dedos.forEach((d, k) => {
         cortes.push((x, y, z) => Math.min(aoLongo(d, x, y, z) - fimNoDedo(k), 0.006 - P.dedos[k].d(x, y, z)));
@@ -405,7 +492,7 @@ function ferramentas() {
       return Math.max(perto - meia, yDoMeio - y);
     }, 0.0004);
   };
-  return { justa, frente, dorso, tronco, noPeito, debrum, faixa, remendo, recorte, noDorso, botao, gola, luva, bainhas, almofadas, nervuras, orla, tira, emVoltaDosDedos, reforcos, placaDosNos, talas };
+  return { justa, frente, dorso, tronco, noPeito, debrum, faixa, remendo, recorte, noDorso, botao, gola, luva, bainhas, almofadas, nervuras, orla, tira, emVoltaDosDedos, reforcos, placaDosNos, talas, barraDaCurta, nervurasCurtas, botaoDaCurta, orlasDosFuros };
 }
 
 /** A mistura de duas cores (t = 0: a primeira; 1: a segunda), em hexadecimal. */
@@ -688,15 +775,37 @@ export const TRAJES: Traje[] = [
   {
     id: 'alistair',
     nome: 'Alistair',
-    resumo: 'camisa branca de manga bufante, colete cinza de botões dourados, jabô com broche, luvas pretas e o casaco carmesim nos ombros',
+    resumo: 'camisa branca justa de punho engomado (as mangas, de pano solto), colete cinza de botões dourados, jabô com broche, luvas pretas curtas e o casaco carmesim nos ombros',
     pele: PELE_CLARA,
     pecas: () => {
       const F = ferramentas();
-      // a manga enche até o antebraço e é colhida no punho
-      const folga = (x: number) => 0.004 + 0.016 * calombo(0.2, 0.66, x) + 0.005 * calombo(0.12, 0.3, x);
-      const camisa = fundir(F.tronco(0.0035, 1.0, 1.447, undefined, COM_MANGA), [0.03, manga(0.11, 0.652, folga)]);
-      const punho = manga(0.64, FIM_DA_MANGA + 0.004, () => 0.0042);
-      const abotoadura = elipsoide([0.656, F.dorso(0.656, 0.012, 0.0042), 0.012], [0.0045, 0.003, 0.0045]);
+      /*
+       * A camisa é justa. O que acompanha o corpo é o tronco e uma manga rente à pele, que faz de
+       * forro: por cima dela, do braço ao punho, a manga de verdade é pano solto (ver `panos`) — é
+       * ele que se vê, que enruga no cotovelo e pousa na mesa. O forro é o que aparece no lugar da
+       * pele se o pano, justo como é, abrir numa dobra.
+       */
+      const rente = (x: number) => 0.0016 + 0.0022 * calombo(0.12, 0.3, x);
+      const camisa = fundir(F.tronco(0.0035, 1.0, 1.447, undefined, COM_MANGA), [0.03, manga(0.11, 0.622, rente)]);
+      // a cava: a costura do ombro, um nada mais alta que a manga — é debaixo dela que o pano da manga
+      // começa (sem ela, a beirada do pano aparecia, solta, em volta do braço). Do lado do tronco ela
+      // nasce de dentro da camisa; do lado do braço acaba reta. É uma peça à parte, de malha mais
+      // fina: na malha da camisa inteira, a beirada reta dela saía serrilhada
+      const cava = manga(0.1, 0.161, (x) => 0.002 + 0.0046 * degrau(0.108, 0.14, x));
+      /*
+       * O punho: uma faixa engomada, fina e justa no braço (três milímetros e meio de folga: um
+       * degrau pequeno na manga, que o pesponto junto de cada beirada, a abotoadura e o branco mais
+       * vivo destacam). Acaba dois centímetros antes do pulso: dali à luva, que é curta e fica na mão, aparece a
+       * pele — e é nesse trecho nu que o relógio e a primeira pulseira se assentam (o lugar do pulso
+       * de src/mesa3d/acessorios3d.ts), em vez de subirem para cima do punho.
+       */
+      const PUNHO = { de: 0.61, ate: PUNHO_X - 0.0235, folga: 0.0035 };
+      // (maciço: justo assim, não sobra vão para a boca ser oca)
+      const punho = manga(PUNHO.de, PUNHO.ate, () => PUNHO.folga);
+      // (o pesponto: um risco fino, quase rente ao punho e quase da cor dele — vê-se de perto, não de longe)
+      const pespontos = unir(manga(PUNHO.de + 0.0036, PUNHO.de + 0.0047, () => PUNHO.folga + 0.0003), manga(PUNHO.ate - 0.0055, PUNHO.ate - 0.0044, () => PUNHO.folga + 0.0003));
+      const xDaAbotoadura = (PUNHO.de + PUNHO.ate) / 2 + 0.002;
+      const abotoadura = elipsoide([xDaAbotoadura, F.dorso(xDaAbotoadura, 0.012, PUNHO.folga), 0.012], [0.0042, 0.0026, 0.0042]);
       // o jabô: duas camadas de pano no peito, a de cima mais curta, com um broche no colarinho
       const jabo = unir(F.noPeito(0.0105, 1.285, 1.425, (y) => 0.012 + 0.03 * calombo(1.24, 1.47, y)), F.noPeito(0.0145, 1.345, 1.428, (y) => 0.01 + 0.024 * calombo(1.31, 1.46, y)));
       const broche = elipsoide([0, 1.42, F.frente(0, 1.42, 0.0145)], [0.011, 0.012, 0.006]);
@@ -707,15 +816,48 @@ export const TRAJES: Traje[] = [
       const botoes = unir(...[1.215, 1.16, 1.105].map((y) => F.botao(0.027, y, 0.0075, 0.0062)));
       return [
         { forma: unir(camisa, jabo, colarinho), cor: '#f4f1ec' },
-        { forma: punho, cor: '#f4f1ec', doBraco: true },
+        { forma: cava, cor: '#f4f1ec', fino: 0.5 },
+        // (o punho é um nada mais branco que a manga, e os pespontos, de um cinza muito claro: é o que o
+        // destaca dela, sem riscar. A pele continua desenhada por baixo da beirada dele: sem isso, o
+        // corte dela aparecia, serrilhado, na boca do punho)
+        { forma: punho, cor: '#fdfcfa', doBraco: true, beira: 0.005 },
+        { forma: pespontos, cor: '#e3e0e8', doBraco: true, semCobrir: true, fino: 0.45 },
         { forma: unir(broche, botoes), cor: OURO, fino: 0.5 },
         { forma: abotoadura, cor: OURO, doBraco: true, fino: 0.5 },
         { forma: colete, cor: '#6d707b', cor2: '#7d808b', enfeite: ENFEITE.brocado },
-        { forma: F.luva(0.0012, false), cor: '#1c1a21', luva: true },
-        { forma: F.nervuras(0.0021), cor: '#3a3843', semCobrir: true, fino: 0.6, luva: true },
+        // (a luva curta, de motorista: para na mão, e entre ela e o punho da camisa aparece o pulso)
+        // (o botão de pressão dela é preto, polido)
+        ...curta(F, { cor: '#1c1a21', cor2: '#3a3843', cor3: PRETO_POLIDO }),
       ];
     },
-    panos: () => [casacoNosOmbros({ cor: '#8e1f2c', avesso: '#27408b', debrum: OURO })],
+    panos: () => [
+      casacoNosOmbros({ cor: '#8e1f2c', avesso: '#27408b', debrum: OURO }),
+      // as mangas da camisa: justas (poucos milímetros de folga, e só um nada de pano a mais, que
+      // enruga no cotovelo), colhidas dentro do punho engomado. Começam junto do ombro, onde a
+      // costura da cava de uma camisa fica: começando no meio do braço, a emenda com o tronco
+      // parecia a barra de uma manga curta por cima de outra
+      ...tubos({
+        nome: 'manga',
+        de: 0.15,
+        ate: 0.618,
+        cols: 32,
+        rows: 36,
+        // (quatro a cinco milímetros de folga no braço, e menos de três onde entra no punho)
+        folga: (x) => {
+          const fim = degrau(0.54, 0.612, x);
+          return (0.004 + 0.0012 * degrau(0.16, 0.25, x)) * (1 - fim) + 0.0026 * fim;
+        },
+        presas: 2,
+        osso: 'braco',
+        fim: { presas: 2, osso: 'antebraco' },
+        // (dois por cento de pano a mais, e encorpado: dobras largas no cotovelo, e não o braço todo amassado)
+        sobra: 1.02,
+        cor: '#f4f1ec',
+        avesso: '#dcd8d0',
+        folgaDoCorpo: 0.003,
+        dureza: 0.6,
+      }),
+    ],
   },
   {
     id: 'marina',
@@ -725,7 +867,8 @@ export const TRAJES: Traje[] = [
     pecas: () => {
       const F = ferramentas();
       // (as mangas da jaqueta são pano solto: ver `panos`; aqui fica só o punho canelado que as colhe)
-      const canelado = manga(PUNHO_DA_MEIA_MANGA, MEIA_MANGA, () => 0.0065);
+      // (fino e justo: é malha canelada, que aperta o braço)
+      const canelado = manga(PUNHO_DA_MEIA_MANGA, MEIA_MANGA, () => PUNHO_CANELADO);
       const top = F.tronco(0.003, 1.225, 1.368);
       // os fones pendurados no pescoço: as duas conchas na frente e o arco por trás
       const conchas = elipsoide([0.07, 1.43, 0.053], [0.03, 0.034, 0.019]);
@@ -755,8 +898,9 @@ export const TRAJES: Traje[] = [
         rows: 28,
         folga: (x) => {
           // (afina devagar até o punho: afinando de repente, o pano da ponta vira uma aba que fica em pé)
-          const fim = degrau(0.39, PUNHO_DA_MEIA_MANGA + 0.014, x);
-          return (0.012 + 0.04 * degrau(0.25, 0.4, x)) * (1 - fim) + 0.004 * fim;
+          // (e já chega fina à boca do punho: as duas fileiras presas ficam dentro dele, e ele é justo)
+          const fim = degrau(0.39, PUNHO_DA_MEIA_MANGA + 0.002, x);
+          return (0.012 + 0.04 * degrau(0.25, 0.4, x)) * (1 - fim) + PONTA_NO_PUNHO * fim;
         },
         presas: 2,
         osso: 'braco',
@@ -779,16 +923,22 @@ export const TRAJES: Traje[] = [
     pecas: () => {
       const F = ferramentas();
       const E = 0.007;
-      // manga reta de casaco, um pouco aberta na boca (oca, para o punho da luva aparecer dentro dela)
-      const folga = (x: number) => 0.0075 + 0.005 * degrau(0.5, 0.67, x);
+      /*
+       * A manga do casaco é pano solto (ver `panos`): reta, encorpada, afina até o punho virado, que a
+       * colhe. O que acompanha o corpo é o tronco, a costura da cava (debaixo da qual o pano começa)
+       * e um forro rente ao braço, preto — é ele que aparece, e não a pele, se o pano abrir numa
+       * dobra. `folga` é a medida da manga perto da boca: é por ela que o punho virado se mede.
+       */
+      const folga = (x: number) => 0.0072 - 0.0026 * degrau(0.48, 0.64, x);
       const boca = FIM_DA_MANGA + 0.006;
-      const casaco = fundir(F.tronco(E, 1.0, 1.452, undefined, COM_MANGA), [0.03, oca(manga(0.11, boca, folga), 0.62, boca, folga, 0.0045)]);
-      // o punho virado: uma faixa mais grossa, com um friso dourado de cada lado e um botão em cima
-      const virado = (x: number) => folga(x) + 0.0022;
+      const casaco = fundir(F.tronco(E, 1.0, 1.452, undefined, COM_MANGA), [0.03, manga(0.11, 0.64, () => 0.002)]);
+      const cava = manga(0.1, 0.161, (x) => 0.003 + 0.0078 * degrau(0.108, 0.14, x));
+      // o punho virado: uma faixa um nada mais grossa, com um friso dourado de cada lado e um botão em cima
+      const virado = (x: number) => folga(x) + 0.0011;
       const punho = oca(manga(0.598, boca - 0.014, virado), 0.62, boca - 0.014, folga, 0.0045);
-      const frisos = unir(manga(0.596, 0.6005, (x) => virado(x) + 0.0011), oca(manga(boca - 0.0185, boca - 0.014, (x) => virado(x) + 0.0011), boca - 0.03, boca - 0.014, folga, 0.0045));
+      const frisos = unir(manga(0.596, 0.6005, (x) => virado(x) + 0.0008), oca(manga(boca - 0.0185, boca - 0.014, (x) => virado(x) + 0.0008), boca - 0.03, boca - 0.014, folga, 0.0045));
       const debrum = oca(manga(boca - 0.014, boca + 0.001, virado), boca - 0.03, boca + 0.001, folga, 0.0045);
-      const botao = elipsoide([0.633, F.dorso(0.633, 0, 0) + virado(0.633), 0], [0.0075, 0.0035, 0.0075]);
+      const botao = elipsoide([0.633, F.dorso(0.633, 0, 0) + virado(0.633), 0], [0.0062, 0.003, 0.0062]);
       // no peito: as lapelas abrem em V sobre o colete de brocado; a gravata por cima; a gola em pé
       const v = (y: number) => 0.008 + 0.05 * degrau(1.18, 1.425, y);
       const colete = F.noPeito(E + 0.0012, 1.0, 1.43, v);
@@ -796,7 +946,8 @@ export const TRAJES: Traje[] = [
       const gravata = F.noPeito(E + 0.0038, 1.2, 1.436, (y) => 0.008 + 0.009 * degrau(1.43, 1.26, y) - 0.012 * degrau(1.235, 1.2, y));
       const gola = F.gola(E + 0.003, 1.432, 1.488, 0.022);
       return [
-        { forma: casaco, cor: '#17171c', cor2: '#2f8a5e', enfeite: ENFEITE.dragaoE },
+        { forma: casaco, cor: '#17171c' },
+        { forma: cava, cor: '#17171c', fino: 0.5 },
         { forma: punho, cor: '#202027', doBraco: true },
         { forma: unir(frisos, botao), cor: OURO, doBraco: true, fino: 0.6 },
         { forma: debrum, cor: '#1f6b4a', doBraco: true },
@@ -808,6 +959,31 @@ export const TRAJES: Traje[] = [
         { forma: F.nervuras(0.0021), cor: '#2f2d38', semCobrir: true, fino: 0.6, luva: true },
       ];
     },
+    // as mangas do casaco: retas e encorpadas (pano de casaco, com só um nada de sobra, que dobra no
+    // cotovelo), com o dragão verde bordado na esquerda. Começam debaixo da costura da cava e acabam
+    // dentro do punho virado
+    panos: () =>
+      tubos({
+        nome: 'manga',
+        de: 0.15,
+        ate: 0.612,
+        cols: 32,
+        rows: 36,
+        folga: (x) => {
+          const fim = degrau(0.5, 0.6, x);
+          return 0.0086 * (1 - fim) + 0.0034 * fim;
+        },
+        presas: 2,
+        osso: 'braco',
+        fim: { presas: 2, osso: 'antebraco' },
+        sobra: 1.025,
+        cor: '#17171c',
+        avesso: '#101014',
+        cor2: '#2f8a5e',
+        enfeite: ENFEITE.dragaoE,
+        folgaDoCorpo: 0.004,
+        dureza: 1,
+      }),
   },
   {
     id: 'tobi',
@@ -827,8 +1003,8 @@ export const TRAJES: Traje[] = [
       const cordoes = F.faixa(E + 0.003, 0.0255, 0.0315, 1.3, 1.44);
       const ponteiras = F.faixa(E + 0.0042, 0.024, 0.033, 1.282, 1.303);
       // (a faixa preta de frisos dourados fica na manga de pano)
-      const frisos = manga(PUNHO_DA_MEIA_MANGA - 0.004, PUNHO_DA_MEIA_MANGA + 0.0015, () => 0.0086);
-      const canelado = manga(PUNHO_DA_MEIA_MANGA, MEIA_MANGA, () => 0.007);
+      const frisos = manga(PUNHO_DA_MEIA_MANGA - 0.004, PUNHO_DA_MEIA_MANGA + 0.0015, () => PUNHO_CANELADO + 0.0012);
+      const canelado = manga(PUNHO_DA_MEIA_MANGA, MEIA_MANGA, () => PUNHO_CANELADO);
       return [
         { forma: moletom, cor: '#f1eee6', cor2: '#dba93a', enfeite: ENFEITE.dragao },
         { forma: unir(ziper, cordoes, barra), cor: PRETO, cor2: '#2a2932', enfeite: ENFEITE.canelado },
@@ -853,8 +1029,8 @@ export const TRAJES: Traje[] = [
         cols: 36,
         rows: 28,
         folga: (x) => {
-          const fim = degrau(0.43, PUNHO_DA_MEIA_MANGA + 0.014, x);
-          return (0.012 + 0.009 * degrau(0.195, 0.24, x) + 0.022 * degrau(0.28, 0.42, x)) * (1 - fim) + 0.0045 * fim;
+          const fim = degrau(0.43, PUNHO_DA_MEIA_MANGA + 0.002, x);
+          return (0.012 + 0.009 * degrau(0.195, 0.24, x) + 0.022 * degrau(0.28, 0.42, x)) * (1 - fim) + PONTA_NO_PUNHO * fim;
         },
         presas: 2,
         osso: 'braco',
@@ -964,10 +1140,11 @@ export const TRAJES: Traje[] = [
       const F = ferramentas();
       const E = 0.006;
       // a manga da batina, justa e reta até o punho (oca na boca: o punho branco aparece dentro dela)
-      const folga = (x: number) => 0.0062 + 0.0018 * degrau(0.5, 0.66, x);
-      const boca = FIM_DA_MANGA - 0.006;
+      const folga = (x: number) => 0.0062 - 0.0016 * degrau(0.5, 0.64, x);
+      const boca = FIM_DO_PUNHO - 0.011;
       const batina = fundir(F.tronco(E, 1.0, 1.45, undefined, COM_MANGA), [0.03, oca(manga(0.11, boca, folga), 0.6, boca, folga, 0.004)]);
-      const punho = manga(boca - 0.03, FIM_DA_MANGA + 0.006, () => 0.0042);
+      // (o punho da camisa: fino e justo, e acaba antes do pulso — veja `FIM_DO_PUNHO`)
+      const punho = manga(boca - 0.03, FIM_DO_PUNHO, bocaDoPunho);
       // o colarinho clerical: a gola em pé, preta, com o quadradinho branco na frente
       const gola = F.gola(E + 0.0025, 1.43, 1.478, 0);
       const aba = F.remendo(E + 0.0042, 0, 1.456, 0.0085, true);
@@ -981,7 +1158,7 @@ export const TRAJES: Traje[] = [
       const faixa = F.tronco(E + 0.003, 1.06, 1.125);
       return [
         { forma: batina, cor: '#1c1416' },
-        { forma: punho, cor: '#efe9df', doBraco: true },
+        { forma: punho, cor: '#efe9df', doBraco: true, beira: 0.005 },
         { forma: gola, cor: '#1c1416' },
         { forma: aba, cor: '#efe9df', fino: 0.6 },
         { forma: botoes, cor: '#0b0809', fino: 0.5 },
@@ -1159,7 +1336,7 @@ export const TRAJES: Traje[] = [
       // do moletom, o que acompanha o corpo é o tronco; a manga é pano solto, arriada (ver `panos`), e
       // o punho canelado a colhe a uns três quartos do antebraço
       const moletom = F.tronco(E, 1.0, 1.45, undefined, COM_MANGA);
-      const canelado = manga(PUNHO_DA_ZUZU - 0.04, PUNHO_DA_ZUZU, () => 0.0068);
+      const canelado = manga(PUNHO_DA_ZUZU - 0.04, PUNHO_DA_ZUZU, () => PUNHO_CANELADO);
       // o capuz posto na cabeça: uma casca entre a pele engordada de 1,8 e de 3 cm, aberta no rosto
       const fora = fundir(F.justa(0.03, [0, 1.6, -0.01], 0.2), [0.03, elipsoide([0, 1.5, -0.035], [0.095, 0.075, 0.085])]);
       const casca = cavar(fora, [0.002, F.justa(0.018, [0, 1.6, -0.01], 0.2)]);
@@ -1199,8 +1376,8 @@ export const TRAJES: Traje[] = [
         cols: 36,
         rows: 34,
         folga: (x) => {
-          const fim = degrau(0.47, PUNHO_DA_ZUZU - 0.026, x);
-          return (0.015 + 0.015 * degrau(0.2, 0.3, x)) * (1 - fim) + 0.0048 * fim;
+          const fim = degrau(0.47, PUNHO_DA_ZUZU - 0.038, x);
+          return (0.015 + 0.015 * degrau(0.2, 0.3, x)) * (1 - fim) + PONTA_NO_PUNHO * fim;
         },
         presas: 2,
         osso: 'braco',
@@ -1226,10 +1403,11 @@ export const TRAJES: Traje[] = [
       const aberto = (y: number) => 0.036 + 0.026 * degrau(1.2, 1.41, y);
       const p = paleto(F, E, aberto, 1.2, [0.09, 1.362]);
       // a manga: reta, amarrotada na dobra do cotovelo (pregas miúdas) e oca na boca, onde aparece o punho da camisa
-      const folga = (x: number) => 0.0072 + 0.0028 * degrau(0.5, 0.67, x) + 0.0022 * calombo(0.35, 0.53, x) * Math.sin((x - 0.35) * 190);
-      const boca = FIM_DA_MANGA - 0.004;
+      const folga = (x: number) => 0.0072 - 0.0022 * degrau(0.5, 0.64, x) + 0.0022 * calombo(0.35, 0.53, x) * Math.sin((x - 0.35) * 190);
+      const boca = FIM_DO_PUNHO - 0.011;
       const terno = fundir(p.corpo, [0.03, oca(manga(0.11, boca, folga, 0.006), 0.61, boca, folga, 0.004, 0.006)]);
-      const punho = manga(boca - 0.03, FIM_DA_MANGA + 0.007, () => 0.0042);
+      // (o punho da camisa: fino e justo, e acaba antes do pulso — veja `FIM_DO_PUNHO`)
+      const punho = manga(boca - 0.03, FIM_DO_PUNHO, bocaDoPunho);
       // a camisa: só o que aparece na abertura do paletó (e um pouco para dentro dela), com o
       // colarinho desabotoado — um V de pele no pescoço
       const decote = (y: number) => 0.021 * degrau(1.392, 1.448, y);
@@ -1256,7 +1434,7 @@ export const TRAJES: Traje[] = [
       return [
         { forma: terno, cor: '#1b1b20' },
         { forma: p.lapelas, cor: LAPELA },
-        { forma: punho, cor: CAMISA, doBraco: true },
+        { forma: punho, cor: CAMISA, doBraco: true, beira: 0.005 },
         // (malha mais fina, e a pele desenhada até debaixo da beirada: a boca do colarinho não sai serrilhada)
         { forma: camisa, cor: CAMISA, fino: 0.6, beira: 0.004 },
         { forma: colarinho, cor: CAMISA, fino: 0.5 },
@@ -1358,6 +1536,23 @@ function meioDedo(F: ReturnType<typeof ferramentas>, { cor, cor2, cor3 }: { cor:
 }
 
 /**
+ * A luva curta, a de motorista: inteira nos dedos, mas para na mão, antes da base dela — o pulso
+ * fica de fora. Tem
+ *  - o **entalhe** em V nas costas da mão, da boca para os nós (a pele aparece por ele);
+ *  - um **furo** oval em cima de cada nó, debruado;
+ *  - três costuras finas, de trás dos furos até a ponta do entalhe;
+ *  - a barra, um debrum estreito que dá a volta na boca e desce pelas beiradas do entalhe;
+ *  - e o botão de pressão ao lado dele, polido (`cor3`, com o lustro).
+ */
+function curta(F: ReturnType<typeof ferramentas>, { cor, cor2, cor3 }: { cor: string; cor2: string; cor3: string }): Peca[] {
+  return [
+    { forma: F.luva(0.0014, false, BOCA_DA_CURTA, false, 0.19, true), cor, beira: 0.0012, luva: true },
+    { forma: unir(F.barraDaCurta(0.0023), F.orlasDosFuros(0.0023), F.nervurasCurtas(0.0022)), cor: cor2, semCobrir: true, fino: 0.4, luva: true },
+    { forma: F.botaoDaCurta(0.0014), cor: cor3, enfeite: ENFEITE.lustro, semCobrir: true, fino: 0.35, luva: true },
+  ];
+}
+
+/**
  * As peças de uma luva escolhida pelo jogador:
  *  - `inteira`: a de passeio, com as três nervuras nas costas da mão;
  *  - `sem-dedos`: a de meio dedo (veja `meioDedo`);
@@ -1365,6 +1560,7 @@ function meioDedo(F: ReturnType<typeof ferramentas>, { cor, cor2, cor3 }: { cor:
  *    tala em cada dedo e a tira do pulso;
  *  - `renda`: inteira, de renda vazada (a pele aparece pelo desenho), com um punho liso;
  *  - `opera`: inteira e comprida, lisa, até o meio do antebraço, com uma bainha no alto;
+ *  - `curta`: a de motorista — inteira nos dedos, para na mão antes do pulso (veja `curta`);
  *  - `manopla`: a luva de armadura — a malha por baixo, placas em cada osso de cada dedo, a placa
  *    das costas da mão, a barra dos nós e o punho aberto em sino, com frisos de metal.
  */
@@ -1381,6 +1577,8 @@ export function pecasDaLuva(estilo: EstiloDeLuva): Peca[] {
       ];
     case 'sem-dedos':
       return meioDedo(F, { cor, cor2, cor3 });
+    case 'curta':
+      return curta(F, { cor, cor2, cor3 });
     case 'tatica':
       return [
         { forma: unir(F.luva(0.0022, true), manga(FIM_DA_MANGA - 0.004, PUNHO_X + 0.008, () => 0.0038)), cor, beira: 0.0012, luva: true },
@@ -1463,10 +1661,10 @@ export function pecasDoTraje(traje: Traje, luva?: LuvasDoTraje): Peca[] {
 }
 
 /** O traje tem luva? (Com ela, os anéis e a pulseira vão por cima do pano.) */
-export function trajeTemLuva(traje: Traje): 'nenhuma' | 'inteira' | 'sem-dedos' {
+export function trajeTemLuva(traje: Traje): 'nenhuma' | 'inteira' | 'sem-dedos' | 'curta' {
   return LUVA_DO_TRAJE[traje.id] ?? 'nenhuma';
 }
-const LUVA_DO_TRAJE: Record<string, 'inteira' | 'sem-dedos'> = { alistair: 'inteira', ren: 'inteira', marina: 'sem-dedos', tobi: 'sem-dedos', zuzu: 'sem-dedos' };
+const LUVA_DO_TRAJE: Record<string, 'inteira' | 'sem-dedos' | 'curta'> = { alistair: 'curta', ren: 'inteira', marina: 'sem-dedos', tobi: 'sem-dedos', zuzu: 'sem-dedos' };
 
 /**
  * Faz a roupa de um traje (as peças que acompanham o corpo; as soltas são os `panos` dele): a malha,

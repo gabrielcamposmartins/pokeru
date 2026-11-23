@@ -143,3 +143,65 @@ export function encaixar<T extends object>(kind: KindComponente, st: T, comp: Co
 export function cabeNoQueTem(kind: KindComponente, st: object, comp: Componentes): boolean {
   return JSON.stringify(encaixar(kind, st, comp)) === JSON.stringify(trocaCores(st, normaliza));
 }
+
+// ------------------------------------------------------------------ legibilidade: o naipe no fundo
+
+/** O contraste entre duas cores — a razão do WCAG: 1 são iguais, 21 é preto no branco. */
+export function contraste(a: string, b: string): number {
+  const lum = (c: string) => {
+    const rgb = rgbDe(c) ?? [0, 0, 0];
+    const [r, g, bl] = rgb.map((v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [claro, escuro] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (claro + 0.05) / (escuro + 0.05);
+}
+
+/**
+ * O contraste mínimo entre o naipe (e o número, e a letra da figura) e o fundo da carta. É o do WCAG
+ * para sinais grandes; a frente de série menos contrastada (a de quatro cores, com o ouro azul) fica
+ * em 3,2. Abaixo disto é o branco no branco, o preto no preto, o vermelho no vinho.
+ */
+export const CONTRASTE_MINIMO = 3;
+
+/** A cor se lê em todos estes fundos? (A frente tem dois: o degradê vai de um ao outro.) */
+export const seLe = (cor: string, fundos: readonly string[]): boolean => fundos.every((f) => contraste(cor, f) >= CONTRASTE_MINIMO);
+
+/** As duas cores de reserva, para quando nenhuma da paleta se lê no fundo. */
+const RESERVA = ['#1b1b24', '#fbf7ee'];
+
+interface FrenteComCores {
+  bg: string;
+  bgGradient: string;
+  suitColors: { s: string; h: string; d: string; c: string };
+  courtColor: string;
+  special?: string;
+}
+
+/**
+ * A frente com os naipes, os números e a letra da figura **legíveis** no fundo dela: cada cor que não
+ * se lê vira a mais parecida, da `paleta`, que se lê; sem nenhuma, a de reserva que contrasta mais
+ * (um quase preto ou um quase branco). O arco-íris fica como está: o fundo dele é a cor que anda.
+ *
+ * Roda no Estúdio (a cada mudança, com as cores da conta) e no servidor (a frente feita no Estúdio,
+ * antes de ir para a mesa dos outros): ninguém joga com o naipe sumido no papel.
+ */
+export function frenteLegivel<T extends FrenteComCores>(f: T, paleta: readonly string[] = []): T {
+  if (f.special === 'rainbow') return f;
+  const fundos = [f.bg, f.bgGradient];
+  const ajusta = (cor: string): string => {
+    if (seLe(cor, fundos)) return cor;
+    const boas = paleta.filter((c) => seLe(c, fundos));
+    if (boas.length) return corMaisProxima(cor, boas);
+    const minimo = (c: string) => Math.min(...fundos.map((x) => contraste(c, x)));
+    return RESERVA.reduce((a, b) => (minimo(b) > minimo(a) ? b : a));
+  };
+  const s = f.suitColors;
+  const suitColors = { s: ajusta(s.s), h: ajusta(s.h), d: ajusta(s.d), c: ajusta(s.c) };
+  const courtColor = ajusta(f.courtColor);
+  const mudou = courtColor !== f.courtColor || (Object.keys(s) as (keyof typeof s)[]).some((k) => suitColors[k] !== s[k]);
+  return mudou ? { ...f, suitColors, courtColor } : f;
+}

@@ -165,6 +165,7 @@ const ROLETA_DE: Record<string, 'flores' | 'dragao'> = {
   'acessorio:pulseira-argolas': 'flores',
   'acessorio:luva-meio-dedo-branca': 'flores',
   'acessorio:luva-renda': 'flores',
+  'acessorio:luva-motorista': 'flores',
   'acessorio:esmalte-degrade': 'flores',
   // incomum
   'acessorio:pulseira-perolas': 'flores',
@@ -272,6 +273,7 @@ const ROLETA_DE: Record<string, 'flores' | 'dragao'> = {
   'face:face-victorian': 'dragao',
   'back:back-victorian': 'dragao',
   'table:table-victorian-wine': 'dragao',
+  'table:table-wood': 'dragao',
   'gift:fone': 'dragao',
   // incomum
   'aura:shurikens': 'dragao',
