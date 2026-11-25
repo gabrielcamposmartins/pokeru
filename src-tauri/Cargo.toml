@@ -1,6 +1,6 @@
 [package]
 name = "pokeru"
-version = "0.9.22"
+version = "0.9.23"
 description = "Pokeru — poker 2D multiplayer"
 authors = ["Pokeru"]
 edition = "2021"
