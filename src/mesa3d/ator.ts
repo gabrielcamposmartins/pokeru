@@ -587,7 +587,9 @@ export class Ator {
       this.assentados += 4;
     } else {
       for (const { pano } of this.panos) {
-        pano.passo(Math.min(this.semPano, 1 / 15), this.mesaDoPano);
+        // (o tempo que não cabe no passo, o pano atravessa levado pelos ossos: veja `Pano.passo`)
+        const dtDoPasso = Math.min(this.semPano, 1 / 15);
+        pano.passo(dtDoPasso, this.mesaDoPano, this.semPano > 0 ? 1 - dtDoPasso / this.semPano : 0);
         pano.atualizar();
       }
       this.semMexer++;

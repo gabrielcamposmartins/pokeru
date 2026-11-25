@@ -605,6 +605,13 @@ interface Tubo {
   /** A folga entre o pano e o corpo. */
   folgaDoCorpo?: number;
 }
+/**
+ * Onde fica o cotovelo, ao longo do braço, e a quebra que a manga engomada faz ali: o quanto amolece e
+ * a meia-largura. (Estreita e ainda com alguma firmeza: mais larga e mais mole, o pano que sobra na
+ * manga juntava todo ali, num rolo em volta do cotovelo.)
+ */
+const COTOVELO_X = 0.432;
+const QUEBRA_DO_COTOVELO = { quanto: 0.85, meia: 0.04 };
 /** Um tubo de pano em volta do braço, dos dois lados do corpo: uma manga solta, uma manga arriada, um babado. */
 function tubos(o: Tubo): DefDePano[] {
   return LADOS.map((l): DefDePano => {
@@ -644,6 +651,8 @@ function tubos(o: Tubo): DefDePano[] {
       colisores: colisoresDoCorpo(),
       folga: o.folgaDoCorpo ?? 0.006,
       dureza: o.dureza,
+      // a manga engomada quebra no cotovelo: ali ela dobra como pano comum (o resto fica liso)
+      dobra: (o.dureza ?? 0) > 1 && o.de < COTOVELO_X && o.ate > COTOVELO_X ? (_c, r) => 1 - QUEBRA_DO_COTOVELO.quanto * calombo(COTOVELO_X - QUEBRA_DO_COTOVELO.meia, COTOVELO_X + QUEBRA_DO_COTOVELO.meia, xDe(r)) : undefined,
     };
   });
 }
@@ -850,12 +859,13 @@ export const TRAJES: Traje[] = [
         presas: 2,
         osso: 'braco',
         fim: { presas: 2, osso: 'antebraco' },
-        // (dois por cento de pano a mais, e encorpado: dobras largas no cotovelo, e não o braço todo amassado)
+        // (dois por cento de pano a mais, e engomado: uma quebra larga no cotovelo, e não o braço todo
+        // amassado — mas é pano: cai, acompanha o gesto e pousa na mesa, não é uma peça rígida)
         sobra: 1.02,
         cor: '#f4f1ec',
         avesso: '#dcd8d0',
         folgaDoCorpo: 0.003,
-        dureza: 0.6,
+        dureza: 2,
       }),
     ],
   },
@@ -982,7 +992,8 @@ export const TRAJES: Traje[] = [
         cor2: '#2f8a5e',
         enfeite: ENFEITE.dragaoE,
         folgaDoCorpo: 0.004,
-        dureza: 1,
+        // (engomado, como a camisa do Alistair: quase não amassa, e dobra numa quebra larga no cotovelo)
+        dureza: 2,
       }),
   },
   {

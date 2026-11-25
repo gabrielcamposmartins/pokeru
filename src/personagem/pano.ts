@@ -57,8 +57,18 @@ export interface DefDePano {
   colisores: DefDeColisor[];
   /** A folga entre o pano e aquilo de que ele desvia (a roupa que há por baixo). */
   folga?: number;
-  /** O quanto o pano resiste a dobrar (0 = mole, 1 = duro; acima de 0,5 é pano encorpado, de jaqueta). */
+  /**
+   * O quanto o pano resiste a dobrar: 0 = mole; acima de 0,5 é pano encorpado, de jaqueta; 1 = duro; e
+   * de 1 a 2 é pano engomado, de camisa social — quase não amassa, dobra só em curvas largas, e ainda
+   * assim cai, balança e pousa (não é uma peça rígida).
+   */
   dureza?: number;
+  /**
+   * Onde o pano dobra mais fácil do que a dureza dele diz (de 0 a 1, ponto a ponto; 1 = a dureza
+   * inteira): a quebra de uma manga engomada no cotovelo. Sem ela o tubo duro não tem por onde
+   * dobrar, e corta caminho por dentro do braço.
+   */
+  dobra?: (c: number, r: number) => number;
 }
 
 /**
@@ -80,6 +90,25 @@ const AMORTECE = 0.9;
  * balançando como ao vento.
  */
 const MIUDOS = 12;
+/**
+ * O quanto o corpo pode andar num passo miúdo (em metros), e o teto dos passos miúdos de um passo. Num
+ * passo comprido (o ajudante atrasado numa mesa cheia) o braço anda vários centímetros de uma vez; com
+ * os passos miúdos contados só pelo tempo, cada um levava o braço alguns milímetros, os elásticos não
+ * acompanhavam, e o pano esticava em volta do cotovelo até uma dobra dele atravessar o braço. Um gesto
+ * rápido ganha mais passos miúdos — só ele: o pano parado, ou o braço devagar, custam o de sempre.
+ * (Dividir o tempo todo em passos miúdos do mesmo tamanho também resolve, mas custa o dobro bem na hora
+ * em que o ajudante já não dá conta, e o pano passa a andar poucas vezes por segundo.)
+ */
+const ANDA_POR_MIUDO = 0.001;
+const MIUDOS_NO_MAXIMO = 4 * MIUDOS;
+/**
+ * A rede de segurança das mangas: de quantos em quantos passos se confere se o braço saiu pela parede
+ * da manga, quantos passos ela assenta depois de recomeçar do lugar, e por quantos passos a
+ * conferência descansa quando nem recomeçando ela volta para o braço (para não ficar pulando).
+ */
+const CONFERE_A_CADA = 6;
+const ASSENTA_O_REMENDO = 24;
+const DESCANSA_O_REMENDO = 600;
 /** O atrito do pano no que ele encosta (o coeficiente de Coulomb). */
 const ATRITO = 0.4;
 /** A velocidade máxima de um ponto, em metros por segundo (segura um pulo grande demais). */
@@ -89,9 +118,16 @@ const VELOCIDADE_MAXIMA = 1.5;
  * o próprio tremor (os pontos deixam de ir cada um para um lado) sem deixar de acompanhar o braço.
  */
 const FREIO_INTERNO = 0.1;
-/** A força dos elásticos de dobrar: os curtos (no máximo) e, num pano encorpado, os longos (alcance e força). */
+/**
+ * A força dos elásticos de dobrar: os curtos (no máximo; num pano engomado, o máximo deles) e, num pano
+ * encorpado, os longos (alcance e força). O pano engomado (dureza acima de 1) tem os mesmos elásticos,
+ * mais fortes — os mesmos, e não outros a mais: o passo dele custa o que custa o do pano encorpado.
+ */
 const DOBRA_CURTA = 0.4;
+const DOBRA_CURTA_ENGOMADA = 0.75;
 const DOBRAS_LONGAS: [number, number][] = [[4, 0.3], [6, 0.2]];
+/** O teto da força de um elástico longo (o do pano engomado chega perto dele). */
+const DOBRA_LONGA_NO_MAXIMO = 0.9;
 /** O raio da quina arredondada da mesa, para o pano. */
 const QUINA = 0.008;
 /**
@@ -150,6 +186,16 @@ export class Pano {
   private readonly vivo: Uint8Array;
   private readonly presos: Atado[] = [];
   private readonly guias: Atado[] = [];
+  /** Os ossos-guia (sem repetir), o de cada ponto (-1: nenhum) e onde cada um estava no passo anterior. */
+  private readonly ossosGuia: THREE.Bone[] = [];
+  private readonly guiaDe: Int32Array;
+  private guiasAntes = new Float64Array(0);
+  /** Numa manga (um tubo em volta do braço): as cápsulas do braço que ela veste. */
+  private readonly doBraco: number[] = [];
+  private semConferir = 0;
+  private remendando = false;
+  /** Quantas vezes a manga teve de recomeçar do lugar, com o braço fora dela (para conferir de fora). */
+  remendos = 0;
   private readonly ligas: number[] = [];
   private readonly comprimento: number[] = [];
   private readonly forca: number[] = [];
@@ -185,6 +231,7 @@ export class Pano {
     this.normais = new Float32Array(this.n * 3);
     this.solto = new Uint8Array(this.n);
     this.vivo = new Uint8Array(this.n);
+    this.guiaDe = new Int32Array(this.n).fill(-1);
     const i = (c: number, r: number) => r * cols + (((c % cols) + cols) % cols);
     const repousos = new Map<string, THREE.Vector3>();
     const noRepouso = (osso: string) => {
@@ -214,6 +261,9 @@ export class Pano {
         else this.solto[k] = 1;
         const guia = def.guia(c, r);
         this.guias.push({ i: k, osso: b.osso(guia), local: new THREE.Vector3(...p).sub(noRepouso(guia)) });
+        let g = this.ossosGuia.indexOf(b.osso(guia));
+        if (g < 0) g = this.ossosGuia.push(b.osso(guia)) - 1;
+        this.guiaDe[k] = g;
         cores.set(rgb(def.pinta?.(c, r) ?? def.cor), k * 3);
         avessos.set(avesso, k * 3);
         cores2.set(cor2, k * 3);
@@ -243,23 +293,34 @@ export class Pano {
         // os elásticos de dobrar, de dois em dois. (Nunca no máximo: o pano que sobra numa manga
         // arriada não tem como obedecer a todos os elásticos ao mesmo tempo, e com eles no máximo
         // fica brigando sem parar.)
-        const curta = Math.min(DOBRA_CURTA, dureza);
-        if ((fechado || c + 2 < cols) && this.vivo[i(c + 1, r)]) liga(i(c, r), i(c + 2, r), curta);
-        if (r + 2 < rows && this.vivo[i(c, r + 1)]) liga(i(c, r), i(c, r + 2), curta);
+        const engomado = Math.max(0, Math.min(1, dureza - 1));
+        const curta = Math.min(DOBRA_CURTA, dureza) + (DOBRA_CURTA_ENGOMADA - DOBRA_CURTA) * engomado;
+        // (um elástico de dobrar vale o que vale o ponto mais mole por onde ele passa)
+        const maisMole = (dc: number, dr: number, passo: number) => {
+          if (!def.dobra) return 1;
+          let m = 1;
+          for (let k = 0; k <= passo; k++) m = Math.min(m, def.dobra((((c + dc * k) % cols) + cols) % cols, r + dr * k));
+          return m;
+        };
+        if ((fechado || c + 2 < cols) && this.vivo[i(c + 1, r)]) liga(i(c, r), i(c + 2, r), curta * maisMole(1, 0, 2));
+        if (r + 2 < rows && this.vivo[i(c, r + 1)]) liga(i(c, r), i(c, r + 2), curta * maisMole(0, 1, 2));
         // um pano encorpado (uma jaqueta) resiste também a dobras mais abertas: elásticos mais longos,
         // de quatro em quatro e de seis em seis, mais fracos. É o alcance deles, mais do que a força,
         // que deixa o pano rígido: ele só dobra em curvas largas.
         if (dureza > 0.5) {
           for (const [passo, quanto] of DOBRAS_LONGAS) {
             const todos = Array.from({ length: passo - 1 }, (_, k) => k + 1);
-            if ((fechado || c + passo < cols) && todos.every((k) => this.vivo[i(c + k, r)])) liga(i(c, r), i(c + passo, r), quanto * dureza);
-            if (r + passo < rows && todos.every((k) => this.vivo[i(c, r + k)])) liga(i(c, r), i(c, r + passo), quanto * dureza);
+            if ((fechado || c + passo < cols) && todos.every((k) => this.vivo[i(c + k, r)])) liga(i(c, r), i(c + passo, r), Math.min(DOBRA_LONGA_NO_MAXIMO, quanto * dureza) * maisMole(1, 0, passo));
+            if (r + passo < rows && todos.every((k) => this.vivo[i(c, r + k)])) liga(i(c, r), i(c, r + passo), Math.min(DOBRA_LONGA_NO_MAXIMO, quanto * dureza) * maisMole(0, 1, passo));
           }
         }
       }
     }
+    // (o braço de uma manga: as cápsulas que saem de um osso-guia dela — o braço e o antebraço)
+    const guiasDoTubo = new Set(fechado ? this.ossosGuia.map((o) => o.name) : []);
     for (const col of def.colisores) {
       if (col.tipo === 'capsula') {
+        if (guiasDoTubo.has(col.ossoA) && /^(braco|antebraco)\./.test(col.ossoA)) this.doBraco.push(this.capsulas.length);
         this.capsulas.push({
           a: { osso: b.osso(col.ossoA), local: new THREE.Vector3(...col.a).sub(noRepouso(col.ossoA)) },
           b: { osso: b.osso(col.ossoB), local: new THREE.Vector3(...col.b).sub(noRepouso(col.ossoB)) },
@@ -274,6 +335,7 @@ export class Pano {
     this.pinosAgora = new Float64Array(this.presos.length * 3);
     this.pontasAntes = new Float64Array(this.capsulas.length * 6);
     this.pontasAgora = new Float64Array(this.capsulas.length * 6);
+    this.guiasAntes = new Float64Array(this.ossosGuia.length * 16);
     // a malha: dois triângulos por quadrado da grade
     const idx: number[] = [];
     for (let r = 0; r + 1 < rows; r++) {
@@ -299,8 +361,16 @@ export class Pano {
     this.atualizar();
   }
 
-  /** Um passo de `dt` segundos, com os ossos como estão agora (as matrizes deles em dia). `mesa`: a mesa, se há. */
-  passo(dt: number, mesa: MesaDoPano | null) {
+  /**
+   * Um passo de `dt` segundos, com os ossos como estão agora (as matrizes deles em dia). `mesa`: a mesa, se há.
+   *
+   * `salto` (de 0 a 1): a parte do movimento dos ossos, desde o passo anterior, que aconteceu num
+   * tempo que não vai ser simulado (o ajudante atrasou, e do tempo que passou só `dt` cabe no passo).
+   * Nessa parte o pano não cai nem balança: vai junto com o osso-guia de cada ponto, como se estivesse
+   * costurado nele, e o passo simula só o resto. Sem isso o braço andaria, em `dt`, o caminho de um
+   * tempo bem maior — rápido demais para o pano acompanhar, e a manga ficava para trás, furada.
+   */
+  passo(dt: number, mesa: MesaDoPano | null, salto = 0) {
     const { x, antes, solto, folga, n } = this;
     const v = new THREE.Vector3();
     // onde os pontos presos e as cápsulas estão agora; durante o passo, vão de onde estavam até aqui
@@ -320,7 +390,30 @@ export class Pano {
       this.pinosAntes.set(this.pinosAgora);
       this.pontasAntes.set(this.pontasAgora);
       this.semHistoria = false;
+    } else if (salto > 0) {
+      // o corpo começa o passo já adiante, e o pano vai com ele: cada ponto solto anda o que o
+      // osso-guia dele andou (a mesma fração do caminho)
+      const f = Math.min(1, salto);
+      for (let k = 0; k < this.pinosAntes.length; k++) this.pinosAntes[k] += (this.pinosAgora[k] - this.pinosAntes[k]) * f;
+      for (let k = 0; k < this.pontasAntes.length; k++) this.pontasAntes[k] += (this.pontasAgora[k] - this.pontasAntes[k]) * f;
+      const de = new THREE.Matrix4();
+      const levam = this.ossosGuia.map((osso, g) => new THREE.Matrix4().multiplyMatrices(osso.matrixWorld, de.fromArray(this.guiasAntes, g * 16).invert()));
+      for (let k = 0; k < n; k++) {
+        if (!solto[k] || this.guiaDe[k] < 0) continue;
+        const o = k * 3;
+        v.set(x[o], x[o + 1], x[o + 2]).applyMatrix4(levam[this.guiaDe[k]]);
+        const dx = (v.x - x[o]) * f;
+        const dy = (v.y - x[o + 1]) * f;
+        const dz = (v.z - x[o + 2]) * f;
+        x[o] += dx;
+        x[o + 1] += dy;
+        x[o + 2] += dz;
+        antes[o] += dx;
+        antes[o + 1] += dy;
+        antes[o + 2] += dz;
+      }
     }
+    this.ossosGuia.forEach((osso, g) => this.guiasAntes.set(osso.matrixWorld.elements, g * 16));
     // os elipsoides: a matriz que leva do mundo para dentro deles, e a de volta
     const nc = this.capsulas.length;
     const ne = this.elipsoides.length;
@@ -364,7 +457,21 @@ export class Pano {
     const ncp = capsulasPerto.length;
     const nep = elipsoidesPerto.length;
 
-    const miudos = Math.max(6, Math.min(2 * MIUDOS, Math.round(dt * 60 * MIUDOS)));
+    // o quanto o corpo andou neste passo, perto do pano (as pontas das cápsulas e os pontos presos)
+    let andou = 0;
+    for (let j = 0; j < ncp; j++) {
+      const o = capsulasPerto[j] * 6;
+      for (let e = 0; e < 6; e += 3) {
+        const d = Math.hypot(this.pontasAgora[o + e] - this.pontasAntes[o + e], this.pontasAgora[o + e + 1] - this.pontasAntes[o + e + 1], this.pontasAgora[o + e + 2] - this.pontasAntes[o + e + 2]);
+        if (d > andou) andou = d;
+      }
+    }
+    for (let k = 0; k < this.pinosAgora.length; k += 3) {
+      const d = Math.hypot(this.pinosAgora[k] - this.pinosAntes[k], this.pinosAgora[k + 1] - this.pinosAntes[k + 1], this.pinosAgora[k + 2] - this.pinosAntes[k + 2]);
+      if (d > andou) andou = d;
+    }
+    const peloTempo = Math.max(6, Math.min(2 * MIUDOS, Math.round(dt * 60 * MIUDOS)));
+    const miudos = Math.max(peloTempo, Math.min(MIUDOS_NO_MAXIMO, Math.ceil(andou / ANDA_POR_MIUDO)));
     const h = dt / miudos;
     const cai = GRAVIDADE * h * h;
     const freio = Math.pow(AMORTECE, (dt * 60) / miudos);
@@ -618,6 +725,77 @@ export class Pano {
       }
     }
     this.pos.set(x);
+    // a rede de segurança: se, apesar de tudo, o braço saiu pela parede da manga, ela recomeça do
+    // lugar e assenta — um pulo, em vez de a manga ficar pendurada ao lado do braço até o fim da mão
+    if (this.doBraco.length && !this.remendando && ++this.semConferir >= CONFERE_A_CADA) {
+      this.semConferir = 0;
+      if (this.furada()) {
+        this.remendando = true;
+        this.remendos++;
+        this.recolocar();
+        this.assentar(mesa, ASSENTA_O_REMENDO);
+        this.remendando = false;
+        if (this.furada()) this.semConferir = -DESCANSA_O_REMENDO;
+      }
+    }
+  }
+
+  /**
+   * O braço saiu da manga? Numa manga (um tubo), o braço entra por uma boca e sai pela outra: o eixo
+   * dele não atravessa o pano. Se atravessa um número ímpar de vezes, ele saiu pela parede e não
+   * voltou: a mão está do lado de fora. (Um número par é uma dobra do pano que entrou no braço e saiu
+   * do outro lado — o braço continua dentro da manga, e numa manga folgada isso nem se vê.)
+   */
+  furada(): boolean {
+    return this.furos() % 2 === 1;
+  }
+
+  /** Quantas vezes o eixo do braço atravessa o pano da manga dele (veja `furada`). */
+  furos(): number {
+    const { pos, indices } = this;
+    const v = new THREE.Vector3();
+    let quantos = 0;
+    for (const k of this.doBraco) {
+      const c = this.capsulas[k];
+      v.copy(c.a.local).applyMatrix4(c.a.osso.matrixWorld);
+      const ax = v.x;
+      const ay = v.y;
+      const az = v.z;
+      v.copy(c.b.local).applyMatrix4(c.b.osso.matrixWorld);
+      const ex = v.x - ax;
+      const ey = v.y - ay;
+      const ez = v.z - az;
+      for (let t = 0; t < indices.length; t += 3) {
+        const a = indices[t] * 3;
+        const b = indices[t + 1] * 3;
+        const d = indices[t + 2] * 3;
+        // (Möller–Trumbore: o segmento do eixo contra o triângulo)
+        const e1x = pos[b] - pos[a];
+        const e1y = pos[b + 1] - pos[a + 1];
+        const e1z = pos[b + 2] - pos[a + 2];
+        const e2x = pos[d] - pos[a];
+        const e2y = pos[d + 1] - pos[a + 1];
+        const e2z = pos[d + 2] - pos[a + 2];
+        const hx = ey * e2z - ez * e2y;
+        const hy = ez * e2x - ex * e2z;
+        const hz = ex * e2y - ey * e2x;
+        const det = e1x * hx + e1y * hy + e1z * hz;
+        if (det > -1e-14 && det < 1e-14) continue;
+        const sx = ax - pos[a];
+        const sy = ay - pos[a + 1];
+        const sz = az - pos[a + 2];
+        const u = (sx * hx + sy * hy + sz * hz) / det;
+        if (u < 0 || u > 1) continue;
+        const qx = sy * e1z - sz * e1y;
+        const qy = sz * e1x - sx * e1z;
+        const qz = sx * e1y - sy * e1x;
+        const w = (ex * qx + ey * qy + ez * qz) / det;
+        if (w < 0 || u + w > 1) continue;
+        const onde = (e2x * qx + e2y * qy + e2z * qz) / det;
+        if (onde >= 0 && onde <= 1) quantos++;
+      }
+    }
+    return quantos;
   }
 
   /**

@@ -20,7 +20,11 @@ export function podeSimularFora(): boolean {
   return typeof Worker !== 'undefined' && typeof window !== 'undefined';
 }
 
-/** O passo mais comprido que se pede de uma vez (segundos): o que passar disso, o pano não anda. */
+/**
+ * O passo mais comprido que se pede de uma vez (segundos). O tempo que passar disso não é simulado: o
+ * pano atravessa-o levado pelos ossos (o `salto` de `Pano.passo`), em vez de ver o braço andar, num
+ * passo, o caminho de um tempo bem maior.
+ */
 const PASSO_MAXIMO = 1 / 15;
 
 export class PanosRemotos {
@@ -68,7 +72,8 @@ export class PanosRemotos {
     if (this.esperando || this.falhou) return false;
     const ossos = this.ossos();
     this.esperando = true;
-    this.pedir({ tipo: 'passo', ossos, dt: Math.min(this.acumulado, PASSO_MAXIMO), mesa }, [ossos.buffer]);
+    const dtDoPasso = Math.min(this.acumulado, PASSO_MAXIMO);
+    this.pedir({ tipo: 'passo', ossos, dt: dtDoPasso, salto: this.acumulado > 0 ? 1 - dtDoPasso / this.acumulado : 0, mesa }, [ossos.buffer]);
     this.acumulado = 0;
     return true;
   }

@@ -17,6 +17,8 @@ export type PedidoDePano =
       /** As matrizes dos ossos no mundo, uma atrás da outra (16 números cada), na ordem do esqueleto. */
       ossos: Float32Array;
       dt: number;
+      /** A parte do movimento dos ossos que aconteceu num tempo que não cabe em `dt` (veja `Pano.passo`). */
+      salto?: number;
       mesa: MesaDoPano | null;
       /** Recomeça de onde os ossos estão (a primeira pose, ou depois de um pulo). */
       recolocar?: boolean;
@@ -53,7 +55,7 @@ self.onmessage = (e: MessageEvent<PedidoDePano>) => {
   for (const p of panos) {
     if (m.recolocar) p.recolocar();
     if (m.assentar) p.assentar(m.mesa, m.assentar);
-    else p.passo(m.dt, m.mesa);
+    else p.passo(m.dt, m.mesa, m.salto ?? 0);
     p.atualizar();
   }
   const pos = panos.map((p) => p.pos.slice());

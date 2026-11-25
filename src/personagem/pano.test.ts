@@ -184,4 +184,88 @@ describe('o pano solto da roupa', () => {
       expect(paraFora).toBe(d.cols);
     }
   });
+
+  it('num passo comprido, com o ajudante atrasado, o braço do Goro continua dentro da manga', () => {
+    // (era o defeito da mesa cheia: o passo do pano dobrava de tamanho, o pano cedia, e o braço saía
+    // pela parede da manga e ficava de fora. Aqui o ajudante atrasa: cada passo simula 1/15 s e a
+    // animação anda 0,15 s — o resto do caminho o pano faz levado pelos ossos)
+    const estadio: MesaDoPano = { y: MESA, alto: 0.6, estadio: { a: [-0.55, 0.74], b: [0.55, 0.74], raio: 0.62 } };
+    for (const [id, anda] of [['fichas', 0.15], ['ganhar', 0.3]] as const) {
+      const clipe = clipes.find((c) => c.id === id)!;
+      const mangas = ['manga.E', 'manga.D'].map((nome) => new Pano(b, def('goro', nome)));
+      aplicar(b, clipe, 0);
+      b.raiz.updateMatrixWorld(true);
+      for (const m of mangas) {
+        m.recolocar();
+        m.assentar(estadio, 60);
+      }
+      let furadas = 0;
+      for (let t = 0; t < clipe.dur; t += anda) {
+        aplicar(b, clipe, t);
+        b.raiz.updateMatrixWorld(true);
+        for (const m of mangas) {
+          m.passo(1 / 15, estadio, 1 - 1 / 15 / anda);
+          if (m.furada()) furadas++;
+        }
+      }
+      expect(furadas).toBe(0);
+      // (e sem precisar da rede de segurança)
+      expect(mangas.reduce((n, m) => n + m.remendos, 0)).toBe(0);
+    }
+  });
+
+  it('recomeçada do lugar, a manga fica sempre em volta do braço (é do que a rede de segurança depende)', () => {
+    for (const traje of ['goro', 'alistair', 'zuzu']) {
+      const manga = new Pano(b, def(traje, 'manga.D'));
+      for (const id of ['fichas', 'olhar', 'entregar', 'idle-sobrepostas']) {
+        const clipe = clipes.find((c) => c.id === id)!;
+        for (let t = 0; t < clipe.dur; t += 0.7) {
+          aplicar(b, clipe, t);
+          b.raiz.updateMatrixWorld(true);
+          manga.recolocar();
+          expect(manga.furada()).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('a rede de segurança: a manga que ficou com o braço de fora recomeça do lugar', () => {
+    const manga = new Pano(b, def('goro', 'manga.D'));
+    naMesa(manga);
+    expect(manga.furada()).toBe(false);
+    // tira a manga do braço à força: o pano inteiro um palmo para cima, com o braço por baixo dele
+    const x = (manga as unknown as { x: Float64Array; antes: Float64Array }).x;
+    const antes = (manga as unknown as { x: Float64Array; antes: Float64Array }).antes;
+    for (let k = 0; k < manga.n; k++) {
+      if (!manga.livre(k)) continue;
+      x[k * 3 + 1] += 0.22;
+      antes[k * 3 + 1] += 0.22;
+    }
+    manga.pos.set(x);
+    expect(manga.furada()).toBe(true);
+    for (let k = 0; k < 8; k++) manga.passo(1 / 60, mesa);
+    expect(manga.remendos).toBe(1);
+    expect(manga.furada()).toBe(false);
+    inteiro(manga);
+  });
+
+  it('o pano engomado (dureza de 1 a 2) tem os mesmos elásticos, mais fortes, e a manga dele quebra no cotovelo', () => {
+    const d = def('alistair', 'manga.E');
+    expect(d.dureza).toBeGreaterThan(1);
+    // (os mesmos elásticos: o passo do pano engomado custa o que custa o do encorpado)
+    const elasticos = (dureza: number) => (new Pano(b, { ...d, dobra: undefined, dureza }) as unknown as { forca: number[] }).forca;
+    expect(elasticos(2).length).toBe(elasticos(1).length);
+    const soma = (f: number[]) => f.reduce((t, x) => t + x, 0);
+    expect(soma(elasticos(2))).toBeGreaterThan(soma(elasticos(1)) * 1.15);
+    // no cotovelo (a 0,432 m ao longo do braço) ela dobra como pano comum; longe dele, com a dureza inteira
+    const noCotovelo = Math.round(((0.432 - 0.15) / (0.618 - 0.15)) * (d.rows - 1));
+    expect(d.dobra!(0, noCotovelo)).toBeLessThan(0.3);
+    expect(d.dobra!(0, 4)).toBe(1);
+    expect(d.dobra!(0, d.rows - 4)).toBe(1);
+    // e assenta na mesa inteira, como os outros
+    const pano = new Pano(b, d);
+    naMesa(pano);
+    inteiro(pano);
+    expect(pano.furada()).toBe(false);
+  });
 });
